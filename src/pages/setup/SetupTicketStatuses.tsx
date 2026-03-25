@@ -1,0 +1,251 @@
+import { useState } from "react";
+import { DataTablePage } from "@/components/shared/DataTablePage";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supportService } from "@/api/services/support.service";
+import { toast } from "sonner";
+import { useRef } from "react";
+
+export default function SetupTicketStatuses() {
+  const colorInputRef = useRef<HTMLInputElement>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    color: "#757575",
+    statusorder: 0,
+  });
+
+  const queryClient = useQueryClient();
+
+  const { data: statuses = [], isLoading } = useQuery({
+    queryKey: ["ticket-statuses"],
+    queryFn: async () => {
+      try {
+        const response = await supportService.getTicketStatuses();
+        return Array.isArray(response) ? response : [];
+      } catch (error) {
+        console.error("Error fetching ticket statuses:", error);
+        return [];
+      }
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => supportService.createTicketStatus(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ticket-statuses"] });
+      toast.success("Ticket status created successfully");
+      closeModal();
+    },
+    onError: () => toast.error("Failed to create ticket status"),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      supportService.updateTicketStatus(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ticket-statuses"] });
+      toast.success("Ticket status updated successfully");
+      closeModal();
+    },
+    onError: () => toast.error("Failed to update ticket status"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => supportService.deleteTicketStatus(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ticket-statuses"] });
+      toast.success("Ticket status deleted successfully");
+    },
+    onError: () => toast.error("Failed to delete ticket status"),
+  });
+
+  const openModal = (status?: any) => {
+    if (status) {
+      setEditingId(status._id);
+      setFormData({
+        name: status.name || "",
+        color: status.color || "#757575",
+        statusorder: status.statusorder || 0,
+      });
+    } else {
+      setEditingId(null);
+      setFormData({
+        name: "",
+        color: "#757575",
+        statusorder: statuses.length + 1,
+      });
+    }
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setEditingId(null);
+  };
+
+  const handleSave = () => {
+    if (!formData.name) {
+      toast.error("Status name is required");
+      return;
+    }
+
+    if (editingId) {
+      updateMutation.mutate({ id: editingId, data: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  return (
+    <>
+      <DataTablePage
+        title="Ticket Statuses"
+        subtitle="Define workflow statuses and display order for support tickets"
+        addLabel="Add Status"
+        onAdd={() => openModal()}
+        onRefresh={() =>
+          queryClient.invalidateQueries({ queryKey: ["ticket-statuses"] })
+        }
+        isLoading={isLoading}
+        data={statuses}
+        onEdit={(s) => openModal(s)}
+        onDelete={(s) => {
+          if (confirm("Are you sure you want to delete this status?")) {
+            deleteMutation.mutate(s._id);
+          }
+        }}
+        columns={[
+          {
+            key: "name",
+            label: "Ticket Status Name",
+            className: "font-medium text-[#1a2b3c]",
+            render: (s) => (
+              <div className="flex flex-col">
+                <span className="font-semibold">{s.name}</span>
+                <span className="text-[11px] text-muted-foreground">
+                  Total 0
+                </span>
+              </div>
+            ),
+          },
+          {
+            key: "color",
+            label: "Color",
+            render: (s) => (
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: s.color || "#757575" }}
+                />
+                <span className="text-xs font-mono">{s.color}</span>
+              </div>
+            ),
+          },
+        ]}
+      />
+
+      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+        <DialogContent className="sm:max-w-[425px] p-0 overflow-hidden rounded-xl">
+          <DialogHeader className="px-6 py-4 border-b">
+            <DialogTitle className="text-lg font-semibold text-gray-800">
+              {editingId ? "Edit Ticket Status" : "Add Ticket Status"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">
+                <span className="text-red-500 mr-1">*</span>Ticket Status Name
+              </label>
+              <Input
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                className="h-10 border-gray-300 focus:ring-1 focus:ring-primary text-gray-800"
+                placeholder="e.g. In Progress"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">
+                Pick Color
+              </label>
+              <div className="flex gap-2 relative">
+                <Input
+                  value={formData.color}
+                  onChange={(e) =>
+                    setFormData({ ...formData, color: e.target.value })
+                  }
+                  className="h-10 border-gray-300 focus:ring-1 focus:ring-primary text-gray-800 font-mono"
+                  placeholder="#000000"
+                />
+                <div
+                  className="w-10 h-10 rounded-md border border-gray-300 shadow-sm shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/20 transition-all flex items-center justify-center overflow-hidden"
+                  style={{ backgroundColor: formData.color }}
+                  onClick={() => colorInputRef.current?.click()}
+                >
+                  <input
+                    ref={colorInputRef}
+                    type="color"
+                    value={
+                      formData.color.startsWith("#")
+                        ? formData.color
+                        : "#757575"
+                    }
+                    onChange={(e) =>
+                      setFormData({ ...formData, color: e.target.value })
+                    }
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">
+                Status Order
+              </label>
+              <Input
+                type="number"
+                value={formData.statusorder}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    statusorder: parseInt(e.target.value) || 0,
+                  })
+                }
+                className="h-10 border-gray-300 focus:ring-1 focus:ring-primary text-gray-800"
+              />
+            </div>
+          </div>
+          <DialogFooter className="px-6 py-4 bg-gray-50 flex items-center justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={closeModal}
+              className="bg-white border-gray-300 text-gray-700 hover:bg-gray-100 px-6 h-10 font-medium"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={handleSave}
+              className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white px-8 h-10 font-medium"
+              disabled={createMutation.isPending || updateMutation.isPending}
+            >
+              {createMutation.isPending || updateMutation.isPending
+                ? "Saving..."
+                : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
