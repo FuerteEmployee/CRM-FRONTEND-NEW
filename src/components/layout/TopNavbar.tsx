@@ -14,6 +14,7 @@ import {
   Globe,
   LogOut,
   ChevronRight,
+  MoreVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,77 +36,115 @@ import { notifications } from "@/data/mockData";
 import { useTheme } from "@/hooks/useTheme";
 import { NavLink } from "@/components/NavLink";
 import { useNavigate } from "react-router-dom";
+import { authService } from "@/api/services/auth.service";
 
 export function TopNavbar() {
   const unreadCount = notifications.filter((n) => !n.read).length;
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
+  const handleLogout = () => {
+    authService.logout();
+    navigate("/");
+  };
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/95 backdrop-blur-md px-4 shadow-sm">
       <SidebarTrigger className="shrink-0" />
 
       {/* Search */}
-      <div className="flex-1 max-w-md">
+      <div className="flex-1 max-w-sm md:max-w-md">
         <div className="relative animate-fade-in">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search projects, tasks, customers..."
-            className="pl-9 pr-8 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1"
+            placeholder="Search..."
+            className="pl-9 pr-4 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm"
           />
         </div>
       </div>
 
       {/* Quick Action Icons */}
-      <div className="flex items-center gap-1 ml-auto">
-        {/* Settings */}
+      <div className="flex items-center gap-0.5 md:gap-1 ml-auto">
+        {/* Settings - visible on md and up with text, always icon */}
         <NavLink to="/setup" className="inline-flex">
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 gap-1.5 px-2.5 text-muted-foreground hover:text-foreground"
+            className="h-9 gap-1.5 px-2 md:px-2.5 text-muted-foreground hover:text-foreground"
             title="Settings"
           >
             <Settings className="h-4 w-4" />
-            <span className="hidden md:inline text-xs font-medium">
+            <span className="hidden lg:inline text-xs font-medium">
               Settings
             </span>
           </Button>
         </NavLink>
 
-        {/* Share */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 text-muted-foreground hover:text-foreground"
-          title="Share"
-        >
-          <Share2 className="h-4 w-4" />
-        </Button>
-
-        {/* Tasks */}
-        <NavLink to="/tasks" className="inline-flex">
+        {/* Desktop Only Actions */}
+        <div className="hidden md:flex items-center gap-0.5 md:gap-1">
+          {/* Share */}
           <Button
             variant="ghost"
             size="icon"
             className="h-9 w-9 text-muted-foreground hover:text-foreground"
-            title="Tasks"
+            title="Share"
           >
-            <CheckSquare className="h-4 w-4" />
+            <Share2 className="h-4 w-4" />
           </Button>
-        </NavLink>
 
-        {/* Time Tracking */}
-        <NavLink to="/time-tracking" className="inline-flex">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 text-muted-foreground hover:text-foreground"
-            title="Time Tracking"
-          >
-            <Clock className="h-4 w-4" />
-          </Button>
-        </NavLink>
+          {/* Tasks */}
+          <NavLink to="/tasks" className="inline-flex">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-muted-foreground hover:text-foreground"
+              title="Tasks"
+            >
+              <CheckSquare className="h-4 w-4" />
+            </Button>
+          </NavLink>
+
+          {/* Time Tracking */}
+          <NavLink to="/time-tracking" className="inline-flex">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-muted-foreground hover:text-foreground"
+              title="Time Tracking"
+            >
+              <Clock className="h-4 w-4" />
+            </Button>
+          </NavLink>
+        </div>
+
+        {/* More Actions Dropdown (Mobile/Tablet) */}
+        <div className="md:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-muted-foreground hover:text-foreground"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => {}}>
+                <Share2 className="mr-2 h-4 w-4 text-muted-foreground" />
+                <span>Share</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/tasks")}>
+                <CheckSquare className="mr-2 h-4 w-4 text-muted-foreground" />
+                <span>Tasks</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate("/time-tracking")}>
+                <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+                <span>Time Tracking</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         {/* Notifications */}
         <Popover>
@@ -247,7 +286,7 @@ export function TopNavbar() {
           <div className="py-1">
             <DropdownMenuItem
               className="gap-3 px-4 py-2.5 cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
-              onClick={() => navigate("/")}
+              onClick={handleLogout}
             >
               <LogOut className="h-4 w-4" />
               <span className="text-sm">Logout</span>
