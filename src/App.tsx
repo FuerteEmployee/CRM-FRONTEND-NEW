@@ -1,7 +1,8 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PermissionProvider, usePermissionContext } from "@/context/PermissionContext";
 import { Loader2 } from "lucide-react";
@@ -79,23 +80,72 @@ import ClientProposals from "./pages/client/ClientProposals";
 import ClientSupport from "./pages/client/ClientSupport";
 import ClientKnowledgeBase from "./pages/client/ClientKnowledgeBase";
 
-const queryClient = new QueryClient();
 
 const MainApp = () => {
   const { loading } = usePermissionContext();
 
   if (loading) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-background animate-fade-in">
-        <div className="relative group mb-4">
-          <div className="absolute -inset-2 bg-gradient-to-r from-primary/50 to-primary rounded-xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200 animate-pulse" />
-          <div className="relative flex h-16 w-16 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-2xl shadow-xl">
-            C
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-background relative overflow-hidden">
+        {/* Animated Background Gradients */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute top-1/4 left-1/3 w-[300px] h-[300px] bg-primary/10 rounded-full blur-[100px] animate-pulse delay-700" />
+        
+        <div className="relative flex flex-col items-center animate-in fade-in zoom-in duration-1000">
+          {/* Logo Container with Glassmorphism */}
+          <div className="relative group mb-8">
+            {/* Outer Rotating/Breathing Rings */}
+            <div className="absolute -inset-4 bg-gradient-to-tr from-primary/20 via-primary/40 to-primary/20 rounded-2xl blur-md opacity-20 group-hover:opacity-40 transition duration-1000 animate-pulse" />
+            <div className="absolute -inset-1 border border-primary/20 rounded-2xl animate-[spin_10s_linear_infinite]" />
+            <div className="absolute -inset-2 border border-primary/10 rounded-2xl animate-[spin_15s_linear_reverse_infinite]" />
+            
+            {/* Central Logo Box */}
+            <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-card border border-border/50 shadow-2xl backdrop-blur-xl transition-transform duration-500 overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent" />
+              <span className="relative text-primary font-bold text-3xl tracking-tighter drop-shadow-sm">
+                C
+              </span>
+            </div>
+          </div>
+
+          {/* Loading Text & Progress */}
+          <div className="flex flex-col items-center gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex gap-1">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="h-1 w-1 rounded-full bg-primary/40 animate-bounce"
+                    style={{ animationDelay: `${i * 150}ms` }}
+                  />
+                ))}
+              </div>
+              <span className="text-[10px] font-bold tracking-[0.3em] uppercase text-primary/60 animate-pulse">
+                System Initializing
+              </span>
+              <div className="flex gap-1">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="h-1 w-1 rounded-full bg-primary/40 animate-bounce"
+                    style={{ animationDelay: `${(2 - i) * 150}ms` }}
+                  />
+                ))}
+              </div>
+            </div>
+            
+            {/* Sleek Progress Track */}
+            <div className="w-48 h-[2px] bg-muted relative rounded-full overflow-hidden">
+              <div className="absolute top-0 left-0 h-full w-1/3 bg-gradient-to-r from-transparent via-primary to-transparent animate-[shimmer_2s_infinite]" />
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 text-muted-foreground animate-pulse">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-sm font-medium tracking-wide uppercase">Securely Loading...</span>
+        
+        {/* Footer Branding */}
+        <div className="absolute bottom-12 left-0 right-0 flex justify-center animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-500">
+          <p className="text-[10px] uppercase tracking-[0.5em] text-muted-foreground/40 font-semibold">
+            Enterprise Management v2.0
+          </p>
         </div>
       </div>
     );

@@ -10,6 +10,7 @@ import {
 import { LogOut, User, Settings, HelpCircle, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { authService } from "@/api/services/auth.service";
+import { usePermissionContext } from "@/context/PermissionContext";
 
 const clientNavLinks = [
   { title: "Knowledge Base", url: "/knowledge-base" },
@@ -24,8 +25,10 @@ const clientNavLinks = [
 export function ClientTopNavbar() {
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    authService.logout();
+  const { logout } = usePermissionContext();
+ 
+  const handleLogout = async () => {
+    await logout();
     navigate("/login");
   };
 

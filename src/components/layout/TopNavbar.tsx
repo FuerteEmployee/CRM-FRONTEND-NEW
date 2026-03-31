@@ -43,10 +43,10 @@ export function TopNavbar() {
   const unreadCount = notifications.filter((n) => !n.read).length;
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
-  const { user } = usePermissionContext();
+  const { user, logout } = usePermissionContext();
 
-  const handleLogout = () => {
-    authService.logout();
+  const handleLogout = async () => {
+    await logout();
     navigate("/admin/login");
   };
 

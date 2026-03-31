@@ -5,6 +5,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
+import { queryClient } from "@/lib/queryClient";
 
 interface User {
   _id: string;
@@ -23,6 +24,7 @@ interface PermissionContextType {
   canView: (feature: string) => boolean;
   loading: boolean;
   refreshPermissions: () => void;
+  logout: () => Promise<void>;
 }
 
 const PermissionContext = createContext<PermissionContextType | undefined>(
@@ -39,6 +41,7 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
   const [loading, setLoading] = useState(true);
 
   const syncPermissions = async () => {
+    setLoading(true);
     try {
       const { authService } = await import("@/api/services/auth.service");
       const data = await authService.getMe();
@@ -79,6 +82,19 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
     );
   };
 
+  const logout = async () => {
+    try {
+      const { authService } = await import("@/api/services/auth.service");
+      await authService.logout();
+    } catch (error) {
+      console.error("Error during logout:", error);
+    } finally {
+      setUser(null);
+      setPermissions({});
+      queryClient.clear();
+    }
+  };
+
   const refreshPermissions = () => {
     syncPermissions();
   };
@@ -93,6 +109,7 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
         canView,
         loading,
         refreshPermissions,
+        logout,
       }}
     >
       {children}
