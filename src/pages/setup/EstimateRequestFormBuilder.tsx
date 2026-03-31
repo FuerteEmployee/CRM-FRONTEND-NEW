@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { salesService } from "@/api/services/sales.service";
+import { estimateService } from "@/api/services/estimate.service";
 import { staffService } from "@/api/services/staff.service";
 import { toast } from "sonner";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -37,9 +37,10 @@ import {
   CircleDot,
   Calendar as CalendarIcon,
   Copy,
-  ExternalLink,
   Settings,
   Rocket,
+  Pencil,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -65,91 +66,61 @@ const FIELD_TYPES = [
     type: "header",
     label: "Header",
     icon: Heading1,
-    color: "text-blue-600",
-    bg: "bg-blue-50",
     category: "Layout",
-    description: "Section titles and labels",
   },
   {
     type: "paragraph",
     label: "Paragraph",
     icon: AlignLeft,
-    color: "text-slate-600",
-    bg: "bg-slate-50",
     category: "Layout",
-    description: "Display static text content",
   },
   {
     type: "text",
     label: "Text Field",
     icon: Type,
-    color: "text-indigo-600",
-    bg: "bg-indigo-50",
     category: "Basic",
-    description: "Single line text input",
   },
   {
     type: "email",
     label: "Email",
     icon: Mail,
-    color: "text-rose-600",
-    bg: "bg-rose-50",
     category: "Basic",
-    description: "Validated email input",
   },
   {
     type: "textarea",
     label: "Text Area",
     icon: AlignLeft,
-    color: "text-cyan-600",
-    bg: "bg-cyan-50",
     category: "Basic",
-    description: "Multi-line text input",
   },
   {
     type: "select",
     label: "Select",
     icon: Layout,
-    color: "text-emerald-600",
-    bg: "bg-emerald-50",
     category: "Choice",
-    description: "Dropdown menu selection",
   },
   {
     type: "checkbox",
     label: "Checkbox Group",
     icon: CheckSquare,
-    color: "text-orange-600",
-    bg: "bg-orange-50",
     category: "Choice",
-    description: "Select multiple options",
   },
   {
     type: "radio",
     label: "Radio Group",
     icon: CircleDot,
-    color: "text-pink-600",
-    bg: "bg-pink-50",
     category: "Choice",
-    description: "Select single option",
   },
   {
     type: "file",
     label: "File Upload",
     icon: Upload,
-    color: "text-amber-600",
-    bg: "bg-amber-50",
     category: "Advanced",
-    description: "Allow users to attach files",
   },
   {
     type: "date",
     label: "Date Field",
     icon: CalendarIcon,
-    color: "text-violet-600",
-    bg: "bg-violet-50",
     category: "Advanced",
-    description: "Date selection input",
   },
 ];
 
@@ -193,14 +164,14 @@ export default function EstimateRequestFormBuilder() {
   // Queries
   const { data: form, isLoading: isLoadingForm } = useQuery({
     queryKey: ["estimate-request-form", id],
-    queryFn: () => salesService.getEstimateRequestFormById(id!),
+    queryFn: () => estimateService.getEstimateRequestFormById(id!),
     enabled: isEdit,
   });
 
   const { data: statuses = [] } = useQuery<EstimateStatus[]>({
     queryKey: ["estimate-statuses"],
     queryFn: async () => {
-      const response = await salesService.getEstimateStatuses();
+      const response = await estimateService.getEstimateStatuses();
       return Array.isArray(response) ? response : [];
     },
   });
@@ -248,15 +219,15 @@ export default function EstimateRequestFormBuilder() {
   const mutation = useMutation({
     mutationFn: (data: any) =>
       isEdit
-        ? salesService.updateEstimateRequestForm(id!, data)
-        : salesService.createEstimateRequestForm(data),
+        ? estimateService.updateEstimateRequestForm(id!, data)
+        : estimateService.createEstimateRequestForm(data),
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["estimate-request-forms"] });
       toast.success(
         isEdit ? "Form updated successfully" : "Form created successfully",
       );
       if (!isEdit) {
-        navigate(`/setup/estimate-request/form-fields/${data._id}`);
+        navigate(`/admin/setup/estimate-request/form-fields/${data._id}`);
       }
     },
     onError: (error: any) => {
@@ -347,130 +318,94 @@ export default function EstimateRequestFormBuilder() {
   }
 
   const publicUrl = `${window.location.origin}/forms/quote/${id}`;
-  const iframeCode = `<iframe width="100%" height="800px" src="${publicUrl}" frameborder="0" sandbox="allow-top-navigation allow-forms allow-scripts allow-same-origin allow-popups" allowfullscreen></iframe>`;
+  const iframeCode = `<iframe width="600" height="850" src="${publicUrl}" frameborder="0" sandbox="allow-top-navigation allow-forms allow-scripts allow-same-origin allow-popups" allowfullscreen></iframe>`;
 
   return (
     <DashboardLayout>
-      <div className="p-4 space-y-6">
+      <div className="max-w-[1600px] mx-auto p-6">
         <Tabs
           value={activeMainTab}
           onValueChange={setActiveMainTab}
-          className="w-full"
+          className="w-full space-y-8"
         >
-          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+          {/* Professional Navigation Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6 mb-8">
             <div className="flex items-center gap-4">
-              <div
-                className="bg-white p-3 rounded-2xl border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer group shadow-sm"
-                onClick={() => navigate("/setup/estimate-request/form-fields")}
+              <button
+                onClick={() =>
+                  navigate("/admin/setup/estimate-request/form-fields")
+                }
+                className="p-2 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors bg-white shadow-sm"
               >
-                <ChevronLeft className="h-5 w-5 text-slate-600 group-hover:-translate-x-1 transition-transform" />
+                <ChevronLeft className="h-5 w-5 text-muted-foreground" />
+              </button>
+              <div>
+                <h1 className="text-xl font-semibold text-slate-900">
+                  {isEdit ? formData.name : "New Estimate Request Form"}
+                </h1>
               </div>
+            </div>
+
+            <div className="flex items-center gap-3">
               {isEdit && (
-                <div className="bg-slate-100/50 p-1.5 rounded-[1.2rem] inline-flex border border-slate-200/50">
-                  <TabsList className="bg-transparent h-10 space-x-1">
+                <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                  <TabsList className="bg-transparent h-8 p-0">
                     <TabsTrigger
                       value="builder"
-                      className="rounded-[0.8rem] px-6 font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all flex items-center gap-2 h-7 border border-transparent data-[state=active]:border-slate-100"
+                      className="rounded-md px-4 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all h-6"
                     >
-                      <Layout className="h-3.5 w-3.5" />
                       Builder
                     </TabsTrigger>
                     <TabsTrigger
                       value="setup"
-                      className="rounded-[0.8rem] px-6 font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all flex items-center gap-2 h-7 border border-transparent data-[state=active]:border-slate-100"
+                      className="rounded-md px-4 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all h-6"
                     >
-                      <Settings className="h-3.5 w-3.5" />
                       Setup
                     </TabsTrigger>
                     <TabsTrigger
                       value="integration"
-                      className="rounded-[0.8rem] px-6 font-black text-[10px] uppercase tracking-widest data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all flex items-center gap-2 h-7 border border-transparent data-[state=active]:border-slate-100"
+                      className="rounded-md px-4 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-sm transition-all h-6"
                     >
-                      <Copy className="h-3.5 w-3.5" />
                       Integration
                     </TabsTrigger>
                   </TabsList>
                 </div>
               )}
-              {!isEdit && (
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/5 px-3 py-1.5 rounded-full border border-primary/10">
-                    Creation Mode
-                  </span>
-                  <h1 className="text-xl font-black text-slate-900 ml-2">New Estimate Form</h1>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                onClick={() => navigate("/setup/estimate-request/form-fields")}
-                className="rounded-xl px-5 h-10 font-bold text-slate-500 hover:text-slate-900 transition-all"
-              >
-                Discard
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={mutation.isPending}
-                className="rounded-xl px-6 h-10 bg-slate-900 hover:bg-slate-800 text-white font-black shadow-md shadow-slate-200 transition-all hover:-translate-y-0.5"
-              >
-                {mutation.isPending && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                )}
-                {!mutation.isPending && (isEdit ? <Save className="mr-2 h-4 w-4" /> : <Rocket className="mr-2 h-4 w-4" />)}
-                {isEdit ? "Update Form" : "Publish Form"}
-              </Button>
+              <div className="h-8 w-[1px] bg-slate-200 mx-1" />
             </div>
           </div>
 
-
-          {/* Form Builder Tab */}
           <TabsContent value="builder" className="mt-0 outline-none">
             <div className="grid grid-cols-12 gap-8">
               {/* Field Types Column */}
               <div className="col-span-12 lg:col-span-3 space-y-4">
-                <Card className="p-0 overflow-hidden rounded-2xl border-slate-200 shadow-sm">
-                  <div className="p-4 bg-slate-50/50 border-b">
-                    <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
-                      <Plus className="h-4 w-4 text-primary" />
+                <div className="border border-slate-200 rounded-xl bg-white overflow-hidden">
+                  <div className="p-3 bg-slate-50 border-b border-slate-200">
+                    <h3 className="font-semibold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-2">
+                      <Plus className="h-3.5 w-3.5" />
                       Add Fields
                     </h3>
                   </div>
-                  <div className="p-4 space-y-6">
+                  <div className="p-2 space-y-4">
                     {["Layout", "Basic", "Choice", "Advanced"].map(
                       (category) => (
-                        <div key={category} className="space-y-2">
-                          <h4 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 px-1">
+                        <div key={category} className="space-y-1">
+                          <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-2 py-1">
                             {category}
                           </h4>
-                          <div className="grid gap-1">
+                          <div className="space-y-0.5">
                             {FIELD_TYPES.filter(
                               (ft) => ft.category === category,
                             ).map((ft) => (
                               <button
                                 key={ft.type}
                                 onClick={() => addField(ft.type)}
-                                className="w-full flex flex-col items-start gap-1 px-3 py-2.5 rounded-xl hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-all group border border-transparent hover:border-slate-100"
+                                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-50 text-foreground hover:text-slate-900 transition-colors group border border-transparent"
                               >
-                                <div className="flex items-center gap-2.5 w-full">
-                                  <div
-                                    className={cn(
-                                      "p-1.5 rounded-lg transition-colors",
-                                      ft.bg,
-                                      ft.color,
-                                    )}
-                                  >
-                                    <ft.icon className="h-3.5 w-3.5" />
-                                  </div>
-                                  <span className="text-[13px] font-bold">
-                                    {ft.label}
-                                  </span>
-                                  <Plus className="h-3 w-3 ml-auto opacity-0 group-hover:opacity-100 text-slate-400" />
-                                </div>
-                                <p className="text-[11px] text-slate-400 font-medium pl-9 leading-tight text-left">
-                                  {ft.description}
-                                </p>
+                                <ft.icon className="h-4 w-4 text-slate-400 group-hover:text-foreground" />
+                                <span className="text-sm font-medium">
+                                  {ft.label}
+                                </span>
                               </button>
                             ))}
                           </div>
@@ -478,7 +413,7 @@ export default function EstimateRequestFormBuilder() {
                       ),
                     )}
                   </div>
-                </Card>
+                </div>
               </div>
 
               {/* Form Layout Column */}
@@ -486,14 +421,14 @@ export default function EstimateRequestFormBuilder() {
                 <Card className="p-8 rounded-2xl border-slate-200 min-h-[600px] bg-slate-50/30 border-dashed border-2">
                   {formData.fields.length === 0 ? (
                     <div className="flex flex-col items-center justify-center p-20 text-center opacity-40">
-                      <div className="w-16 h-16 bg-slate-200 rounded-2xl flex items-center justify-center mb-4">
-                        <Plus className="h-8 w-8" />
+                      <div className="w-16 h-16 bg-slate-200 rounded-xl flex items-center justify-center mb-4">
+                        <Plus className="h-8 w-8 text-slate-400" />
                       </div>
-                      <p className="text-xl font-bold">
-                        Drag a field from the right to this area
+                      <p className="text-lg font-semibold text-foreground">
+                        Drop a field here to start building
                       </p>
-                      <p className="text-sm">
-                        Click on a field type to add it to your form
+                      <p className="text-sm text-slate-400">
+                        Click on a field type from the left sidebar
                       </p>
                     </div>
                   ) : (
@@ -503,47 +438,38 @@ export default function EstimateRequestFormBuilder() {
                         const fieldType =
                           FIELD_TYPES.find((ft) => ft.type === field.type) ||
                           FIELD_TYPES[2];
-                        const isEmail = field.type === "email";
 
                         return (
-                          <Card
+                          <div
                             key={index}
                             className={cn(
-                              "rounded-[1.5rem] border-slate-200 shadow-sm transition-all group overflow-hidden bg-white",
+                              "bg-white border border-slate-200 rounded-lg overflow-hidden transition-all",
                               isEditing
-                                ? "ring-2 ring-primary ring-offset-2"
+                                ? "ring-1 ring-slate-300"
                                 : "hover:border-slate-300",
                             )}
                           >
-                            {/* Card Header - Identifiers & Actions */}
-                            <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100">
-                              <div className="flex items-center gap-3">
-                                <div className="p-1 cursor-move text-slate-300 hover:text-slate-400">
-                                  <GripVertical className="h-4 w-4" />
-                                </div>
-                                <div
+                            {/* Card Header */}
+                            <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 bg-white">
+                              <span className="text-sm font-medium text-foreground">
+                                {fieldType.label}
+                              </span>
+                              <div className="flex items-center border rounded overflow-hidden">
+                                <button
+                                  onClick={() =>
+                                    setEditingIndex(isEditing ? null : index)
+                                  }
                                   className={cn(
-                                    "p-1.5 rounded-lg",
-                                    fieldType.bg,
-                                    fieldType.color,
+                                    "p-1.5 border-r hover:bg-slate-50 transition-colors",
+                                    isEditing
+                                      ? "bg-slate-50 text-slate-900"
+                                      : "text-slate-400",
                                   )}
+                                  title="Edit"
                                 >
-                                  <fieldType.icon className="h-3.5 w-3.5" />
-                                </div>
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                                  {fieldType.label}
-                                </span>
-                                {field.required && (
-                                  <span className="text-[9px] bg-rose-50 text-rose-600 px-2 py-0.5 rounded-full font-black uppercase tracking-tighter">
-                                    Required
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-slate-400 hover:text-indigo-600 rounded-lg"
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                                <button
                                   onClick={() => {
                                     const newFields = [...formData.fields];
                                     newFields.splice(index + 1, 0, {
@@ -556,377 +482,374 @@ export default function EstimateRequestFormBuilder() {
                                     });
                                     setEditingIndex(index + 1);
                                   }}
+                                  className="p-1.5 border-r text-slate-400 hover:bg-slate-50 transition-colors"
                                   title="Duplicate"
                                 >
                                   <Copy className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-slate-400 hover:text-primary rounded-lg"
-                                  onClick={() =>
-                                    setEditingIndex(isEditing ? null : index)
-                                  }
-                                >
-                                  {isEditing ? (
-                                    <ChevronLeft className="h-4 w-4 rotate-90" />
-                                  ) : (
-                                    <Settings className="h-4 w-4" />
-                                  )}
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 text-slate-400 hover:text-rose-600 rounded-lg"
+                                </button>
+                                <button
                                   onClick={() => removeField(index)}
+                                  className="p-1.5 text-slate-400 hover:bg-slate-50 hover:text-red-500 transition-colors"
+                                  title="Delete"
                                 >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                  <X className="h-4 w-4" />
+                                </button>
                               </div>
                             </div>
 
-                            {/* Main Content Area */}
-                            <div className="p-6">
+                            <div className="p-4">
+                              {/* Preview Mode */}
                               {!isEditing ? (
-                                /* --- PREVIEW MODE (Simplest View) --- */
                                 <div
-                                  className="space-y-2 cursor-pointer group/preview"
+                                  className="space-y-1 cursor-pointer group"
                                   onClick={() => setEditingIndex(index)}
                                 >
-                                  <div className="flex items-center justify-between">
-                                    <Label className="text-[15px] font-black text-slate-900 cursor-pointer">
-                                      {field.label || "Click to add label..."}
-                                      {field.required && (
-                                        <span className="text-rose-500 ml-1">
-                                          *
-                                        </span>
-                                      )}
-                                    </Label>
-                                  </div>
-
-                                  {/* Visual Representation of Input */}
                                   {field.type === "header" ? (
-                                    <h2 className="text-2xl font-black text-slate-900 pt-2">
-                                      {field.label}
+                                    <h2 className="text-xl font-bold text-slate-800">
+                                      {field.label || "Header"}
                                     </h2>
                                   ) : field.type === "paragraph" ? (
-                                    <p className="text-slate-500 text-sm leading-relaxed">
-                                      {field.label}
+                                    <p className="text-sm text-muted-foreground">
+                                      {field.label ||
+                                        "Paragraph text goes here..."}
                                     </p>
-                                  ) : field.type === "select" ? (
-                                    <div className="h-11 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center px-4 justify-between text-slate-400 text-sm italic">
-                                      Select an option...
-                                      <ChevronLeft className="h-4 w-4 -rotate-90" />
-                                    </div>
-                                  ) : field.type === "radio" ||
-                                    field.type === "checkbox" ? (
-                                    <div className="flex flex-wrap gap-4 pt-1">
-                                      {(field.options || ["Option 1"]).map(
-                                        (opt: string, i: number) => (
-                                          <div
-                                            key={i}
-                                            className="flex items-center gap-2"
-                                          >
-                                            <div
-                                              className={cn(
-                                                "w-4 h-4 rounded border border-slate-300",
-                                                field.type === "radio"
-                                                  ? "rounded-full"
-                                                  : "rounded",
-                                              )}
-                                            />
-                                            <span className="text-sm font-bold text-slate-600">
-                                              {opt}
-                                            </span>
-                                          </div>
-                                        ),
-                                      )}
-                                    </div>
                                   ) : (
-                                    <div className="h-11 rounded-xl border border-slate-200 bg-slate-50/50 flex items-center px-4 text-slate-400 text-sm italic">
-                                      {field.placeholder ||
-                                        "User input area..."}
+                                    <div className="space-y-2">
+                                      <Label className="text-sm font-medium text-slate-700">
+                                        {field.label}
+                                        {field.required && (
+                                          <span className="text-red-500 ml-1">
+                                            *
+                                          </span>
+                                        )}
+                                      </Label>
+                                      <div className="h-9 rounded border border-slate-200 bg-slate-50/50 flex items-center px-3 text-slate-400 text-sm italic">
+                                        {field.placeholder ||
+                                          "User input area..."}
+                                      </div>
                                     </div>
                                   )}
-
-                                  <div className="pt-2 opacity-0 group-hover/preview:opacity-100 transition-opacity flex items-center gap-2">
-                                    <span className="text-[10px] font-bold text-primary flex items-center gap-1">
-                                      <Plus className="h-3 w-3" /> Click to Edit
-                                      Settings
-                                    </span>
-                                  </div>
                                 </div>
                               ) : (
-                                /* --- EDIT MODE (Focused Settings) --- */
-                                <div className="space-y-6 animate-in fade-in duration-300">
-                                  <div className="grid md:grid-cols-12 gap-6">
-                                    <div className="md:col-span-8 space-y-2">
-                                      <Label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                                        Field Label
-                                      </Label>
-                                      <Input
-                                        value={field.label}
-                                        onChange={(e) =>
-                                          updateField(index, {
-                                            label: e.target.value,
-                                          })
-                                        }
-                                        className="h-12 rounded-2xl border-2 border-slate-100 focus:border-primary transition-all text-base font-bold shadow-sm"
-                                        placeholder="e.g. What is your full name?"
-                                      />
-                                    </div>
-
-                                    {!isEmail && (
-                                      <div className="md:col-span-4 flex items-center gap-3 h-12 mt-[22px] px-5 bg-slate-50 rounded-2xl border border-slate-100">
-                                        <Checkbox
-                                          id={`req-${index}`}
-                                          checked={field.required}
-                                          onCheckedChange={(v) =>
-                                            updateField(index, {
-                                              required: !!v,
-                                            })
-                                          }
-                                          className="h-5 w-5 rounded-lg border-slate-300"
-                                        />
-                                        <Label
-                                          htmlFor={`req-${index}`}
-                                          className="text-sm font-black text-slate-700 cursor-pointer select-none"
-                                        >
-                                          Required
-                                        </Label>
-                                      </div>
-                                    )}
-
-                                    {isEmail && (
-                                      <div className="md:col-span-4 flex items-center gap-3 h-12 mt-[22px] px-5 bg-primary/5 rounded-2xl border border-primary/10">
-                                        <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-primary text-white">
-                                          <Info className="h-3 w-3" />
-                                        </div>
-                                        <span className="text-xs font-black text-primary uppercase tracking-tighter">
-                                          Always Required
-                                        </span>
-                                      </div>
-                                    )}
-
-                                    {/* Choice Options */}
-                                    {["select", "radio", "checkbox"].includes(
-                                      field.type,
-                                    ) && (
-                                      <div className="md:col-span-12 space-y-3 p-5 bg-slate-50 rounded-[1.5rem] border-2 border-slate-100">
-                                        <div className="flex items-center justify-between">
-                                          <Label className="text-sm font-black text-slate-900">
-                                            List Your Options
+                                /* Settings Pane - Matching Image UI */
+                                <div className="bg-[#f8f9fa] border border-slate-200 rounded p-6 space-y-4 animate-in fade-in duration-200">
+                                  <div className="space-y-4 max-w-3xl">
+                                    {/* Common Settings Grid */}
+                                    <div className="grid grid-cols-[140px_1fr] items-baseline gap-y-4">
+                                      {/* Required Switch - Top (only for input types) */}
+                                      {!["header", "paragraph"].includes(
+                                        field.type,
+                                      ) && (
+                                        <>
+                                          <Label className="text-sm text-muted-foreground text-right pr-6 self-center">
+                                            Required
                                           </Label>
-                                          <span className="text-[9px] bg-white border px-2 py-0.5 rounded-full text-slate-400 font-black uppercase tracking-widest">
-                                            Separated by Commas
-                                          </span>
-                                        </div>
-                                        <Textarea
-                                          value={
-                                            field.options?.join(", ") || ""
-                                          }
-                                          onChange={(e) =>
-                                            updateField(index, {
-                                              options: e.target.value
-                                                .split(",")
-                                                .map((o: string) => o.trim()),
-                                            })
-                                          }
-                                          className="rounded-xl border-slate-200 min-h-[100px] focus:ring-primary/20 bg-white font-bold"
-                                          placeholder="Option 1, Option 2, Option 3"
-                                        />
-                                        <div className="flex items-center justify-between">
-                                          <p className="text-[10px] text-slate-400 font-bold italic">
-                                            TIP: Type your choices and separate
-                                            them with a comma (,)
-                                          </p>
-                                          {["radio", "checkbox"].includes(
-                                            field.type,
-                                          ) && (
-                                            <div className="flex items-center gap-2">
+                                          <div className="flex items-center h-9">
+                                            {field.type === "email" ? (
+                                              <span className="text-xs font-bold text-primary uppercase">
+                                                Always Required
+                                              </span>
+                                            ) : (
                                               <Checkbox
-                                                id={`inline-${index}`}
-                                                checked={field.inline}
+                                                checked={field.required}
                                                 onCheckedChange={(v) =>
                                                   updateField(index, {
-                                                    inline: !!v,
+                                                    required: !!v,
                                                   })
                                                 }
+                                                className="rounded border-slate-300"
                                               />
-                                              <Label
-                                                htmlFor={`inline-${index}`}
-                                                className="text-[10px] font-black text-slate-500 uppercase"
-                                              >
-                                                Display Inline
-                                              </Label>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
+                                            )}
+                                          </div>
+                                        </>
+                                      )}
 
-                                    {/* Text-based settings */}
-                                    {!["header", "paragraph"].includes(
-                                      field.type,
-                                    ) && (
-                                      <>
-                                        <div className="md:col-span-6 space-y-2">
-                                          <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                            Placeholder (Ghost Text)
-                                          </Label>
-                                          <Input
-                                            value={field.placeholder || ""}
-                                            onChange={(e) =>
-                                              updateField(index, {
-                                                placeholder: e.target.value,
-                                              })
-                                            }
-                                            className="h-10 rounded-xl border-slate-200"
-                                            placeholder="Shows inside the field"
-                                          />
-                                        </div>
-                                        <div className="md:col-span-6 space-y-2">
-                                          <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                            Default Value
-                                          </Label>
-                                          <Input
-                                            value={field.defaultValue || ""}
-                                            onChange={(e) =>
-                                              updateField(index, {
-                                                defaultValue: e.target.value,
-                                              })
-                                            }
-                                            className="h-10 rounded-xl border-slate-200"
-                                            placeholder="Initial text in field"
-                                          />
-                                        </div>
-                                      </>
-                                    )}
-
-                                    {field.type === "textarea" && (
-                                      <div className="md:col-span-12 space-y-2">
-                                        <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                          Number of Rows
-                                        </Label>
-                                        <Input
-                                          type="number"
-                                          value={field.rows || 4}
+                                      {/* Label / Content */}
+                                      <Label className="text-sm text-muted-foreground text-right pr-6 self-center">
+                                        {field.type === "paragraph"
+                                          ? "Content"
+                                          : "Label"}
+                                      </Label>
+                                      {field.type === "paragraph" ? (
+                                        <Textarea
+                                          value={field.label}
                                           onChange={(e) =>
                                             updateField(index, {
-                                              rows: parseInt(e.target.value),
+                                              label: e.target.value,
                                             })
                                           }
-                                          className="h-10 rounded-xl border-slate-200 w-32"
+                                          className="bg-white border-slate-200 min-h-[100px] resize-none"
                                         />
-                                      </div>
-                                    )}
-                                  </div>
+                                      ) : (
+                                        <Input
+                                          value={field.label}
+                                          onChange={(e) =>
+                                            updateField(index, {
+                                              label: e.target.value,
+                                            })
+                                          }
+                                          className="h-9 bg-white border-slate-200"
+                                        />
+                                      )}
 
-                                  {/* Collapsible Advanced Settings */}
-                                  <div className="pt-4 border-t border-slate-100">
-                                    <button
-                                      onClick={() =>
-                                        setShowAdvanced(!showAdvanced)
-                                      }
-                                      className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-slate-600 flex items-center gap-2 group/adv"
-                                    >
-                                      More Options (CSS, ID, Length)
-                                      <ChevronLeft
-                                        className={cn(
-                                          "h-3 w-3 transition-transform",
-                                          showAdvanced
-                                            ? "rotate-90"
-                                            : "-rotate-90",
-                                        )}
-                                      />
-                                    </button>
-                                    {showAdvanced && (
-                                      <div className="mt-4 grid md:grid-cols-3 gap-6 p-5 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 animate-in fade-in slide-in-from-top-2">
-                                        <div className="space-y-2">
-                                          <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                            Help Text (Description)
+                                      {/* Help Text */}
+                                      {!["header", "paragraph"].includes(
+                                        field.type,
+                                      ) && (
+                                        <>
+                                          <Label className="text-sm text-muted-foreground text-right pr-6 self-center">
+                                            Help Text
                                           </Label>
                                           <Input
-                                            value={field.helpText || ""}
+                                            value={field.helpText}
                                             onChange={(e) =>
                                               updateField(index, {
                                                 helpText: e.target.value,
                                               })
                                             }
-                                            className="h-10 rounded-xl border-slate-200 bg-white"
-                                            placeholder="Shows under the field"
+                                            className="h-9 bg-white border-slate-200"
                                           />
-                                        </div>
-                                        <div className="space-y-2">
-                                          <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                            System Name (ID)
+                                        </>
+                                      )}
+
+                                      {/* Placeholder */}
+                                      {![
+                                        "header",
+                                        "paragraph",
+                                        "checkbox",
+                                        "radio",
+                                        "file",
+                                      ].includes(field.type) && (
+                                        <>
+                                          <Label className="text-sm text-muted-foreground text-right pr-6 self-center">
+                                            Placeholder
+                                          </Label>
+                                          <Input
+                                            value={field.placeholder}
+                                            onChange={(e) =>
+                                              updateField(index, {
+                                                placeholder: e.target.value,
+                                              })
+                                            }
+                                            className="h-9 bg-white border-slate-200"
+                                          />
+                                        </>
+                                      )}
+
+                                      {/* Class */}
+                                      <Label className="text-sm text-muted-foreground text-right pr-6 self-center">
+                                        Class
+                                      </Label>
+                                      <Input
+                                        value={
+                                          field.className || "form-control"
+                                        }
+                                        onChange={(e) =>
+                                          updateField(index, {
+                                            className: e.target.value,
+                                          })
+                                        }
+                                        className="h-9 bg-white border-slate-200"
+                                        placeholder="space separated classes"
+                                      />
+
+                                      {/* Name (ID) */}
+                                      {!["header", "paragraph"].includes(
+                                        field.type,
+                                      ) && (
+                                        <>
+                                          <Label className="text-sm text-muted-foreground text-right pr-6 self-center">
+                                            Name
                                           </Label>
                                           <Input
                                             value={field.name}
-                                            onChange={(e) =>
-                                              updateField(index, {
-                                                name: e.target.value,
-                                              })
-                                            }
-                                            className="h-10 rounded-xl border-slate-200 bg-white font-mono text-[10px]"
+                                            readOnly
+                                            className="h-9 bg-slate-100/50 border-slate-200 text-xs font-mono text-foreground cursor-default"
                                           />
-                                        </div>
-                                        <div className="space-y-2">
-                                          <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                            CSS Class
+                                        </>
+                                      )}
+
+                                      {/* Value */}
+                                      {![
+                                        "header",
+                                        "paragraph",
+                                        "select",
+                                        "checkbox",
+                                        "radio",
+                                        "file",
+                                      ].includes(field.type) && (
+                                        <>
+                                          <Label className="text-sm text-muted-foreground text-right pr-6 self-center">
+                                            Value
                                           </Label>
                                           <Input
-                                            value={
-                                              field.className || "form-control"
-                                            }
+                                            value={field.defaultValue}
                                             onChange={(e) =>
                                               updateField(index, {
-                                                className: e.target.value,
+                                                defaultValue: e.target.value,
                                               })
                                             }
-                                            className="h-10 rounded-xl border-slate-200 bg-white"
+                                            className="h-9 bg-white border-slate-200"
+                                            placeholder="Value"
                                           />
-                                        </div>
-                                        {![
-                                          "header",
-                                          "paragraph",
-                                          "select",
-                                          "radio",
-                                          "checkbox",
-                                        ].includes(field.type) && (
-                                          <div className="space-y-2">
-                                            <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                              Max Characters
+                                        </>
+                                      )}
+
+                                      {/* Options List for Choice Types */}
+                                      {["select", "radio", "checkbox"].includes(
+                                        field.type,
+                                      ) && (
+                                        <>
+                                          <div className="col-start-1 col-end-2 flex flex-col gap-4">
+                                            {field.type === "select" && (
+                                              <div className="flex items-center gap-2 justify-end pr-6 mt-4">
+                                                <Checkbox
+                                                  checked={field.allowMultiple}
+                                                  onCheckedChange={(v) =>
+                                                    updateField(index, {
+                                                      allowMultiple: !!v,
+                                                    })
+                                                  }
+                                                  className="rounded border-slate-300"
+                                                />
+                                              </div>
+                                            )}
+                                            <Label className="text-sm text-muted-foreground text-right pr-6 self-start mt-2">
+                                              Options
                                             </Label>
-                                            <Input
-                                              type="number"
-                                              value={field.maxLength || ""}
-                                              onChange={(e) =>
-                                                updateField(index, {
-                                                  maxLength: e.target.value,
-                                                })
-                                              }
-                                              className="h-10 rounded-xl border-slate-200 bg-white"
-                                            />
                                           </div>
-                                        )}
-                                      </div>
-                                    )}
+
+                                          <div className="col-start-2 space-y-4">
+                                            {field.type === "select" && (
+                                              <Label className="text-sm text-slate-700 font-medium h-9 flex items-center mt-4">
+                                                Allow Multiple Selections
+                                              </Label>
+                                            )}
+                                            <div className="space-y-2">
+                                              {(field.options || []).map(
+                                                (
+                                                  opt: string,
+                                                  optIdx: number,
+                                                ) => (
+                                                  <div
+                                                    key={optIdx}
+                                                    className="grid grid-cols-[30px_1fr_1fr_40px] gap-2 items-center"
+                                                  >
+                                                    <div className="flex justify-center">
+                                                      <input
+                                                        type="radio"
+                                                        name={`default-${index}`}
+                                                        checked={
+                                                          field.defaultValue ===
+                                                          opt
+                                                        }
+                                                        onChange={() =>
+                                                          updateField(index, {
+                                                            defaultValue: opt,
+                                                          })
+                                                        }
+                                                        className="h-4 w-4 text-violet-600 focus:ring-violet-500 border-slate-300"
+                                                      />
+                                                    </div>
+                                                    <Input
+                                                      value={opt}
+                                                      onChange={(e) => {
+                                                        const newOpts = [
+                                                          ...field.options,
+                                                        ];
+                                                        newOpts[optIdx] =
+                                                          e.target.value;
+                                                        updateField(index, {
+                                                          options: newOpts,
+                                                        });
+                                                      }}
+                                                      className="h-9 bg-white border-slate-200"
+                                                      placeholder="Label"
+                                                    />
+                                                    <Input
+                                                      value={opt
+                                                        .toLowerCase()
+                                                        .replace(/\s+/g, "-")}
+                                                      readOnly
+                                                      className="h-9 bg-[#eef0f2] border-slate-200 text-xs"
+                                                      placeholder="Value"
+                                                    />
+                                                    <button
+                                                      onClick={() => {
+                                                        const newOpts = [
+                                                          ...field.options,
+                                                        ];
+                                                        newOpts.splice(
+                                                          optIdx,
+                                                          1,
+                                                        );
+                                                        updateField(index, {
+                                                          options: newOpts,
+                                                        });
+                                                      }}
+                                                      className="h-9 flex items-center justify-center bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                                                    >
+                                                      <X className="h-4 w-4" />
+                                                    </button>
+                                                  </div>
+                                                ),
+                                              )}
+                                              <div className="flex justify-end pt-2">
+                                                <button
+                                                  onClick={() => {
+                                                    const newOpts = [
+                                                      ...(field.options || []),
+                                                      `Option ${(field.options?.length || 0) + 1}`,
+                                                    ];
+                                                    updateField(index, {
+                                                      options: newOpts,
+                                                    });
+                                                  }}
+                                                  className="px-4 py-1.5 border border-slate-200 rounded text-xs font-medium text-foreground hover:bg-white transition-all bg-slate-50"
+                                                >
+                                                  Add Option +
+                                                </button>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        </>
+                                      )}
+
+                                      {/* Max Length */}
+                                      {["text", "email", "textarea"].includes(
+                                        field.type,
+                                      ) && (
+                                        <>
+                                          <Label className="text-sm text-muted-foreground text-right pr-6 self-center">
+                                            Max Length
+                                          </Label>
+                                          <Input
+                                            type="number"
+                                            value={field.maxLength}
+                                            onChange={(e) =>
+                                              updateField(index, {
+                                                maxLength: e.target.value,
+                                              })
+                                            }
+                                            className="h-9 bg-white border-slate-200 w-24"
+                                          />
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
 
-                                  <div className="flex justify-end pt-4">
-                                    <Button
+                                  <div className="flex justify-center pt-4 border-t border-slate-200">
+                                    <button
                                       onClick={() => setEditingIndex(null)}
-                                      className="rounded-xl h-11 bg-slate-900 hover:bg-slate-800 text-white font-black px-10 shadow-lg shadow-slate-200"
+                                      className="px-6 py-1 bg-white border border-slate-200 rounded text-sm text-foreground hover:bg-slate-50 transition-all"
                                     >
-                                      Save Changes
-                                    </Button>
+                                      Close
+                                    </button>
                                   </div>
                                 </div>
                               )}
                             </div>
-                          </Card>
+                          </div>
                         );
                       })}
                     </div>
@@ -945,64 +868,73 @@ export default function EstimateRequestFormBuilder() {
           </TabsContent>
 
           {/* Setup Tab */}
-          <TabsContent value="setup" className="mt-0 outline-none">
-            <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-              <Tabs
-                value={activeSetupTab}
-                onValueChange={setActiveSetupTab}
-                className="w-full"
-              >
-                <div className="px-6 pt-6 border-b bg-slate-50/50">
-                  <TabsList className="bg-slate-200/50 p-1 h-12 rounded-xl mb-[-1px] w-fit">
-                    <TabsTrigger
-                      value="general"
-                      className="px-8 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-slate-600 data-[state=active]:text-[#1a2b3c]"
-                    >
-                      General
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="branding"
-                      className="px-8 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-slate-600 data-[state=active]:text-[#1a2b3c]"
-                    >
-                      Branding
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="submission"
-                      className="px-8 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-slate-600 data-[state=active]:text-[#1a2b3c]"
-                    >
-                      Submission
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="notifications"
-                      className="px-8 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm font-bold text-slate-600 data-[state=active]:text-[#1a2b3c]"
-                    >
-                      Notifications
-                    </TabsTrigger>
-                  </TabsList>
+          <TabsContent value="setup" className="mt-0 outline-none max-w-4xl">
+            <div className="space-y-6">
+              {!isEdit && (
+                <div className="bg-[#eef6ff] border-l-[3px] border-[#3b82f6] p-4 flex items-center gap-3">
+                  <p className="text-[#1e40af] text-[13px] font-medium">
+                    Create form first to be able to use the form builder.
+                  </p>
                 </div>
+              )}
 
-                <div className="p-8">
-                  <TabsContent
-                    value="general"
-                    className="mt-0 space-y-8 max-w-2xl"
-                  >
-                    <div className="space-y-3">
-                      <Label className="text-sm font-bold text-slate-700 flex items-center gap-1">
-                        <span className="text-red-500">*</span> Form Name
-                      </Label>
-                      <Input
-                        value={formData.name}
-                        onChange={(e) =>
-                          setFormData({ ...formData, name: e.target.value })
-                        }
-                        placeholder="e.g. Website Inquiry"
-                        className="h-12 border-slate-200 focus:ring-primary/20 transition-all rounded-xl text-base shadow-sm"
-                      />
-                    </div>
+              <h2 className="text-lg font-semibold text-slate-800 ml-1">
+                {isEdit ? formData.name : "New Form"}
+              </h2>
 
-                    <div className="grid grid-cols-2 gap-8">
-                      <div className="space-y-3">
-                        <Label className="text-sm font-bold text-slate-700 flex items-center gap-1">
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden relative pb-20">
+                <Tabs
+                  value={activeSetupTab}
+                  onValueChange={setActiveSetupTab}
+                  className="w-full"
+                >
+                  <div className="bg-slate-100/30 border-b border-slate-200 p-2 px-4 shadow-sm">
+                    <TabsList className="bg-transparent h-10 w-fit">
+                      <TabsTrigger
+                        value="general"
+                        className="px-6 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-slate-900 transition-all h-8 rounded-md"
+                      >
+                        General
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="branding"
+                        className="px-6 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-slate-900 transition-all h-8 rounded-md"
+                      >
+                        Branding
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="submission"
+                        className="px-6 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-slate-900 transition-all h-8 rounded-md"
+                      >
+                        Submission
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="notifications"
+                        className="px-6 text-xs font-semibold data-[state=active]:bg-white data-[state=active]:text-slate-900 transition-all h-8 rounded-md"
+                      >
+                        Notifications
+                      </TabsTrigger>
+                    </TabsList>
+                  </div>
+
+                  <div className="p-8">
+                    <TabsContent value="general" className="mt-0 space-y-6">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold text-slate-700 flex items-center gap-1">
+                          <span className="text-red-500">*</span> Form Name
+                        </Label>
+                        <Input
+                          value={formData.name}
+                          onChange={(e) =>
+                            setFormData({ ...formData, name: e.target.value })
+                          }
+                          className="h-10 border-slate-200 rounded-lg shadow-sm"
+                          placeholder=""
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold text-slate-700 flex items-center gap-1">
                           <span className="text-red-500">*</span> Language
                         </Label>
                         <Select
@@ -1011,7 +943,7 @@ export default function EstimateRequestFormBuilder() {
                             setFormData({ ...formData, language: v })
                           }
                         >
-                          <SelectTrigger className="h-12 border-slate-200 rounded-xl shadow-sm">
+                          <SelectTrigger className="h-10 border-slate-200 rounded-lg shadow-sm">
                             <SelectValue placeholder="Select Language" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1022,8 +954,8 @@ export default function EstimateRequestFormBuilder() {
                         </Select>
                       </div>
 
-                      <div className="space-y-3">
-                        <Label className="text-sm font-bold text-slate-700 flex items-center gap-1">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold text-slate-700 flex items-center gap-1">
                           <span className="text-red-500">*</span> Status
                         </Label>
                         <Select
@@ -1032,7 +964,7 @@ export default function EstimateRequestFormBuilder() {
                             setFormData({ ...formData, status: v })
                           }
                         >
-                          <SelectTrigger className="h-12 border-slate-200 rounded-xl shadow-sm">
+                          <SelectTrigger className="h-10 border-slate-200 rounded-lg shadow-sm">
                             <SelectValue placeholder="Select Status" />
                           </SelectTrigger>
                           <SelectContent>
@@ -1044,507 +976,526 @@ export default function EstimateRequestFormBuilder() {
                           </SelectContent>
                         </Select>
                       </div>
-                    </div>
 
-                    <div className="space-y-3">
-                      <Label className="text-sm font-bold text-slate-700">
-                        Responsible (Assignee)
-                      </Label>
-                      <Select
-                        value={formData.responsible}
-                        onValueChange={(v) =>
-                          setFormData({ ...formData, responsible: v })
-                        }
-                      >
-                        <SelectTrigger className="h-12 border-slate-200 rounded-xl shadow-sm">
-                          <SelectValue placeholder="Nothing selected" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Nothing selected</SelectItem>
-                          {staffList.map((s) => (
-                            <SelectItem key={s._id} value={s._id}>
-                              {s.firstname} {s.lastname}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="mt-8">
-                      <Button
-                        onClick={handleSave}
-                        className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white px-8 rounded-xl font-bold"
-                      >
-                        Save
-                      </Button>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent
-                    value="branding"
-                    className="mt-0 space-y-8 max-w-2xl"
-                  >
-                    {/* Branding content same as before but inside the new layout */}
-                    <div className="space-y-3">
-                      <Label className="text-sm font-bold text-slate-700 flex items-center gap-1">
-                        <span className="text-red-500">*</span> Submit button
-                        text
-                      </Label>
-                      <Input
-                        value={formData.branding.submit_btn_text}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            branding: {
-                              ...formData.branding,
-                              submit_btn_text: e.target.value,
-                            },
-                          })
-                        }
-                        className="h-12 border-slate-200 rounded-xl text-base shadow-sm"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-8">
-                      <div className="space-y-3">
-                        <Label className="text-sm font-bold text-slate-700">
-                          Submit button background color
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold text-muted-foreground">
+                          Responsible (Assignee)
                         </Label>
-                        <div className="flex gap-2">
-                          <Input
-                            value={formData.branding.submit_btn_bg_color}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                branding: {
-                                  ...formData.branding,
-                                  submit_btn_bg_color: e.target.value,
-                                },
-                              })
-                            }
-                            className="h-12 border-slate-200 font-mono rounded-xl shadow-sm"
-                          />
-                          <div
-                            className="w-12 h-12 rounded-xl border border-slate-200 grow-0 shrink-0"
-                            style={{
-                              backgroundColor:
-                                formData.branding.submit_btn_bg_color,
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        <Label className="text-sm font-bold text-slate-700">
-                          Submit button text color
-                        </Label>
-                        <div className="flex gap-2">
-                          <Input
-                            value={formData.branding.submit_btn_text_color}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                branding: {
-                                  ...formData.branding,
-                                  submit_btn_text_color: e.target.value,
-                                },
-                              })
-                            }
-                            className="h-12 border-slate-200 font-mono rounded-xl shadow-sm"
-                          />
-                          <div
-                            className="w-12 h-12 rounded-xl border border-slate-200 grow-0 shrink-0"
-                            style={{
-                              backgroundColor:
-                                formData.branding.submit_btn_text_color,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-8">
-                      <Button
-                        onClick={handleSave}
-                        className="bg-slate-900 hover:bg-slate-800 text-white px-8 h-11 rounded-xl font-bold transition-all shadow-md active:scale-95"
-                      >
-                        Save Branding
-                      </Button>
-                    </div>
-                  </TabsContent>
-
-                  <TabsContent
-                    value="submission"
-                    className="mt-0 space-y-8 max-w-2xl text-slate-900 font-medium"
-                  >
-                    <div className="space-y-4">
-                      <Label className="text-sm font-bold text-slate-700">
-                        Submission Action
-                      </Label>
-                      <RadioGroup
-                        value={formData.submission.type}
-                        onValueChange={(v) =>
-                          setFormData({
-                            ...formData,
-                            submission: { ...formData.submission, type: v },
-                          })
-                        }
-                        className="flex gap-6"
-                      >
-                        <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl cursor-pointer hover:bg-slate-100 transition-all">
-                          <RadioGroupItem value="message" id="msg" />
-                          <Label
-                            htmlFor="msg"
-                            className="font-bold cursor-pointer"
-                          >
-                            Display Message
-                          </Label>
-                        </div>
-                        <div className="flex items-center space-x-2 bg-slate-50 border border-slate-200 px-4 py-3 rounded-xl cursor-pointer hover:bg-slate-100 transition-all">
-                          <RadioGroupItem value="redirect" id="redir" />
-                          <Label
-                            htmlFor="redir"
-                            className="font-bold cursor-pointer"
-                          >
-                            Redirect URL
-                          </Label>
-                        </div>
-                      </RadioGroup>
-                    </div>
-
-                    {formData.submission.type === "message" ? (
-                      <div className="space-y-3">
-                        <Label className="text-sm font-bold text-slate-700">
-                          Success Message
-                        </Label>
-                        <Textarea
-                          value={formData.submission.message}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              submission: {
-                                ...formData.submission,
-                                message: e.target.value,
-                              },
-                            })
+                        <Select
+                          value={formData.responsible}
+                          onValueChange={(v) =>
+                            setFormData({ ...formData, responsible: v })
                           }
-                          placeholder="Thank you for your request! We will get back to you soon."
-                          className="min-h-[120px] rounded-xl border-slate-200 focus:ring-primary/20 bg-slate-50/30"
-                        />
+                        >
+                          <SelectTrigger className="h-10 border-slate-200 rounded-lg shadow-sm text-slate-400">
+                            <SelectValue placeholder="Nothing selected" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">
+                              Nothing selected
+                            </SelectItem>
+                            {staffList.map((s) => (
+                              <SelectItem key={s._id} value={s._id}>
+                                {s.firstname} {s.lastname}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <Label className="text-sm font-bold text-slate-700">
-                          Redirect Link
+                    </TabsContent>
+
+                    <TabsContent value="branding" className="mt-0 space-y-6">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-semibold text-slate-700 flex items-center gap-1">
+                          <span className="text-red-500">*</span> Submit button
+                          text
                         </Label>
                         <Input
-                          value={formData.submission.redirect_url}
+                          value={formData.branding.submit_btn_text}
                           onChange={(e) =>
                             setFormData({
                               ...formData,
-                              submission: {
-                                ...formData.submission,
-                                redirect_url: e.target.value,
+                              branding: {
+                                ...formData.branding,
+                                submit_btn_text: e.target.value,
                               },
                             })
                           }
-                          placeholder="https://yourwebsite.com/thank-you"
-                          className="h-12 border-slate-200 rounded-xl bg-slate-50/30"
+                          className="h-10 border-slate-200 rounded-lg shadow-sm"
                         />
                       </div>
-                    )}
-                    <div className="mt-8">
-                      <Button
-                        onClick={handleSave}
-                        className="bg-slate-900 hover:bg-slate-800 text-white px-8 h-11 rounded-xl font-bold transition-all shadow-md active:scale-95"
-                      >
-                        Save Submission
-                      </Button>
-                    </div>
-                  </TabsContent>
 
-                  <TabsContent
-                    value="notifications"
-                    className="mt-0 space-y-8 max-w-2xl"
-                  >
-                    <div className="flex items-center justify-between p-4 bg-primary/5 border border-primary/10 rounded-2xl">
-                      <div className="space-y-0.5">
-                        <Label
-                          htmlFor="enable-notify"
-                          className="text-sm font-bold text-slate-900 cursor-pointer"
-                        >
-                          Enable Notifications
-                        </Label>
-                        <p className="text-xs text-slate-500 font-medium">
-                          Get notified when a new form is submitted
-                        </p>
-                      </div>
-                      <Checkbox
-                        id="enable-notify"
-                        checked={formData.notifications.enable}
-                        onCheckedChange={(v) =>
-                          setFormData({
-                            ...formData,
-                            notifications: {
-                              ...formData.notifications,
-                              enable: !!v,
-                            },
-                          })
-                        }
-                        className="rounded-md border-primary/30 h-5 w-5"
-                      />
-                    </div>
-
-                    {formData.notifications.enable && (
-                      <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
-                        <div className="space-y-3">
-                          <Label className="text-sm font-bold text-slate-700">
-                            Notification Target
+                      <div className="grid grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold text-muted-foreground">
+                            Submit button background color
                           </Label>
-                          <Select
-                            value={formData.notifications.type}
-                            onValueChange={(v) =>
+                          <div className="flex gap-2">
+                            <Input
+                              value={formData.branding.submit_btn_bg_color}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  branding: {
+                                    ...formData.branding,
+                                    submit_btn_bg_color: e.target.value,
+                                  },
+                                })
+                              }
+                              className="h-10 border-slate-200 font-mono rounded-lg shadow-sm"
+                            />
+                            <div className="relative w-10 h-10 rounded-lg border border-slate-200 grow-0 shrink-0 overflow-hidden shadow-sm hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer">
+                              <input
+                                type="color"
+                                value={formData.branding.submit_btn_bg_color}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    branding: {
+                                      ...formData.branding,
+                                      submit_btn_bg_color: e.target.value,
+                                    },
+                                  })
+                                }
+                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150"
+                              />
+                              <div
+                                className="w-full h-full"
+                                style={{
+                                  backgroundColor:
+                                    formData.branding.submit_btn_bg_color,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold text-muted-foreground">
+                            Submit button background text
+                          </Label>
+                          <div className="flex gap-2">
+                            <Input
+                              value={formData.branding.submit_btn_text_color}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  branding: {
+                                    ...formData.branding,
+                                    submit_btn_text_color: e.target.value,
+                                  },
+                                })
+                              }
+                              className="h-10 border-slate-200 font-mono rounded-lg shadow-sm"
+                            />
+                            <div className="relative w-10 h-10 rounded-lg border border-slate-200 grow-0 shrink-0 overflow-hidden shadow-sm hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer">
+                              <input
+                                type="color"
+                                value={formData.branding.submit_btn_text_color}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    branding: {
+                                      ...formData.branding,
+                                      submit_btn_text_color: e.target.value,
+                                    },
+                                  })
+                                }
+                                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full scale-150"
+                              />
+                              <div
+                                className="w-full h-full"
+                                style={{
+                                  backgroundColor:
+                                    formData.branding.submit_btn_text_color,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </TabsContent>
+
+                    <TabsContent value="submission" className="mt-0 space-y-6">
+                      <div className="space-y-3">
+                        <Label className="text-[13px] font-medium text-muted-foreground">
+                          What should happen after a visitor submits this form?
+                        </Label>
+                        <RadioGroup
+                          value={formData.submission.type}
+                          onValueChange={(v) =>
+                            setFormData({
+                              ...formData,
+                              submission: { ...formData.submission, type: v },
+                            })
+                          }
+                          className="space-y-2"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem
+                              value="message"
+                              id="msg"
+                              className="bg-white border-slate-300"
+                            />
+                            <Label
+                              htmlFor="msg"
+                              className="font-medium text-slate-700 text-sm cursor-pointer"
+                            >
+                              Display thank you message
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem
+                              value="redirect"
+                              id="redir"
+                              className="bg-white border-slate-300"
+                            />
+                            <Label
+                              htmlFor="redir"
+                              className="font-medium text-slate-700 text-sm cursor-pointer"
+                            >
+                              Redirect to another website
+                            </Label>
+                          </div>
+                        </RadioGroup>
+                      </div>
+
+                      {formData.submission.type === "message" ? (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold text-slate-700 flex items-center gap-1">
+                            <span className="text-red-500">*</span> Message to
+                            show after form is succcesfully submitted
+                          </Label>
+                          <Textarea
+                            value={formData.submission.message}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                submission: {
+                                  ...formData.submission,
+                                  message: e.target.value,
+                                },
+                              })
+                            }
+                            className="min-h-[140px] border-slate-200 rounded-lg bg-white"
+                          />
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Label className="text-sm font-semibold text-slate-700 flex items-center gap-1">
+                            <span className="text-red-500">*</span> Redirect
+                            Link
+                          </Label>
+                          <Input
+                            value={formData.submission.redirect_url}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                submission: {
+                                  ...formData.submission,
+                                  redirect_url: e.target.value,
+                                },
+                              })
+                            }
+                            placeholder="https://yourwebsite.com/thank-you"
+                            className="h-10 border-slate-200 rounded-lg bg-white"
+                          />
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent
+                      value="notifications"
+                      className="mt-0 space-y-6"
+                    >
+                      <div className="space-y-3">
+                        <Label className="text-sm font-bold text-slate-800">
+                          Notification settings
+                        </Label>
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="enable-notify"
+                            checked={formData.notifications.enable}
+                            className="w-4 h-4 rounded-sm border-slate-300"
+                            onCheckedChange={(v) =>
                               setFormData({
                                 ...formData,
                                 notifications: {
                                   ...formData.notifications,
-                                  type: v,
+                                  enable: !!v,
                                 },
                               })
                             }
+                          />
+                          <Label
+                            htmlFor="enable-notify"
+                            className="text-sm font-medium text-slate-700 cursor-pointer"
                           >
-                            <SelectTrigger className="h-12 border-slate-200 rounded-xl shadow-sm bg-white">
-                              <SelectValue placeholder="Select type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="responsible">
-                                Responsible Person Only
-                              </SelectItem>
-                              <SelectItem value="specific_staff">
-                                Specific Staff Members
-                              </SelectItem>
-                              <SelectItem value="roles">
-                                Specific Roles
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
+                            Notify when estimate request submitted
+                          </Label>
                         </div>
-
-                        {formData.notifications.type === "specific_staff" && (
-                          <div className="space-y-3">
-                            <Label className="text-sm font-bold text-slate-700">
-                              Select Staff Members
-                            </Label>
-                            <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 max-h-[200px] overflow-y-auto">
-                              {staffList.map((s) => (
-                                <div
-                                  key={s._id}
-                                  className="flex items-center gap-2"
-                                >
-                                  <Checkbox
-                                    id={`staff-${s._id}`}
-                                    checked={formData.notifications.staff_to_notify.includes(
-                                      s._id,
-                                    )}
-                                    onCheckedChange={(v) => {
-                                      const current = [
-                                        ...formData.notifications
-                                          .staff_to_notify,
-                                      ];
-                                      if (v) current.push(s._id);
-                                      else
-                                        current.splice(
-                                          current.indexOf(s._id),
-                                          1,
-                                        );
-                                      setFormData({
-                                        ...formData,
-                                        notifications: {
-                                          ...formData.notifications,
-                                          staff_to_notify: current,
-                                        },
-                                      });
-                                    }}
-                                  />
-                                  <Label
-                                    htmlFor={`staff-${s._id}`}
-                                    className="text-xs font-bold text-slate-600 truncate"
-                                  >
-                                    {s.firstname} {s.lastname}
-                                  </Label>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {formData.notifications.type === "roles" && (
-                          <div className="space-y-3">
-                            <Label className="text-sm font-bold text-slate-700">
-                              Select Team Roles
-                            </Label>
-                            <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100 max-h-[200px] overflow-y-auto">
-                              {roles.map((r) => (
-                                <div
-                                  key={r._id}
-                                  className="flex items-center gap-2"
-                                >
-                                  <Checkbox
-                                    id={`role-${r._id}`}
-                                    checked={formData.notifications.roles_to_notify.includes(
-                                      r._id,
-                                    )}
-                                    onCheckedChange={(v) => {
-                                      const current = [
-                                        ...formData.notifications
-                                          .roles_to_notify,
-                                      ];
-                                      if (v) current.push(r._id);
-                                      else
-                                        current.splice(
-                                          current.indexOf(r._id),
-                                          1,
-                                        );
-                                      setFormData({
-                                        ...formData,
-                                        notifications: {
-                                          ...formData.notifications,
-                                          roles_to_notify: current,
-                                        },
-                                      });
-                                    }}
-                                  />
-                                  <Label
-                                    htmlFor={`role-${r._id}`}
-                                    className="text-xs font-bold text-slate-600 truncate"
-                                  >
-                                    {r.name}
-                                  </Label>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
                       </div>
-                    )}
-                    <div className="mt-8">
-                      <Button
-                        onClick={handleSave}
-                        className="bg-slate-900 hover:bg-slate-800 text-white px-8 h-11 rounded-xl font-bold transition-all shadow-md active:scale-95"
-                      >
-                        Save Notification Rules
-                      </Button>
-                    </div>
-                  </TabsContent>
-                </div>
-              </Tabs>
+
+                      {formData.notifications.enable && (
+                        <div className="space-y-6 pt-2">
+                          <div className="space-y-3">
+                            <RadioGroup
+                              value={formData.notifications.type}
+                              onValueChange={(v) =>
+                                setFormData({
+                                  ...formData,
+                                  notifications: {
+                                    ...formData.notifications,
+                                    type: v,
+                                  },
+                                })
+                              }
+                              className="flex items-center gap-6"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem
+                                  value="specific_staff"
+                                  id="staff"
+                                  className="bg-white border-slate-300"
+                                />
+                                <Label
+                                  htmlFor="staff"
+                                  className="text-sm font-medium text-slate-700 cursor-pointer text-[13px]"
+                                >
+                                  Specific Staff Members
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem
+                                  value="roles"
+                                  id="roles"
+                                  className="bg-white border-slate-300"
+                                />
+                                <Label
+                                  htmlFor="roles"
+                                  className="text-sm font-medium text-slate-700 cursor-pointer text-[13px]"
+                                >
+                                  Staff members with roles
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <RadioGroupItem
+                                  value="responsible"
+                                  id="resp"
+                                  className="bg-white border-slate-300"
+                                />
+                                <Label
+                                  htmlFor="resp"
+                                  className="text-sm font-medium text-slate-700 cursor-pointer text-[13px]"
+                                >
+                                  Responsible person
+                                </Label>
+                              </div>
+                            </RadioGroup>
+                          </div>
+
+                          {(formData.notifications.type === "specific_staff" ||
+                            formData.notifications.type === "roles") && (
+                            <div className="space-y-2">
+                              <Label className="text-[13px] font-bold text-muted-foreground">
+                                {formData.notifications.type ===
+                                "specific_staff"
+                                  ? "Staff Members to Notify"
+                                  : "Roles to Notify"}
+                              </Label>
+                              <Select
+                                value="none"
+                                onValueChange={(v) => {
+                                  if (v === "none") return;
+                                  const listKey =
+                                    formData.notifications.type ===
+                                    "specific_staff"
+                                      ? "staff_to_notify"
+                                      : "roles_to_notify";
+                                  const current = [
+                                    ...formData.notifications[listKey],
+                                  ];
+                                  if (!current.includes(v)) {
+                                    current.push(v);
+                                    setFormData({
+                                      ...formData,
+                                      notifications: {
+                                        ...formData.notifications,
+                                        [listKey]: current,
+                                      },
+                                    });
+                                  }
+                                }}
+                              >
+                                <SelectTrigger className="h-10 border-slate-200 rounded-lg bg-white text-slate-400">
+                                  <SelectValue placeholder="Nothing selected" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">
+                                    Nothing selected
+                                  </SelectItem>
+                                  {formData.notifications.type ===
+                                  "specific_staff"
+                                    ? staffList.map((s) => (
+                                        <SelectItem key={s._id} value={s._id}>
+                                          {s.firstname} {s.lastname}
+                                        </SelectItem>
+                                      ))
+                                    : roles.map((r) => (
+                                        <SelectItem key={r._id} value={r._id}>
+                                          {r.name}
+                                        </SelectItem>
+                                      ))}
+                                </SelectContent>
+                              </Select>
+
+                              <div className="flex flex-wrap gap-2 pt-2">
+                                {(formData.notifications.type ===
+                                "specific_staff"
+                                  ? formData.notifications.staff_to_notify
+                                  : formData.notifications.roles_to_notify
+                                ).map((id: string) => {
+                                  const item =
+                                    formData.notifications.type ===
+                                    "specific_staff"
+                                      ? staffList.find((s) => s._id === id)
+                                      : roles.find((r) => r._id === id);
+                                  if (!item) return null;
+                                  return (
+                                    <div
+                                      key={id}
+                                      className="flex items-center gap-1.5 bg-slate-100 px-3 py-1 rounded-full border border-slate-200"
+                                    >
+                                      <span className="text-[11px] font-semibold text-slate-700">
+                                        {formData.notifications.type ===
+                                        "specific_staff"
+                                          ? `${(item as any).firstname} ${(item as any).lastname}`
+                                          : (item as any).name}
+                                      </span>
+                                      <button
+                                        onClick={() => {
+                                          const listKey =
+                                            formData.notifications.type ===
+                                            "specific_staff"
+                                              ? "staff_to_notify"
+                                              : "roles_to_notify";
+                                          setFormData({
+                                            ...formData,
+                                            notifications: {
+                                              ...formData.notifications,
+                                              [listKey]: formData.notifications[
+                                                listKey
+                                              ].filter((i: string) => i !== id),
+                                            },
+                                          });
+                                        }}
+                                        className="hover:text-red-500 transition-colors"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </TabsContent>
+                  </div>
+
+                  <div className="absolute bottom-6 right-8">
+                    <Button
+                      onClick={handleSave}
+                      disabled={mutation.isPending}
+                      className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white px-8 h-10 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2"
+                    >
+                      {mutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        "Save"
+                      )}
+                    </Button>
+                  </div>
+                </Tabs>
+              </div>
             </div>
           </TabsContent>
 
           {/* Integration Tab */}
           <TabsContent value="integration" className="mt-0 outline-none">
-            <div className="space-y-8 max-w-5xl">
-              <div className="grid md:grid-cols-2 gap-8">
-                <Card className="p-8 rounded-[2rem] border-slate-200 shadow-sm space-y-6 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-8 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity pointer-events-none">
-                    <Plus className="h-40 w-40 rotate-45" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black text-slate-900 mb-2">
-                      Embed Code
-                    </h3>
-                    <p className="text-slate-500 text-sm font-medium">
-                      Copy and paste this snippet into your website's HTML to
-                      display the form integrated as an iframe.
-                    </p>
-                  </div>
-                  <div className="relative group/code">
-                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-2xl -m-1 blur-lg opacity-0 group-hover/code:opacity-100 transition-opacity" />
-                    <Textarea
-                      value={iframeCode}
-                      readOnly
-                      className="min-h-[140px] rounded-2xl border-slate-200 bg-slate-900 text-slate-300 font-mono text-xs p-5 relative z-10 focus:ring-0 leading-relaxed shadow-inner"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => copyToClipboard(iframeCode)}
-                      className="absolute top-4 right-4 bg-white/10 hover:bg-white/20 text-white border-0 backdrop-blur-md rounded-xl z-20 h-9 px-4 font-bold"
-                    >
-                      <Copy className="h-3.5 w-3.5 mr-2" />
-                      Copy Snippet
-                    </Button>
-                  </div>
-                </Card>
-
-                <Card className="p-8 rounded-[2rem] border-slate-200 shadow-sm space-y-6 bg-slate-900 text-white relative overflow-hidden group">
-                  <div className="absolute -bottom-10 -left-10 p-8 opacity-[0.05] group-hover:opacity-[0.1] transition-opacity pointer-events-none">
-                    <ExternalLink className="h-48 w-48" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-black mb-2">Public Link</h3>
-                    <p className="text-slate-400 text-sm font-medium">
-                      Share this direct link with your clients or use it in
-                      marketing emails for quick access.
-                    </p>
-                  </div>
-                  <div className="space-y-4 relative z-10">
-                    <div className="flex items-center gap-3 bg-white/5 border border-white/10 p-2 rounded-2xl backdrop-blur-sm group-hover:border-white/20 transition-all">
-                      <div className="flex-1 px-3 font-mono text-xs text-slate-300 truncate opacity-70">
-                        {publicUrl}
-                      </div>
-                      <Button
-                        onClick={() => copyToClipboard(publicUrl)}
-                        size="sm"
-                        className="bg-white text-slate-900 hover:bg-slate-100 rounded-xl font-black h-9 px-4"
-                      >
-                        Copy
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-9 w-9 text-slate-400 hover:text-white hover:bg-white/10"
-                        onClick={() => window.open(publicUrl, "_blank")}
-                      >
-                        <ExternalLink className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Button
-                        variant="outline"
-                        onClick={() => copyToClipboard(`${publicUrl}?styled=1`)}
-                        className="rounded-xl h-10 border-white/10 text-white hover:bg-white/5 font-bold text-xs"
-                      >
-                        Styled Link
-                      </Button>
-                      <Button
-                        variant="outline"
-                        onClick={() =>
-                          copyToClipboard(`${publicUrl}?styled=1&with_logo=1`)
-                        }
-                        className="rounded-xl h-10 border-white/10 text-white hover:bg-white/5 font-bold text-xs"
-                      >
-                        Link with Logo
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 space-y-8 max-w-5xl">
+              <div className="space-y-4">
+                <p className="text-sm text-foreground font-medium">
+                  Copy & Paste the code anywhere in your site to show the form,
+                  additionally you can adjust the width and height px to fit for
+                  your website.
+                </p>
+                <div className="relative group/code">
+                  <Textarea
+                    readOnly
+                    value={iframeCode}
+                    className="min-h-[120px] p-4 bg-white rounded-xl border border-slate-200 text-[13px] text-foreground font-mono leading-relaxed resize-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(iframeCode);
+                      toast.success("Embed code copied!");
+                    }}
+                    className="absolute top-2 right-2 bg-white border border-slate-200 rounded-md text-muted-foreground hover:text-slate-900 opacity-0 group-hover/code:opacity-100 transition-opacity shadow-sm h-8 px-3 text-xs font-semibold"
+                  >
+                    <Copy className="h-3.5 w-3.5 mr-2" />
+                    Copy
+                  </Button>
+                </div>
               </div>
 
-              <div className="bg-amber-50 rounded-3xl border border-amber-100 p-8 flex gap-6">
-                <div className="bg-amber-100 p-3 rounded-2xl h-fit">
-                  <Info className="h-6 w-6 text-amber-600" />
+              <div className="space-y-6">
+                <h3 className="text-lg font-bold text-slate-800">
+                  Share direct link
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 group">
+                    <div
+                      className="px-4 py-2 bg-[#f0f7ff] border border-[#dbeafe] rounded-full text-[13px] text-[#2563eb] font-medium transition-all hover:bg-[#e0f0ff] cursor-pointer"
+                      onClick={() => copyToClipboard(`${publicUrl}?styled=1`)}
+                    >
+                      {publicUrl}?styled=1
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 group">
+                    <div
+                      className="px-4 py-2 bg-[#f0f7ff] border border-[#dbeafe] rounded-full text-[13px] text-[#2563eb] font-medium transition-all hover:bg-[#e0f0ff] cursor-pointer"
+                      onClick={() =>
+                        copyToClipboard(`${publicUrl}?styled=1&with_logo=1`)
+                      }
+                    >
+                      {publicUrl}?styled=1&with_logo=1
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-3">
-                  <h4 className="font-black text-amber-900">
-                    Important Deployment Notes
-                  </h4>
-                  <p className="text-sm text-amber-700 font-medium leading-relaxed">
-                    Ensure that the protocol of your parent website matches the
-                    protocol of this form (HTTP vs HTTPS). Mixed content will
-                    prevent the form from loading correctly inside an iframe.
-                  </p>
-                  <p className="text-xs text-amber-600/70 italic">
-                    Note: If you are using a non-SSL installation, avoid
-                    embedding in SSL sites to prevent security blockades.
-                  </p>
-                </div>
+              </div>
+
+              <div className="pt-8 border-t border-slate-100 space-y-4">
+                <p className="text-[14px] font-semibold text-slate-800">
+                  When placing the iframe snippet code consider the following:
+                </p>
+                <ul className="space-y-3">
+                  <li className="text-[13px] text-foreground font-medium">
+                    1. If the protocol of your installation is http use a http
+                    page inside the iframe.
+                  </li>
+                  <li className="text-[13px] text-[#22c55e] font-bold">
+                    2. If the protocol of your installation is https use a https
+                    page inside the iframe.
+                  </li>
+                  <li className="text-[13px] text-foreground font-medium pt-2">
+                    None SSL installation will need to place the link in non ssl
+                    eq. landing page and backwards.
+                  </li>
+                </ul>
               </div>
             </div>
           </TabsContent>

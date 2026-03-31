@@ -12,6 +12,8 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService } from "@/api/services/customer.service";
 import { toast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Loader2 } from "lucide-react";
 
 export default function SetupCustomerGroups() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -19,6 +21,7 @@ export default function SetupCustomerGroups() {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const {
     data: groups = [],
@@ -70,7 +73,6 @@ export default function SetupCustomerGroups() {
     onError: () => toast.error("Failed to delete customer group"),
   });
 
-
   const handleSave = () => {
     if (!newGroupName.trim()) {
       toast.error("Group name is required");
@@ -90,31 +92,45 @@ export default function SetupCustomerGroups() {
         title="Customer Groups"
         subtitle="Manage and organize your customer categories"
         addLabel="New Customer Group"
-        onAdd={() => {
-          setEditingGroupId(null);
-          setNewGroupName("");
-          setIsModalOpen(true);
-        }}
+        onAdd={
+          can("Customers", "Create")
+            ? () => {
+                setEditingGroupId(null);
+                setNewGroupName("");
+                setIsModalOpen(true);
+              }
+            : undefined
+        }
         onRefresh={() => refetch()}
         isLoading={isLoading}
         data={groups}
-        onEdit={(group) => {
-          setEditingGroupId(group._id);
-          setNewGroupName(group.name);
-          setIsModalOpen(true);
-        }}
-        onDelete={(group) => {
-          if (window.confirm("Are you sure you want to delete this group?")) {
-            deleteMutation.mutate(group._id);
-          }
-        }}
+        onEdit={
+          can("Customers", "Edit")
+            ? (group) => {
+                setEditingGroupId(group._id);
+                setNewGroupName(group.name);
+                setIsModalOpen(true);
+              }
+            : undefined
+        }
+        onDelete={
+          can("Customers", "Delete")
+            ? (group) => {
+                if (
+                  window.confirm("Are you sure you want to delete this group?")
+                ) {
+                  deleteMutation.mutate(group._id);
+                }
+              }
+            : undefined
+        }
         columns={[
           {
             key: "name",
             label: "Name",
-            className: "text-gray-700 font-medium",
-            width: "3/4"
-          }
+            className: "text-foreground font-medium",
+            width: "3/4",
+          },
         ]}
       />
 
@@ -130,7 +146,7 @@ export default function SetupCustomerGroups() {
           </DialogHeader>
           <div className="p-6 space-y-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">
+              <label className="text-sm font-medium text-foreground">
                 <span className="text-red-500 mr-1">*</span>Name
               </label>
               <Input
@@ -138,6 +154,11 @@ export default function SetupCustomerGroups() {
                 onChange={(e) => setNewGroupName(e.target.value)}
                 className="h-10 border-gray-300 focus:ring-1 focus:ring-primary text-gray-800"
                 placeholder="Enter group name"
+                disabled={
+                  editingGroupId
+                    ? !can("Customers", "Edit")
+                    : !can("Customers", "Create")
+                }
               />
             </div>
           </div>
@@ -145,16 +166,26 @@ export default function SetupCustomerGroups() {
             <Button
               variant="outline"
               onClick={() => setIsModalOpen(false)}
-              className="bg-white border-gray-300 text-gray-700 hover:bg-gray-100 px-6 h-10 font-medium"
+              className="bg-white border-gray-300 text-foreground hover:bg-gray-100 px-6 h-10 font-medium"
             >
               Close
             </Button>
             <Button
               onClick={handleSave}
               className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white px-8 h-10 font-medium"
-              disabled={createMutation.isPending}
+              disabled={
+                createMutation.isPending ||
+                updateMutation.isPending ||
+                (editingGroupId
+                  ? !can("Customers", "Edit")
+                  : !can("Customers", "Create"))
+              }
             >
-              {createMutation.isPending ? "Saving..." : "Save"}
+              {createMutation.isPending || updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                "Save"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

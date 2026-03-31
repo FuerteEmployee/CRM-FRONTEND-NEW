@@ -35,6 +35,7 @@ import {
 import { notifications } from "@/data/mockData";
 import { useTheme } from "@/hooks/useTheme";
 import { NavLink } from "@/components/NavLink";
+import { usePermissionContext } from "@/context/PermissionContext";
 import { useNavigate } from "react-router-dom";
 import { authService } from "@/api/services/auth.service";
 
@@ -42,11 +43,23 @@ export function TopNavbar() {
   const unreadCount = notifications.filter((n) => !n.read).length;
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const { user } = usePermissionContext();
 
   const handleLogout = () => {
     authService.logout();
-    navigate("/");
+    navigate("/admin/login");
   };
+
+  const initials = user
+    ? `${user.firstname?.[0] || ""}${user.lastname?.[0] || ""}`.toUpperCase()
+    : "??";
+
+  const fullName = user ? `${user.firstname} ${user.lastname}` : "Guest User";
+  const userEmail = user?.email || "No email provided";
+  const userRole = user?.admin
+    ? "Admin"
+    : user?.role?.name ||
+      (typeof user?.role === "string" ? user.role : "Staff");
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/95 backdrop-blur-md px-4 shadow-sm">
@@ -221,12 +234,14 @@ export function TopNavbar() {
           <button className="flex items-center gap-2.5 pl-2 border-l border-border ml-1 outline-none group">
             <Avatar className="h-8 w-8 ring-2 ring-transparent group-hover:ring-primary/30 transition-all">
               <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
-                JD
+                {initials}
               </AvatarFallback>
             </Avatar>
             <div className="hidden md:block text-left">
-              <p className="text-sm font-medium leading-none">John Doe</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Admin</p>
+              <p className="text-sm font-medium leading-none">{fullName}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {userRole}
+              </p>
             </div>
           </button>
         </DropdownMenuTrigger>
@@ -235,13 +250,13 @@ export function TopNavbar() {
           <div className="flex items-center gap-3 p-3 border-b bg-muted/30">
             <Avatar className="h-10 w-10">
               <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
-                JD
+                {initials}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <p className="text-sm font-semibold leading-tight">John Doe</p>
+              <p className="text-sm font-semibold leading-tight">{fullName}</p>
               <p className="text-[11px] text-muted-foreground truncate">
-                john@company.com
+                {userEmail}
               </p>
             </div>
           </div>

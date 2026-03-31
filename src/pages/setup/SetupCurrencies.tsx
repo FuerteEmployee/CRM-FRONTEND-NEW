@@ -15,7 +15,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Star } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface Currency {
   _id: string;
@@ -41,6 +48,7 @@ export default function SetupCurrencies() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: currencies = [], isLoading } = useQuery<Currency[]>({
     queryKey: ["currencies"],
@@ -145,7 +153,10 @@ export default function SetupCurrencies() {
   };
 
   const makeDefault = (currency: Currency) => {
-    updateMutation.mutate({ id: currency._id, data: { ...currency, isdefault: true } });
+    updateMutation.mutate({
+      id: currency._id,
+      data: { ...currency, isdefault: true },
+    });
   };
 
   return (
@@ -154,11 +165,12 @@ export default function SetupCurrencies() {
         title="Currencies"
         subtitle="Manage the currencies available for your business."
         addLabel="Add New Currency"
-        onAdd={handleAdd}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
-        renderCustomActions={(currency: Currency) => (
-          !currency.isdefault && (
+        onAdd={can("Settings", "Edit") ? handleAdd : undefined}
+        onEdit={can("Settings", "Edit") ? handleEdit : undefined}
+        onDelete={can("Settings", "Edit") ? handleDelete : undefined}
+        renderCustomActions={(currency: Currency) =>
+          !currency.isdefault &&
+          can("Settings", "Edit") && (
             <Button
               variant="ghost"
               size="icon"
@@ -169,21 +181,21 @@ export default function SetupCurrencies() {
               <Star className="h-4 w-4" />
             </Button>
           )
-        )}
+        }
         columns={[
-          { 
-            key: "name", 
+          {
+            key: "name",
             label: "Name",
             render: (row: Currency) => (
               <div>
-                <div className="font-bold text-[#1e293b]">{row.name}</div>
+                <div className="font-bold text-foreground">{row.name}</div>
                 {row.isdefault && (
-                  <div className="text-[11px] text-primary font-bold mt-0.5 uppercase tracking-wider">
+                  <div className="text-[11px] text-muted-foreground font-bold mt-0.5 uppercase tracking-wider">
                     Base Currency
                   </div>
                 )}
               </div>
-            )
+            ),
           },
           { key: "symbol", label: "Symbol" },
         ]}
@@ -195,9 +207,14 @@ export default function SetupCurrencies() {
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden border-0 shadow-2xl">
-          <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSave();
+            }}
+          >
             <DialogHeader className="px-6 py-4 border-b bg-gray-50/50">
-              <DialogTitle className="text-xl font-bold text-[#1e293b]">
+              <DialogTitle className="text-xl font-bold text-foreground">
                 {currentCurrency ? "Edit Currency" : "Add New Currency"}
               </DialogTitle>
             </DialogHeader>
@@ -234,7 +251,9 @@ export default function SetupCurrencies() {
                   </Label>
                   <Input
                     value={formData.symbol}
-                    onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, symbol: e.target.value })
+                    }
                     placeholder="Symbol"
                     className="h-11 border-slate-200 focus:ring-primary/20 transition-all rounded-lg"
                   />
@@ -246,7 +265,9 @@ export default function SetupCurrencies() {
                   </Label>
                   <Select
                     value={formData.decimal_separator}
-                    onValueChange={(val) => setFormData({ ...formData, decimal_separator: val })}
+                    onValueChange={(val) =>
+                      setFormData({ ...formData, decimal_separator: val })
+                    }
                   >
                     <SelectTrigger className="h-11 border-slate-200 focus:ring-primary/20 transition-all rounded-lg">
                       <SelectValue placeholder="." />
@@ -264,7 +285,9 @@ export default function SetupCurrencies() {
                   </Label>
                   <Select
                     value={formData.thousand_separator}
-                    onValueChange={(val) => setFormData({ ...formData, thousand_separator: val })}
+                    onValueChange={(val) =>
+                      setFormData({ ...formData, thousand_separator: val })
+                    }
                   >
                     <SelectTrigger className="h-11 border-slate-200 focus:ring-primary/20 transition-all rounded-lg">
                       <SelectValue placeholder="," />
@@ -285,16 +308,22 @@ export default function SetupCurrencies() {
                 </Label>
                 <RadioGroup
                   value={formData.placement}
-                  onValueChange={(val: any) => setFormData({ ...formData, placement: val })}
+                  onValueChange={(val: any) =>
+                    setFormData({ ...formData, placement: val })
+                  }
                   className="flex gap-6"
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="before" id="before" />
-                    <Label htmlFor="before" className="font-medium">Before Amount</Label>
+                    <Label htmlFor="before" className="font-medium">
+                      Before Amount
+                    </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="after" id="after" />
-                    <Label htmlFor="after" className="font-medium">After Amount</Label>
+                    <Label htmlFor="after" className="font-medium">
+                      After Amount
+                    </Label>
                   </div>
                 </RadioGroup>
               </div>
@@ -305,19 +334,24 @@ export default function SetupCurrencies() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsOpen(false)}
-                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-slate-600 font-semibold rounded-lg transition-all"
+                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-foreground font-semibold rounded-lg transition-all"
               >
                 Close
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
+                disabled={
+                  createMutation.isPending ||
+                  updateMutation.isPending ||
+                  !can("Settings", "Edit")
+                }
                 className="px-8 h-10 bg-[#1e293b] hover:bg-[#334155] text-white font-bold rounded-lg shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
               >
-                {(createMutation.isPending || updateMutation.isPending) && (
+                {createMutation.isPending || updateMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Save"
                 )}
-                Save
               </Button>
             </DialogFooter>
           </form>

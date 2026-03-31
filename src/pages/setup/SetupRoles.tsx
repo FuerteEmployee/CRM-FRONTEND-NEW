@@ -7,6 +7,7 @@ import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { staffService } from "@/api/services/staff.service";
 import { useToast } from "@/hooks/use-toast";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface Permission {
   feature: string;
@@ -91,6 +92,7 @@ const FEATURES_CONFIG = [
   { name: "Staff Roles", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "Settings", caps: ["View(Global)", "Edit"] },
   { name: "Staff", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "Support", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   {
     name: "Tasks",
     caps: [
@@ -114,11 +116,14 @@ const FEATURES_CONFIG = [
   { name: "Goals", caps: ["View(Global)", "Create", "Edit", "Delete"] },
 ];
 
-const mapToBackend = (name: string, frontendPermissions: Record<string, string[]>) => {
+const mapToBackend = (
+  name: string,
+  frontendPermissions: Record<string, string[]>,
+) => {
   const permissions: Record<string, any> = {};
   for (const [feature, caps] of Object.entries(frontendPermissions)) {
     const capsObj: Record<string, boolean> = {};
-    caps.forEach(cap => {
+    caps.forEach((cap) => {
       capsObj[cap] = true;
     });
     permissions[feature] = capsObj;
@@ -155,6 +160,7 @@ export default function SetupRoles() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: roles = [], isLoading } = useQuery<Role[]>({
     queryKey: ["roles"],
@@ -228,7 +234,9 @@ export default function SetupRoles() {
   };
 
   const handleDelete = (role: Role) => {
-    if (window.confirm(`Are you sure you want to delete the role "${role.name}"?`)) {
+    if (
+      window.confirm(`Are you sure you want to delete the role "${role.name}"?`)
+    ) {
       deleteMutation.mutate(role._id);
     }
   };
@@ -248,7 +256,11 @@ export default function SetupRoles() {
 
   const handleSave = () => {
     if (!formData.name) {
-      toast({ title: "Error", description: "Role name is required", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: "Role name is required",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -269,14 +281,20 @@ export default function SetupRoles() {
             <Button variant="ghost" size="icon" onClick={() => setView("list")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h1 className="text-xl font-bold text-[#1a2b3c]">
+            <h1 className="text-xl font-bold text-foreground">
               {currentRole ? "Edit Role" : "Add New Role"}
             </h1>
           </div>
           <Button
             onClick={handleSave}
             className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white"
-            disabled={createMutation.isPending || updateMutation.isPending}
+            disabled={
+              createMutation.isPending ||
+              updateMutation.isPending ||
+              (currentRole
+                ? !can("Staff Roles", "Edit")
+                : !can("Staff Roles", "Create"))
+            }
           >
             {createMutation.isPending || updateMutation.isPending ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -289,7 +307,7 @@ export default function SetupRoles() {
 
         <div className="bg-white border rounded-lg p-6 shadow-sm space-y-6">
           <div className="space-y-2">
-            <label className="text-sm font-semibold text-[#1a2b3c]">
+            <label className="text-sm font-semibold text-foreground">
               <span className="text-red-500 mr-1">*</span>Role Name
             </label>
             <Input
@@ -299,6 +317,11 @@ export default function SetupRoles() {
               }
               placeholder="Enter role name"
               className="max-w-md h-10 border-blue-400 focus:ring-blue-500"
+              disabled={
+                currentRole
+                  ? !can("Staff Roles", "Edit")
+                  : !can("Staff Roles", "Create")
+              }
             />
           </div>
 
@@ -306,10 +329,10 @@ export default function SetupRoles() {
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 border-b">
                 <tr>
-                  <th className="px-4 py-3 font-semibold text-[#1a2b3c] w-1/3 border-r">
+                  <th className="px-4 py-3 font-semibold text-foreground w-1/3 border-r">
                     features
                   </th>
-                  <th className="px-4 py-3 font-semibold text-[#1a2b3c]">
+                  <th className="px-4 py-3 font-semibold text-foreground">
                     Capabilities
                   </th>
                 </tr>
@@ -317,7 +340,7 @@ export default function SetupRoles() {
               <tbody className="divide-y">
                 {FEATURES_CONFIG.map((feature) => (
                   <tr key={feature.name}>
-                    <td className="px-4 py-3 text-[#1a2b3c] font-medium border-r">
+                    <td className="px-4 py-3 text-foreground font-medium border-r">
                       {feature.name}
                     </td>
                     <td className="px-4 py-3">
@@ -336,10 +359,15 @@ export default function SetupRoles() {
                                 handleTogglePermission(feature.name, cap)
                               }
                               className="border-gray-300"
+                              disabled={
+                                currentRole
+                                  ? !can("Staff Roles", "Edit")
+                                  : !can("Staff Roles", "Create")
+                              }
                             />
                             <label
                               htmlFor={`${feature.name}-${cap}`}
-                              className="text-[13px] text-gray-700 leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                              className="text-[13px] text-foreground leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                             >
                               {cap}
                             </label>
@@ -358,7 +386,13 @@ export default function SetupRoles() {
           <Button
             onClick={handleSave}
             className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white px-8"
-            disabled={createMutation.isPending || updateMutation.isPending}
+            disabled={
+              createMutation.isPending ||
+              updateMutation.isPending ||
+              (currentRole
+                ? !can("Staff Roles", "Edit")
+                : !can("Staff Roles", "Create"))
+            }
           >
             {createMutation.isPending || updateMutation.isPending ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -376,16 +410,16 @@ export default function SetupRoles() {
       title="Roles"
       subtitle="Define roles and permissions for staff members."
       addLabel="Add New Role"
-      onAdd={handleAdd}
-      onEdit={handleEdit}
-      onDelete={handleDelete}
+      onAdd={can("Staff Roles", "Create") ? handleAdd : undefined}
+      onEdit={can("Staff Roles", "Edit") ? handleEdit : undefined}
+      onDelete={can("Staff Roles", "Delete") ? handleDelete : undefined}
       columns={[
         {
           key: "name",
           label: "Role Name",
           render: (role: Role) => (
             <div className="flex flex-col">
-              <span className="font-semibold text-[#1a2b3c]">{role.name}</span>
+              <span className="font-semibold text-foreground">{role.name}</span>
               <span className="text-xs text-muted-foreground mt-0.5">
                 Total Users: {role.staffCount}
               </span>

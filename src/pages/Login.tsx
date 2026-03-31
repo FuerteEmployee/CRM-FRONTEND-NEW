@@ -22,6 +22,7 @@ import {
 
 import { authService } from "@/api/services/auth.service";
 import { toast } from "sonner";
+import { usePermissionContext } from "@/context/PermissionContext";
 
 const features = [
   { icon: BarChart3, label: "Real-time Analytics" },
@@ -31,6 +32,7 @@ const features = [
 
 const Login = () => {
   const navigate = useNavigate();
+  const { refreshPermissions } = usePermissionContext();
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState("admin");
   const [loading, setLoading] = useState(false);
@@ -46,7 +48,8 @@ const Login = () => {
         // In a real app, you'd navigate to a 2FA page or show a modal
       } else {
         toast.success("Welcome back!");
-        navigate("/dashboard");
+        refreshPermissions();
+        navigate("/admin/dashboard");
       }
     } catch (error: any) {
       toast.error(error.message || "Invalid credentials. Please try again.");
@@ -166,7 +169,7 @@ const Login = () => {
                   Password
                 </Label>
                 <Link
-                  to="/forgot-password"
+                  to="/admin/forgot-password"
                   className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
                 >
                   Forgot password?

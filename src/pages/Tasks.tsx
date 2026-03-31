@@ -30,6 +30,7 @@ import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const priorityColors: Record<number, string> = {
   1: "bg-green-50 text-green-700 border-green-200",
@@ -66,13 +67,14 @@ const Tasks = () => {
   const [editItem, setEditItem] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery({
+  const { data: tasks = [], isLoading: tasksLoading } = useQuery<any[]>({
     queryKey: ["tasks"],
     queryFn: projectService.getTasks,
   });
 
-  const { data: todos = [], isLoading: todosLoading } = useQuery({
+  const { data: todos = [], isLoading: todosLoading } = useQuery<any[]>({
     queryKey: ["todos"],
     queryFn: utilityService.getTodos,
   });
@@ -125,89 +127,91 @@ const Tasks = () => {
                 <List className="h-4 w-4" />
               </Button>
             </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Task
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add Task</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Checkbox id="public" />
-                      <Label htmlFor="public" className="font-normal">
-                        Public
-                      </Label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Checkbox id="billable" />
-                      <Label htmlFor="billable" className="font-normal">
-                        Billable
-                      </Label>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Subject</Label>
-                    <Input placeholder="Task subject" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Hourly Rate</Label>
-                    <Input type="number" placeholder="0.00" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Start Date</Label>
-                      <Input type="date" />
+            {can("Tasks", "Create") && (
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Task
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add Task</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Checkbox id="public" />
+                        <Label htmlFor="public" className="font-normal">
+                          Public
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Checkbox id="billable" />
+                        <Label htmlFor="billable" className="font-normal">
+                          Billable
+                        </Label>
+                      </div>
                     </div>
                     <div className="space-y-2">
-                      <Label>Due Date</Label>
-                      <Input type="date" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Priority</Label>
-                      <Select defaultValue="2">
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">Low</SelectItem>
-                          <SelectItem value="2">Medium</SelectItem>
-                          <SelectItem value="3">High</SelectItem>
-                          <SelectItem value="4">Urgent</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label>Subject</Label>
+                      <Input placeholder="Task subject" />
                     </div>
                     <div className="space-y-2">
-                      <Label>Repeat Every</Label>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          <SelectItem value="daily">Daily</SelectItem>
-                          <SelectItem value="weekly">Weekly</SelectItem>
-                          <SelectItem value="monthly">Monthly</SelectItem>
-                          <SelectItem value="yearly">Yearly</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label>Hourly Rate</Label>
+                      <Input type="number" placeholder="0.00" />
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Start Date</Label>
+                        <Input type="date" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Due Date</Label>
+                        <Input type="date" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Priority</Label>
+                        <Select defaultValue="2">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">Low</SelectItem>
+                            <SelectItem value="2">Medium</SelectItem>
+                            <SelectItem value="3">High</SelectItem>
+                            <SelectItem value="4">Urgent</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Repeat Every</Label>
+                        <Select>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            <SelectItem value="daily">Daily</SelectItem>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                            <SelectItem value="yearly">Yearly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Task Description</Label>
+                      <Textarea placeholder="Describe the task..." rows={3} />
+                    </div>
+                    <Button className="w-full">Save</Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Task Description</Label>
-                    <Textarea placeholder="Describe the task..." rows={3} />
-                  </div>
-                  <Button className="w-full">Save</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </div>
 
@@ -326,12 +330,15 @@ const Tasks = () => {
                         <td className="p-3">
                           <TableActions
                             onView={() => setViewItem(task)}
-                            onEdit={() => setEditItem(task)}
-                            onDelete={() =>
-                              toast({
-                                title: "Info",
-                                description: "Delete action triggered",
-                              })
+                            onEdit={can("Tasks", "Edit") ? () => setEditItem(task) : undefined}
+                            onDelete={
+                              can("Tasks", "Delete")
+                                ? () =>
+                                    toast({
+                                      title: "Info",
+                                      description: "Delete action triggered",
+                                    })
+                                : undefined
                             }
                           />
                         </td>

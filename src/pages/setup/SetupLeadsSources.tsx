@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface LeadSource {
   _id: string;
@@ -28,6 +29,7 @@ export default function SetupLeadsSources() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: sources = [], isLoading } = useQuery<LeadSource[]>({
     queryKey: ["lead-sources"],
@@ -38,7 +40,10 @@ export default function SetupLeadsSources() {
     mutationFn: (data: any) => leadService.createSource(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-sources"] });
-      toast({ title: "Success", description: "Lead source created successfully" });
+      toast({
+        title: "Success",
+        description: "Lead source created successfully",
+      });
       setIsOpen(false);
     },
     onError: (error: any) => {
@@ -55,7 +60,10 @@ export default function SetupLeadsSources() {
       leadService.updateSource(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-sources"] });
-      toast({ title: "Success", description: "Lead source updated successfully" });
+      toast({
+        title: "Success",
+        description: "Lead source updated successfully",
+      });
       setIsOpen(false);
     },
     onError: (error: any) => {
@@ -71,7 +79,10 @@ export default function SetupLeadsSources() {
     mutationFn: (id: string) => leadService.deleteSource(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-sources"] });
-      toast({ title: "Success", description: "Lead source deleted successfully" });
+      toast({
+        title: "Success",
+        description: "Lead source deleted successfully",
+      });
     },
     onError: (error: any) => {
       toast({
@@ -123,17 +134,17 @@ export default function SetupLeadsSources() {
         title="Lead Sources"
         subtitle="Manage the sources from which leads are generated."
         addLabel="New Source"
-        onAdd={handleAdd}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
+        onAdd={can("Leads", "Create") ? handleAdd : undefined}
+        onEdit={can("Leads", "Edit") ? handleEdit : undefined}
+        onDelete={can("Leads", "Delete") ? handleDelete : undefined}
         columns={[
           {
             key: "name",
             label: "Source Name",
             render: (row: LeadSource) => (
               <div>
-                <div className="font-bold text-[#1e293b]">{row.name}</div>
-                <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                <div className="font-bold text-foreground">{row.name}</div>
+                <div className="text-[11px] text-muted-foreground font-medium mt-0.5">
                   Total Leads: {row.totalLeads || 0}
                 </div>
               </div>
@@ -147,9 +158,14 @@ export default function SetupLeadsSources() {
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-0 shadow-2xl">
-          <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSave();
+            }}
+          >
             <DialogHeader className="px-6 py-4 border-b bg-gray-50/50">
-              <DialogTitle className="text-xl font-bold text-[#1e293b]">
+              <DialogTitle className="text-xl font-bold text-foreground">
                 {currentSource ? "Edit Source" : "New Source"}
               </DialogTitle>
             </DialogHeader>
@@ -161,9 +177,16 @@ export default function SetupLeadsSources() {
                 </Label>
                 <Input
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   placeholder="Enter source name..."
                   className="h-11 border-slate-200 focus:ring-primary/20 transition-all rounded-lg"
+                  disabled={
+                    currentSource
+                      ? !can("Leads", "Edit")
+                      : !can("Leads", "Create")
+                  }
                 />
               </div>
             </div>
@@ -173,19 +196,26 @@ export default function SetupLeadsSources() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsOpen(false)}
-                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-slate-600 font-semibold rounded-lg transition-all"
+                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-foreground font-semibold rounded-lg transition-all"
               >
                 Close
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
+                disabled={
+                  createMutation.isPending ||
+                  updateMutation.isPending ||
+                  (currentSource
+                    ? !can("Leads", "Edit")
+                    : !can("Leads", "Create"))
+                }
                 className="px-8 h-10 bg-[#1e293b] hover:bg-[#334155] text-white font-bold rounded-lg shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
               >
-                {(createMutation.isPending || updateMutation.isPending) && (
+                {createMutation.isPending || updateMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Save"
                 )}
-                Save
               </Button>
             </DialogFooter>
           </form>

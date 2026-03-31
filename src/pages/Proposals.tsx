@@ -12,6 +12,7 @@ import { useState } from "react";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
+import { usePermissions } from "@/hooks/usePermissions";
 
 type Proposal = { id: string; title: string; customer: string; amount: number; status: string; date: string };
 
@@ -35,6 +36,7 @@ const Proposals = () => {
   const [viewItem, setViewItem] = useState<Proposal | null>(null);
   const [editItem, setEditItem] = useState<Proposal | null>(null);
   const { toast } = useToast();
+  const { can } = usePermissions();
   const filtered = proposals.filter((p) => p.title.toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -42,26 +44,28 @@ const Proposals = () => {
       <div className="space-y-6 animate-fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div><h1 className="text-2xl font-bold">Proposals</h1><p className="text-muted-foreground">Manage client proposals</p></div>
-          <Dialog>
-            <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />New Proposal</Button></DialogTrigger>
-            <DialogContent>
-              <DialogHeader><DialogTitle>Create Proposal</DialogTitle></DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div className="space-y-2"><Label>ID</Label><Input placeholder="PRO-000000" /></div>
-                <div className="space-y-2"><Label>Title</Label><Input placeholder="Proposal title" /></div>
-                <div className="space-y-2"><Label>Customer</Label><Input placeholder="Customer name" /></div>
-                <div className="space-y-2"><Label>Description</Label><Textarea placeholder="Describe the proposal" /></div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label>Amount</Label><Input type="number" placeholder="0.00" /></div>
-                  <div className="space-y-2"><Label>Status</Label>
-                    <Select><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Sent">Sent</SelectItem><SelectItem value="Open">Open</SelectItem><SelectItem value="Accepted">Accepted</SelectItem><SelectItem value="Declined">Declined</SelectItem></SelectContent></Select>
+          {can("Proposals", "Create") && (
+            <Dialog>
+              <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />New Proposal</Button></DialogTrigger>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Create Proposal</DialogTitle></DialogHeader>
+                <div className="space-y-4 pt-2">
+                  <div className="space-y-2"><Label>ID</Label><Input placeholder="PRO-000000" /></div>
+                  <div className="space-y-2"><Label>Title</Label><Input placeholder="Proposal title" /></div>
+                  <div className="space-y-2"><Label>Customer</Label><Input placeholder="Customer name" /></div>
+                  <div className="space-y-2"><Label>Description</Label><Textarea placeholder="Describe the proposal" /></div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2"><Label>Amount</Label><Input type="number" placeholder="0.00" /></div>
+                    <div className="space-y-2"><Label>Status</Label>
+                      <Select><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Sent">Sent</SelectItem><SelectItem value="Open">Open</SelectItem><SelectItem value="Accepted">Accepted</SelectItem><SelectItem value="Declined">Declined</SelectItem></SelectContent></Select>
+                    </div>
                   </div>
+                  <div className="space-y-2"><Label>Date</Label><Input type="date" /></div>
+                  <Button className="w-full">Create Proposal</Button>
                 </div>
-                <div className="space-y-2"><Label>Date</Label><Input type="date" /></div>
-                <Button className="w-full">Create Proposal</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
         <div className="relative max-w-sm"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input placeholder="Search proposals..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
         <Card>
@@ -73,7 +77,17 @@ const Proposals = () => {
                   {filtered.map((p) => (
                     <tr key={p.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
                       <td className="p-3 text-sm font-mono">{p.id}</td><td className="p-3 text-sm font-medium">{p.title}</td><td className="p-3 text-sm text-muted-foreground">{p.customer}</td><td className="p-3 text-sm">${p.amount.toLocaleString()}</td><td className="p-3"><Badge variant="outline" className={`text-xs ${statusColors[p.status]}`}>{p.status}</Badge></td><td className="p-3 text-sm text-muted-foreground">{formatDate(p.date)}</td>
-                      <td className="p-3"><TableActions onView={() => setViewItem(p)} onEdit={() => setEditItem(p)} onDelete={() => toast({ title: "Deleted", description: `Proposal ${p.id} deleted.` })} /></td>
+                      <td className="p-3">
+                        <TableActions
+                          onView={() => setViewItem(p)}
+                          onEdit={can("Proposals", "Edit") ? () => setEditItem(p) : undefined}
+                          onDelete={
+                            can("Proposals", "Delete")
+                              ? () => toast({ title: "Deleted", description: `Proposal ${p.id} deleted.` })
+                              : undefined
+                          }
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

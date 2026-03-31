@@ -378,14 +378,6 @@ export type EstimateRequest = {
   createdAt: string;
 };
 
-export const estimateRequests: EstimateRequest[] = [
-  { id: "er1", title: "Website Redesign Estimate", customer: "Acme Corp", description: "Full redesign of corporate website", value: 25000, status: "Accepted", createdAt: "2026-02-20" },
-  { id: "er2", title: "Mobile App Development", customer: "Globex Inc", description: "iOS and Android app development", value: 80000, status: "Pending", createdAt: "2026-03-01" },
-  { id: "er3", title: "SEO Optimization Package", customer: "Stark Industries", description: "3-month SEO campaign", value: 12000, status: "Reviewed", createdAt: "2026-03-03" },
-  { id: "er4", title: "Cloud Migration", customer: "Wayne Enterprises", description: "Migrate infrastructure to cloud", value: 150000, status: "Pending", createdAt: "2026-03-05" },
-  { id: "er5", title: "CRM Customization", customer: "Umbrella Corp", description: "Custom CRM module development", value: 35000, status: "Declined", createdAt: "2026-02-15" },
-];
-
 // Knowledge Base
 export type KnowledgeArticle = {
   id: string;

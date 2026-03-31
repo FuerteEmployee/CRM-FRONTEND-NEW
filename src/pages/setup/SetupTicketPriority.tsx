@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supportService } from "@/api/services/support.service";
 import { toast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Loader2 } from "lucide-react";
 
 export default function SetupTicketPriority() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -21,6 +23,7 @@ export default function SetupTicketPriority() {
   });
 
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: priorities = [], isLoading } = useQuery({
     queryKey: ["ticket-priorities"],
@@ -104,21 +107,27 @@ export default function SetupTicketPriority() {
         title="Ticket Priority"
         subtitle="Define and manage priority levels for support tickets"
         addLabel="Add Priority"
-        onAdd={() => openModal()}
-        onRefresh={() => queryClient.invalidateQueries({ queryKey: ["ticket-priorities"] })}
+        onAdd={can("Support", "Create") ? () => openModal() : undefined}
+        onRefresh={() =>
+          queryClient.invalidateQueries({ queryKey: ["ticket-priorities"] })
+        }
         isLoading={isLoading}
         data={priorities}
-        onEdit={(p) => openModal(p)}
-        onDelete={(p) => {
-          if (confirm("Are you sure you want to delete this priority?")) {
-            deleteMutation.mutate(p._id);
-          }
-        }}
+        onEdit={can("Support", "Edit") ? (p) => openModal(p) : undefined}
+        onDelete={
+          can("Support", "Delete")
+            ? (p) => {
+                if (confirm("Are you sure you want to delete this priority?")) {
+                  deleteMutation.mutate(p._id);
+                }
+              }
+            : undefined
+        }
         columns={[
           {
             key: "name",
             label: "Priority",
-            className: "font-medium text-[#1a2b3c] w-full",
+            className: "font-medium text-foreground w-full",
           },
         ]}
       />
@@ -132,14 +141,21 @@ export default function SetupTicketPriority() {
           </DialogHeader>
           <div className="p-6 space-y-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">
+              <label className="text-sm font-medium text-foreground">
                 <span className="text-red-500 mr-1">*</span>Priority Name
               </label>
               <Input
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
                 className="h-10 border-gray-300 focus:ring-1 focus:ring-primary text-gray-800"
                 placeholder="e.g. Critical"
+                disabled={
+                  editingId
+                    ? !can("Support", "Edit")
+                    : !can("Support", "Create")
+                }
               />
             </div>
           </div>
@@ -147,16 +163,26 @@ export default function SetupTicketPriority() {
             <Button
               variant="outline"
               onClick={closeModal}
-              className="bg-white border-gray-300 text-gray-700 hover:bg-gray-100 px-6 h-10 font-medium"
+              className="bg-white border-gray-300 text-foreground hover:bg-gray-100 px-6 h-10 font-medium"
             >
               Close
             </Button>
             <Button
               onClick={handleSave}
               className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white px-8 h-10 font-medium"
-              disabled={createMutation.isPending || updateMutation.isPending}
+              disabled={
+                createMutation.isPending ||
+                updateMutation.isPending ||
+                (editingId
+                  ? !can("Support", "Edit")
+                  : !can("Support", "Create"))
+              }
             >
-              {createMutation.isPending || updateMutation.isPending ? "Saving..." : "Save"}
+              {createMutation.isPending || updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                "Save"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

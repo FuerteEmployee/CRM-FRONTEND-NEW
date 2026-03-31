@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface LeadStatus {
   _id: string;
@@ -34,6 +35,7 @@ export default function SetupLeadsStatuses() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: statuses = [], isLoading } = useQuery<LeadStatus[]>({
     queryKey: ["lead-statuses"],
@@ -44,7 +46,10 @@ export default function SetupLeadsStatuses() {
     mutationFn: (data: any) => leadService.createStatus(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-statuses"] });
-      toast({ title: "Success", description: "Lead status created successfully" });
+      toast({
+        title: "Success",
+        description: "Lead status created successfully",
+      });
       setIsOpen(false);
     },
     onError: (error: any) => {
@@ -61,7 +66,10 @@ export default function SetupLeadsStatuses() {
       leadService.updateStatus(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-statuses"] });
-      toast({ title: "Success", description: "Lead status updated successfully" });
+      toast({
+        title: "Success",
+        description: "Lead status updated successfully",
+      });
       setIsOpen(false);
     },
     onError: (error: any) => {
@@ -77,7 +85,10 @@ export default function SetupLeadsStatuses() {
     mutationFn: (id: string) => leadService.deleteStatus(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-statuses"] });
-      toast({ title: "Success", description: "Lead status deleted successfully" });
+      toast({
+        title: "Success",
+        description: "Lead status deleted successfully",
+      });
     },
     onError: (error: any) => {
       toast({
@@ -90,7 +101,11 @@ export default function SetupLeadsStatuses() {
 
   const handleAdd = () => {
     setCurrentStatus(null);
-    setFormData({ name: "", statusorder: (statuses.length + 1), color: "#757575" });
+    setFormData({
+      name: "",
+      statusorder: statuses.length + 1,
+      color: "#757575",
+    });
     setIsOpen(true);
   };
 
@@ -133,25 +148,23 @@ export default function SetupLeadsStatuses() {
         title="Lead Statuses"
         subtitle="Manage the different stages of your lead pipeline."
         addLabel="New Lead Status"
-        onAdd={handleAdd}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
+        onAdd={can("Leads", "Create") ? handleAdd : undefined}
+        onEdit={can("Leads", "Edit") ? handleEdit : undefined}
+        onDelete={can("Leads", "Delete") ? handleDelete : undefined}
         columns={[
           {
             key: "name",
             label: "Status Name",
             render: (row: LeadStatus) => (
               <div>
-                <div 
-                  className="font-bold text-[#1e293b] flex items-center gap-2"
-                >
-                  <div 
-                    className="w-3 h-3 rounded-full" 
+                <div className="font-bold text-foreground flex items-center gap-2">
+                  <div
+                    className="w-3 h-3 rounded-full"
                     style={{ backgroundColor: row.color }}
                   />
                   {row.name}
                 </div>
-                <div className="text-[11px] text-slate-500 font-medium mt-0.5">
+                <div className="text-[11px] text-muted-foreground font-medium mt-0.5">
                   Total Leads: {row.totalLeads || 0}
                 </div>
               </div>
@@ -160,7 +173,7 @@ export default function SetupLeadsStatuses() {
           {
             key: "statusorder",
             label: "Order",
-          }
+          },
         ]}
         data={statuses}
         isLoading={isLoading}
@@ -169,9 +182,14 @@ export default function SetupLeadsStatuses() {
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-0 shadow-2xl">
-          <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSave();
+            }}
+          >
             <DialogHeader className="px-6 py-4 border-b bg-gray-50/50">
-              <DialogTitle className="text-xl font-bold text-[#1e293b]">
+              <DialogTitle className="text-xl font-bold text-foreground">
                 {currentStatus ? "Edit Lead Status" : "New Lead Status"}
               </DialogTitle>
             </DialogHeader>
@@ -183,9 +201,16 @@ export default function SetupLeadsStatuses() {
                 </Label>
                 <Input
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   placeholder="Enter status name..."
                   className="h-11 border-slate-200 focus:ring-primary/20 transition-all rounded-lg"
+                  disabled={
+                    currentStatus
+                      ? !can("Leads", "Edit")
+                      : !can("Leads", "Create")
+                  }
                 />
               </div>
 
@@ -196,18 +221,26 @@ export default function SetupLeadsStatuses() {
                 <div className="flex gap-2">
                   <Input
                     value={formData.color}
-                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, color: e.target.value })
+                    }
                     placeholder="#757575"
                     className="h-11 border-slate-200 focus:ring-primary/20 transition-all rounded-lg flex-1"
                   />
                   <div className="relative">
                     <input
                       type="color"
-                      value={formData.color.startsWith("#") ? formData.color : "#757575"}
-                      onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                      value={
+                        formData.color.startsWith("#")
+                          ? formData.color
+                          : "#757575"
+                      }
+                      onChange={(e) =>
+                        setFormData({ ...formData, color: e.target.value })
+                      }
                       className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
                     />
-                    <div 
+                    <div
                       className="w-11 h-11 rounded-lg border border-slate-200 shadow-sm pointer-events-none"
                       style={{ backgroundColor: formData.color }}
                     />
@@ -222,7 +255,12 @@ export default function SetupLeadsStatuses() {
                 <Input
                   type="number"
                   value={formData.statusorder}
-                  onChange={(e) => setFormData({ ...formData, statusorder: parseInt(e.target.value) || 0 })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      statusorder: parseInt(e.target.value) || 0,
+                    })
+                  }
                   placeholder="0"
                   className="h-11 border-slate-200 focus:ring-primary/20 transition-all rounded-lg"
                 />
@@ -234,19 +272,26 @@ export default function SetupLeadsStatuses() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsOpen(false)}
-                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-slate-600 font-semibold rounded-lg transition-all"
+                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-foreground font-semibold rounded-lg transition-all"
               >
                 Close
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
+                disabled={
+                  createMutation.isPending ||
+                  updateMutation.isPending ||
+                  (currentStatus
+                    ? !can("Leads", "Edit")
+                    : !can("Leads", "Create"))
+                }
                 className="px-8 h-10 bg-[#1e293b] hover:bg-[#334155] text-white font-bold rounded-lg shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
               >
-                {(createMutation.isPending || updateMutation.isPending) && (
+                {createMutation.isPending || updateMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Save"
                 )}
-                Save
               </Button>
             </DialogFooter>
           </form>

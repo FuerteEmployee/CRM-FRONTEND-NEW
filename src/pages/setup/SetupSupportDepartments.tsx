@@ -23,6 +23,8 @@ import { HelpCircle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supportService } from "@/api/services/support.service";
 import { toast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Loader2 } from "lucide-react";
 
 export default function SetupSupportDepartments() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -43,6 +45,7 @@ export default function SetupSupportDepartments() {
   });
 
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: departments = [], isLoading } = useQuery({
     queryKey: ["support-departments"],
@@ -143,23 +146,29 @@ export default function SetupSupportDepartments() {
         title="Departments"
         subtitle="Manage and organize your support categories and IMAP settings"
         addLabel="New Department"
-        onAdd={() => openModal()}
+        onAdd={can("Support", "Create") ? () => openModal() : undefined}
         onRefresh={() =>
           queryClient.invalidateQueries({ queryKey: ["support-departments"] })
         }
         isLoading={isLoading}
         data={departments}
-        onEdit={(dept) => openModal(dept)}
-        onDelete={(dept) => {
-          if (confirm("Are you sure you want to delete this department?")) {
-            deleteMutation.mutate(dept._id);
-          }
-        }}
+        onEdit={can("Support", "Edit") ? (dept) => openModal(dept) : undefined}
+        onDelete={
+          can("Support", "Delete")
+            ? (dept) => {
+                if (
+                  confirm("Are you sure you want to delete this department?")
+                ) {
+                  deleteMutation.mutate(dept._id);
+                }
+              }
+            : undefined
+        }
         columns={[
           {
             key: "name",
             label: "Name",
-            className: "font-medium text-[#1a2b3c] uppercase",
+            className: "font-medium text-foreground uppercase",
           },
           { key: "email", label: "Department Email" },
           {
@@ -177,7 +186,7 @@ export default function SetupSupportDepartments() {
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
         <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden border-0 shadow-2xl rounded-2xl">
           <DialogHeader className="px-6 py-5 border-b bg-slate-50/50">
-            <DialogTitle className="text-xl font-bold text-[#1e293b]">
+            <DialogTitle className="text-xl font-bold text-foreground">
               {editingId ? "Edit Department" : "New Department"}
             </DialogTitle>
           </DialogHeader>
@@ -195,6 +204,11 @@ export default function SetupSupportDepartments() {
                   }
                   placeholder="Software Support"
                   className="h-11 border-slate-200 focus:ring-primary/20 transition-all rounded-xl text-base"
+                  disabled={
+                    editingId
+                      ? !can("Support", "Edit")
+                      : !can("Support", "Create")
+                  }
                 />
               </div>
 
@@ -208,7 +222,7 @@ export default function SetupSupportDepartments() {
                 />
                 <Label
                   htmlFor="hide"
-                  className="text-sm font-medium text-slate-600 cursor-pointer"
+                  className="text-sm font-medium text-foreground cursor-pointer"
                 >
                   Hide from client?
                 </Label>
@@ -232,7 +246,7 @@ export default function SetupSupportDepartments() {
             {/* IMAP Config */}
             <div className="pt-2">
               <div className="flex items-center gap-2 mb-4">
-                <h3 className="text-base font-bold text-[#1e293b]">
+                <h3 className="text-base font-bold text-foreground">
                   Email to ticket configuration
                 </h3>
                 <HelpCircle className="h-4 w-4 text-slate-400" />
@@ -363,7 +377,7 @@ export default function SetupSupportDepartments() {
                   />
                   <Label
                     htmlFor="delete"
-                    className="text-sm font-medium text-slate-600 cursor-pointer"
+                    className="text-sm font-medium text-foreground cursor-pointer"
                   >
                     Delete mail after import?
                   </Label>
@@ -403,16 +417,26 @@ export default function SetupSupportDepartments() {
               type="button"
               variant="outline"
               onClick={closeModal}
-              className="px-6 h-11 border-slate-200 hover:bg-white hover:border-slate-300 text-slate-600 font-semibold rounded-xl transition-all shadow-sm"
+              className="px-6 h-11 border-slate-200 hover:bg-white hover:border-slate-300 text-foreground font-semibold rounded-xl transition-all shadow-sm"
             >
               Close
             </Button>
             <Button
               onClick={handleSave}
               className="px-8 h-11 bg-[#1a2b3c] hover:bg-[#2c3e50] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98] min-w-[100px]"
-              disabled={createMutation.isPending || updateMutation.isPending}
+              disabled={
+                createMutation.isPending ||
+                updateMutation.isPending ||
+                (editingId
+                  ? !can("Support", "Edit")
+                  : !can("Support", "Create"))
+              }
             >
-              Save
+              {createMutation.isPending || updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                "Save"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

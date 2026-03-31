@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface Service {
   _id: string;
@@ -28,6 +29,7 @@ export default function SetupServices() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: services = [], isLoading } = useQuery<Service[]>({
     queryKey: ["services"],
@@ -123,9 +125,9 @@ export default function SetupServices() {
         title="Services"
         subtitle="Manage services your support team offers."
         addLabel="Add New Service"
-        onAdd={handleAdd}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
+        onAdd={can("Support", "Create") ? handleAdd : undefined}
+        onEdit={can("Support", "Edit") ? handleEdit : undefined}
+        onDelete={can("Support", "Delete") ? handleDelete : undefined}
         columns={[{ key: "name", label: "Service Name" }]}
         data={services}
         isLoading={isLoading}
@@ -171,13 +173,14 @@ export default function SetupServices() {
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
+                disabled={createMutation.isPending || updateMutation.isPending || (currentService ? !can("Support", "Edit") : !can("Support", "Create"))}
                 className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white px-8"
               >
-                {(createMutation.isPending || updateMutation.isPending) && (
+                {(createMutation.isPending || updateMutation.isPending) ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Save"
                 )}
-                Save
               </Button>
             </DialogFooter>
           </form>

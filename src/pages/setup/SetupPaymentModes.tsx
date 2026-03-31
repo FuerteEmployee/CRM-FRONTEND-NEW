@@ -17,6 +17,7 @@ import { Loader2, Check, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface PaymentMode {
   _id: string;
@@ -44,6 +45,7 @@ export default function SetupPaymentModes() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: modes = [], isLoading } = useQuery<PaymentMode[]>({
     queryKey: ["payment-modes"],
@@ -54,7 +56,10 @@ export default function SetupPaymentModes() {
     mutationFn: (data: any) => financeService.createPaymentMode(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payment-modes"] });
-      toast({ title: "Success", description: "Payment mode created successfully" });
+      toast({
+        title: "Success",
+        description: "Payment mode created successfully",
+      });
       setIsOpen(false);
     },
     onError: (error: any) => {
@@ -71,7 +76,10 @@ export default function SetupPaymentModes() {
       financeService.updatePaymentMode(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payment-modes"] });
-      toast({ title: "Success", description: "Payment mode updated successfully" });
+      toast({
+        title: "Success",
+        description: "Payment mode updated successfully",
+      });
       setIsOpen(false);
     },
     onError: (error: any) => {
@@ -87,7 +95,10 @@ export default function SetupPaymentModes() {
     mutationFn: (id: string) => financeService.deletePaymentMode(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payment-modes"] });
-      toast({ title: "Success", description: "Payment mode deleted successfully" });
+      toast({
+        title: "Success",
+        description: "Payment mode deleted successfully",
+      });
     },
     onError: (error: any) => {
       toast({
@@ -155,29 +166,31 @@ export default function SetupPaymentModes() {
         title="Payment Modes"
         subtitle="Manage the offline payment modes available for invoices and expenses."
         addLabel="Add New Payment Mode"
-        onAdd={handleAdd}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
+        onAdd={can("Settings", "Edit") ? handleAdd : undefined}
+        onEdit={can("Settings", "Edit") ? handleEdit : undefined}
+        onDelete={can("Settings", "Edit") ? handleDelete : undefined}
         columns={[
           { key: "name", label: "Payment Mode Name" },
           { key: "description", label: "Bank Accounts / Description" },
-          { 
-            key: "active", 
+          {
+            key: "active",
             label: "Active",
             render: (row: PaymentMode) => (
               <div className="flex items-center">
-                <Switch 
+                <Switch
                   checked={row.active}
                   onCheckedChange={(checked) => {
-                    updateMutation.mutate({ 
-                      id: row._id, 
-                      data: { ...row, active: checked } 
+                    updateMutation.mutate({
+                      id: row._id,
+                      data: { ...row, active: checked },
                     });
                   }}
-                  disabled={updateMutation.isPending}
+                  disabled={
+                    updateMutation.isPending || !can("Settings", "Edit")
+                  }
                 />
               </div>
-            )
+            ),
           },
         ]}
         data={modes}
@@ -186,16 +199,22 @@ export default function SetupPaymentModes() {
       >
         <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg mb-6">
           <p className="text-sm text-blue-800 font-medium">
-            Note: Payment modes listed below are offline modes. Payment gateways can be configured in Setup-&gt; Settings-&gt;Payment Gateways
+            Note: Payment modes listed below are offline modes. Payment gateways
+            can be configured in Setup-&gt; Settings-&gt;Payment Gateways
           </p>
         </div>
       </DataTablePage>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden border-0 shadow-2xl">
-          <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSave();
+            }}
+          >
             <DialogHeader className="px-6 py-4 border-b bg-gray-50/50">
-              <DialogTitle className="text-xl font-bold text-[#1e293b]">
+              <DialogTitle className="text-xl font-bold text-foreground">
                 {currentMode ? "Edit Payment Mode" : "Add New Payment Mode"}
               </DialogTitle>
             </DialogHeader>
@@ -207,9 +226,12 @@ export default function SetupPaymentModes() {
                 </Label>
                 <Input
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   placeholder="Payment Mode Name"
                   className="h-11 border-slate-200 focus:ring-primary/20 transition-all rounded-lg"
+                  disabled={!can("Settings", "Edit")}
                 />
               </div>
 
@@ -219,58 +241,102 @@ export default function SetupPaymentModes() {
                 </Label>
                 <Textarea
                   value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
                   placeholder="Bank Accounts / Description"
                   className="min-h-[100px] border-slate-200 focus:ring-primary/20 transition-all rounded-lg resize-none"
+                  disabled={!can("Settings", "Edit")}
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-slate-50 transition-colors">
-                  <Checkbox 
-                    id="active" 
+                  <Checkbox
+                    id="active"
                     checked={formData.active}
-                    onCheckedChange={(checked) => setFormData({ ...formData, active: !!checked })}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, active: !!checked })
+                    }
+                    disabled={!can("Settings", "Edit")}
                   />
-                  <Label htmlFor="active" className="text-xs font-bold text-slate-700 cursor-pointer">Active</Label>
+                  <Label
+                    htmlFor="active"
+                    className="text-xs font-bold text-slate-700 cursor-pointer"
+                  >
+                    Active
+                  </Label>
                 </div>
 
                 <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-slate-50 transition-colors">
-                  <Checkbox 
-                    id="show_on_pdf" 
+                  <Checkbox
+                    id="show_on_pdf"
                     checked={formData.show_on_pdf}
-                    onCheckedChange={(checked) => setFormData({ ...formData, show_on_pdf: !!checked })}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, show_on_pdf: !!checked })
+                    }
+                    disabled={!can("Settings", "Edit")}
                   />
-                  <Label htmlFor="show_on_pdf" className="text-xs font-bold text-slate-700 cursor-pointer text-wrap leading-tight">
+                  <Label
+                    htmlFor="show_on_pdf"
+                    className="text-xs font-bold text-slate-700 cursor-pointer text-wrap leading-tight"
+                  >
                     Show Bank Accounts / Description on Invoice PDF
                   </Label>
                 </div>
 
                 <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-slate-50 transition-colors">
-                  <Checkbox 
-                    id="selected_by_default" 
+                  <Checkbox
+                    id="selected_by_default"
                     checked={formData.selected_by_default}
-                    onCheckedChange={(checked) => setFormData({ ...formData, selected_by_default: !!checked })}
+                    onCheckedChange={(checked) =>
+                      setFormData({
+                        ...formData,
+                        selected_by_default: !!checked,
+                      })
+                    }
+                    disabled={!can("Settings", "Edit")}
                   />
-                  <Label htmlFor="selected_by_default" className="text-xs font-bold text-slate-700 cursor-pointer">Selected by default on invoice</Label>
+                  <Label
+                    htmlFor="selected_by_default"
+                    className="text-xs font-bold text-slate-700 cursor-pointer"
+                  >
+                    Selected by default on invoice
+                  </Label>
                 </div>
 
                 <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-slate-50 transition-colors">
-                  <Checkbox 
-                    id="invoices_only" 
+                  <Checkbox
+                    id="invoices_only"
                     checked={formData.invoices_only}
-                    onCheckedChange={(checked) => setFormData({ ...formData, invoices_only: !!checked })}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, invoices_only: !!checked })
+                    }
+                    disabled={!can("Settings", "Edit")}
                   />
-                  <Label htmlFor="invoices_only" className="text-xs font-bold text-slate-700 cursor-pointer">Invoices Only</Label>
+                  <Label
+                    htmlFor="invoices_only"
+                    className="text-xs font-bold text-slate-700 cursor-pointer"
+                  >
+                    Invoices Only
+                  </Label>
                 </div>
 
                 <div className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-slate-50 transition-colors">
-                  <Checkbox 
-                    id="expenses_only" 
+                  <Checkbox
+                    id="expenses_only"
                     checked={formData.expenses_only}
-                    onCheckedChange={(checked) => setFormData({ ...formData, expenses_only: !!checked })}
+                    onCheckedChange={(checked) =>
+                      setFormData({ ...formData, expenses_only: !!checked })
+                    }
+                    disabled={!can("Settings", "Edit")}
                   />
-                  <Label htmlFor="expenses_only" className="text-xs font-bold text-slate-700 cursor-pointer">Expenses Only</Label>
+                  <Label
+                    htmlFor="expenses_only"
+                    className="text-xs font-bold text-slate-700 cursor-pointer"
+                  >
+                    Expenses Only
+                  </Label>
                 </div>
               </div>
             </div>
@@ -280,19 +346,24 @@ export default function SetupPaymentModes() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsOpen(false)}
-                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-slate-600 font-semibold rounded-lg transition-all"
+                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-foreground font-semibold rounded-lg transition-all"
               >
                 Close
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
+                disabled={
+                  createMutation.isPending ||
+                  updateMutation.isPending ||
+                  !can("Settings", "Edit")
+                }
                 className="px-8 h-10 bg-[#1e293b] hover:bg-[#334155] text-white font-bold rounded-lg shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
               >
-                {(createMutation.isPending || updateMutation.isPending) && (
+                {createMutation.isPending || updateMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Save"
                 )}
-                Save
               </Button>
             </DialogFooter>
           </form>

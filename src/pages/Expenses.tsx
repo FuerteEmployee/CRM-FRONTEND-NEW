@@ -38,6 +38,7 @@ import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { financeService } from "@/api/services/finance.service";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const categoryColors: Record<string, string> = {
   Software: "bg-primary/10 text-primary",
@@ -57,6 +58,7 @@ const Expenses = () => {
   const [editItem, setEditItem] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: expenses = [], isLoading } = useQuery<any[]>({
     queryKey: ["expenses"],
@@ -102,87 +104,89 @@ const Expenses = () => {
               Track and manage team expenses
             </p>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Expense
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Expense</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
-                <div className="space-y-2">
-                  <Label>Attach Receipt</Label>
-                  <Input type="file" accept="image/*,.pdf" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch id="recurring" />
-                  <Label htmlFor="recurring" className="font-normal">
-                    Recurring
-                  </Label>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+           {can("Expenses", "Create") && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Expense
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add New Expense</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
                   <div className="space-y-2">
-                    <Label>Name</Label>
-                    <Input placeholder="Expense name" />
+                    <Label>Attach Receipt</Label>
+                    <Input type="file" accept="image/*,.pdf" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch id="recurring" />
+                    <Label htmlFor="recurring" className="font-normal">
+                      Recurring
+                    </Label>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Name</Label>
+                      <Input placeholder="Expense name" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Reference #</Label>
+                      <Input placeholder="Reference number" />
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Reference #</Label>
-                    <Input placeholder="Reference number" />
+                    <Label>Note</Label>
+                    <Textarea placeholder="Add a note..." rows={2} />
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Note</Label>
-                  <Textarea placeholder="Add a note..." rows={2} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Expense Category</Label>
-                  <div className="flex gap-2">
+                  <div className="space-y-2">
+                    <Label>Expense Category</Label>
+                    <div className="flex gap-2">
+                      <Select>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((cat: any) => (
+                            <SelectItem key={cat._id} value={cat.name}>{cat.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button variant="outline" size="icon" className="shrink-0">
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Expense Date</Label>
+                      <Input type="date" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Amount</Label>
+                      <Input type="number" placeholder="0.00" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Payment Mode</Label>
                     <Select>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Select category" />
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select payment mode" />
                       </SelectTrigger>
                       <SelectContent>
-                        {categories.map((cat: any) => (
-                          <SelectItem key={cat._id} value={cat.name}>{cat.name}</SelectItem>
+                        {paymentModes.filter((m: any) => m.active && !m.invoices_only).map((mode: any) => (
+                          <SelectItem key={mode._id} value={mode._id}>{mode.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Button variant="outline" size="icon" className="shrink-0">
-                      <Plus className="h-4 w-4" />
-                    </Button>
                   </div>
+                  <Button className="w-full">Save</Button>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Expense Date</Label>
-                    <Input type="date" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Amount</Label>
-                    <Input type="number" placeholder="0.00" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Payment Mode</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select payment mode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {paymentModes.filter((m: any) => m.active && !m.invoices_only).map((mode: any) => (
-                        <SelectItem key={mode._id} value={mode._id}>{mode.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button className="w-full">Save</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+           )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -334,16 +338,19 @@ const Expenses = () => {
                           ${(e.amount || 0).toLocaleString()}
                         </td>
                         <td className="p-3">
-                          <TableActions
-                            onView={() => setViewItem(e)}
-                            onEdit={() => setEditItem(e)}
-                            onDelete={() =>
-                              toast({
-                                title: "Info",
-                                description: `Delete triggered for ${e._id}`,
-                              })
-                            }
-                          />
+                           <TableActions
+                             onView={() => setViewItem(e)}
+                             onEdit={can("Expenses", "Edit") ? () => setEditItem(e) : undefined}
+                             onDelete={
+                               can("Expenses", "Delete")
+                                 ? () =>
+                                     toast({
+                                       title: "Info",
+                                       description: `Delete triggered for ${e._id}`,
+                                     })
+                                 : undefined
+                             }
+                           />
                         </td>
                       </tr>
                     ))

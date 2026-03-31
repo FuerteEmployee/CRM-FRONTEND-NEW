@@ -28,6 +28,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { projectService } from "@/api/services/project.service";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const statusMap: Record<number, { label: string; color: string }> = {
   1: { label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
@@ -41,8 +42,9 @@ const Projects = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
-  const { data: projects = [], isLoading } = useQuery({
+  const { data: projects = [], isLoading } = useQuery<any[]>({
     queryKey: ["projects"],
     queryFn: projectService.getAll,
   });
@@ -75,97 +77,99 @@ const Projects = () => {
               Manage and track all your projects
             </p>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Project
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Project</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
-                <div className="space-y-2">
-                  <Label>Project Name</Label>
-                  <Input placeholder="Enter project name" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Customer</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="acme">Acme Corp</SelectItem>
-                      <SelectItem value="techco">TechCo</SelectItem>
-                      <SelectItem value="globex">Globex Inc</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox id="calc-progress" />
-                  <Label htmlFor="calc-progress" className="font-normal">
-                    Calculate progress through tasks
-                  </Label>
-                </div>
-                <div className="space-y-2">
-                  <Label>Progress %</Label>
-                  <Input type="number" placeholder="0" min={0} max={100} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+          {can("Projects", "Create") && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Project
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Project</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
                   <div className="space-y-2">
-                    <Label>Billing Type</Label>
+                    <Label>Project Name</Label>
+                    <Input placeholder="Enter project name" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Customer</Label>
                     <Select>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select type" />
+                        <SelectValue placeholder="Select customer" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="fixed">Fixed Rate</SelectItem>
-                        <SelectItem value="hourly">Project Hours</SelectItem>
-                        <SelectItem value="task">Task Hours</SelectItem>
+                        <SelectItem value="acme">Acme Corp</SelectItem>
+                        <SelectItem value="techco">TechCo</SelectItem>
+                        <SelectItem value="globex">Globex Inc</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Select defaultValue="2">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">Not Started</SelectItem>
-                        <SelectItem value="2">In Progress</SelectItem>
-                        <SelectItem value="3">On Hold</SelectItem>
-                        <SelectItem value="4">Finished</SelectItem>
-                        <SelectItem value="5">Cancelled</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Estimated Hours</Label>
-                  <Input type="number" placeholder="0" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Start Date</Label>
-                    <Input type="date" />
+                  <div className="flex items-center gap-2">
+                    <Checkbox id="calc-progress" />
+                    <Label htmlFor="calc-progress" className="font-normal">
+                      Calculate progress through tasks
+                    </Label>
                   </div>
                   <div className="space-y-2">
-                    <Label>Deadline</Label>
-                    <Input type="date" />
+                    <Label>Progress %</Label>
+                    <Input type="number" placeholder="0" min={0} max={100} />
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Billing Type</Label>
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fixed">Fixed Rate</SelectItem>
+                          <SelectItem value="hourly">Project Hours</SelectItem>
+                          <SelectItem value="task">Task Hours</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Status</Label>
+                      <Select defaultValue="2">
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">Not Started</SelectItem>
+                          <SelectItem value="2">In Progress</SelectItem>
+                          <SelectItem value="3">On Hold</SelectItem>
+                          <SelectItem value="4">Finished</SelectItem>
+                          <SelectItem value="5">Cancelled</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Estimated Hours</Label>
+                    <Input type="number" placeholder="0" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Start Date</Label>
+                      <Input type="date" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Deadline</Label>
+                      <Input type="date" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Textarea placeholder="Project description..." rows={4} />
+                  </div>
+                  <Button className="w-full">Save</Button>
                 </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea placeholder="Project description..." rows={4} />
-                </div>
-                <Button className="w-full">Save</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         {/* Filters */}

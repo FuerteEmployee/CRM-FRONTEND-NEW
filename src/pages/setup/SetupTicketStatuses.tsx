@@ -13,6 +13,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supportService } from "@/api/services/support.service";
 import { toast } from "sonner";
 import { useRef } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
+import { Loader2 } from "lucide-react";
 
 export default function SetupTicketStatuses() {
   const colorInputRef = useRef<HTMLInputElement>(null);
@@ -25,6 +27,7 @@ export default function SetupTicketStatuses() {
   });
 
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: statuses = [], isLoading } = useQuery({
     queryKey: ["ticket-statuses"],
@@ -112,23 +115,27 @@ export default function SetupTicketStatuses() {
         title="Ticket Statuses"
         subtitle="Define workflow statuses and display order for support tickets"
         addLabel="Add Status"
-        onAdd={() => openModal()}
+        onAdd={can("Support", "Create") ? () => openModal() : undefined}
         onRefresh={() =>
           queryClient.invalidateQueries({ queryKey: ["ticket-statuses"] })
         }
         isLoading={isLoading}
         data={statuses}
-        onEdit={(s) => openModal(s)}
-        onDelete={(s) => {
-          if (confirm("Are you sure you want to delete this status?")) {
-            deleteMutation.mutate(s._id);
-          }
-        }}
+        onEdit={can("Support", "Edit") ? (s) => openModal(s) : undefined}
+        onDelete={
+          can("Support", "Delete")
+            ? (s) => {
+                if (confirm("Are you sure you want to delete this status?")) {
+                  deleteMutation.mutate(s._id);
+                }
+              }
+            : undefined
+        }
         columns={[
           {
             key: "name",
             label: "Ticket Status Name",
-            className: "font-medium text-[#1a2b3c]",
+            className: "font-medium text-foreground",
             render: (s) => (
               <div className="flex flex-col">
                 <span className="font-semibold">{s.name}</span>
@@ -163,7 +170,7 @@ export default function SetupTicketStatuses() {
           </DialogHeader>
           <div className="p-6 space-y-4">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">
+              <label className="text-sm font-medium text-foreground">
                 <span className="text-red-500 mr-1">*</span>Ticket Status Name
               </label>
               <Input
@@ -173,10 +180,15 @@ export default function SetupTicketStatuses() {
                 }
                 className="h-10 border-gray-300 focus:ring-1 focus:ring-primary text-gray-800"
                 placeholder="e.g. In Progress"
+                disabled={
+                  editingId
+                    ? !can("Support", "Edit")
+                    : !can("Support", "Create")
+                }
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">
+              <label className="text-sm font-medium text-foreground">
                 Pick Color
               </label>
               <div className="flex gap-2 relative">
@@ -210,7 +222,7 @@ export default function SetupTicketStatuses() {
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">
+              <label className="text-sm font-medium text-foreground">
                 Status Order
               </label>
               <Input
@@ -230,18 +242,26 @@ export default function SetupTicketStatuses() {
             <Button
               variant="outline"
               onClick={closeModal}
-              className="bg-white border-gray-300 text-gray-700 hover:bg-gray-100 px-6 h-10 font-medium"
+              className="bg-white border-gray-300 text-foreground hover:bg-gray-100 px-6 h-10 font-medium"
             >
               Close
             </Button>
             <Button
               onClick={handleSave}
               className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white px-8 h-10 font-medium"
-              disabled={createMutation.isPending || updateMutation.isPending}
+              disabled={
+                createMutation.isPending ||
+                updateMutation.isPending ||
+                (editingId
+                  ? !can("Support", "Edit")
+                  : !can("Support", "Create"))
+              }
             >
-              {createMutation.isPending || updateMutation.isPending
-                ? "Saving..."
-                : "Save"}
+              {createMutation.isPending || updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                "Save"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

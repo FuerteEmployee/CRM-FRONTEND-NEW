@@ -27,6 +27,7 @@ import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const statusColors: Record<string, string> = {
   Open: "bg-primary/10 text-primary border-primary/20",
@@ -41,8 +42,9 @@ const Support = () => {
   const [viewItem, setViewItem] = useState<any>(null);
   const [editItem, setEditItem] = useState<any>(null);
   const { toast } = useToast();
+  const { can } = usePermissions();
 
-  const { data: tickets = [], isLoading } = useQuery({
+  const { data: tickets = [], isLoading } = useQuery<any[]>({
     queryKey: ["tickets"],
     queryFn: supportService.getTickets,
   });
@@ -63,126 +65,128 @@ const Support = () => {
               Manage customer support requests
             </p>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Ticket
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Ticket</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
-                <div className="space-y-2">
-                  <Label>Subject</Label>
-                  <Input placeholder="Ticket subject" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Contact</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select contact" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="john">John Doe</SelectItem>
-                      <SelectItem value="jane">Jane Smith</SelectItem>
-                      <SelectItem value="mike">Mike Johnson</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+          {can("Support", "Create") && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Ticket
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Ticket</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
                   <div className="space-y-2">
-                    <Label>Name</Label>
-                    <Input placeholder="Full name" />
+                    <Label>Subject</Label>
+                    <Input placeholder="Ticket subject" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Email Address</Label>
-                    <Input type="email" placeholder="email@example.com" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Tags</Label>
-                  <Input placeholder="Enter tags separated by commas" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Assign Ticket</Label>
+                    <Label>Contact</Label>
                     <Select>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select assignee" />
+                        <SelectValue placeholder="Select contact" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="sarah">Sarah Chen</SelectItem>
-                        <SelectItem value="alex">Alex Turner</SelectItem>
+                        <SelectItem value="john">John Doe</SelectItem>
+                        <SelectItem value="jane">Jane Smith</SelectItem>
                         <SelectItem value="mike">Mike Johnson</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Priority</Label>
-                    <Select defaultValue="Medium">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Low">Low</SelectItem>
-                        <SelectItem value="Medium">Medium</SelectItem>
-                        <SelectItem value="High">High</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Service</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select service" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="support">Support</SelectItem>
-                        <SelectItem value="billing">Billing</SelectItem>
-                        <SelectItem value="technical">Technical</SelectItem>
-                        <SelectItem value="sales">Sales</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Name</Label>
+                      <Input placeholder="Full name" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email Address</Label>
+                      <Input type="email" placeholder="email@example.com" />
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Department</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select department" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="engineering">Engineering</SelectItem>
-                        <SelectItem value="sales">Sales</SelectItem>
-                        <SelectItem value="support">Support</SelectItem>
-                        <SelectItem value="billing">Billing</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label>Tags</Label>
+                    <Input placeholder="Enter tags separated by commas" />
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Assign Ticket</Label>
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select assignee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sarah">Sarah Chen</SelectItem>
+                          <SelectItem value="alex">Alex Turner</SelectItem>
+                          <SelectItem value="mike">Mike Johnson</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Priority</Label>
+                      <Select defaultValue="Medium">
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Low">Low</SelectItem>
+                          <SelectItem value="Medium">Medium</SelectItem>
+                          <SelectItem value="High">High</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Service</Label>
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select service" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="support">Support</SelectItem>
+                          <SelectItem value="billing">Billing</SelectItem>
+                          <SelectItem value="technical">Technical</SelectItem>
+                          <SelectItem value="sales">Sales</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Department</Label>
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select department" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="engineering">Engineering</SelectItem>
+                          <SelectItem value="sales">Sales</SelectItem>
+                          <SelectItem value="support">Support</SelectItem>
+                          <SelectItem value="billing">Billing</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>CC</Label>
+                    <Input placeholder="CC email addresses" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Ticket Body</Label>
+                    <Textarea
+                      placeholder="Describe the issue in detail..."
+                      rows={4}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Attachments</Label>
+                    <Input type="file" multiple />
+                  </div>
+                  <Button className="w-full">Save</Button>
                 </div>
-                <div className="space-y-2">
-                  <Label>CC</Label>
-                  <Input placeholder="CC email addresses" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Ticket Body</Label>
-                  <Textarea
-                    placeholder="Describe the issue in detail..."
-                    rows={4}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Attachments</Label>
-                  <Input type="file" multiple />
-                </div>
-                <Button className="w-full">Save</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         <div className="relative max-w-sm">
@@ -265,12 +269,15 @@ const Support = () => {
                         <td className="p-3">
                           <TableActions
                             onView={() => setViewItem(t)}
-                            onEdit={() => setEditItem(t)}
-                            onDelete={() =>
-                              toast({
-                                title: "Info",
-                                description: `Delete triggered for ${t._id}`,
-                              })
+                            onEdit={can("Support", "Edit") ? () => setEditItem(t) : undefined}
+                            onDelete={
+                              can("Support", "Delete")
+                                ? () =>
+                                    toast({
+                                      title: "Info",
+                                      description: `Delete triggered for ${t._id}`,
+                                    })
+                                : undefined
                             }
                           />
                         </td>

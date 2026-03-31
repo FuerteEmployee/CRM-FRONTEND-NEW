@@ -63,128 +63,281 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useState, useEffect } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const mainNav = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Customers", url: "/customers", icon: Users },
-  { title: "Chat", url: "/chat", icon: MessageSquare },
+  { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
+  {
+    title: "Customers",
+    url: "/admin/customers",
+    icon: Users,
+    permission: "Customers",
+  },
+  { title: "Chat", url: "/admin/chat", icon: MessageSquare },
 ];
 
 const salesNav = [
-  { title: "Proposals", url: "/proposals", icon: FileBarChart },
-  { title: "Estimates", url: "/estimates", icon: ClipboardList },
-  { title: "Invoices", url: "/invoices", icon: FileText },
-  { title: "Payments", url: "/payments", icon: Wallet },
-  { title: "Credit Notes", url: "/credit-notes", icon: FileCheck },
-  { title: "Items", url: "/items", icon: Package },
+  {
+    title: "Proposals",
+    url: "/admin/proposals",
+    icon: FileBarChart,
+    permission: "Proposals",
+  },
+  {
+    title: "Estimates",
+    url: "/admin/estimates",
+    icon: ClipboardList,
+    permission: "Estimates",
+  },
+  {
+    title: "Invoices",
+    url: "/admin/invoices",
+    icon: FileText,
+    permission: "Invoices",
+  },
+  {
+    title: "Payments",
+    url: "/admin/payments",
+    icon: Wallet,
+    permission: "Payments",
+  },
+  {
+    title: "Credit Notes",
+    url: "/admin/credit-notes",
+    icon: FileCheck,
+    permission: "Credit Notes",
+  },
+  { title: "Items", url: "/admin/items", icon: Package, permission: "Items" },
 ];
 
 const managementNav = [
-  { title: "Subscriptions", url: "/subscriptions", icon: CreditCard },
-  { title: "Expenses", url: "/expenses", icon: Receipt },
-  { title: "Contracts", url: "/contracts", icon: FileSignature },
-  { title: "Projects", url: "/projects", icon: FolderKanban },
-  { title: "Tasks", url: "/tasks", icon: CheckSquare },
-  { title: "Support", url: "/support", icon: HeadphonesIcon },
-  { title: "Leads", url: "/leads", icon: Target },
-  { title: "Estimate Request", url: "/estimate-request", icon: ClipboardList },
-  { title: "Knowledge Base", url: "/knowledge-base", icon: BookOpen },
+  {
+    title: "Subscriptions",
+    url: "/admin/subscriptions",
+    icon: CreditCard,
+    permission: "Subscriptions",
+  },
+  {
+    title: "Expenses",
+    url: "/admin/expenses",
+    icon: Receipt,
+    permission: "Expenses",
+  },
+  {
+    title: "Contracts",
+    url: "/admin/contracts",
+    icon: FileSignature,
+    permission: "Contracts",
+  },
+  {
+    title: "Projects",
+    url: "/admin/projects",
+    icon: FolderKanban,
+  },
+  { title: "Tasks", url: "/admin/tasks", icon: CheckSquare },
+  { title: "Support", url: "/admin/support", icon: HeadphonesIcon },
+  { title: "Leads", url: "/admin/leads", icon: Target, permission: "Leads" },
+  {
+    title: "Estimate Request",
+    url: "/admin/estimate-request",
+    icon: ClipboardList,
+    permission: "Estimate Request",
+  },
+  {
+    title: "Knowledge Base",
+    url: "/admin/knowledge-base",
+    icon: BookOpen,
+    permission: "Knowledge Base",
+  },
 ];
 
 const utilitiesNav = [
-  { title: "Media", url: "/media", icon: Image },
-  { title: "Bulk PDF Export", url: "/bulk-export", icon: FileDown },
-  { title: "Calendar", url: "/calendar", icon: CalendarDays },
-  { title: "Announcements", url: "/announcements", icon: Megaphone },
-  { title: "Goals", url: "/goals", icon: Crosshair },
-  { title: "Activity Log", url: "/activity", icon: Activity },
-  { title: "Ticket Pipe Log", url: "/ticket-pipe-log", icon: MessageSquare },
+  { title: "Media", url: "/admin/media", icon: Image },
+  {
+    title: "Bulk PDF Export",
+    url: "/admin/bulk-export",
+    icon: FileDown,
+    permission: "Bulk PDF Export",
+  },
+  { title: "Calendar", url: "/admin/calendar", icon: CalendarDays },
+  {
+    title: "Announcements",
+    url: "/admin/announcements",
+    icon: Megaphone,
+    permission: "Announcements",
+  },
+  { title: "Goals", url: "/admin/goals", icon: Crosshair, permission: "Goals" },
+  {
+    title: "Activity Log",
+    url: "/admin/activity",
+    icon: Activity,
+    permission: "Activity Log",
+  },
+  {
+    title: "Ticket Pipe Log",
+    url: "/admin/ticket-pipe-log",
+    icon: MessageSquare,
+    permission: "Ticket Pipe Log",
+  },
 ];
 
 const reportsNav = [
-  { title: "Sales", url: "/reports/sales", icon: DollarSign },
-  { title: "Expenses", url: "/reports/expenses", icon: Receipt },
+  {
+    title: "Sales",
+    url: "/admin/reports/sales",
+    icon: DollarSign,
+    permission: "Reports",
+  },
+  {
+    title: "Expenses",
+    url: "/admin/reports/expenses",
+    icon: Receipt,
+    permission: "Reports",
+  },
   {
     title: "Expenses vs Income",
-    url: "/reports/expenses-vs-income",
+    url: "/admin/reports/expenses-vs-income",
     icon: BarChart3,
+    permission: "Reports",
   },
-  { title: "Leads", url: "/reports/leads", icon: Target },
-  { title: "Timesheets Overview", url: "/reports/timesheets", icon: Clock },
-  { title: "KB Articles", url: "/reports/kb-articles", icon: BookOpen },
+  {
+    title: "Leads",
+    url: "/admin/reports/leads",
+    icon: Target,
+    permission: "Reports",
+  },
+  {
+    title: "Timesheets Overview",
+    url: "/admin/reports/timesheets",
+    icon: Clock,
+    permission: "Reports",
+  },
+  {
+    title: "KB Articles",
+    url: "/admin/reports/kb-articles",
+    icon: BookOpen,
+    permission: "Reports",
+  },
 ];
 
 const setupMenuItems = [
-  { title: "Staff", url: "/setup/staff", icon: UserCog },
+  {
+    title: "Staff",
+    url: "/admin/setup/staff",
+    icon: UserCog,
+    permission: "Staff",
+  },
   {
     title: "Customers",
     icon: Users,
-    subItems: [{ title: "Groups", url: "/setup/customers/groups" }],
+    permission: "Customers",
+    subItems: [{ title: "Groups", url: "/admin/setup/customers/groups" }],
   },
   {
     title: "Support",
     icon: HeadphonesIcon,
     subItems: [
-      { title: "Departments", url: "/setup/support/departments" },
-      { title: "Predefined Replies", url: "/setup/support/predefined-replies" },
-      { title: "Ticket Priority", url: "/setup/support/ticket-priority" },
-      { title: "Ticket Statuses", url: "/setup/support/ticket-statuses" },
-      { title: "Services", url: "/setup/support/services" },
-      { title: "Spam Filters", url: "/setup/support/spam-filters" },
+      { title: "Departments", url: "/admin/setup/support/departments" },
+      {
+        title: "Predefined Replies",
+        url: "/admin/setup/support/predefined-replies",
+      },
+      { title: "Ticket Priority", url: "/admin/setup/support/ticket-priority" },
+      { title: "Ticket Statuses", url: "/admin/setup/support/ticket-statuses" },
+      { title: "Services", url: "/admin/setup/support/services" },
+      { title: "Spam Filters", url: "/admin/setup/support/spam-filters" },
     ],
   },
   {
     title: "Leads",
     icon: Target,
+    permission: "Leads",
     subItems: [
-      { title: "Sources", url: "/setup/leads/sources" },
-      { title: "Statuses", url: "/setup/leads/statuses" },
-      { title: "Email Integration", url: "/setup/leads/email-integration" },
-      { title: "Web to Lead", url: "/setup/leads/web-to-lead" },
+      { title: "Sources", url: "/admin/setup/leads/sources" },
+      { title: "Statuses", url: "/admin/setup/leads/statuses" },
+      {
+        title: "Email Integration",
+        url: "/admin/setup/leads/email-integration",
+      },
+      { title: "Web to Lead", url: "/admin/setup/leads/web-to-lead" },
     ],
   },
   {
     title: "Finance",
     icon: DollarSign,
     subItems: [
-      { title: "Tax Rates", url: "/setup/finance/tax-rates" },
-      { title: "Currencies", url: "/setup/finance/currencies" },
-      { title: "Payment Modes", url: "/setup/finance/payment-modes" },
+      { title: "Tax Rates", url: "/admin/setup/finance/tax-rates" },
+      { title: "Currencies", url: "/admin/setup/finance/currencies" },
+      { title: "Payment Modes", url: "/admin/setup/finance/payment-modes" },
       {
         title: "Expenses Categories",
-        url: "/setup/finance/expense-categories",
+        url: "/admin/setup/finance/expense-categories",
       },
     ],
   },
   {
     title: "Contracts",
     icon: FileSignature,
+    permission: "Contracts",
     subItems: [
-      { title: "Contract Types", url: "/setup/contracts/contract-types" },
+      { title: "Contract Types", url: "/admin/setup/contracts/contract-types" },
     ],
   },
   {
     title: "Estimate Request",
     icon: ClipboardList,
+    permission: "Estimate Request",
     subItems: [
-      { title: "Forms", url: "/setup/estimate-request/form-fields" },
-      { title: "Statuses", url: "/setup/estimate-request/statuses" },
+      { title: "Forms", url: "/admin/setup/estimate-request/form-fields" },
+      { title: "Statuses", url: "/admin/setup/estimate-request/statuses" },
     ],
   },
-  { title: "Modules", url: "/setup/modules", icon: Layout },
-  { title: "Email Templates", url: "/setup/email-templates", icon: Mail },
-  { title: "Custom Fields", url: "/setup/custom-fields", icon: Columns },
-  { title: "GDPR", url: "/setup/gdpr", icon: Shield },
-  { title: "Roles", url: "/setup/roles", icon: UserCheck },
-  { title: "Theme Style", url: "/setup/theme", icon: Palette },
-  { title: "Settings", url: "/setup/settings", icon: Settings },
-  { title: "Help", url: "/setup/help", icon: HelpCircle },
+  { title: "Modules", url: "/admin/setup/modules", icon: Layout },
+  {
+    title: "Email Templates",
+    url: "/admin/setup/email-templates",
+    icon: Mail,
+    permission: "Email Templates",
+  },
+  { title: "Custom Fields", url: "/admin/setup/custom-fields", icon: Columns },
+  { title: "GDPR", url: "/admin/setup/gdpr", icon: Shield },
+  {
+    title: "Roles",
+    url: "/admin/setup/roles",
+    icon: UserCheck,
+    permission: "Staff Roles",
+  },
+  { title: "Theme Style", url: "/admin/setup/theme", icon: Palette },
+  {
+    title: "Settings",
+    url: "/admin/setup/settings",
+    icon: Settings,
+    permission: "Settings",
+  },
+  { title: "Help", url: "/admin/setup/help", icon: HelpCircle },
 ];
 
 export function AppSidebar() {
   const { state, setOpenMobile, isMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const { isAdmin, canView } = usePermissions();
+
+  const visibleSetupItems = setupMenuItems.filter((item) => {
+    // If the item has a permission key, check it
+    if (item.permission && !canView(item.permission)) return false;
+
+    if (!item.permission && !isAdmin) {
+      if (item.title === "Help") return true;
+      return false;
+    }
+
+    return true;
+  });
+
+  // The Setup button is ONLY visible when the user has Settings > View permission (or is admin)
+  const hasSetupAccess = isAdmin || canView("Settings");
+
   const [menuMode, setMenuMode] = useState<"main" | "setup">(
     () =>
       (localStorage.getItem("sidebar:menuMode") as "main" | "setup") || "main",
@@ -212,50 +365,61 @@ export function AppSidebar() {
     setOpenSections((prev) => ({ ...prev, [title]: !prev[title] }));
   };
 
-  const renderItems = (items: typeof mainNav, onItemClick?: () => void) => {
+  const renderItems = (
+    items: (typeof mainNav)[number][],
+    onItemClick?: () => void,
+  ) => {
     const handleClick = () => {
       if (onItemClick) onItemClick();
       if (isMobile) setOpenMobile(false);
     };
 
-    return items.map((item) => {
-      const isActive =
-        location.pathname === item.url ||
-        location.pathname.startsWith(item.url + "/");
-      return (
-        <SidebarMenuItem key={item.title}>
-          <SidebarMenuButton asChild>
-            <NavLink
-              to={item.url}
-              end
-              onClick={handleClick}
-              className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-              activeClassName="bg-primary/10 text-primary font-semibold"
-            >
-              {isActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
-              )}
-              <item.icon
-                className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isActive ? "text-primary" : ""}`}
-              />
-              {!collapsed && (
-                <span className="text-[13px] font-medium">{item.title}</span>
-              )}
-            </NavLink>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
-      );
-    });
+    return items
+      .filter((item: any) => !item.permission || canView(item.permission))
+      .map((item: any) => {
+        const isActive =
+          location.pathname === item.url ||
+          location.pathname.startsWith(item.url + "/");
+        return (
+          <SidebarMenuItem key={item.title}>
+            <SidebarMenuButton asChild>
+              <NavLink
+                to={item.url}
+                end
+                onClick={handleClick}
+                className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
+                activeClassName="bg-primary/10 text-primary font-semibold"
+              >
+                {isActive && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
+                )}
+                <item.icon
+                  className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isActive ? "text-primary" : ""}`}
+                />
+                {!collapsed && (
+                  <span className="text-[13px] font-medium">{item.title}</span>
+                )}
+              </NavLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        );
+      });
   };
 
   const renderCollapsibleItem = (
     label: string,
     icon: React.ElementType,
-    items: typeof mainNav,
+    items: (typeof mainNav)[number][],
   ) => {
+    const visibleItems = items.filter(
+      (item: any) => !item.permission || canView(item.permission),
+    );
+
+    if (visibleItems.length === 0) return null;
+
     const Icon = icon;
     const open = !!openSections[label];
-    const isAnyChildActive = items.some(
+    const isAnyChildActive = visibleItems.some(
       (item) =>
         location.pathname === item.url ||
         location.pathname.startsWith(item.url + "/"),
@@ -286,7 +450,7 @@ export function AppSidebar() {
           <CollapsibleContent className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
             <SidebarGroupContent className="pl-3 border-l border-sidebar-border/60 ml-[18px] mt-0.5 space-y-0">
               <SidebarMenu className="gap-0.5">
-                {renderItems(items)}
+                {renderItems(visibleItems)}
               </SidebarMenu>
             </SidebarGroupContent>
           </CollapsibleContent>
@@ -298,7 +462,10 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarHeader className="p-4 pb-3">
-        <NavLink to="/dashboard" className="flex items-center gap-2.5 group">
+        <NavLink
+          to="/admin/dashboard"
+          className="flex items-center gap-2.5 group"
+        >
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm group-hover:shadow-md transition-shadow duration-300">
             C
           </div>
@@ -320,21 +487,23 @@ export function AppSidebar() {
                 {renderItems(managementNav)}
                 {renderCollapsibleItem("Utilities", CircleDot, utilitiesNav)}
                 {renderCollapsibleItem("Reports", TrendingUp, reportsNav)}
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    onClick={() => {
-                      setMenuMode("setup");
-                      setOpenSections({});
-                      if (isMobile) setOpenMobile(false);
-                    }}
-                    className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative cursor-pointer"
-                  >
-                    <Settings className="mr-2.5 h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
-                    {!collapsed && (
-                      <span className="text-[13px] font-medium">Setup</span>
-                    )}
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                {hasSetupAccess && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      onClick={() => {
+                        setMenuMode("setup");
+                        setOpenSections({});
+                        if (isMobile) setOpenMobile(false);
+                      }}
+                      className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative cursor-pointer"
+                    >
+                      <Settings className="mr-2.5 h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
+                      {!collapsed && (
+                        <span className="text-[13px] font-medium">Setup</span>
+                      )}
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -368,12 +537,12 @@ export function AppSidebar() {
               )}
               <SidebarGroupContent>
                 <SidebarMenu className="gap-0.5">
-                  {setupMenuItems.map((item) => {
+                  {visibleSetupItems.map((item: any) => {
                     const Icon = item.icon;
                     if (item.subItems && item.subItems.length > 0) {
                       const isOpen = !!openSections[item.title];
                       const isAnyChildActive = item.subItems.some(
-                        (sub) =>
+                        (sub: any) =>
                           location.pathname === sub.url ||
                           location.pathname.startsWith(sub.url + "/"),
                       );
@@ -414,7 +583,7 @@ export function AppSidebar() {
                             <CollapsibleContent className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
                               <SidebarGroupContent className="pl-3 border-l border-sidebar-border/60 ml-[18px] mt-0.5 space-y-0.5">
                                 <SidebarMenu className="gap-0.5">
-                                  {item.subItems.map((sub) => {
+                                  {item.subItems.map((sub: any) => {
                                     const isSubActive =
                                       location.pathname === sub.url ||
                                       location.pathname.startsWith(

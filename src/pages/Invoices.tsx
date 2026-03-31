@@ -29,6 +29,7 @@ import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const statusMap: Record<number, { label: string; color: string }> = {
   1: { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
@@ -45,6 +46,7 @@ const Invoices = () => {
   const [editItem, setEditItem] = useState<any>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: invoices = [], isLoading } = useQuery<any[]>({
     queryKey: ["invoices"],
@@ -88,116 +90,118 @@ const Invoices = () => {
             <h1 className="text-2xl font-bold">Invoices</h1>
             <p className="text-muted-foreground">Create and manage invoices</p>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Invoice
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Create Invoice</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div className="space-y-2">
-                  <Label>Invoice Number</Label>
-                  <Input placeholder="INV-0000" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Customer</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select customer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.map((c: any) => (
-                        <SelectItem key={c._id} value={c._id}>{c.company}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea placeholder="Invoice description" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+          {can("Invoices", "Create") && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Invoice
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Create Invoice</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2">
                   <div className="space-y-2">
-                    <Label>Amount</Label>
-                    <Input type="number" placeholder="0.00" />
+                    <Label>Invoice Number</Label>
+                    <Input placeholder="INV-0000" />
                   </div>
                   <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Select defaultValue="1">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">Unpaid</SelectItem>
-                        <SelectItem value="2">Paid</SelectItem>
-                        <SelectItem value="3">Partially Paid</SelectItem>
-                        <SelectItem value="4">Overdue</SelectItem>
-                        <SelectItem value="5">Cancelled</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Issue Date</Label>
-                    <Input type="date" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Due Date</Label>
-                    <Input type="date" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Currency</Label>
-                    <Select defaultValue={currencies.find((c: any) => c.isdefault)?._id}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select currency" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {currencies.map((c: any) => (
-                          <SelectItem key={c._id} value={c._id}>{c.name} ({c.symbol})</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Tax</Label>
+                    <Label>Customer</Label>
                     <Select>
                       <SelectTrigger>
-                        <SelectValue placeholder="No Tax" />
+                        <SelectValue placeholder="Select customer" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">No Tax</SelectItem>
-                        {taxes.map((t: any) => (
-                          <SelectItem key={t._id} value={t._id}>{t.name} ({t.taxrate}%)</SelectItem>
+                        {customers.map((c: any) => (
+                          <SelectItem key={c._id} value={c._id}>{c.company}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Textarea placeholder="Invoice description" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Amount</Label>
+                      <Input type="number" placeholder="0.00" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Status</Label>
+                      <Select defaultValue="1">
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">Unpaid</SelectItem>
+                          <SelectItem value="2">Paid</SelectItem>
+                          <SelectItem value="3">Partially Paid</SelectItem>
+                          <SelectItem value="4">Overdue</SelectItem>
+                          <SelectItem value="5">Cancelled</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Issue Date</Label>
+                      <Input type="date" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Due Date</Label>
+                      <Input type="date" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Currency</Label>
+                      <Select defaultValue={currencies.find((c: any) => c.isdefault)?._id}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select currency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {currencies.map((c: any) => (
+                            <SelectItem key={c._id} value={c._id}>{c.name} ({c.symbol})</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tax</Label>
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="No Tax" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No Tax</SelectItem>
+                          {taxes.map((t: any) => (
+                            <SelectItem key={t._id} value={t._id}>{t.name} ({t.taxrate}%)</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Payment Mode</Label>
+                    <Select>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select payment mode" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {paymentModes.filter((m: any) => m.active && !m.expenses_only).map((mode: any) => (
+                          <SelectItem key={mode._id} value={mode._id}>{mode.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button className="w-full">Create Invoice</Button>
                 </div>
-                <div className="space-y-2">
-                  <Label>Payment Mode</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select payment mode" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {paymentModes.filter((m: any) => m.active && !m.expenses_only).map((mode: any) => (
-                        <SelectItem key={mode._id} value={mode._id}>{mode.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button className="w-full">Create Invoice</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
@@ -287,12 +291,15 @@ const Invoices = () => {
                           <td className="p-3">
                             <TableActions
                               onView={() => setViewItem(inv)}
-                              onEdit={() => setEditItem(inv)}
-                              onDelete={() =>
-                                toast({
-                                  title: "Info",
-                                  description: `Delete triggered for ${inv._id}`,
-                                })
+                              onEdit={can("Invoices", "Edit") ? () => setEditItem(inv) : undefined}
+                              onDelete={
+                                can("Invoices", "Delete")
+                                  ? () =>
+                                      toast({
+                                        title: "Info",
+                                        description: `Delete triggered for ${inv._id}`,
+                                      })
+                                  : undefined
                               }
                             />
                           </td>

@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface SpamFilter {
   _id: string;
@@ -45,6 +46,7 @@ export default function SetupSpamFilters() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: allFilters = [], isLoading } = useQuery<SpamFilter[]>({
     queryKey: ["spam-filters"],
@@ -142,9 +144,9 @@ export default function SetupSpamFilters() {
         title="Spam Filters"
         subtitle="Block unwanted emails from creating tickets."
         addLabel="Add Spam Filter"
-        onAdd={handleAdd}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
+        onAdd={can("Support", "Create") ? handleAdd : undefined}
+        onEdit={can("Support", "Edit") ? handleEdit : undefined}
+        onDelete={can("Support", "Delete") ? handleDelete : undefined}
         columns={[{ key: "value", label: "Content" }]}
         data={filteredData}
         isLoading={isLoading}
@@ -183,9 +185,14 @@ export default function SetupSpamFilters() {
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-0 shadow-2xl">
-          <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSave();
+            }}
+          >
             <DialogHeader className="px-6 py-4 border-b bg-gray-50/50">
-              <DialogTitle className="text-xl font-bold text-[#1e293b]">
+              <DialogTitle className="text-xl font-bold text-foreground">
                 {currentFilter ? "Edit Spam Filter" : "Add Spam Filter"}
               </DialogTitle>
             </DialogHeader>
@@ -223,6 +230,11 @@ export default function SetupSpamFilters() {
                   }
                   placeholder="Enter email address, subject or phrase to block..."
                   className="min-h-[120px] border-slate-200 focus:ring-primary/20 transition-all rounded-lg resize-none p-3"
+                  disabled={
+                    currentFilter
+                      ? !can("Support", "Edit")
+                      : !can("Support", "Create")
+                  }
                 />
               </div>
             </div>
@@ -232,19 +244,26 @@ export default function SetupSpamFilters() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsOpen(false)}
-                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-slate-600 font-semibold rounded-lg transition-all"
+                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-foreground font-semibold rounded-lg transition-all"
               >
                 Close
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
+                disabled={
+                  createMutation.isPending ||
+                  updateMutation.isPending ||
+                  (currentFilter
+                    ? !can("Support", "Edit")
+                    : !can("Support", "Create"))
+                }
                 className="px-8 h-10 bg-[#1e293b] hover:bg-[#334155] text-white font-bold rounded-lg shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
               >
-                {(createMutation.isPending || updateMutation.isPending) && (
+                {createMutation.isPending || updateMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Save"
                 )}
-                Save
               </Button>
             </DialogFooter>
           </form>

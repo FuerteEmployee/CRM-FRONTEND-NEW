@@ -29,6 +29,7 @@ import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast as SonnerToast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const Leads = () => {
   const [search, setSearch] = useState("");
@@ -37,8 +38,9 @@ const Leads = () => {
   const [editItem, setEditItem] = useState(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
-  const { data: leads = [], isLoading } = useQuery({
+  const { data: leads = [], isLoading } = useQuery<any[]>({
     queryKey: ["leads"],
     queryFn: leadService.getAll,
   });
@@ -82,182 +84,184 @@ const Leads = () => {
               Manage and track your sales leads
             </p>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Lead
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Lead</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Select
-                      defaultValue={
-                        statuses.find((s) => s.isdefault)?._id ||
-                        statuses[0]?._id
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {statuses.map((s) => (
-                          <SelectItem key={s._id} value={s._id}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+          {can("Leads", "Create") && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Lead
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Lead</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Status</Label>
+                      <Select
+                        defaultValue={
+                          statuses.find((s) => s.isdefault)?._id ||
+                          statuses[0]?._id
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {statuses.map((s) => (
+                            <SelectItem key={s._id} value={s._id}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Source</Label>
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select source" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sources.map((s) => (
+                            <SelectItem key={s._id} value={s._id}>
+                              {s.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Assigned</Label>
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="sarah">Sarah Chen</SelectItem>
+                          <SelectItem value="alex">Alex Turner</SelectItem>
+                          <SelectItem value="mike">Mike Johnson</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tags</Label>
+                      <Input placeholder="Enter tags" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Name</Label>
+                      <Input placeholder="Full name" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Position</Label>
+                      <Input placeholder="Position/Title" />
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Source</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select source" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {sources.map((s) => (
-                          <SelectItem key={s._id} value={s._id}>
-                            {s.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label>Address</Label>
+                    <Textarea placeholder="Full address" rows={2} />
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>City</Label>
+                      <Input placeholder="City" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email Address</Label>
+                      <Input type="email" placeholder="email@example.com" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>State</Label>
+                      <Input placeholder="State" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Website</Label>
+                      <Input type="url" placeholder="https://example.com" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Country</Label>
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select country" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="US">United States</SelectItem>
+                          <SelectItem value="UK">United Kingdom</SelectItem>
+                          <SelectItem value="IN">India</SelectItem>
+                          <SelectItem value="CA">Canada</SelectItem>
+                          <SelectItem value="AU">Australia</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Phone</Label>
+                      <Input type="tel" placeholder="+1 555-0100" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Zip Code</Label>
+                      <Input placeholder="Zip code" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Lead Value</Label>
+                      <Input type="number" placeholder="0" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Default Language</Label>
+                      <Select>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select language" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="en">English</SelectItem>
+                          <SelectItem value="es">Spanish</SelectItem>
+                          <SelectItem value="fr">French</SelectItem>
+                          <SelectItem value="de">German</SelectItem>
+                          <SelectItem value="hi">Hindi</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Company</Label>
+                      <Input placeholder="Company name" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Description</Label>
+                    <Textarea placeholder="Lead description..." rows={2} />
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox id="lead-public" />
+                      <Label htmlFor="lead-public" className="font-normal">
+                        Public
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox id="contacted-today" />
+                      <Label htmlFor="contacted-today" className="font-normal">
+                        Contacted Today
+                      </Label>
+                    </div>
+                  </div>
+                  <Button className="w-full">Save</Button>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Assigned</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="sarah">Sarah Chen</SelectItem>
-                        <SelectItem value="alex">Alex Turner</SelectItem>
-                        <SelectItem value="mike">Mike Johnson</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Tags</Label>
-                    <Input placeholder="Enter tags" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Name</Label>
-                    <Input placeholder="Full name" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Position</Label>
-                    <Input placeholder="Position/Title" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Address</Label>
-                  <Textarea placeholder="Full address" rows={2} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>City</Label>
-                    <Input placeholder="City" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Email Address</Label>
-                    <Input type="email" placeholder="email@example.com" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>State</Label>
-                    <Input placeholder="State" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Website</Label>
-                    <Input type="url" placeholder="https://example.com" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Country</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select country" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="US">United States</SelectItem>
-                        <SelectItem value="UK">United Kingdom</SelectItem>
-                        <SelectItem value="IN">India</SelectItem>
-                        <SelectItem value="CA">Canada</SelectItem>
-                        <SelectItem value="AU">Australia</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Phone</Label>
-                    <Input type="tel" placeholder="+1 555-0100" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Zip Code</Label>
-                    <Input placeholder="Zip code" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Lead Value</Label>
-                    <Input type="number" placeholder="0" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Default Language</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select language" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="en">English</SelectItem>
-                        <SelectItem value="es">Spanish</SelectItem>
-                        <SelectItem value="fr">French</SelectItem>
-                        <SelectItem value="de">German</SelectItem>
-                        <SelectItem value="hi">Hindi</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Company</Label>
-                    <Input placeholder="Company name" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea placeholder="Lead description..." rows={2} />
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Checkbox id="lead-public" />
-                    <Label htmlFor="lead-public" className="font-normal">
-                      Public
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox id="contacted-today" />
-                    <Label htmlFor="contacted-today" className="font-normal">
-                      Contacted Today
-                    </Label>
-                  </div>
-                </div>
-                <Button className="w-full">Save</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3">
@@ -355,8 +359,8 @@ const Leads = () => {
                         <td className="p-3">
                           <TableActions
                             onView={() => setViewItem(l)}
-                            onEdit={() => setEditItem(l)}
-                            onDelete={() => {}}
+                            onEdit={can("Leads", "Edit") ? () => setEditItem(l) : undefined}
+                            onDelete={can("Leads", "Delete") ? () => {} : undefined}
                           />
                         </td>
                       </tr>

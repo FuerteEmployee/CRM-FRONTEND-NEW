@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface Tax {
   _id: string;
@@ -28,6 +29,7 @@ export default function SetupTaxRates() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: taxes = [], isLoading } = useQuery<Tax[]>({
     queryKey: ["taxes"],
@@ -123,9 +125,9 @@ export default function SetupTaxRates() {
         title="Tax Rates"
         subtitle="Manage the tax rates available for invoices and expenses."
         addLabel="Add New Tax"
-        onAdd={handleAdd}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
+        onAdd={can("Settings", "Edit") ? handleAdd : undefined}
+        onEdit={can("Settings", "Edit") ? handleEdit : undefined}
+        onDelete={can("Settings", "Edit") ? handleDelete : undefined}
         columns={[
           { key: "name", label: "Tax Name" },
           { key: "taxrate", label: "Rate (percent)" },
@@ -137,9 +139,14 @@ export default function SetupTaxRates() {
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-0 shadow-2xl">
-          <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSave();
+            }}
+          >
             <DialogHeader className="px-6 py-4 border-b bg-gray-50/50">
-              <DialogTitle className="text-xl font-bold text-[#1e293b]">
+              <DialogTitle className="text-xl font-bold text-foreground">
                 {currentTax ? "Edit Tax" : "Add New Tax"}
               </DialogTitle>
             </DialogHeader>
@@ -151,9 +158,12 @@ export default function SetupTaxRates() {
                 </Label>
                 <Input
                   value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
                   placeholder="Enter tax name..."
                   className="h-11 border-slate-200 focus:ring-primary/20 transition-all rounded-lg"
+                  disabled={!can("Settings", "Edit")}
                 />
               </div>
 
@@ -164,7 +174,12 @@ export default function SetupTaxRates() {
                 <Input
                   type="number"
                   value={formData.taxrate}
-                  onChange={(e) => setFormData({ ...formData, taxrate: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      taxrate: parseFloat(e.target.value) || 0,
+                    })
+                  }
                   placeholder="0"
                   className="h-11 border-slate-200 focus:ring-primary/20 transition-all rounded-lg"
                 />
@@ -176,19 +191,24 @@ export default function SetupTaxRates() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsOpen(false)}
-                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-slate-600 font-semibold rounded-lg transition-all"
+                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-foreground font-semibold rounded-lg transition-all"
               >
                 Close
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
+                disabled={
+                  createMutation.isPending ||
+                  updateMutation.isPending ||
+                  !can("Settings", "Edit")
+                }
                 className="px-8 h-10 bg-[#1e293b] hover:bg-[#334155] text-white font-bold rounded-lg shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
               >
-                {(createMutation.isPending || updateMutation.isPending) && (
+                {createMutation.isPending || updateMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Save"
                 )}
-                Save
               </Button>
             </DialogFooter>
           </form>

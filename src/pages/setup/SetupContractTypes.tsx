@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface ContractType {
   _id: string;
@@ -27,6 +28,7 @@ export default function SetupContractTypes() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
   const { data: types = [], isLoading } = useQuery<ContractType[]>({
     queryKey: ["contract-types"],
@@ -131,9 +133,9 @@ export default function SetupContractTypes() {
         title="Contract Types"
         subtitle="Manage the types of contracts available in the system."
         addLabel="Add New Contract Type"
-        onAdd={handleAdd}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
+        onAdd={can("Contracts", "Create") ? handleAdd : undefined}
+        onEdit={can("Contracts", "Edit") ? handleEdit : undefined}
+        onDelete={can("Contracts", "Delete") ? handleDelete : undefined}
         columns={[{ key: "name", label: "Name" }]}
         data={types}
         isLoading={isLoading}
@@ -149,7 +151,7 @@ export default function SetupContractTypes() {
             }}
           >
             <DialogHeader className="px-6 py-4 border-b bg-gray-50/50">
-              <DialogTitle className="text-xl font-bold text-[#1e293b]">
+              <DialogTitle className="text-xl font-bold text-foreground">
                 {currentType ? "Edit Contract Type" : "New Contract Type"}
               </DialogTitle>
             </DialogHeader>
@@ -164,6 +166,11 @@ export default function SetupContractTypes() {
                   onChange={(e) => setFormData({ name: e.target.value })}
                   placeholder="Contract Type Name"
                   className="h-11 border-slate-200 focus:ring-primary/20 transition-all rounded-lg"
+                  disabled={
+                    currentType
+                      ? !can("Contracts", "Edit")
+                      : !can("Contracts", "Create")
+                  }
                 />
               </div>
             </div>
@@ -173,19 +180,26 @@ export default function SetupContractTypes() {
                 type="button"
                 variant="outline"
                 onClick={() => setIsOpen(false)}
-                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-slate-600 font-semibold rounded-lg transition-all"
+                className="px-6 h-10 border-slate-200 hover:bg-slate-100 text-foreground font-semibold rounded-lg transition-all"
               >
                 Close
               </Button>
               <Button
                 type="submit"
-                disabled={createMutation.isPending || updateMutation.isPending}
+                disabled={
+                  createMutation.isPending ||
+                  updateMutation.isPending ||
+                  (currentType
+                    ? !can("Contracts", "Edit")
+                    : !can("Contracts", "Create"))
+                }
                 className="px-8 h-10 bg-[#1e293b] hover:bg-[#334155] text-white font-bold rounded-lg shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
               >
-                {(createMutation.isPending || updateMutation.isPending) && (
+                {createMutation.isPending || updateMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  "Save"
                 )}
-                Save
               </Button>
             </DialogFooter>
           </form>

@@ -1,36 +1,38 @@
+const BASE_URL = "http://localhost:5000/api";
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// const BASE_URL = "https://crm-pro-he29.onrender.com/api";
 
 class ApiClient {
   async request(endpoint, options = {}) {
-    const token = localStorage.getItem('auth_token');
     const headers = {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "Content-Type": "application/json",
       ...options.headers,
     };
 
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
       headers,
+      credentials: "include",
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Request failed with status ${response.status}`);
+      throw new Error(
+        errorData.message || `Request failed with status ${response.status}`,
+      );
     }
 
     return response.json();
   }
 
   get(endpoint, options) {
-    return this.request(endpoint, { ...options, method: 'GET' });
+    return this.request(endpoint, { ...options, method: "GET" });
   }
 
   post(endpoint, data, options) {
     return this.request(endpoint, {
       ...options,
-      method: 'POST',
+      method: "POST",
       body: JSON.stringify(data),
     });
   }
@@ -38,7 +40,7 @@ class ApiClient {
   put(endpoint, data, options) {
     return this.request(endpoint, {
       ...options,
-      method: 'PUT',
+      method: "PUT",
       body: JSON.stringify(data),
     });
   }
@@ -46,13 +48,13 @@ class ApiClient {
   patch(endpoint, data, options) {
     return this.request(endpoint, {
       ...options,
-      method: 'PATCH',
+      method: "PATCH",
       body: JSON.stringify(data),
     });
   }
 
   delete(endpoint, options) {
-    return this.request(endpoint, { ...options, method: 'DELETE' });
+    return this.request(endpoint, { ...options, method: "DELETE" });
   }
 }
 
