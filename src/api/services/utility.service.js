@@ -15,7 +15,7 @@ export const utilityService = {
   updateTodo: (id, data) => apiClient.put(`/todos/${id}`, data),
 
   // Settings
-  getSettings: () => apiClient.get('/settings'),
+  getSettings: () => apiClient.get(`/settings?cb=${new Date().getTime()}`),
   
   updateSettings: (data) => apiClient.post('/settings', data),
   

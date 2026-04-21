@@ -5,7 +5,7 @@ import { TopNavbar } from "./TopNavbar";
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-muted/30">
+      <div className="min-h-screen flex w-full bg-[hsl(var(--main-content-bg))]">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <TopNavbar />

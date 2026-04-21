@@ -33,7 +33,7 @@ export function ClientTopNavbar() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="customer-navbar sticky top-0 z-50 w-full border-b backdrop-blur transition-colors duration-300">
       <div className="container flex h-16 items-center justify-between mx-auto px-4 md:px-6">
         {/* Logo */}
         <div className="flex items-center gap-2">
@@ -53,8 +53,8 @@ export function ClientTopNavbar() {
             <NavLink
               key={link.url}
               to={link.url}
-              className="transition-colors hover:text-primary"
-              activeClassName="text-primary font-semibold border-b-2 border-primary pb-1"
+              className="transition-opacity hover:opacity-80"
+              activeClassName="font-bold border-b-2 pb-1 opacity-100"
             >
               {link.title}
             </NavLink>

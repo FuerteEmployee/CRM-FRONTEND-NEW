@@ -55,6 +55,8 @@ import {
   Legend,
 } from "recharts";
 
+import { usePermissionContext } from "@/context/PermissionContext";
+
 const statCards = [
   { label: "Invoices Awaiting Payment", value: `${invoiceOverview.unpaid} / ${invoiceOverview.total}`, icon: FileText, change: "+1", up: false, progress: (invoiceOverview.unpaid / Math.max(invoiceOverview.total, 1)) * 100 },
   { label: "Converted Leads", value: "6 / 12", icon: TrendingUp, change: "+2", up: true, progress: 50 },
@@ -83,6 +85,7 @@ const OverviewSection = ({ title, icon: Icon, items }: { title: string; icon: Re
 );
 
 const Dashboard = () => {
+  const { user } = usePermissionContext();
   const [todos, setTodos] = useState(todoItems);
 
   const toggleTodo = (id: string) => {
@@ -98,7 +101,7 @@ const Dashboard = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back, John. Here's what's happening.</p>
+          <p className="text-muted-foreground">Welcome back, {user?.firstname || "User"}. Here's what's happening.</p>
         </div>
 
         {/* Stat Cards */}

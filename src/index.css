@@ -43,12 +43,65 @@
     --sidebar-border: 214 25% 93%;
     --sidebar-ring: 213 44% 25%;
 
+    --header-background: var(--background);
+    --header-links: 215 16% 47%;
+
     --success: 152 69% 40%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
     --info: 213 44% 25%;
-    --info-foreground: 0 0% 100%;
+    /* Custom Theme Variables */
+    --table-links-color: 221 83% 53%;
+    --table-links-hover-color: 221 83% 40%;
+    --table-headings-color: 215 16% 47%;
+    --items-table-heading-bg: 210 20% 96%;
+    --items-table-heading-text: 215 20% 25%;
+    --modal-heading-bg: 210 20% 98%;
+    --modal-heading-color: 220 20% 14%;
+    --modal-close-color: 215 16% 47%;
+    --modal-header-text: 215 16% 47%;
+    --main-content-bg: 210 20% 98%;
+    /* Customer Area Variables */
+    --customer-nav-bg: 0 0% 100%;
+    --customer-nav-links: 220 20% 14%;
+    --customer-footer-bg: 0 0% 100%;
+    --customer-footer-text: 215 16% 47%;
+    
+    /* General Settings Variables */
+    --links-color: 221 83% 53%;
+    --links-hover-color: 221 83% 40%;
+    --admin-login-bg: 210 20% 96%;
+    --text-muted: 215 16% 47%;
+    --text-danger: 0 84% 60%;
+    --text-warning: 38 92% 50%;
+    --text-info: 199 89% 48%;
+    --text-success: 142 71% 45%;
+
+    --tag-adsleads: 221 83% 53%;
+    --tag-brijtag: 221 83% 53%;
+    --tag-ceramic: 221 83% 53%;
+    --tag-closedtoday: 221 83% 53%;
+    --tag-education: 221 83% 53%;
+    --tag-furniture: 221 83% 53%;
+    --tag-god: 221 83% 53%;
+    --tag-homeopathy: 221 83% 53%;
+    --tag-hospital: 221 83% 53%;
+    --tag-jaimin: 221 83% 53%;
+    --tag-jaiminfollowups: 221 83% 53%;
+    --tag-jewellery: 221 83% 53%;
+    --tag-meetingdonewithadil: 221 83% 53%;
+    --tag-meetingdonewithyagnesh: 221 83% 53%;
+    --tag-metaads: 221 83% 53%;
+    --tag-morbi: 221 83% 53%;
+    --tag-naturopathy: 221 83% 53%;
+    --tag-podcast: 221 83% 53%;
+    --tag-solidsurface: 221 83% 53%;
+    --tag-studyroomreferral: 221 83% 53%;
+    --tag-supermarket: 221 83% 53%;
+    --tag-tiles: 221 83% 53%;
+    --tag-warm: 221 83% 53%;
+    --tag-yagnesh: 221 83% 53%;
   }
 
   .dark {
@@ -142,5 +195,185 @@
 
   .page-header p {
     @apply text-sm text-muted-foreground;
+  }
+
+  /* Theme Table Variable Applications */
+  table th {
+    color: hsl(var(--table-headings-color)) !important;
+  }
+  
+  table a:not(.btn) {
+    color: hsl(var(--table-links-color)) !important;
+  }
+
+  table a:not(.btn):hover,
+  table a:not(.btn):focus {
+    color: hsl(var(--table-links-hover-color)) !important;
+  }
+
+  /* Items Table Specific Overrides */
+  .items-table th {
+    background-color: hsl(var(--items-table-heading-bg)) !important;
+    color: hsl(var(--items-table-heading-text)) !important;
+  }
+
+  /* Global Modal/Dialog Styles */
+  [role="dialog"] [class*="flex"][class*="flex-col"][class*="space-y-1"] {
+    background-color: hsl(var(--modal-heading-bg)) !important;
+    padding: 1.5rem !important;
+    border-bottom: 1px solid hsl(var(--border));
+    margin: -1.5rem -1.5rem 1.5rem -1.5rem;
+    border-radius: calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0 0;
+  }
+  
+  [role="dialog"] h2 {
+    color: hsl(var(--modal-heading-color)) !important;
+  }
+  
+  [role="dialog"] [class*="text-sm"][class*="text-muted-foreground"] {
+    color: hsl(var(--modal-header-text)) !important;
+  }
+
+  [role="dialog"] > button:last-child,
+  [role="dialog"] [class*="absolute"][class*="right-4"] {
+    color: hsl(var(--modal-close-color)) !important;
+    background-color: transparent !important;
+  }
+
+  .sticky.top-0.z-30 {
+    background-color: hsl(var(--header-background) / 0.95) !important;
+  }
+
+  /* Header Links/Icons */
+  .sticky.top-0.z-30 button, 
+  .sticky.top-0.z-30 a,
+  .sticky.top-0.z-30 span {
+    color: hsl(var(--header-links)) !important;
+  }
+  
+  .badge-adsleads { background-color: hsl(var(--tag-adsleads)) !important; }
+  .badge-brijtag { background-color: hsl(var(--tag-brijtag)) !important; }
+  .badge-ceramic { background-color: hsl(var(--tag-ceramic)) !important; }
+  .badge-closedtoday { background-color: hsl(var(--tag-closedtoday)) !important; }
+  .badge-education { background-color: hsl(var(--tag-education)) !important; }
+  .badge-furniture { background-color: hsl(var(--tag-furniture)) !important; }
+  .badge-god { background-color: hsl(var(--tag-god)) !important; }
+  .badge-homeopathy { background-color: hsl(var(--tag-homeopathy)) !important; }
+  .badge-hospital { background-color: hsl(var(--tag-hospital)) !important; }
+  .badge-jaimin { background-color: hsl(var(--tag-jaimin)) !important; }
+  .badge-jaiminfollowups { background-color: hsl(var(--tag-jaiminfollowups)) !important; }
+  .badge-jewellery { background-color: hsl(var(--tag-jewellery)) !important; }
+  .badge-meetingdonewithadil { background-color: hsl(var(--tag-meetingdonewithadil)) !important; }
+  .badge-meetingdonewithyagnesh { background-color: hsl(var(--tag-meetingdonewithyagnesh)) !important; }
+  .badge-metaads { background-color: hsl(var(--tag-metaads)) !important; }
+  .badge-morbi { background-color: hsl(var(--tag-morbi)) !important; }
+  .badge-naturopathy { background-color: hsl(var(--tag-naturopathy)) !important; }
+  .badge-podcast { background-color: hsl(var(--tag-podcast)) !important; }
+  .badge-solidsurface { background-color: hsl(var(--tag-solidsurface)) !important; }
+  .badge-studyroomreferral { background-color: hsl(var(--tag-studyroomreferral)) !important; }
+  .badge-supermarket { background-color: hsl(var(--tag-supermarket)) !important; }
+  .badge-tiles { background-color: hsl(var(--tag-tiles)) !important; }
+  .badge-warm { background-color: hsl(var(--tag-warm)) !important; }
+  .badge-yagnesh { background-color: hsl(var(--tag-yagnesh)) !important; }
+
+  /* Sidebar Default Link Color */
+  [data-sidebar="menu-button"]:not([data-active="true"]),
+  [data-sidebar="menu-sub-button"]:not([data-active="true"]),
+  .sidebar-menu-item a:not(.sidebar-active-item) {
+    color: hsl(var(--sidebar-foreground)) !important;
+  }
+  
+  [data-sidebar="menu-button"]:not([data-active="true"]) svg,
+  [data-sidebar="menu-sub-button"]:not([data-active="true"]) svg,
+  .sidebar-menu-item a:not(.sidebar-active-item) svg {
+    color: hsl(var(--sidebar-foreground)) !important;
+  }
+
+  /* Sidebar Active State Overrides */
+  .sidebar-active-item,
+  [data-sidebar="menu-button"][data-active="true"],
+  [data-sidebar="menu-sub-button"][data-active="true"] {
+    background-color: hsl(var(--sidebar-primary)) !important;
+    color: hsl(var(--sidebar-primary-foreground)) !important;
+  }
+
+  [data-sidebar="menu-button"][data-active="true"] svg,
+  [data-sidebar="menu-sub-button"][data-active="true"] svg {
+    color: hsl(var(--sidebar-primary-foreground)) !important;
+  }
+
+  /* Main Content Area Overrides */
+  main, 
+  .flex-1.flex.flex-col.min-w-0,
+  div.has-\[\[data-variant\=inset\]\]\:bg-sidebar {
+    background-color: hsl(var(--main-content-bg)) !important;
+  }
+
+  /* Customer Layout Classes */
+  .customer-navbar {
+    background-color: hsl(var(--customer-nav-bg) / 0.95) !important;
+  }
+  .customer-navbar a, 
+  .customer-navbar button, 
+  .customer-navbar span, 
+  .customer-navbar svg {
+    color: hsl(var(--customer-nav-links)) !important;
+    border-color: hsl(var(--customer-nav-links)) !important;
+  }
+  
+  .customer-footer {
+    background-color: hsl(var(--customer-footer-bg)) !important;
+    color: hsl(var(--customer-footer-text)) !important;
+  }
+  .customer-footer p, 
+  .customer-footer span,
+  .customer-footer a {
+    color: hsl(var(--customer-footer-text)) !important;
+  }
+
+  /* General Application Overrides */
+  a {
+    color: hsl(var(--links-color));
+    transition: color 0.2s ease-in-out;
+  }
+  a:hover, a:focus {
+    color: hsl(var(--links-hover-color));
+  }
+  
+  .text-muted-foreground { color: hsl(var(--text-muted)) !important; }
+  .text-danger { color: hsl(var(--text-danger)) !important; }
+  .text-warning { color: hsl(var(--text-warning)) !important; }
+  .text-info { color: hsl(var(--text-info)) !important; }
+  .text-success { color: hsl(var(--text-success)) !important; }
+
+  /* Login Background Specific class (assuming usage of .admin-login-wrapper on that page) */
+  .admin-login-wrapper {
+    background-color: hsl(var(--admin-login-bg)) !important;
+  }
+
+  /* Custom Scrollbar Utilities */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 10px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.5);
+  }
+
+  .custom-scrollbar-h::-webkit-scrollbar {
+    height: 4px;
+  }
+  .custom-scrollbar-h::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar-h::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 10px;
   }
 }

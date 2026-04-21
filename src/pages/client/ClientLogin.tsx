@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useNavigate, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useSettings } from "@/context/SettingsContext";
 
 const ClientLogin = () => {
   const [email, setEmail] = useState("");
@@ -11,6 +12,7 @@ const ClientLogin = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { settings } = useSettings();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,20 +34,18 @@ const ClientLogin = () => {
       {/* Mini Header */}
       <header className="w-full h-14 border-b bg-white flex items-center justify-between px-6 md:px-10">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded bg-primary text-white font-bold text-[10px] uppercase shadow-sm">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="h-4 w-4"
-            >
-              <path d="m8 3 4 8 5-5 5 15H2L8 3z" />
-            </svg>
-          </div>
-          <span className="font-bold text-lg tracking-tight">CRM<span className="text-primary">Pro</span></span>
+           {settings?.compLogoDark ? (
+             <img src={settings.compLogoDark} alt="Logo" className="h-8 w-auto object-contain" />
+           ) : (
+             <>
+                <div className="flex h-7 w-7 items-center justify-center rounded bg-primary text-white font-bold text-[10px] uppercase shadow-sm">
+                   {settings?.companyName?.charAt(0) || "C"}
+                </div>
+                <span className="font-bold text-lg tracking-tight">
+                  {settings?.companyName?.split(" ")[0] || "CRM"}<span className="text-primary">{settings?.companyName?.split(" ").slice(1).join(" ") || "Pro"}</span>
+                </span>
+             </>
+           )}
         </div>
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" className="text-muted-foreground font-medium text-xs hover:bg-muted/50 transition-colors h-8" asChild>
@@ -82,9 +82,14 @@ const ClientLogin = () => {
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-[#64748B] ml-0.5">Language</label>
                 <select className="flex h-10 w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm ring-offset-background transition-colors focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/5">
-                  <option>English</option>
-                  <option>Spanish</option>
-                  <option>French</option>
+                  <option>{settings?.locLanguage || "English"}</option>
+                  {!settings?.locDisableLanguages && (
+                    <>
+                      <option>Spanish</option>
+                      <option>French</option>
+                      <option>German</option>
+                    </>
+                  )}
                 </select>
               </div>
 

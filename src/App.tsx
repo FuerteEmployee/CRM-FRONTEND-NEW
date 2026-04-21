@@ -247,14 +247,21 @@ const MainApp = () => {
   );
 };
 
+import { ThemeStyleProvider } from "@/context/ThemeContext";
+import { SettingsProvider } from "@/context/SettingsContext";
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <PermissionProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <MainApp />
-      </TooltipProvider>
+      <SettingsProvider>
+        <ThemeStyleProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <MainApp />
+          </TooltipProvider>
+        </ThemeStyleProvider>
+      </SettingsProvider>
     </PermissionProvider>
   </QueryClientProvider>
 );

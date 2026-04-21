@@ -64,6 +64,7 @@ import {
 } from "@/components/ui/collapsible";
 import { useState, useEffect } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useSettings } from "@/context/SettingsContext";
 
 const mainNav = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
@@ -322,6 +323,10 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const { isAdmin, canView } = usePermissions();
+  const { getSetting } = useSettings();
+
+  const companyName = getSetting("companyName", "CRMPro");
+  const logoLight = getSetting("compLogoLight", "");
 
   const visibleSetupItems = setupMenuItems.filter((item) => {
     // If the item has a permission key, check it
@@ -382,13 +387,13 @@ export function AppSidebar() {
           location.pathname.startsWith(item.url + "/");
         return (
           <SidebarMenuItem key={item.title}>
-            <SidebarMenuButton asChild>
+            <SidebarMenuButton asChild isActive={isActive}>
               <NavLink
                 to={item.url}
                 end
                 onClick={handleClick}
                 className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                activeClassName="bg-primary/10 text-primary font-semibold"
+                activeClassName="sidebar-active-item font-semibold"
               >
                 {isActive && (
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
@@ -466,12 +471,16 @@ export function AppSidebar() {
           to="/admin/dashboard"
           className="flex items-center gap-2.5 group"
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm group-hover:shadow-md transition-shadow duration-300">
-            C
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm group-hover:shadow-md transition-shadow duration-300 overflow-hidden">
+            {logoLight ? (
+              <img src={logoLight} alt="Logo" className="h-full w-full object-cover" />
+            ) : (
+              companyName[0]
+            )}
           </div>
           {!collapsed && (
             <span className="text-lg font-bold tracking-tight text-sidebar-foreground">
-              CRM<span className="text-primary">Pro</span>
+              {companyName}
             </span>
           )}
         </NavLink>
@@ -591,7 +600,7 @@ export function AppSidebar() {
                                       );
                                     return (
                                       <SidebarMenuItem key={sub.title}>
-                                        <SidebarMenuButton asChild>
+                                        <SidebarMenuButton asChild isActive={isSubActive}>
                                           <NavLink
                                             to={sub.url}
                                             end
@@ -600,7 +609,7 @@ export function AppSidebar() {
                                                 setOpenMobile(false);
                                             }}
                                             className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                                            activeClassName="bg-primary/10 text-primary font-semibold"
+                                            activeClassName="sidebar-active-item font-semibold"
                                           >
                                             {isSubActive && (
                                               <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary" />
@@ -621,16 +630,21 @@ export function AppSidebar() {
                       );
                     }
 
+                    const isActive = location.pathname === item.url || location.pathname.startsWith(item.url + "/");
+
                     return (
                       <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton asChild>
+                        <SidebarMenuButton asChild isActive={isActive}>
                           <NavLink
                             to={item.url!}
                             end
                             onClick={() => isMobile && setOpenMobile(false)}
                             className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                            activeClassName="bg-primary/10 text-primary font-semibold"
+                            activeClassName="sidebar-active-item font-semibold"
                           >
+                            {isActive && (
+                              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary" />
+                            )}
                             <Icon className="mr-2.5 h-4 w-4 shrink-0" />
                             {!collapsed && (
                               <span className="text-[13px] font-medium">

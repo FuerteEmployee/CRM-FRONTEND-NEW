@@ -119,7 +119,7 @@ export default function SetupStaff() {
           label: "Last Login",
           className: "text-center",
           render: (member: StaffMember) => (
-            <span className="text-slate-500 text-sm">
+            <span className="text-muted-foreground text-sm">
               {member.last_login
                 ? formatDistanceToNow(new Date(member.last_login), {
                     addSuffix: true,
