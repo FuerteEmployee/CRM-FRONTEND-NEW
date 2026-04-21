@@ -34,23 +34,40 @@ const PermissionContext = createContext<PermissionContextType | undefined>(
 export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    const cached = localStorage.getItem("crm_user");
+    return cached ? JSON.parse(cached) : null;
+  });
   const [permissions, setPermissions] = useState<
     Record<string, Record<string, boolean>>
-  >({});
+  >(() => {
+    const cached = localStorage.getItem("crm_permissions");
+    return cached ? JSON.parse(cached) : {};
+  });
   const [loading, setLoading] = useState(true);
 
   const syncPermissions = async () => {
-    setLoading(true);
+    // Only set loading if we don't have cached data to show
+    if (!user) setLoading(true);
+    
     try {
       const { authService } = await import("@/api/services/auth.service");
       const data = await authService.getMe();
-      if (data.user) setUser(data.user);
-      if (data.permissions) setPermissions(data.permissions);
+      if (data.user) {
+        setUser(data.user);
+        localStorage.setItem("crm_user", JSON.stringify(data.user));
+      }
+      if (data.permissions) {
+        setPermissions(data.permissions);
+        localStorage.setItem("crm_permissions", JSON.stringify(data.permissions));
+      }
     } catch (error) {
       console.error("Error syncing permissions:", error);
+      // Only clear if the error is an actual 401/Unauthorized
       setUser(null);
       setPermissions({});
+      localStorage.removeItem("crm_user");
+      localStorage.removeItem("crm_permissions");
     } finally {
       setLoading(false);
     }
