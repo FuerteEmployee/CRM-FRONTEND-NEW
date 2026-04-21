@@ -30,18 +30,18 @@
 
     --border: 214 25% 91%;
     --input: 214 25% 91%;
-    --ring: 213 44% 25%;
+    --ring: var(--primary); /* Link ring to primary */
 
     --radius: 0.625rem;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 220 20% 20%;
-    --sidebar-primary: 213 44% 25%;
+    --sidebar-primary: var(--primary); /* Link sidebar primary to global primary */
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 213 15% 96%;
     --sidebar-accent-foreground: 220 20% 14%;
     --sidebar-border: 214 25% 93%;
-    --sidebar-ring: 213 44% 25%;
+    --sidebar-ring: var(--primary);
 
     --header-background: var(--background);
     --header-links: 215 16% 47%;
