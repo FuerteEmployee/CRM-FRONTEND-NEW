@@ -51,6 +51,7 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
     --info: 213 44% 25%;
+    --info-foreground: 0 0% 100%;
     /* Custom Theme Variables */
     --table-links-color: 221 83% 53%;
     --table-links-hover-color: 221 83% 40%;
@@ -374,6 +375,43 @@
   }
   .custom-scrollbar-h::-webkit-scrollbar-thumb {
     background: hsl(var(--muted-foreground) / 0.3);
-    border-radius: 10px;
+  }
+
+  /* Legacy/Common Class Support - Mapping to Theme Variables */
+  .text-primary { color: hsl(var(--primary)) !important; }
+  .bg-primary { background-color: hsl(var(--primary)) !important; }
+  .border-primary { border-color: hsl(var(--primary)) !important; }
+
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2;
+  }
+  .btn-primary { 
+    background-color: hsl(var(--primary)) !important; 
+    color: hsl(var(--primary-foreground)) !important;
+  }
+  .btn-primary:hover {
+    background-color: hsl(var(--primary) / 0.9) !important;
+  }
+  .btn-success { 
+    background-color: hsl(var(--success)) !important; 
+    color: hsl(var(--success-foreground)) !important;
+  }
+  .btn-danger { 
+    background-color: hsl(var(--destructive)) !important; 
+    color: hsl(var(--destructive-foreground)) !important;
+  }
+  .btn-info { 
+    background-color: hsl(var(--info)) !important; 
+    color: hsl(var(--info-foreground)) !important;
+  }
+  .btn-warning { 
+    background-color: hsl(var(--warning)) !important; 
+    color: hsl(var(--warning-foreground)) !important;
+  }
+
+  .alert-info {
+    background-color: hsl(var(--info) / 0.1) !important;
+    border-color: hsl(var(--info) / 0.2) !important;
+    color: hsl(var(--info)) !important;
   }
 }
