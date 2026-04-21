@@ -1,7 +1,6 @@
-
 import React, { createContext, useContext, useEffect, useLayoutEffect, useState } from 'react';
 import { utilityService } from '@/api/services/utility.service';
-import { useQuery } from '@tanstack/react-query';
+import { useSettings } from '@/context/SettingsContext';
 import { queryClient as globalQueryClient } from '@/lib/queryClient';
 import { applyThemeToDom } from '@/lib/themeUtils';
 
@@ -9,20 +8,17 @@ const THEME_CACHE_KEY = 'crm_theme_style_cache';
 
 const ThemeStyleContext = createContext({
   themeSettings: null,
-  updateTheme: async (settings) => {},
+  updateTheme: async (settings: any) => {},
   loading: true,
 });
 
-export const ThemeStyleProvider = ({ children }) => {
+export const ThemeStyleProvider = ({ children }: { children: React.ReactNode }) => {
   const [hasAppliedInitial, setHasAppliedInitial] = useState(false);
-
-  const { data: settings = [], isLoading, refetch } = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => utilityService.getSettings(),
-  });
+  const { settings: globalSettings, refreshSettings } = useSettings();
 
   const themeSettings = React.useMemo(() => {
-    const fromApi = settings.find(s => s.name === 'theme_style')?.value;
+    const fromApi = globalSettings?.theme_style;
+    
     if (fromApi) {
       localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(fromApi));
       return fromApi;
@@ -38,7 +34,7 @@ export const ThemeStyleProvider = ({ children }) => {
       }
     }
     return null;
-  }, [settings]);
+  }, [globalSettings]);
 
   // Apply cache immediately on mount (before paint if possible)
   useLayoutEffect(() => {
@@ -73,9 +69,8 @@ export const ThemeStyleProvider = ({ children }) => {
         settings: [{ name: 'theme_style', value: newTheme }]
       });
       
-      // Force invalidate and await a fresh refetch to ensure UI is in sync with DB
-      globalQueryClient.invalidateQueries({ queryKey: ['settings'] });
-      await refetch();
+      // Sync global settings context so other components see the change
+      await refreshSettings();
     } catch (error) {
       console.error("Theme update failed:", error);
       throw error;
@@ -83,7 +78,11 @@ export const ThemeStyleProvider = ({ children }) => {
   };
 
   return (
-    <ThemeStyleContext.Provider value={{ themeSettings, updateTheme, loading: isLoading }}>
+    <ThemeStyleContext.Provider value={{ 
+      themeSettings, 
+      updateTheme, 
+      loading: !globalSettings 
+    }}>
       {children}
     </ThemeStyleContext.Provider>
   );

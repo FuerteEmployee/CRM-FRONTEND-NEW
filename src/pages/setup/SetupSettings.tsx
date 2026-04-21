@@ -1070,35 +1070,49 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
         <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8 items-start">
           {/* Sidebar Navigation */}
-          <Card className="h-fit sticky top-24 border shadow-sm">
-            <CardContent className="p-3">
-              <div className="space-y-6">
+          <Card className="h-fit sticky top-24 border shadow-sm overflow-hidden">
+            <CardContent className="p-0">
+              <Accordion type="multiple" defaultValue={["General", "Finance", "Configure Features", "Integrations", "AI Integration", "Other", "Misc"]} className="w-full">
                 {settingsNavigation.map((category) => (
-                  <div key={category.title} className="space-y-1">
-                    <div className="flex items-center gap-2 px-3 py-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                      <category.icon className="h-3.5 w-3.5" />
-                      {category.title}
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      {category.items.map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => setActiveTab(item.id)}
-                          className={cn(
-                            "flex items-center gap-2.5 text-left px-3 py-2 rounded-md text-sm font-medium transition-all group",
-                            activeTab === item.id
-                              ? "bg-primary text-primary-foreground shadow-md"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                          )}
-                        >
-                          {item.icon && <item.icon className={cn("h-4 w-4 shrink-0", activeTab === item.id ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground")} />}
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <AccordionItem key={category.title} value={category.title} className="border-b last:border-b-0">
+                    <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/50 data-[state=open]:bg-muted/30 transition-colors">
+                      <div className="flex items-center gap-2.5 text-sm font-bold tracking-tight text-primary">
+                        <category.icon className="h-4 w-4" />
+                        {category.title}
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-1 pb-2 px-2">
+                      <div className="flex flex-col gap-1">
+                        {category.items.map((item) => (
+                          <button
+                            key={item.id}
+                            onClick={() => setActiveTab(item.id)}
+                            className={cn(
+                              "flex items-center gap-3 text-left px-3 py-2.5 rounded-md text-sm font-medium transition-all group relative",
+                              activeTab === item.id
+                                ? "bg-primary/10 text-primary shadow-sm border-l-4 border-primary rounded-l-none"
+                                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                            )}
+                          >
+                            {item.icon && (
+                              <item.icon 
+                                className={cn(
+                                  "h-4 w-4 shrink-0 transition-colors", 
+                                  activeTab === item.id ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                                )} 
+                              />
+                            )}
+                            {item.label}
+                            {activeTab === item.id && (
+                              <div className="absolute right-2 h-1.5 w-1.5 rounded-full bg-primary" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
                 ))}
-              </div>
+              </Accordion>
             </CardContent>
           </Card>
 
