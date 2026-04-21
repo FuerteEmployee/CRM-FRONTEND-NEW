@@ -49,7 +49,7 @@ export default function ClientInvoices() {
             Manage and view your billing history.
           </p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90 text-white gap-2 font-bold rounded-full px-6 shadow-lg shadow-primary/20 transition-all active:scale-95">
+        <Button className="bg-primary hover:bg-primary/90 gap-2 font-bold rounded-full px-6 shadow-lg shadow-primary/20 transition-all active:scale-95">
           <FileDown className="h-4 w-4" />
           Download Statement
         </Button>

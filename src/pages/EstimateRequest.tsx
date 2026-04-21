@@ -175,7 +175,7 @@ export default function EstimateRequest() {
             onClick={() =>
               navigate("/admin/setup/estimate-request/form-fields/new")
             }
-            className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white flex items-center gap-2 h-10 px-5 rounded-lg shadow-sm"
+            className="  flex items-center gap-2 h-10 px-5 rounded-lg shadow-sm"
           >
             <Plus className="h-4 w-4" />
             <span className="font-semibold text-sm">New Form Builder</span>
@@ -330,7 +330,7 @@ export default function EstimateRequest() {
               >
                 Reject
               </Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9">
+              <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold h-9">
                 Convert to Estimate
               </Button>
             </div>

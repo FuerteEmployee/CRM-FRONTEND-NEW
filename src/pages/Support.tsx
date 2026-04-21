@@ -29,13 +29,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
 
-const statusColors: Record<string, string> = {
-  Open: "bg-primary/10 text-primary border-primary/20",
-  "In Progress":
-    "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400",
-  Closed:
-    "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400",
-};
 
 const Support = () => {
   const [search, setSearch] = useState("");
@@ -240,21 +233,25 @@ const Support = () => {
                         <td className="p-3 text-sm font-medium">{t.subject}</td>
                         <td className="p-3">
                           <Badge
-                            variant="outline"
-                            className={statusColors[t.status] || statusColors["Open"]}
+                            variant={
+                              t.status === "Closed" 
+                                ? "success" 
+                                : t.status === "In Progress" 
+                                ? "warning" 
+                                : "info"
+                            }
                           >
                             {t.status}
                           </Badge>
                         </td>
                         <td className="p-3">
                           <Badge
-                            variant="outline"
-                            className={
+                            variant={
                               t.priority === "High"
-                                ? "bg-destructive/10 text-destructive border-destructive/20"
+                                ? "destructive"
                                 : t.priority === "Medium"
-                                ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400"
-                                : "bg-muted text-muted-foreground"
+                                ? "warning"
+                                : "secondary"
                             }
                           >
                             {t.priority}
@@ -310,8 +307,13 @@ const Support = () => {
                 <div>
                   <p className="text-xs text-muted-foreground">Status</p>
                   <Badge
-                    variant="outline"
-                    className={statusColors[viewItem.status] || statusColors["Open"]}
+                    variant={
+                      viewItem.status === "Closed" 
+                        ? "success" 
+                        : viewItem.status === "In Progress" 
+                        ? "warning" 
+                        : "info"
+                    }
                   >
                     {viewItem.status}
                   </Badge>

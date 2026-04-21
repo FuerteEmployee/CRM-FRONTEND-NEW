@@ -338,7 +338,7 @@ export default function SetupStaffForm() {
           </div>
           <Button
             onClick={handleSave}
-            className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white"
+            className="  text-white"
             disabled={
               createMutation.isPending ||
               updateMutation.isPending ||

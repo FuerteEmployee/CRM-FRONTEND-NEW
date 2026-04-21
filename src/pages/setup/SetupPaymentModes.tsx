@@ -357,7 +357,7 @@ export default function SetupPaymentModes() {
                   updateMutation.isPending ||
                   !can("Settings", "Edit")
                 }
-                className="px-8 h-10 bg-[#1e293b] hover:bg-[#334155] text-white font-bold rounded-lg shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
+                className="px-8 h-10 bg-[#1e293b] hover:bg-[#334155] font-bold rounded-lg shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
               >
                 {createMutation.isPending || updateMutation.isPending ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

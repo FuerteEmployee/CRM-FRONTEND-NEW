@@ -48,7 +48,7 @@ export default function ClientSupport() {
             Get help and track your support inquiries.
           </p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90 text-white gap-2 font-bold rounded-full px-6 shadow-lg shadow-primary/20 transition-all active:scale-95">
+        <Button className="bg-primary hover:bg-primary/90 gap-2 font-bold rounded-full px-6 shadow-lg shadow-primary/20 transition-all active:scale-95">
           <Plus className="h-4 w-4" />
           Open New Ticket
         </Button>

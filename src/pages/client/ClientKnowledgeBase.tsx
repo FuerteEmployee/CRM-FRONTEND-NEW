@@ -31,9 +31,9 @@ export default function ClientKnowledgeBase() {
             <Search className="absolute left-4 h-5 w-5 text-slate-400" />
             <Input 
               placeholder="Search for articles, guides..." 
-              className="pl-12 h-14 border-none bg-transparent text-white placeholder:text-slate-400 text-lg focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="pl-12 h-14 border-none bg-transparent placeholder:text-slate-400 text-lg focus-visible:ring-0 focus-visible:ring-offset-0"
             />
-            <Button className="h-12 px-8 bg-primary hover:bg-primary/90 text-white rounded-xl font-bold shadow-lg shadow-primary/20 transition-all active:scale-95 ml-2">
+            <Button className="h-12 px-8 bg-primary hover:bg-primary/90 rounded-xl font-bold shadow-lg shadow-primary/20 transition-all active:scale-95 ml-2">
               Search
             </Button>
           </div>

@@ -248,7 +248,7 @@ export default function SetupTicketStatuses() {
             </Button>
             <Button
               onClick={handleSave}
-              className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white px-8 h-10 font-medium"
+              className="  px-8 h-10 font-medium"
               disabled={
                 createMutation.isPending ||
                 updateMutation.isPending ||

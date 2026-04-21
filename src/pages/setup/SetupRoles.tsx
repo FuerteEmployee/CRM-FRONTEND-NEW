@@ -287,7 +287,7 @@ export default function SetupRoles() {
           </div>
           <Button
             onClick={handleSave}
-            className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white"
+            className="  text-white"
             disabled={
               createMutation.isPending ||
               updateMutation.isPending ||
@@ -385,7 +385,7 @@ export default function SetupRoles() {
         <div className="flex justify-end">
           <Button
             onClick={handleSave}
-            className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white px-8"
+            className="  px-8"
             disabled={
               createMutation.isPending ||
               updateMutation.isPending ||

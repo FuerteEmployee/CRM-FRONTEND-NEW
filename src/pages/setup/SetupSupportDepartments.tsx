@@ -423,7 +423,7 @@ export default function SetupSupportDepartments() {
             </Button>
             <Button
               onClick={handleSave}
-              className="px-8 h-11 bg-[#1a2b3c] hover:bg-[#2c3e50] text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98] min-w-[100px]"
+              className="px-8 h-11 font-bold rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98] min-w-[100px]"
               disabled={
                 createMutation.isPending ||
                 updateMutation.isPending ||

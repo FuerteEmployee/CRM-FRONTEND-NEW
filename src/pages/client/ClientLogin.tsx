@@ -38,7 +38,7 @@ const ClientLogin = () => {
              <img src={settings.compLogoDark} alt="Logo" className="h-8 w-auto object-contain" />
            ) : (
              <>
-                <div className="flex h-7 w-7 items-center justify-center rounded bg-primary text-white font-bold text-[10px] uppercase shadow-sm">
+                <div className="flex h-7 w-7 items-center justify-center rounded bg-primary font-bold text-[10px] uppercase shadow-sm">
                    {settings?.companyName?.charAt(0) || "C"}
                 </div>
                 <span className="font-bold text-lg tracking-tight">
@@ -129,7 +129,7 @@ const ClientLogin = () => {
 
               <Button
                 type="submit"
-                className="w-full h-10 bg-[#1E293B] hover:bg-[#0F172A] text-white rounded-lg text-sm font-bold transition-all shadow-md shadow-gray-100 active:scale-95 mt-2"
+                className="w-full h-10 bg-[#1E293B] hover:bg-[#0F172A] rounded-lg text-sm font-bold transition-all shadow-md shadow-gray-100 active:scale-95 mt-2"
                 disabled={isLoading}
               >
                 {isLoading ? "Signing in..." : "Login"}

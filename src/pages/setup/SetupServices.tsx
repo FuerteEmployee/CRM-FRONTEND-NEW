@@ -174,7 +174,7 @@ export default function SetupServices() {
               <Button
                 type="submit"
                 disabled={createMutation.isPending || updateMutation.isPending || (currentService ? !can("Support", "Edit") : !can("Support", "Create"))}
-                className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white px-8"
+                className="  px-8"
               >
                 {(createMutation.isPending || updateMutation.isPending) ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

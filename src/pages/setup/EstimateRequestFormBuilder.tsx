@@ -787,7 +787,7 @@ export default function EstimateRequestFormBuilder() {
                                                           options: newOpts,
                                                         });
                                                       }}
-                                                      className="h-9 flex items-center justify-center bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
+                                                      className="h-9 flex items-center justify-center bg-red-500 rounded hover:bg-red-600 transition-colors"
                                                     >
                                                       <X className="h-4 w-4" />
                                                     </button>
@@ -857,7 +857,7 @@ export default function EstimateRequestFormBuilder() {
                   <div className="mt-8">
                     <Button
                       onClick={handleSave}
-                      className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white px-8 rounded-xl font-bold"
+                      className="  px-8 rounded-xl font-bold"
                     >
                       Save
                     </Button>
@@ -1407,7 +1407,7 @@ export default function EstimateRequestFormBuilder() {
                     <Button
                       onClick={handleSave}
                       disabled={mutation.isPending}
-                      className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white px-8 h-10 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2"
+                      className="  px-8 h-10 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2"
                     >
                       {mutation.isPending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />

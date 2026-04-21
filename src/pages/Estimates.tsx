@@ -139,7 +139,7 @@ export default function Estimates() {
               Manage your professional financial estimate documents.
             </p>
           </div>
-          <Button className="bg-[#1a2b3c] hover:bg-[#2c3e50] text-white flex items-center gap-2 h-10 px-5 rounded-lg shadow-sm">
+          <Button className="  flex items-center gap-2 h-10 px-5 rounded-lg shadow-sm">
             <Plus className="h-4 w-4" />
             <span className="font-semibold text-sm">New Estimate</span>
           </Button>
