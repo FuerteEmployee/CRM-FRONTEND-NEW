@@ -4,7 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
-import { Download, FileText, TrendingUp, Users, DollarSign } from "lucide-react";
+import { Download, FileText, TrendingUp, Users, DollarSign, ChevronDown, FileSpreadsheet, FileJson, FileType, Printer } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const revenueByMonth = [
   { month: "Jan", revenue: 12400 }, { month: "Feb", revenue: 15800 }, { month: "Mar", revenue: 18200 },
@@ -42,7 +48,33 @@ const Reports = () => {
                 <SelectItem value="year">This Year</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline"><Download className="mr-2 h-4 w-4" />Export</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Export
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem className="gap-3 cursor-pointer">
+                  <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                  <span>Excel</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-3 cursor-pointer">
+                  <FileJson className="h-4 w-4 text-blue-600" />
+                  <span>CSV</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-3 cursor-pointer">
+                  <FileType className="h-4 w-4 text-red-600" />
+                  <span>PDF</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="gap-3 cursor-pointer">
+                  <Printer className="h-4 w-4 text-gray-600" />
+                  <span>Print</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

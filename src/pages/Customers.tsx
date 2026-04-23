@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Plus,
   Search,
@@ -29,15 +30,75 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Download,
+  FileSpreadsheet,
+  FileJson,
+  FileType,
+  Printer
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService } from "@/api/services/customer.service";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
+
+const COUNTRIES = [
+  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
+  "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi",
+  "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia",
+  "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia",
+  "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana",
+  "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan",
+  "Kazakhstan", "Kenya", "Kiribati", "Korea, North", "Korea, South", "Kosovo", "Kuwait", "Kyrgyzstan",
+  "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg",
+  "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
+  "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Macedonia", "Norway",
+  "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal",
+  "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria",
+  "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu",
+  "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+];
+
+const LANGUAGES = [
+  { value: "system", label: "System Default" },
+  { value: "fr-ca", label: "Français (canada)" },
+  { value: "pt", label: "Português" },
+  { value: "bg", label: "Bulgarian" },
+  { value: "it", label: "Italian" },
+  { value: "cs", label: "Czech" },
+  { value: "fa", label: "Persian" },
+  { value: "ja", label: "Japanese" },
+  { value: "de", label: "German" },
+  { value: "ca", label: "Catalan" },
+  { value: "uk", label: "Ukrainian" },
+  { value: "en", label: "English" },
+  { value: "id", label: "Indonesia" },
+  { value: "el", label: "Greek" },
+  { value: "ru", label: "Russian" },
+  { value: "ro", label: "Romanian" },
+  { value: "pt-br", label: "Português_br" },
+  { value: "fi", label: "Finnish" },
+  { value: "es", label: "Spanish" },
+  { value: "sk", label: "Slovak" },
+  { value: "zh", label: "Chinese" },
+  { value: "sv", label: "Swedish" },
+  { value: "tr", label: "Turkish" },
+  { value: "nl", label: "Dutch" },
+  { value: "pl", label: "Polish" },
+  { value: "no", label: "Norwegian" },
+  { value: "vi", label: "Vietnamese" },
+  { value: "fr", label: "French" }
+];
 
 const Customers = () => {
   const [search, setSearch] = useState("");
@@ -49,6 +110,7 @@ const Customers = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const navigate = useNavigate();
   const itemsPerPage = 25;
 
   const {
@@ -58,6 +120,11 @@ const Customers = () => {
   } = useQuery<any[]>({
     queryKey: ["customers"],
     queryFn: customerService.getAll,
+  });
+
+  const { data: groups = [] } = useQuery<any[]>({
+    queryKey: ["customerGroups"],
+    queryFn: customerService.getGroups,
   });
 
   const deleteMutation = useMutation({
@@ -281,23 +348,33 @@ const Customers = () => {
                       </div>
                       <div className="space-y-2">
                         <Label>Website</Label>
-                        <Input type="url" placeholder="https://example.com" />
+                        <Input 
+                          type="url" 
+                          placeholder="https://example.com" 
+                          value={newCustomer.website || ""}
+                          onChange={(e) => setNewCustomer({ ...newCustomer, website: e.target.value })}
+                        />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Groups</Label>
                           <div className="flex gap-2">
-                            <Select>
+                            <Select
+                              onValueChange={(val) => setNewCustomer({ ...newCustomer, groups: [val]})}
+                              value={newCustomer.groups?.[0] || ""}
+                            >
                               <SelectTrigger className="flex-1">
                                 <SelectValue placeholder="Select group" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="Enterprise">
-                                  Enterprise
-                                </SelectItem>
-                                <SelectItem value="VIP">VIP</SelectItem>
-                                <SelectItem value="SMB">SMB</SelectItem>
-                                <SelectItem value="Startup">Startup</SelectItem>
+                                {groups.map((g) => (
+                                  <SelectItem key={g._id} value={g._id}>
+                                    {g.name}
+                                  </SelectItem>
+                                ))}
+                                {groups.length === 0 && (
+                                  <div className="p-2 text-sm text-muted-foreground text-center">No groups found</div>
+                                )}
                               </SelectContent>
                             </Select>
                             <Button
@@ -311,69 +388,76 @@ const Customers = () => {
                         </div>
                         <div className="space-y-2">
                           <Label>Currency</Label>
-                          <Select>
+                          <Select
+                            onValueChange={(val) => setNewCustomer({ ...newCustomer, currency: val })}
+                            value={newCustomer.currency || ""}
+                          >
                             <SelectTrigger>
                               <SelectValue placeholder="Select currency" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="USD">USD</SelectItem>
-                              <SelectItem value="EUR">EUR</SelectItem>
-                              <SelectItem value="GBP">GBP</SelectItem>
-                              <SelectItem value="INR">INR</SelectItem>
-                              <SelectItem value="AUD">AUD</SelectItem>
+                              <SelectItem value="USD">$ USD</SelectItem>
+                              <SelectItem value="EUR">€ EUR</SelectItem>
+                              <SelectItem value="GBP">£ GBP</SelectItem>
+                              <SelectItem value="INR">₹ INR</SelectItem>
+                              <SelectItem value="AUD">A$ AUD</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
                       <div className="space-y-2">
                         <Label>Default Language</Label>
-                        <Select>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select language" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="en">English</SelectItem>
-                            <SelectItem value="es">Spanish</SelectItem>
-                            <SelectItem value="fr">French</SelectItem>
-                            <SelectItem value="de">German</SelectItem>
-                            <SelectItem value="hi">Hindi</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <SearchableSelect
+                          options={LANGUAGES}
+                          placeholder="Select language"
+                          value={newCustomer.default_language || ""}
+                          onValueChange={(val) => setNewCustomer({ ...newCustomer, default_language: val })}
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>Address</Label>
-                        <Textarea placeholder="Full address" rows={2} />
+                        <Textarea 
+                          placeholder="Full address" 
+                          rows={2} 
+                          value={newCustomer.address || ""}
+                          onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
+                        />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>City</Label>
-                          <Input placeholder="City" />
+                          <Input 
+                            placeholder="City" 
+                            value={newCustomer.city || ""}
+                            onChange={(e) => setNewCustomer({ ...newCustomer, city: e.target.value })}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>State</Label>
-                          <Input placeholder="State" />
+                          <Input 
+                            placeholder="State" 
+                            value={newCustomer.state || ""}
+                            onChange={(e) => setNewCustomer({ ...newCustomer, state: e.target.value })}
+                          />
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Zip Code</Label>
-                          <Input placeholder="Zip code" />
+                          <Input 
+                            placeholder="Zip code" 
+                            value={newCustomer.zip || ""}
+                            onChange={(e) => setNewCustomer({ ...newCustomer, zip: e.target.value })}
+                          />
                         </div>
                         <div className="space-y-2">
                           <Label>Country</Label>
-                          <Select>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select country" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="US">United States</SelectItem>
-                              <SelectItem value="UK">United Kingdom</SelectItem>
-                              <SelectItem value="IN">India</SelectItem>
-                              <SelectItem value="CA">Canada</SelectItem>
-                              <SelectItem value="AU">Australia</SelectItem>
-                              <SelectItem value="DE">Germany</SelectItem>
-                            </SelectContent>
-                          </Select>
+                          <SearchableSelect
+                            options={COUNTRIES.map(c => ({ label: c, value: c }))}
+                            placeholder="Select country"
+                            value={newCustomer.country || ""}
+                            onValueChange={(val) => setNewCustomer({ ...newCustomer, country: val })}
+                          />
                         </div>
                       </div>
                     </TabsContent>
@@ -385,34 +469,45 @@ const Customers = () => {
                           </h3>
                           <div className="space-y-2">
                             <Label>Street</Label>
-                            <Textarea placeholder="Street address" rows={2} />
+                            <Textarea 
+                              placeholder="Street address" 
+                              rows={2} 
+                              value={newCustomer.billing_street || ""}
+                              onChange={(e) => setNewCustomer({ ...newCustomer, billing_street: e.target.value })}
+                            />
                           </div>
                           <div className="space-y-2">
                             <Label>City</Label>
-                            <Input placeholder="City" />
+                            <Input 
+                              placeholder="City" 
+                              value={newCustomer.billing_city || ""}
+                              onChange={(e) => setNewCustomer({ ...newCustomer, billing_city: e.target.value })}
+                            />
                           </div>
                           <div className="space-y-2">
                             <Label>State</Label>
-                            <Input placeholder="State" />
+                            <Input 
+                              placeholder="State" 
+                              value={newCustomer.billing_state || ""}
+                              onChange={(e) => setNewCustomer({ ...newCustomer, billing_state: e.target.value })}
+                            />
                           </div>
                           <div className="space-y-2">
                             <Label>Zip Code</Label>
-                            <Input placeholder="Zip code" />
+                            <Input 
+                              placeholder="Zip code" 
+                              value={newCustomer.billing_zip || ""}
+                              onChange={(e) => setNewCustomer({ ...newCustomer, billing_zip: e.target.value })}
+                            />
                           </div>
                           <div className="space-y-2">
                             <Label>Country</Label>
-                            <Select>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select country" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="US">United States</SelectItem>
-                                <SelectItem value="UK">United Kingdom</SelectItem>
-                                <SelectItem value="IN">India</SelectItem>
-                                <SelectItem value="CA">Canada</SelectItem>
-                                <SelectItem value="AU">Australia</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <SearchableSelect
+                              options={COUNTRIES.map(c => ({ label: c, value: c }))}
+                              placeholder="Select country"
+                              value={newCustomer.billing_country || ""}
+                              onValueChange={(val) => setNewCustomer({ ...newCustomer, billing_country: val })}
+                            />
                           </div>
                         </div>
                         <div className="space-y-4">
@@ -421,34 +516,45 @@ const Customers = () => {
                           </h3>
                           <div className="space-y-2">
                             <Label>Street</Label>
-                            <Textarea placeholder="Street address" rows={2} />
+                            <Textarea 
+                              placeholder="Street address" 
+                              rows={2} 
+                              value={newCustomer.shipping_street || ""}
+                              onChange={(e) => setNewCustomer({ ...newCustomer, shipping_street: e.target.value })}
+                            />
                           </div>
                           <div className="space-y-2">
                             <Label>City</Label>
-                            <Input placeholder="City" />
+                            <Input 
+                              placeholder="City" 
+                              value={newCustomer.shipping_city || ""}
+                              onChange={(e) => setNewCustomer({ ...newCustomer, shipping_city: e.target.value })}
+                            />
                           </div>
                           <div className="space-y-2">
                             <Label>State</Label>
-                            <Input placeholder="State" />
+                            <Input 
+                              placeholder="State" 
+                              value={newCustomer.shipping_state || ""}
+                              onChange={(e) => setNewCustomer({ ...newCustomer, shipping_state: e.target.value })}
+                            />
                           </div>
                           <div className="space-y-2">
                             <Label>Zip Code</Label>
-                            <Input placeholder="Zip code" />
+                            <Input 
+                              placeholder="Zip code" 
+                              value={newCustomer.shipping_zip || ""}
+                              onChange={(e) => setNewCustomer({ ...newCustomer, shipping_zip: e.target.value })}
+                            />
                           </div>
                           <div className="space-y-2">
                             <Label>Country</Label>
-                            <Select>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select country" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="US">United States</SelectItem>
-                                <SelectItem value="UK">United Kingdom</SelectItem>
-                                <SelectItem value="IN">India</SelectItem>
-                                <SelectItem value="CA">Canada</SelectItem>
-                                <SelectItem value="AU">Australia</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <SearchableSelect
+                              options={COUNTRIES.map(c => ({ label: c, value: c }))}
+                              placeholder="Select country"
+                              value={newCustomer.shipping_country || ""}
+                              onValueChange={(val) => setNewCustomer({ ...newCustomer, shipping_country: val })}
+                            />
                           </div>
                         </div>
                       </div>
@@ -527,9 +633,33 @@ const Customers = () => {
                     <SelectItem value="50">50</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button variant="outline" size="sm" className="text-xs h-8">
-                  Export
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-2 text-xs font-bold uppercase tracking-wider">
+                      <Download className="h-3.5 w-3.5" />
+                      Export
+                      <ChevronDown className="h-3 w-3 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    <DropdownMenuItem className="gap-3 cursor-pointer">
+                      <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                      <span>Excel</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 cursor-pointer">
+                      <FileJson className="h-4 w-4 text-blue-600" />
+                      <span>CSV</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 cursor-pointer">
+                      <FileType className="h-4 w-4 text-red-600" />
+                      <span>PDF</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 cursor-pointer">
+                      <Printer className="h-4 w-4 text-gray-600" />
+                      <span>Print</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 <Button variant="outline" size="sm" className="text-xs h-8">
                   Bulk Actions
                 </Button>
@@ -627,25 +757,32 @@ const Customers = () => {
                            />
                          </td>
                         <td className="p-3">
-                          <div className="flex gap-1">
-                            {c.groups?.map((g) => (
+                          <div className="flex gap-1 flex-wrap">
+                            {c.groups?.map((g: any) => (
                               <Badge
-                                key={g}
+                                key={g._id || g}
                                 variant="secondary"
                                 className="text-[10px]"
                               >
-                                {g}
+                                {g.name || g}
                               </Badge>
                             ))}
                           </div>
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
-                          {"-"}
+                          {formatDate(c.datecreated)}
                         </td>
                          <td className="p-3">
                            <TableActions
-                             onView={() => setViewItem(c)}
-                             onEdit={can("Customers", "Edit") ? () => setEditItem(c) : undefined}
+                             onView={() => navigate(`/admin/customers/${c._id}`)}
+                             onEdit={can("Customers", "Edit") ? () => {
+                               // Map groups to IDs if they are objects (populated)
+                               const normalized = {
+                                 ...c,
+                                 groups: c.groups?.map((g: any) => g._id || g)
+                               };
+                               setEditItem(normalized);
+                             } : undefined}
                              onDelete={can("Customers", "Delete") ? () => deleteMutation.mutate(c._id || "") : undefined}
                            />
                          </td>
@@ -751,35 +888,58 @@ const Customers = () => {
                   <Label>
                     Company <span className="text-destructive">*</span>
                   </Label>
-                  <Input defaultValue={editItem.company} />
+                  <Input 
+                    value={editItem.company || ""} 
+                    onChange={(e) => setEditItem({ ...editItem, company: e.target.value })}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>VAT Number</Label>
-                    <Input placeholder="VAT number" />
+                    <Input 
+                      placeholder="VAT number" 
+                      value={editItem.vat || ""}
+                      onChange={(e) => setEditItem({ ...editItem, vat: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Phone</Label>
-                    <Input type="tel" defaultValue={editItem.phone} />
+                    <Input 
+                      type="tel" 
+                      value={editItem.phonenumber || ""} 
+                      onChange={(e) => setEditItem({ ...editItem, phonenumber: e.target.value })}
+                    />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Website</Label>
-                  <Input type="url" placeholder="https://example.com" />
+                  <Input 
+                    type="url" 
+                    placeholder="https://example.com" 
+                    value={editItem.website || ""}
+                    onChange={(e) => setEditItem({ ...editItem, website: e.target.value })}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Groups</Label>
                     <div className="flex gap-2">
-                      <Select>
+                      <Select
+                        onValueChange={(val) => setEditItem({ ...editItem, groups: [val] })}
+                        defaultValue={editItem.groups?.[0]}
+                      >
                         <SelectTrigger className="flex-1">
                           <SelectValue placeholder="Select group" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Enterprise">Enterprise</SelectItem>
-                          <SelectItem value="VIP">VIP</SelectItem>
-                          <SelectItem value="SMB">SMB</SelectItem>
-                          <SelectItem value="Startup">Startup</SelectItem>
+                          {groups.map((g) => (
+                            <SelectItem key={g._id || g.name} value={g.name}>
+                              {g.name}
+                            </SelectItem>
+                          ))}
+                          {groups.length === 0 && (
+                            <div className="p-2 text-sm text-muted-foreground text-center">No groups found</div>
+                          )}
                         </SelectContent>
                       </Select>
                       <Button
@@ -793,69 +953,76 @@ const Customers = () => {
                   </div>
                   <div className="space-y-2">
                     <Label>Currency</Label>
-                    <Select>
+                    <Select
+                      onValueChange={(val) => setEditItem({ ...editItem, currency: val })}
+                      value={editItem.currency || ""}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select currency" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="USD">USD</SelectItem>
-                        <SelectItem value="EUR">EUR</SelectItem>
-                        <SelectItem value="GBP">GBP</SelectItem>
-                        <SelectItem value="INR">INR</SelectItem>
-                        <SelectItem value="AUD">AUD</SelectItem>
+                        <SelectItem value="USD">$ USD</SelectItem>
+                        <SelectItem value="EUR">€ EUR</SelectItem>
+                        <SelectItem value="GBP">£ GBP</SelectItem>
+                        <SelectItem value="INR">₹ INR</SelectItem>
+                        <SelectItem value="AUD">A$ AUD</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Default Language</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select language" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="es">Spanish</SelectItem>
-                      <SelectItem value="fr">French</SelectItem>
-                      <SelectItem value="de">German</SelectItem>
-                      <SelectItem value="hi">Hindi</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <SearchableSelect
+                    options={LANGUAGES}
+                    placeholder="Select language"
+                    value={editItem.default_language || ""}
+                    onValueChange={(val) => setEditItem({ ...editItem, default_language: val })}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Address</Label>
-                  <Textarea placeholder="Full address" rows={2} />
+                  <Textarea 
+                    placeholder="Full address" 
+                    rows={2} 
+                    value={editItem.address || ""}
+                    onChange={(e) => setEditItem({ ...editItem, address: e.target.value })}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>City</Label>
-                    <Input placeholder="City" />
+                    <Input 
+                      placeholder="City" 
+                      value={editItem.city || ""}
+                      onChange={(e) => setEditItem({ ...editItem, city: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>State</Label>
-                    <Input placeholder="State" />
+                    <Input 
+                      placeholder="State" 
+                      value={editItem.state || ""}
+                      onChange={(e) => setEditItem({ ...editItem, state: e.target.value })}
+                    />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Zip Code</Label>
-                    <Input placeholder="Zip code" />
+                    <Input 
+                      placeholder="Zip code" 
+                      value={editItem.zip || ""}
+                      onChange={(e) => setEditItem({ ...editItem, zip: e.target.value })}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Country</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select country" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="US">United States</SelectItem>
-                        <SelectItem value="UK">United Kingdom</SelectItem>
-                        <SelectItem value="IN">India</SelectItem>
-                        <SelectItem value="CA">Canada</SelectItem>
-                        <SelectItem value="AU">Australia</SelectItem>
-                        <SelectItem value="DE">Germany</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <SearchableSelect
+                      options={COUNTRIES.map(c => ({ label: c, value: c }))}
+                      placeholder="Select country"
+                      value={editItem.country || ""}
+                      onValueChange={(val) => setEditItem({ ...editItem, country: val })}
+                    />
                   </div>
                 </div>
               </TabsContent>
@@ -865,68 +1032,90 @@ const Customers = () => {
                     <h3 className="font-semibold text-sm">Billing Address</h3>
                     <div className="space-y-2">
                       <Label>Street</Label>
-                      <Textarea placeholder="Street address" rows={2} />
+                      <Textarea 
+                        placeholder="Street address" 
+                        rows={2} 
+                        value={editItem.billing_street || ""}
+                        onChange={(e) => setEditItem({ ...editItem, billing_street: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>City</Label>
-                      <Input placeholder="City" />
+                      <Input 
+                        placeholder="City" 
+                        value={editItem.billing_city || ""}
+                        onChange={(e) => setEditItem({ ...editItem, billing_city: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>State</Label>
-                      <Input placeholder="State" />
+                      <Input 
+                        placeholder="State" 
+                        value={editItem.billing_state || ""}
+                        onChange={(e) => setEditItem({ ...editItem, billing_state: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Zip Code</Label>
-                      <Input placeholder="Zip code" />
+                      <Input 
+                        placeholder="Zip code" 
+                        value={editItem.billing_zip || ""}
+                        onChange={(e) => setEditItem({ ...editItem, billing_zip: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Country</Label>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select country" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="US">United States</SelectItem>
-                          <SelectItem value="UK">United Kingdom</SelectItem>
-                          <SelectItem value="IN">India</SelectItem>
-                          <SelectItem value="CA">Canada</SelectItem>
-                          <SelectItem value="AU">Australia</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        options={COUNTRIES.map(c => ({ label: c, value: c }))}
+                        placeholder="Select country"
+                        value={editItem.billing_country || ""}
+                        onValueChange={(val) => setEditItem({ ...editItem, billing_country: val })}
+                      />
                     </div>
                   </div>
                   <div className="space-y-4">
                     <h3 className="font-semibold text-sm">Shipping Address</h3>
                     <div className="space-y-2">
                       <Label>Street</Label>
-                      <Textarea placeholder="Street address" rows={2} />
+                      <Textarea 
+                        placeholder="Street address" 
+                        rows={2} 
+                        value={editItem.shipping_street || ""}
+                        onChange={(e) => setEditItem({ ...editItem, shipping_street: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>City</Label>
-                      <Input placeholder="City" />
+                      <Input 
+                        placeholder="City" 
+                        value={editItem.shipping_city || ""}
+                        onChange={(e) => setEditItem({ ...editItem, shipping_city: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>State</Label>
-                      <Input placeholder="State" />
+                      <Input 
+                        placeholder="State" 
+                        value={editItem.shipping_state || ""}
+                        onChange={(e) => setEditItem({ ...editItem, shipping_state: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Zip Code</Label>
-                      <Input placeholder="Zip code" />
+                      <Input 
+                        placeholder="Zip code" 
+                        value={editItem.shipping_zip || ""}
+                        onChange={(e) => setEditItem({ ...editItem, shipping_zip: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label>Country</Label>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select country" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="US">United States</SelectItem>
-                          <SelectItem value="UK">United Kingdom</SelectItem>
-                          <SelectItem value="IN">India</SelectItem>
-                          <SelectItem value="CA">Canada</SelectItem>
-                          <SelectItem value="AU">Australia</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        options={COUNTRIES.map(c => ({ label: c, value: c }))}
+                        placeholder="Select country"
+                        value={editItem.shipping_country || ""}
+                        onValueChange={(val) => setEditItem({ ...editItem, shipping_country: val })}
+                      />
                     </div>
                   </div>
                 </div>

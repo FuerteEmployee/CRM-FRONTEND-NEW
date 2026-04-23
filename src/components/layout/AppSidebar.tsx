@@ -315,7 +315,7 @@ const setupMenuItems = [
     icon: Settings,
     permission: "Settings",
   },
-  { title: "Help", url: "/admin/setup/help", icon: HelpCircle },
+  { title: "Help", url: "https://fuertedevelopers.com/", icon: HelpCircle },
 ];
 
 export function AppSidebar() {
@@ -385,26 +385,42 @@ export function AppSidebar() {
         const isActive =
           location.pathname === item.url ||
           location.pathname.startsWith(item.url + "/");
+        const isExternal = item.url?.startsWith("http");
         return (
           <SidebarMenuItem key={item.title}>
-            <SidebarMenuButton asChild isActive={isActive}>
-              <NavLink
-                to={item.url}
-                end
-                onClick={handleClick}
-                className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                activeClassName="sidebar-active-item font-semibold"
-              >
-                {isActive && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
-                )}
-                <item.icon
-                  className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isActive ? "text-primary" : ""}`}
-                />
-                {!collapsed && (
-                  <span className="text-[13px] font-medium">{item.title}</span>
-                )}
-              </NavLink>
+            <SidebarMenuButton asChild isActive={!isExternal && isActive}>
+              {isExternal ? (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={handleClick}
+                  className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
+                >
+                  <item.icon className="mr-2.5 h-4 w-4 shrink-0 transition-colors" />
+                  {!collapsed && (
+                    <span className="text-[13px] font-medium">{item.title}</span>
+                  )}
+                </a>
+              ) : (
+                <NavLink
+                  to={item.url}
+                  end
+                  onClick={handleClick}
+                  className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
+                  activeClassName="sidebar-active-item font-semibold"
+                >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
+                  )}
+                  <item.icon
+                    className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isActive ? "text-primary" : ""}`}
+                  />
+                  {!collapsed && (
+                    <span className="text-[13px] font-medium">{item.title}</span>
+                  )}
+                </NavLink>
+              )}
             </SidebarMenuButton>
           </SidebarMenuItem>
         );
@@ -632,26 +648,45 @@ export function AppSidebar() {
 
                     const isActive = location.pathname === item.url || location.pathname.startsWith(item.url + "/");
 
+                    const isExternal = item.url?.startsWith("http");
+
                     return (
                       <SidebarMenuItem key={item.title}>
-                        <SidebarMenuButton asChild isActive={isActive}>
-                          <NavLink
-                            to={item.url!}
-                            end
-                            onClick={() => isMobile && setOpenMobile(false)}
-                            className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                            activeClassName="sidebar-active-item font-semibold"
-                          >
-                            {isActive && (
-                              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary" />
-                            )}
-                            <Icon className="mr-2.5 h-4 w-4 shrink-0" />
-                            {!collapsed && (
-                              <span className="text-[13px] font-medium">
-                                {item.title}
-                              </span>
-                            )}
-                          </NavLink>
+                        <SidebarMenuButton asChild isActive={!isExternal && isActive}>
+                          {isExternal ? (
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => isMobile && setOpenMobile(false)}
+                              className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
+                            >
+                              <Icon className="mr-2.5 h-4 w-4 shrink-0" />
+                              {!collapsed && (
+                                <span className="text-[13px] font-medium">
+                                  {item.title}
+                                </span>
+                              )}
+                            </a>
+                          ) : (
+                            <NavLink
+                              to={item.url!}
+                              end
+                              onClick={() => isMobile && setOpenMobile(false)}
+                              className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
+                              activeClassName="sidebar-active-item font-semibold"
+                            >
+                              {isActive && (
+                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary" />
+                              )}
+                              <Icon className="mr-2.5 h-4 w-4 shrink-0" />
+                              {!collapsed && (
+                                <span className="text-[13px] font-medium">
+                                  {item.title}
+                                </span>
+                              )}
+                            </NavLink>
+                          )}
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     );

@@ -1,0 +1,802 @@
+import { useState, useMemo, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import { 
+  ChevronLeft, 
+  HelpCircle, 
+  Tag as TagIcon, 
+  User, 
+  Plus,
+  Check,
+  Trash2,
+  AlertCircle,
+  FilePlus,
+  Mail,
+  Phone,
+  MapPin,
+  Calendar as CalendarIcon,
+  DollarSign
+} from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { customerService } from "@/api/services/customer.service";
+import { leadService } from "@/api/services/lead.service";
+import { projectService } from "@/api/services/project.service";
+import { staffService } from "@/api/services/staff.service";
+import { financeService } from "@/api/services/finance.service";
+import { salesService } from "@/api/services/sales.service";
+import { itemService } from "@/api/services/item.service";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import { COUNTRIES } from "@/constants/countries";
+
+export default function ProposalCreate() {
+  const { clientId, id } = useParams();
+  const isEdit = !!id;
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const { data: proposal } = useQuery({
+    queryKey: ["proposal", id],
+    queryFn: () => salesService.getProposalById(id!),
+    enabled: isEdit
+  });
+
+  const [formData, setFormData] = useState({
+    subject: "",
+    rel_type: "customer",
+    rel_id: clientId || "",
+    project: "",
+    date: new Date().toISOString().split('T')[0],
+    open_till: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    currency: "",
+    discount_type: "no_discount",
+    tags: [] as string[],
+    allow_comments: true,
+    status: 1, // Draft
+    assigned: "",
+    proposal_to: "",
+    address: "",
+    city: "",
+    state: "",
+    zip: "",
+    country: "United States",
+    email: "",
+    phone: ""
+  });
+
+  const [items, setItems] = useState<any[]>([]);
+  const [newItem, setNewItem] = useState({
+    description: "",
+    long_description: "",
+    qty: 1,
+    rate: 0,
+    tax: "",
+    unit: ""
+  });
+  const [discountValue, setDiscountValue] = useState(0);
+  const [discountType, setDiscountType] = useState("percent");
+  const [adjustmentValue, setAdjustmentValue] = useState(0);
+  const [showQtyAs, setShowQtyAs] = useState("qty");
+
+  // Queries
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers"],
+    queryFn: customerService.getAll
+  });
+
+  const { data: leads = [] } = useQuery({
+    queryKey: ["leads"],
+    queryFn: leadService.getAll
+  });
+
+  const { data: staff = [] } = useQuery({
+    queryKey: ["staff"],
+    queryFn: staffService.getAll
+  });
+
+  const { data: currencies = [] } = useQuery({
+    queryKey: ["currencies"],
+    queryFn: financeService.getCurrencies
+  });
+
+  const { data: availableItems = [] } = useQuery({
+    queryKey: ["items"],
+    queryFn: itemService.getAll
+  });
+
+  const { data: taxes = [] } = useQuery({
+    queryKey: ["taxes"],
+    queryFn: financeService.getTaxes
+  });
+
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects", formData.rel_id],
+    queryFn: () => projectService.getAll({ clientid: formData.rel_id }),
+    enabled: !!formData.rel_id && formData.rel_type === "customer"
+  });
+
+  // Sync related data when customer/lead changes
+  useEffect(() => {
+    if (formData.rel_id && !isEdit) {
+      if (formData.rel_type === "customer") {
+        const client = customers.find((c: any) => c._id === formData.rel_id);
+        if (client) {
+          setFormData(prev => ({
+            ...prev,
+            proposal_to: client.company,
+            address: client.address,
+            city: client.city,
+            state: client.state,
+            zip: client.zip,
+            country: client.country || "United States",
+            email: client.email,
+            phone: client.phonenumber
+          }));
+        }
+      } else if (formData.rel_type === "lead") {
+        const lead = leads.find((l: any) => l._id === formData.rel_id);
+        if (lead) {
+          setFormData(prev => ({
+            ...prev,
+            proposal_to: lead.name,
+            address: lead.address,
+            city: lead.city,
+            state: lead.state,
+            zip: lead.zip,
+            country: lead.country || "United States",
+            email: lead.email,
+            phone: lead.phonenumber
+          }));
+        }
+      }
+    }
+  }, [formData.rel_id, formData.rel_type, customers, leads, isEdit]);
+
+  // Sync for edit mode
+  useEffect(() => {
+    if (proposal && taxes.length > 0) {
+      setFormData({
+        subject: proposal.subject,
+        rel_type: proposal.rel_type,
+        rel_id: proposal.rel_id,
+        project: proposal.project || "",
+        date: new Date(proposal.date).toISOString().split('T')[0],
+        open_till: proposal.open_till ? new Date(proposal.open_till).toISOString().split('T')[0] : "",
+        currency: proposal.currency || "",
+        discount_type: proposal.discount_percent > 0 ? "before_tax" : "no_discount", // Simplified
+        tags: proposal.tags || [],
+        allow_comments: proposal.allow_comments ?? true,
+        status: proposal.status || 1,
+        assigned: proposal.assigned || "",
+        proposal_to: proposal.proposal_to || "",
+        address: proposal.address || "",
+        city: proposal.city || "",
+        state: proposal.state || "",
+        zip: proposal.zip || "",
+        country: proposal.country || "United States",
+        email: proposal.email || "",
+        phone: proposal.phone || ""
+      });
+      
+      setItems(proposal.items.map((item: any) => ({
+        ...item,
+        id: Math.random().toString(36).substr(2, 9),
+        tax: taxes.find(t => t.taxrate === item.tax)?._id || ""
+      })));
+      
+      setDiscountValue(proposal.discount_percent || 0);
+      setAdjustmentValue(proposal.adjustment || 0);
+    }
+  }, [proposal, taxes]);
+
+  const calculations = useMemo(() => {
+    const subTotal = items.reduce((acc, item) => acc + (item.qty * item.rate), 0);
+    const discountAmount = formData.discount_type === "no_discount" ? 0 : 
+      (discountType === "percent" ? (subTotal * (discountValue / 100)) : discountValue);
+    const totalTax = items.reduce((acc, item) => {
+      const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || 0;
+      return acc + ((item.qty * item.rate) * (taxRate / 100));
+    }, 0);
+    const total = subTotal - discountAmount + totalTax + Number(adjustmentValue);
+    
+    return { subTotal, discountAmount, totalTax, total };
+  }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, taxes]);
+
+  const addItem = () => {
+    if (!newItem.description) return;
+    setItems([...items, { ...newItem, id: Date.now().toString() }]);
+    setNewItem({
+      description: "",
+      long_description: "",
+      qty: 1,
+      rate: 0,
+      tax: "",
+      unit: ""
+    });
+  };
+
+  const removeItem = (id: string) => {
+    setItems(items.filter(i => i.id !== id));
+  };
+
+  const mutation = useMutation({
+    mutationFn: (payload: any) => isEdit ? salesService.updateProposal(id!, payload) : salesService.createProposal(payload),
+    onSuccess: () => {
+      toast({ 
+        title: isEdit ? "Proposal Updated Successfully!" : "Proposal Created Successfully!", 
+        className: "bg-green-600 text-white font-bold rounded-2xl shadow-2xl border-none",
+      });
+      if (clientId && formData.rel_type === "customer") {
+        navigate(`/admin/customers/${clientId}?tab=proposals`);
+      } else {
+        navigate("/admin/proposals");
+      }
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Error Saving Proposal", 
+        description: error.response?.data?.message || "An unexpected error occurred.",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleSave = () => {
+    if (!formData.subject || !formData.rel_id) {
+      toast({ title: "Required Fields", description: "Subject and Related entity are mandatory.", variant: "destructive" });
+      return;
+    }
+
+    const payload = {
+      ...formData,
+      items: items.map(item => ({
+        description: item.description,
+        long_description: item.long_description,
+        qty: Number(item.qty),
+        rate: Number(item.rate),
+        tax: Number(taxes.find((t: any) => t._id === item.tax)?.taxrate) || 0,
+        tax_name: taxes.find((t: any) => t._id === item.tax)?.name || ""
+      })),
+      discount_percent: Number(discountType === "percent" ? discountValue : 0),
+      adjustment: Number(adjustmentValue),
+      subtotal: calculations.subTotal,
+      total_tax: calculations.totalTax,
+      total: calculations.total,
+      created_by: formData.assigned || undefined
+    };
+
+    mutation.mutate(payload);
+  };
+
+  return (
+    <DashboardLayout>
+      <div className="max-w-[1400px] mx-auto space-y-6 pb-20 animate-in fade-in duration-700">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={() => navigate(-1)} className="rounded-full hover:bg-background shadow-sm border border-border/50">
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-black tracking-tight text-foreground">{isEdit ? 'Edit Proposal' : 'Create New Proposal'}</h1>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mt-1">Configure your proposal details and items</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left Column: Core Details */}
+          <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
+            <CardContent className="p-8 space-y-8">
+              {/* Subject */}
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Subject</Label>
+                  <span className="text-destructive text-lg leading-none">*</span>
+                </div>
+                <Input 
+                  className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
+                  value={formData.subject}
+                  onChange={(e) => setFormData(p => ({ ...p, subject: e.target.value }))}
+                />
+              </div>
+
+              {/* Related Entity */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Related</Label>
+                    <span className="text-destructive text-lg leading-none">*</span>
+                  </div>
+                  <Select value={formData.rel_type} onValueChange={(v: any) => setFormData(p => ({ ...p, rel_type: v, rel_id: "" }))}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="customer">Customer</SelectItem>
+                      <SelectItem value="lead">Lead</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">
+                      {formData.rel_type === "customer" ? "Customer" : "Lead"}
+                    </Label>
+                    <span className="text-destructive text-lg leading-none">*</span>
+                  </div>
+                  <SearchableSelect
+                    placeholder={`Select ${formData.rel_type}`}
+                    options={formData.rel_type === "customer" 
+                      ? customers.map((c: any) => ({ value: c._id, label: c.company }))
+                      : leads.map((l: any) => ({ value: l._id, label: l.name }))
+                    }
+                    value={formData.rel_id}
+                    onChange={(val) => setFormData(p => ({ ...p, rel_id: val }))}
+                  />
+                </div>
+              </div>
+
+              {/* Project Selection */}
+              {formData.rel_type === "customer" && (
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Project</Label>
+                  <Select value={formData.project} onValueChange={(v) => setFormData(p => ({ ...p, project: v }))}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="Select and begin typing" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      {projects.map((proj: any) => (
+                        <SelectItem key={proj._id} value={proj._id} className="rounded-lg py-2.5">{proj.name}</SelectItem>
+                      ))}
+                      {projects.length === 0 && <p className="p-3 text-xs text-muted-foreground italic text-center">No projects found</p>}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Date</Label>
+                    <span className="text-destructive text-lg leading-none">*</span>
+                  </div>
+                  <div className="relative">
+                    <Input 
+                      type="date" 
+                      className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold pl-10"
+                      value={formData.date}
+                      onChange={(e) => setFormData(p => ({ ...p, date: e.target.value }))}
+                    />
+                    <CalendarIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/60" />
+                  </div>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Open Till</Label>
+                  <div className="relative">
+                    <Input 
+                      type="date" 
+                      className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold pl-10"
+                      value={formData.open_till}
+                      onChange={(e) => setFormData(p => ({ ...p, open_till: e.target.value }))}
+                    />
+                    <CalendarIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Currency & Discount */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Currency</Label>
+                    <span className="text-destructive text-lg leading-none">*</span>
+                  </div>
+                  <Select value={formData.currency || currencies.find((c: any) => c.isdefault)?._id} onValueChange={(v) => setFormData(p => ({ ...p, currency: v }))}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50">
+                      <SelectValue placeholder="USD $" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {currencies.map((c: any) => (
+                        <SelectItem key={c._id} value={c._id}>{c.name} ({c.symbol})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Discount Type</Label>
+                  <Select value={formData.discount_type} onValueChange={(v) => setFormData(p => ({ ...p, discount_type: v }))}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="no_discount">No discount</SelectItem>
+                      <SelectItem value="before_tax">Before Tax</SelectItem>
+                      <SelectItem value="after_tax">After Tax</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Tags & Allow Comments */}
+              <div className="space-y-6">
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <TagIcon className="h-3.5 w-3.5 text-primary" />
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Tags</Label>
+                  </div>
+                  <Input placeholder="Tag" className="h-12 rounded-2xl border-border/50 bg-background shadow-sm text-xs font-bold" />
+                </div>
+                <div className="flex items-center justify-between p-5 rounded-[1.5rem] bg-primary/5 border border-primary/10">
+                  <div className="space-y-0.5">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Allow Comments</Label>
+                    <p className="text-[10px] font-bold text-primary/60 uppercase tracking-tighter">Clients can leave feedback on this proposal</p>
+                  </div>
+                  <Switch 
+                    checked={formData.allow_comments} 
+                    onCheckedChange={(checked) => setFormData(p => ({ ...p, allow_comments: checked }))} 
+                    className="data-[state=checked]:bg-primary"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Right Column: Recipient Details */}
+          <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
+            <CardContent className="p-8 space-y-8">
+              {/* Status & Assigned */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Status</Label>
+                  <Select value={formData.status.toString()} onValueChange={(v) => setFormData(p => ({ ...p, status: parseInt(v) }))}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="1">Draft</SelectItem>
+                      <SelectItem value="2">Sent</SelectItem>
+                      <SelectItem value="3">Open</SelectItem>
+                      <SelectItem value="6">Accepted</SelectItem>
+                      <SelectItem value="5">Declined</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Assigned</Label>
+                  <Select value={formData.assigned} onValueChange={(v) => setFormData(p => ({ ...p, assigned: v }))}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50">
+                      <SelectValue placeholder="Select Staff" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      {staff.map((s: any) => (
+                        <SelectItem key={s._id} value={s._id}>{s.firstname} {s.lastname}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Recipient Details */}
+              <div className="space-y-6">
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">To</Label>
+                    <span className="text-destructive text-lg leading-none">*</span>
+                  </div>
+                  <Input 
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
+                    value={formData.proposal_to}
+                    onChange={(e) => setFormData(p => ({ ...p, proposal_to: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Address</Label>
+                  <Textarea 
+                    className="min-h-[100px] rounded-2xl border-border/50 bg-background/50 p-4 text-xs font-medium resize-none"
+                    value={formData.address}
+                    onChange={(e) => setFormData(p => ({ ...p, address: e.target.value }))}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2.5">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">City</Label>
+                    <Input 
+                      className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
+                      value={formData.city}
+                      onChange={(e) => setFormData(p => ({ ...p, city: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">State</Label>
+                    <Input 
+                      className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
+                      value={formData.state}
+                      onChange={(e) => setFormData(p => ({ ...p, state: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2.5">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Country</Label>
+                    <SearchableSelect 
+                      options={COUNTRIES.map(c => ({ value: c, label: c }))}
+                      value={formData.country}
+                      onChange={(val) => setFormData(p => ({ ...p, country: val }))}
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Zip Code</Label>
+                    <Input 
+                      className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
+                      value={formData.zip}
+                      onChange={(e) => setFormData(p => ({ ...p, zip: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Email</Label>
+                      <span className="text-destructive text-lg leading-none">*</span>
+                    </div>
+                    <div className="relative">
+                      <Input 
+                        className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold pl-10"
+                        value={formData.email}
+                        onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
+                      />
+                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/60" />
+                    </div>
+                  </div>
+                  <div className="space-y-2.5">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Phone</Label>
+                    <div className="relative">
+                      <Input 
+                        className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold pl-10"
+                        value={formData.phone}
+                        onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
+                      />
+                      <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Items Section */}
+        <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden mt-8">
+          <CardContent className="p-8 space-y-8">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="flex items-center gap-4 flex-1 w-full md:w-auto">
+                <div className="flex-1 max-w-sm">
+                  <SearchableSelect 
+                    placeholder="Add Item"
+                    options={availableItems.map((i: any) => ({ value: i._id, label: i.description }))}
+                    value=""
+                    onChange={(val) => {
+                      const item = availableItems.find((i: any) => i._id === val);
+                      if (item) {
+                        setNewItem({
+                          description: item.description,
+                          long_description: item.long_description || "",
+                          qty: 1,
+                          rate: item.rate,
+                          tax: item.tax?._id || "",
+                          unit: item.unit || ""
+                        });
+                      }
+                    }}
+                  />
+                </div>
+                <Button size="icon" variant="outline" className="rounded-xl h-10 w-10 border-border/50 shadow-sm" onClick={addItem}>
+                  <Plus className="h-4 w-4" />
+                </Button>
+                <div className="w-48">
+                  <Select>
+                    <SelectTrigger className="h-10 rounded-xl bg-background border-border/50 shadow-sm text-xs font-bold">
+                      <SelectValue placeholder="Bill Tasks" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50">
+                      <SelectItem value="none">No Tasks</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-6 bg-muted/20 px-6 py-2 rounded-2xl border border-border/50">
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Show quantity as:</span>
+                <div className="flex items-center gap-4">
+                  {[
+                    { id: "qty", label: "Qty" },
+                    { id: "hours", label: "Hours" },
+                    { id: "qty_hours", label: "Qty/Hours" }
+                  ].map((opt) => (
+                    <label key={opt.id} className="flex items-center gap-2 cursor-pointer group">
+                      <div className={cn(
+                        "h-4 w-4 rounded-full border-2 flex items-center justify-center transition-all",
+                        showQtyAs === opt.id ? "border-primary bg-primary" : "border-border/50 group-hover:border-primary/50"
+                      )}>
+                        {showQtyAs === opt.id && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                      </div>
+                      <input 
+                        type="radio" 
+                        name="qty_as" 
+                        className="hidden" 
+                        checked={showQtyAs === opt.id}
+                        onChange={() => setShowQtyAs(opt.id)}
+                      />
+                      <span className={cn(
+                        "text-[11px] font-bold transition-colors",
+                        showQtyAs === opt.id ? "text-foreground" : "text-muted-foreground"
+                      )}>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-[2rem] border border-border/50 overflow-hidden shadow-sm">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-primary text-white">
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Item</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Description</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-24">
+                      {showQtyAs === "hours" ? "Hours" : "Qty"}
+                    </th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-32">Rate</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-40">Tax</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-32">Amount</th>
+                    <th className="p-4 text-right w-16"></th>
+                  </tr>
+                </thead>
+                <tbody className="bg-background/40">
+                  <tr className="border-b border-border/30 bg-primary/5">
+                    <td className="p-4 align-top">
+                      <Textarea placeholder="Description" className="min-h-[80px] rounded-xl text-xs resize-none" value={newItem.description} onChange={(e) => setNewItem(p => ({ ...p, description: e.target.value }))} />
+                    </td>
+                    <td className="p-4 align-top">
+                      <Textarea placeholder="Long description" className="min-h-[80px] rounded-xl text-xs resize-none" value={newItem.long_description} onChange={(e) => setNewItem(p => ({ ...p, long_description: e.target.value }))} />
+                    </td>
+                    <td className="p-4 align-top">
+                      <Input type="number" value={newItem.qty} onChange={(e) => setNewItem(p => ({ ...p, qty: Number(e.target.value) }))} className="h-10 rounded-xl text-xs font-bold" />
+                    </td>
+                    <td className="p-4 align-top">
+                      <Input type="number" value={newItem.rate} onChange={(e) => setNewItem(p => ({ ...p, rate: Number(e.target.value) }))} className="h-10 rounded-xl text-xs font-bold" />
+                    </td>
+                    <td className="p-4 align-top">
+                      <Select value={newItem.tax} onValueChange={(v) => setNewItem(p => ({ ...p, tax: v }))}>
+                        <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+                          <SelectValue placeholder="No Tax" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No Tax</SelectItem>
+                          {taxes.map((t: any) => (
+                            <SelectItem key={t._id} value={t._id}>{t.name} ({t.taxrate}%)</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="p-4 align-top font-black text-foreground pt-7">
+                      ${(newItem.qty * newItem.rate).toFixed(2)}
+                    </td>
+                    <td className="p-4 align-top pt-6">
+                      <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900" onClick={addItem}>
+                        <Check className="h-4 w-4" />
+                      </Button>
+                    </td>
+                  </tr>
+
+                  {items.map((item) => (
+                    <tr key={item.id} className="border-b border-border/20 hover:bg-muted/5 transition-colors">
+                      <td className="p-4 align-top font-bold text-xs">{item.description}</td>
+                      <td className="p-4 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
+                      <td className="p-4 align-top text-xs font-bold">{item.qty}</td>
+                      <td className="p-4 align-top text-xs font-bold">${item.rate.toFixed(2)}</td>
+                      <td className="p-4 align-top text-[10px] font-black uppercase text-muted-foreground">
+                        {taxes.find(t => t._id === item.tax)?.name || "No Tax"}
+                      </td>
+                      <td className="p-4 align-top text-sm font-black text-primary">${(item.qty * item.rate).toFixed(2)}</td>
+                      <td className="p-4 align-top text-right">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(item.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 pt-8">
+              <div className="space-y-4">
+                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Admin Note (Internal Only)</Label>
+                <Textarea className="min-h-[150px] rounded-[2rem] border-border/50 bg-background/50 p-6 text-xs resize-none" placeholder="Internal notes for this proposal..." />
+              </div>
+
+              <div className="space-y-4 bg-muted/10 p-8 rounded-[2.5rem] border border-border/50 h-fit self-end shadow-inner">
+                <div className="flex justify-between items-center text-sm font-bold text-muted-foreground border-b border-border/30 pb-4">
+                  <span>Sub Total :</span>
+                  <span className="text-foreground">${calculations.subTotal.toFixed(2)}</span>
+                </div>
+                
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-sm font-bold text-muted-foreground">Discount</span>
+                  <div className="flex items-center gap-3">
+                    <Input type="number" className="h-9 w-20 rounded-lg text-xs font-bold text-center" value={discountValue} onChange={(e) => setDiscountValue(Number(e.target.value))} />
+                    <Select value={discountType} onValueChange={setDiscountType}>
+                      <SelectTrigger className="h-9 w-28 rounded-lg text-[10px] font-black uppercase">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="percent">% Percentage</SelectItem>
+                        <SelectItem value="fixed">Fixed Rate</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm font-bold text-destructive min-w-[60px] text-right">-${calculations.discountAmount.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center py-2 border-t border-border/30 mt-4">
+                  <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
+                  <span className="text-sm font-bold text-foreground">${calculations.totalTax.toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between items-center pt-6 border-t-2 border-primary/20">
+                  <span className="text-lg font-black uppercase tracking-widest text-primary">Total :</span>
+                  <span className="text-2xl font-black text-primary">${calculations.total.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Bottom Actions */}
+        <div className="flex items-center justify-end gap-4 pt-4">
+          <Button 
+            variant="outline" 
+            onClick={handleSave}
+            className="rounded-xl px-6 h-9 text-xs font-bold border-border/50 bg-background/50 backdrop-blur-sm hover:bg-background transition-all shadow-sm"
+          >
+            Save
+          </Button>
+          <Button 
+            onClick={handleSave}
+            className="rounded-xl px-6 h-9 text-xs font-bold bg-primary shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+          >
+            Save & Send
+          </Button>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+}

@@ -28,6 +28,7 @@ import TimeTracking from "./pages/TimeTracking";
 import Utilities from "./pages/Utilities";
 import Reports from "./pages/Reports";
 import Proposals from "./pages/Proposals";
+import ProposalCreate from "./pages/ProposalCreate";
 import Estimates from "./pages/Estimates";
 import Payments from "./pages/Payments";
 import CreditNotes from "./pages/CreditNotes";
@@ -36,6 +37,8 @@ import Media from "./pages/Media";
 import BulkExport from "./pages/BulkExport";
 import Goals from "./pages/Goals";
 import { ReportSales, ReportExpenses, ReportExpensesVsIncome, ReportLeads, ReportTimesheets, ReportKBArticles } from "./pages/ReportPages";
+import CustomerView from "./pages/CustomerView";
+import InvoiceCreate from "./pages/InvoiceCreate";
 import NotFound from "./pages/NotFound";
 import Setup from "./pages/Setup";
 // Setup sub-pages
@@ -65,6 +68,7 @@ import SetupGDPR from "./pages/setup/SetupGDPR";
 import SetupRoles from "./pages/setup/SetupRoles";
 import SetupThemeStyle from "./pages/setup/SetupThemeStyle";
 import SetupSettings from "./pages/setup/SetupSettings";
+import SetupAIFineTuning from "./pages/setup/SetupAIFineTuning";
 import SetupHelp from "./pages/setup/SetupHelp";
 import SetupStaffForm from "./pages/setup/SetupStaffForm";
 import EstimateRequestFormBuilder from "./pages/setup/EstimateRequestFormBuilder";
@@ -175,7 +179,10 @@ const MainApp = () => {
           <Route path="projects" element={<Projects />} />
           <Route path="tasks" element={<Tasks />} />
           <Route path="customers" element={<Customers />} />
+          <Route path="customers/:id" element={<CustomerView />} />
           <Route path="invoices" element={<Invoices />} />
+          <Route path="invoices/create/:clientId?" element={<InvoiceCreate />} />
+          <Route path="invoices/edit/:id" element={<InvoiceCreate />} />
           <Route path="expenses" element={<Expenses />} />
           <Route path="profile" element={<Profile />} />
           <Route path="activity" element={<ActivityLogs />} />
@@ -192,6 +199,8 @@ const MainApp = () => {
           <Route path="reports" element={<Reports />} />
           <Route path="setup" element={<Setup />} />
           <Route path="proposals" element={<Proposals />} />
+          <Route path="proposals/create/:clientId?" element={<ProposalCreate />} />
+          <Route path="proposals/edit/:id" element={<ProposalCreate />} />
           <Route path="estimates" element={<Estimates />} />
           <Route path="payments" element={<Payments />} />
           <Route path="credit-notes" element={<CreditNotes />} />
@@ -237,6 +246,7 @@ const MainApp = () => {
           <Route path="setup/roles" element={<SetupRoles />} />
           <Route path="setup/theme" element={<SetupThemeStyle />} />
           <Route path="setup/settings" element={<SetupSettings />} />
+          <Route path="setup/ai-fine-tuning" element={<SetupAIFineTuning />} />
           <Route path="setup/help" element={<SetupHelp />} />
         </Route>
 

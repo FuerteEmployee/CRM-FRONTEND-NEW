@@ -7,14 +7,20 @@ export const salesService = {
   // ─────────────────────────────────────────────
   // Invoices
   // ─────────────────────────────────────────────
-  getInvoices: () => apiClient.get("/invoices"),
+  getInvoices: (params) => apiClient.get("/invoices", { params }),
+  getProposals: (params) => apiClient.get("/proposals", { params }),
+  getProposalById: (id) => apiClient.get(`/proposals/${id}`),
   getInvoiceById: (id) => apiClient.get(`/invoices/${id}`),
   createInvoice: (data) => apiClient.post("/invoices", data),
+  updateInvoice: (id, data) => apiClient.put(`/invoices/${id}`, data),
+  createProposal: (data) => apiClient.post("/proposals", data),
+  updateProposal: (id, data) => apiClient.put(`/proposals/${id}`, data),
 
   // ─────────────────────────────────────────────
   // Payments
   // ─────────────────────────────────────────────
   getPayments: () => apiClient.get("/payments"),
+  getPaymentsByCustomer: (clientId) => apiClient.get(`/payments/customer/${clientId}`),
   createPayment: (data) => apiClient.post("/payments", data),
 
   // ─────────────────────────────────────────────

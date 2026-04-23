@@ -797,6 +797,222 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
     leadDefaultSource: [leadDefaultSource, setLeadDefaultSource],
     leadDuplicateFields: [leadDuplicateFields, setLeadDuplicateFields],
     leadAutoAssignAdmin: [leadAutoAssignAdmin, setLeadAutoAssignAdmin],
+    decimalSeparator: [decimalSeparator, setDecimalSeparator],
+    thousandSeparator: [thousandSeparator, setThousandSeparator],
+    numberPadding: [numberPadding, setNumberPadding],
+    autoAssignStaff: [autoAssignStaff, setAutoAssignStaff],
+    showTaxPerItem: [showTaxPerItem, setShowTaxPerItem],
+    removeTaxName: [removeTaxName, setRemoveTaxName],
+    excludeCurrency: [excludeCurrency, setExcludeCurrency],
+    defaultTax: [defaultTax, setDefaultTax],
+    removeDecimalsZero: [removeDecimalsZero, setRemoveDecimalsZero],
+    amountToWordsEnable: [amountToWordsEnable, setAmountToWordsEnable],
+    amountToWordsLower: [amountToWordsLower, setAmountToWordsLower],
+    invPrefix: [invPrefix, setInvPrefix],
+    invNextNumber: [invNextNumber, setInvNextNumber],
+    invDueAfter: [invDueAfter, setInvDueAfter],
+    invAllowStaffView: [invAllowStaffView, setInvAllowStaffView],
+    invRequireLogin: [invRequireLogin, setInvRequireLogin],
+    invDeleteOnlyLast: [invDeleteOnlyLast, setInvDeleteOnlyLast],
+    invDecrementOnDelete: [invDecrementOnDelete, setInvDecrementOnDelete],
+    invExcludeDraft: [invExcludeDraft, setInvExcludeDraft],
+    invShowSaleAgent: [invShowSaleAgent, setInvShowSaleAgent],
+    invShowProject: [invShowProject, setInvShowProject],
+    invShowTotalPaid: [invShowTotalPaid, setInvShowTotalPaid],
+    invShowCredits: [invShowCredits, setInvShowCredits],
+    invShowAmountDue: [invShowAmountDue, setInvShowAmountDue],
+    invAttachPdf: [invAttachPdf, setInvAttachPdf],
+    invNumberFormat: [invNumberFormat, setInvNumberFormat],
+    invClientNote: [invClientNote, setInvClientNote],
+    invTerms: [invTerms, setInvTerms],
+    propPrefix: [propPrefix, setPropPrefix],
+    propDueAfter: [propDueAfter, setPropDueAfter],
+    propPipelineLimit: [propPipelineLimit, setPropPipelineLimit],
+    propPipelineSort: [propPipelineSort, setPropPipelineSort],
+    propPipelineOrder: [propPipelineOrder, setPropPipelineOrder],
+    propShowProject: [propShowProject, setPropShowProject],
+    propExcludeDraft: [propExcludeDraft, setPropExcludeDraft],
+    propAutoConvert: [propAutoConvert, setPropAutoConvert],
+    propAllowStaffView: [propAllowStaffView, setPropAllowStaffView],
+    propInfoFormat: [propInfoFormat, setPropInfoFormat],
+    estPrefix: [estPrefix, setEstPrefix],
+    estNextNumber: [estNextNumber, setEstNextNumber],
+    estDueAfter: [estDueAfter, setEstDueAfter],
+    estDeleteOnlyLast: [estDeleteOnlyLast, setEstDeleteOnlyLast],
+    estDecrementOnDelete: [estDecrementOnDelete, setEstDecrementOnDelete],
+    estAllowStaffView: [estAllowStaffView, setEstAllowStaffView],
+    estRequireLogin: [estRequireLogin, setEstRequireLogin],
+    estShowSaleAgent: [estShowSaleAgent, setEstShowSaleAgent],
+    estShowProject: [estShowProject, setEstShowProject],
+    estAutoConvert: [estAutoConvert, setEstAutoConvert],
+    estExcludeDraft: [estExcludeDraft, setEstExcludeDraft],
+    estNumberFormat: [estNumberFormat, setEstNumberFormat],
+    estPipelineLimit: [estPipelineLimit, setEstPipelineLimit],
+    estPipelineSort: [estPipelineSort, setEstPipelineSort],
+    estPipelineOrder: [estPipelineOrder, setEstPipelineOrder],
+    estClientNote: [estClientNote, setEstClientNote],
+    estTerms: [estTerms, setEstTerms],
+    cnPrefix: [cnPrefix, setCnPrefix],
+    cnNextNumber: [cnNextNumber, setCnNextNumber],
+    cnNumberFormat: [cnNumberFormat, setCnNumberFormat],
+    cnDecrementOnDelete: [cnDecrementOnDelete, setCnDecrementOnDelete],
+    cnShowProject: [cnShowProject, setCnShowProject],
+    cnClientNote: [cnClientNote, setCnClientNote],
+    cnTerms: [cnTerms, setCnTerms],
+    subShowInCustomerArea: [subShowInCustomerArea, setSubShowInCustomerArea],
+    subPaymentSucceededAction: [subPaymentSucceededAction, setSubPaymentSucceededAction],
+    gateNotifyOnPayment: [gateNotifyOnPayment, setGateNotifyOnPayment],
+    gateAllowModifyAmount: [gateAllowModifyAmount, setGateAllowModifyAmount],
+    authActive: [authActive, setAuthActive],
+    authLabel: [authLabel, setAuthLabel],
+    authPublicKey: [authPublicKey, setAuthPublicKey],
+    authLoginId: [authLoginId, setAuthLoginId],
+    authTxId: [authTxId, setAuthTxId],
+    authDesc: [authDesc, setAuthDesc],
+    authCurrency: [authCurrency, setAuthCurrency],
+    authTestMode: [authTestMode, setAuthTestMode],
+    authDefault: [authDefault, setAuthDefault],
+    imActive: [imActive, setImActive],
+    imLabel: [imLabel, setImLabel],
+    imFixedFee: [imFixedFee, setImFixedFee],
+    imPercFee: [imPercFee, setImPercFee],
+    imApiKey: [imApiKey, setImApiKey],
+    imAuthToken: [imAuthToken, setImAuthToken],
+    imDesc: [imDesc, setImDesc],
+    imTestMode: [imTestMode, setImTestMode],
+    imDefault: [imDefault, setImDefault],
+    mollieActive: [mollieActive, setMollieActive],
+    mollieLabel: [mollieLabel, setMollieLabel],
+    mollieApiKey: [mollieApiKey, setMollieApiKey],
+    mollieDesc: [mollieDesc, setMollieDesc],
+    mollieCurrency: [mollieCurrency, setMollieCurrency],
+    mollieTestMode: [mollieTestMode, setMollieTestMode],
+    mollieDefault: [mollieDefault, setMollieDefault],
+    brainActive: [brainActive, setBrainActive],
+    brainLabel: [brainLabel, setBrainLabel],
+    brainMerchantId: [brainMerchantId, setBrainMerchantId],
+    brainPublicKey: [brainPublicKey, setBrainPublicKey],
+    brainPrivateKey: [brainPrivateKey, setBrainPrivateKey],
+    brainCurrencies: [brainCurrencies, setBrainCurrencies],
+    brainPaypal: [brainPaypal, setBrainPaypal],
+    brainTestMode: [brainTestMode, setBrainTestMode],
+    brainDefault: [brainDefault, setBrainDefault],
+    ppSmartActive: [ppSmartActive, setPpSmartActive],
+    ppSmartLabel: [ppSmartLabel, setPpSmartLabel],
+    ppSmartFixedFee: [ppSmartFixedFee, setPpSmartFixedFee],
+    ppSmartPercFee: [ppSmartPercFee, setPpSmartPercFee],
+    ppSmartClientId: [ppSmartClientId, setPpSmartClientId],
+    ppSmartSecret: [ppSmartSecret, setPpSmartSecret],
+    ppSmartDesc: [ppSmartDesc, setPpSmartDesc],
+    ppSmartCurrencies: [ppSmartCurrencies, setPpSmartCurrencies],
+    ppSmartTestMode: [ppSmartTestMode, setPpSmartTestMode],
+    ppSmartDefault: [ppSmartDefault, setPpSmartDefault],
+    ppActive: [ppActive, setPpActive],
+    ppLabel: [ppLabel, setPpLabel],
+    ppFixedFee: [ppFixedFee, setPpFixedFee],
+    ppPercFee: [ppPercFee, setPpPercFee],
+    ppUsername: [ppUsername, setPpUsername],
+    ppPassword: [ppPassword, setPpPassword],
+    ppSignature: [ppSignature, setPpSignature],
+    ppDesc: [ppDesc, setPpDesc],
+    ppCurrencies: [ppCurrencies, setPpCurrencies],
+    ppTestMode: [ppTestMode, setPpTestMode],
+    ppDefault: [ppDefault, setPpDefault],
+    payuActive: [payuActive, setPayuActive],
+    payuLabel: [payuLabel, setPayuLabel],
+    payuFixedFee: [payuFixedFee, setPayuFixedFee],
+    payuPercFee: [payuPercFee, setPayuPercFee],
+    payuKey: [payuKey, setPayuKey],
+    payuSalt: [payuSalt, setPayuSalt],
+    payuDesc: [payuDesc, setPayuDesc],
+    payuCurrency: [payuCurrency, setPayuCurrency],
+    payuTestMode: [payuTestMode, setPayuTestMode],
+    payuDefault: [payuDefault, setPayuDefault],
+    stripeActive: [stripeActive, setStripeActive],
+    stripeLabel: [stripeLabel, setStripeLabel],
+    stripeFixedFee: [stripeFixedFee, setStripeFixedFee],
+    stripePercFee: [stripePercFee, setStripePercFee],
+    stripePubKey: [stripePubKey, setStripePubKey],
+    stripeSecretKey: [stripeSecretKey, setStripeSecretKey],
+    stripeDesc: [stripeDesc, setStripeDesc],
+    stripeCurrencies: [stripeCurrencies, setStripeCurrencies],
+    stripeAllowTokUpdate: [stripeAllowTokUpdate, setStripeAllowTokUpdate],
+    stripeDefault: [stripeDefault, setStripeDefault],
+    stripeIdealActive: [stripeIdealActive, setStripeIdealActive],
+    stripeIdealLabel: [stripeIdealLabel, setStripeIdealLabel],
+    stripeIdealSecret: [stripeIdealSecret, setStripeIdealSecret],
+    stripeIdealPub: [stripeIdealPub, setStripeIdealPub],
+    stripeIdealDesc: [stripeIdealDesc, setStripeIdealDesc],
+    stripeIdealStatement: [stripeIdealStatement, setStripeIdealStatement],
+    stripeIdealDefault: [stripeIdealDefault, setStripeIdealDefault],
+    twoActive: [twoActive, setTwoActive],
+    twoLabel: [twoLabel, setTwoLabel],
+    twoFixedFee: [twoFixedFee, setTwoFixedFee],
+    twoPercFee: [twoPercFee, setTwoPercFee],
+    twoMerchCode: [twoMerchCode, setTwoMerchCode],
+    twoSecret: [twoSecret, setTwoSecret],
+    twoDesc: [twoDesc, setTwoDesc],
+    twoCurrencies: [twoCurrencies, setTwoCurrencies],
+    twoTestMode: [twoTestMode, setTwoTestMode],
+    twoDefault: [twoDefault, setTwoDefault],
+    custDefaultTheme: [custDefaultTheme, setCustDefaultTheme],
+    custDefaultCountry: [custDefaultCountry, setCustDefaultCountry],
+    custVisibleTabs: [custVisibleTabs, setCustVisibleTabs],
+    custRequiredFields: [custRequiredFields, setCustRequiredFields],
+    custCompanyRequired: [custCompanyRequired, setCustCompanyRequired],
+    custVatRequired: [custVatRequired, setCustVatRequired],
+    custAllowRegister: [custAllowRegister, setCustAllowRegister],
+    custRequireConfirm: [custRequireConfirm, setCustRequireConfirm],
+    custAllowPrimaryContactManage: [custAllowPrimaryContactManage, setCustAllowPrimaryContactManage],
+    custEnableHoneypot: [custEnableHoneypot, setCustEnableHoneypot],
+    custAllowEditBilling: [custAllowEditBilling, setCustAllowEditBilling],
+    custContactsOwnFiles: [custContactsOwnFiles, setCustContactsOwnFiles],
+    custAllowDeleteOwnFiles: [custAllowDeleteOwnFiles, setCustAllowDeleteOwnFiles],
+    custUseKB: [custUseKB, setCustUseKB],
+    custKBNoReg: [custKBNoReg, setCustKBNoReg],
+    custShowEstimateRequest: [custShowEstimateRequest, setCustShowEstimateRequest],
+    custDefaultPermissions: [custDefaultPermissions, setCustDefaultPermissions],
+    custInfoFormat: [custInfoFormat, setCustInfoFormat],
+    taskKanbanLimit: [taskKanbanLimit, setTaskKanbanLimit],
+    taskAllowStaffSeeAll: [taskAllowStaffSeeAll, setTaskAllowStaffSeeAll],
+    taskCommentFirstHourOnly: [taskCommentFirstHourOnly, setTaskCommentFirstHourOnly],
+    taskAutoAssignCreator: [taskAutoAssignCreator, setTaskAutoAssignCreator],
+    taskAutoAddFollower: [taskAutoAddFollower, setTaskAutoAddFollower],
+    taskStopOtherTimers: [taskStopOtherTimers, setTaskStopOtherTimers],
+    taskStatusInProgressOnTimer: [taskStatusInProgressOnTimer, setTaskStatusInProgressOnTimer],
+    taskBillableDefault: [taskBillableDefault, setTaskBillableDefault],
+    taskRoundOffTimer: [taskRoundOffTimer, setTaskRoundOffTimer],
+    taskRoundOffMultiplier: [taskRoundOffMultiplier, setTaskRoundOffMultiplier],
+    taskDefaultStatus: [taskDefaultStatus, setTaskDefaultStatus],
+    taskDefaultPriority: [taskDefaultPriority, setTaskDefaultPriority],
+    taskModalWidthClass: [taskModalWidthClass, setTaskModalWidthClass],
+    supUseServices: [supUseServices, setSupUseServices],
+    supDisablePublicUrl: [supDisablePublicUrl, setSupDisablePublicUrl],
+    supStaffDeptOnly: [supStaffDeptOnly, setSupStaffDeptOnly],
+    supNotifyAssigneeOnly: [supNotifyAssigneeOnly, setSupNotifyAssigneeOnly],
+    supNotifyOnNew: [supNotifyOnNew, setSupNotifyOnNew],
+    supNotifyOnReply: [supNotifyOnReply, setSupNotifyOnReply],
+    supStaffOpenToAll: [supStaffOpenToAll, setSupStaffOpenToAll],
+    supAutoAssignOnReply: [supAutoAssignOnReply, setSupAutoAssignOnReply],
+    supAllowNonStaff: [supAllowNonStaff, setSupAllowNonStaff],
+    supNonAdminDelAttach: [supNonAdminDelAttach, setSupNonAdminDelAttach],
+    supNonAdminDelTickets: [supNonAdminDelTickets, setSupNonAdminDelTickets],
+    supCustChangeStatus: [supCustChangeStatus, setSupCustChangeStatus],
+    supCustOwnTicketsOnly: [supCustOwnTicketsOnly, setSupCustOwnTicketsOnly],
+    supRepliesOrder: [supRepliesOrder, setSupRepliesOrder],
+    supEnableBadge: [supEnableBadge, setSupEnableBadge],
+    supDefaultReplyStatus: [supDefaultReplyStatus, setSupDefaultReplyStatus],
+    supMaxAttachments: [supMaxAttachments, setSupMaxAttachments],
+    supAllowedExtensions: [supAllowedExtensions, setSupAllowedExtensions],
+    supPipeOnlyRegistered: [supPipeOnlyRegistered, setSupPipeOnlyRegistered],
+    supOnlyRepliesByEmail: [supOnlyRepliesByEmail, setSupOnlyRepliesByEmail],
+    supPipeImportActualOnly: [supPipeImportActualOnly, setSupPipeImportActualOnly],
+    supPipeDefaultPriority: [supPipeDefaultPriority, setSupPipeDefaultPriority],
+    leadKanbanLimit: [leadKanbanLimit, setLeadKanbanLimit],
+    leadDefaultStatus: [leadDefaultStatus, setLeadDefaultStatus],
+    leadDefaultSource: [leadDefaultSource, setLeadDefaultSource],
+    leadDuplicateFields: [leadDuplicateFields, setLeadDuplicateFields],
+    leadAutoAssignAdmin: [leadAutoAssignAdmin, setLeadAutoAssignAdmin],
     leadAllowNonAdminImport: [leadAllowNonAdminImport, setLeadAllowNonAdminImport],
     leadKanbanSort: [leadKanbanSort, setLeadKanbanSort],
     leadKanbanOrder: [leadKanbanOrder, setLeadKanbanOrder],
@@ -940,6 +1156,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
     miscInlineService: [miscInlineService, setMiscInlineService],
     miscInlinePredefinedReplies: [miscInlinePredefinedReplies, setMiscInlinePredefinedReplies],
     miscInlineExpenseCategory: [miscInlineExpenseCategory, setMiscInlineExpenseCategory],
+    miscInlineContractType: [miscInlineContractType, setMiscInlineContractType],
     miscRequireContractLogin: [miscRequireContractLogin, setMiscRequireContractLogin],
     compLogoLight: [compLogoLight, setCompLogoLight],
     compLogoDark: [compLogoDark, setCompLogoDark],
@@ -982,14 +1199,14 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
           if (stateMapping[s.name]) {
             const [currentVal, setter] = stateMapping[s.name];
             let val = s.value;
-            
+
             // Comprehensive type handling for dynamic settings
             if (typeof currentVal === "boolean") {
-               val = val === "true" || val === "1" || val === 1 || val === true;
+              val = val === "true" || val === "1" || val === 1 || val === true;
             } else if (typeof currentVal === "number") {
-               val = Number(val);
+              val = Number(val);
             } else if (Array.isArray(currentVal)) {
-               try { val = typeof val === "string" ? JSON.parse(val) : (Array.isArray(val) ? val : []); } catch(e) { val = []; }
+              try { val = typeof val === "string" ? JSON.parse(val) : (Array.isArray(val) ? val : []); } catch (e) { val = []; }
             }
             setter(val);
           }
@@ -1026,10 +1243,10 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
         };
       });
       await settingsService.updateSettings({ settings: settingsToSave });
-      
+
       // Refresh global settings context to apply instant effects like RTL
       await refreshGlobalSettings();
-      
+
       toast.success("Settings saved successfully");
     } catch (error: any) {
       toast.error(error.message || "Failed to save settings");
@@ -1059,8 +1276,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
               Manage your CRM configuration across all modules.
             </p>
           </div>
-          <Button 
-            className="shadow-md" 
+          <Button
+            className="shadow-md"
             onClick={handleSave}
             disabled={isSaving}
           >
@@ -1095,11 +1312,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             )}
                           >
                             {item.icon && (
-                              <item.icon 
+                              <item.icon
                                 className={cn(
-                                  "h-4 w-4 shrink-0 transition-colors", 
+                                  "h-4 w-4 shrink-0 transition-colors",
                                   activeTab === item.id ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
-                                )} 
+                                )}
                               />
                             )}
                             {item.label}
@@ -1133,8 +1350,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     <div className="space-y-3">
                       <Label className="text-sm font-semibold">Company Logo Light</Label>
                       <div className="flex items-center gap-3">
-                        <Input 
-                          type="file" 
+                        <Input
+                          type="file"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
@@ -1143,7 +1360,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                               reader.readAsDataURL(file);
                             }
                           }}
-                          className="max-w-md h-9 py-1 file:text-xs file:font-semibold" 
+                          className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
                         />
                         {compLogoLight && <img src={compLogoLight} className="h-8 w-auto border rounded p-1" alt="Logo Light" />}
                       </div>
@@ -1151,8 +1368,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     <div className="space-y-3 pt-4 border-t">
                       <Label className="text-sm font-semibold">Company Logo Dark</Label>
                       <div className="flex items-center gap-3">
-                        <Input 
-                          type="file" 
+                        <Input
+                          type="file"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
@@ -1161,7 +1378,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                               reader.readAsDataURL(file);
                             }
                           }}
-                          className="max-w-md h-9 py-1 file:text-xs file:font-semibold" 
+                          className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
                         />
                         {compLogoDark && <img src={compLogoDark} className="h-8 w-auto bg-slate-800 border rounded p-1" alt="Logo Dark" />}
                       </div>
@@ -1169,8 +1386,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     <div className="space-y-3 pt-4 border-t">
                       <Label className="text-sm font-semibold">Favicon</Label>
                       <div className="flex items-center gap-3">
-                        <Input 
-                          type="file" 
+                        <Input
+                          type="file"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
@@ -1179,7 +1396,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                               reader.readAsDataURL(file);
                             }
                           }}
-                          className="max-w-md h-9 py-1 file:text-xs file:font-semibold" 
+                          className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
                         />
                         {favicon && <img src={favicon} className="h-6 w-6 border rounded p-0.5" alt="Favicon" />}
                       </div>
@@ -1190,20 +1407,20 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   <div className="flex flex-col gap-6 pt-4 border-t">
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Company Name</Label>
-                      <Input 
-                        placeholder="Enter company name" 
-                        value={companyName} 
-                        onChange={(e) => setCompanyName(e.target.value)} 
-                        className="max-w-md" 
+                      <Input
+                        placeholder="Enter company name"
+                        value={companyName}
+                        onChange={(e) => setCompanyName(e.target.value)}
+                        className="max-w-md"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Company Main Domain</Label>
-                      <Input 
-                        placeholder="domain.com" 
-                        value={companyDomain} 
-                        onChange={(e) => setCompanyDomain(e.target.value)} 
-                        className="max-w-md" 
+                      <Input
+                        placeholder="domain.com"
+                        value={companyDomain}
+                        onChange={(e) => setCompanyDomain(e.target.value)}
+                        className="max-w-md"
                       />
                     </div>
                   </div>
@@ -1241,11 +1458,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* Allowed File Types */}
                   <div className="space-y-2 pt-6 border-t">
                     <Label className="text-sm font-semibold">Allowed file types</Label>
-                    <Input 
-                      placeholder=".png,.jpg,.jpeg,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt" 
-                      value={allowedFileTypes} 
-                      onChange={(e) => setAllowedFileTypes(e.target.value)} 
-                      className="max-w-md" 
+                    <Input
+                      placeholder=".png,.jpg,.jpeg,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt"
+                      value={allowedFileTypes}
+                      onChange={(e) => setAllowedFileTypes(e.target.value)}
+                      className="max-w-md"
                     />
                   </div>
                 </CardContent>
@@ -1270,72 +1487,72 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   <div className="flex flex-col gap-6">
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Company Name</Label>
-                      <Input 
-                        placeholder="Enter company name" 
-                        className="max-w-md" 
+                      <Input
+                        placeholder="Enter company name"
+                        className="max-w-md"
                         value={companyName}
                         onChange={(e) => setCompanyName(e.target.value)}
                       />
                     </div>
                     <div className="space-y-2 pt-4 border-t">
                       <Label className="text-sm font-semibold">Address</Label>
-                      <Input 
-                        placeholder="Enter address" 
-                        className="max-w-md" 
+                      <Input
+                        placeholder="Enter address"
+                        className="max-w-md"
                         value={compAddress}
                         onChange={(e) => setCompAddress(e.target.value)}
                       />
                     </div>
                     <div className="space-y-2 pt-4 border-t">
                       <Label className="text-sm font-semibold">City</Label>
-                      <Input 
-                        placeholder="Enter city" 
-                        className="max-w-md" 
+                      <Input
+                        placeholder="Enter city"
+                        className="max-w-md"
                         value={compCity}
                         onChange={(e) => setCompCity(e.target.value)}
                       />
                     </div>
                     <div className="space-y-2 pt-4 border-t">
                       <Label className="text-sm font-semibold">State</Label>
-                      <Input 
-                        placeholder="Enter state" 
-                        className="max-w-md" 
+                      <Input
+                        placeholder="Enter state"
+                        className="max-w-md"
                         value={compState}
                         onChange={(e) => setCompState(e.target.value)}
                       />
                     </div>
                     <div className="space-y-2 pt-4 border-t">
                       <Label className="text-sm font-semibold">Country Code</Label>
-                      <Input 
-                        placeholder="e.g. US, IN, GB" 
-                        className="max-w-md" 
+                      <Input
+                        placeholder="e.g. US, IN, GB"
+                        className="max-w-md"
                         value={compCountry}
                         onChange={(e) => setCompCountry(e.target.value)}
                       />
                     </div>
                     <div className="space-y-2 pt-4 border-t">
                       <Label className="text-sm font-semibold">Zip Code</Label>
-                      <Input 
-                        placeholder="Enter zip code" 
-                        className="max-w-md" 
+                      <Input
+                        placeholder="Enter zip code"
+                        className="max-w-md"
                         value={compZip}
                         onChange={(e) => setCompZip(e.target.value)}
                       />
                     </div>
                     <div className="space-y-2 pt-4 border-t">
                       <Label className="text-sm font-semibold">Phone</Label>
-                      <Input 
-                        placeholder="Enter phone number" 
-                        className="max-w-md" 
+                      <Input
+                        placeholder="Enter phone number"
+                        className="max-w-md"
                         value={compPhone}
                         onChange={(e) => setCompPhone(e.target.value)}
                       />
                     </div>
                     <div className="space-y-2 pt-4 border-t">
                       <Label className="text-sm font-semibold">VAT Number</Label>
-                      <Input 
-                        placeholder="Enter VAT number" 
-                        className="max-w-md" 
+                      <Input
+                        placeholder="Enter VAT number"
+                        className="max-w-md"
                         value={compVat}
                         onChange={(e) => setCompVat(e.target.value)}
                       />
@@ -1555,9 +1772,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                           <div className="space-y-2 pt-4 border-t">
                             <Label className="text-sm font-semibold">SMTP Host</Label>
-                            <Input 
-                              placeholder="e.g. smtp.gmail.com" 
-                              className="max-w-md" 
+                            <Input
+                              placeholder="e.g. smtp.gmail.com"
+                              className="max-w-md"
                               value={smtpHost}
                               onChange={(e) => setSmtpHost(e.target.value)}
                             />
@@ -1565,9 +1782,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                           <div className="space-y-2 pt-4 border-t">
                             <Label className="text-sm font-semibold">SMTP Port</Label>
-                            <Input 
-                              placeholder="e.g. 587 or 465" 
-                              className="max-w-md" 
+                            <Input
+                              placeholder="e.g. 587 or 465"
+                              className="max-w-md"
                               value={smtpPort}
                               onChange={(e) => setSmtpPort(e.target.value)}
                             />
@@ -1575,10 +1792,10 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                           <div className="space-y-2 pt-4 border-t">
                             <Label className="text-sm font-semibold">Email</Label>
-                            <Input 
-                              type="email" 
-                              placeholder="official@company.com" 
-                              className="max-w-md" 
+                            <Input
+                              type="email"
+                              placeholder="official@company.com"
+                              className="max-w-md"
                               value={smtpEmail}
                               onChange={(e) => setSmtpEmail(e.target.value)}
                             />
@@ -1586,9 +1803,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                           <div className="space-y-2 pt-4 border-t">
                             <Label className="text-sm font-semibold">SMTP Username</Label>
-                            <Input 
-                              placeholder="Username" 
-                              className="max-w-md" 
+                            <Input
+                              placeholder="Username"
+                              className="max-w-md"
                               value={smtpUser}
                               onChange={(e) => setSmtpUser(e.target.value)}
                             />
@@ -1596,10 +1813,10 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                           <div className="space-y-2 pt-4 border-t">
                             <Label className="text-sm font-semibold">SMTP Password</Label>
-                            <Input 
-                              type="password" 
-                              placeholder="••••••••" 
-                              className="max-w-md" 
+                            <Input
+                              type="password"
+                              placeholder="••••••••"
+                              className="max-w-md"
                               value={smtpPass}
                               onChange={(e) => setSmtpPass(e.target.value)}
                             />
@@ -1607,18 +1824,18 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                           <div className="space-y-2 pt-4 border-t">
                             <Label className="text-sm font-semibold">Email Charset</Label>
-                            <Input 
+                            <Input
                               value={emailCharset}
                               onChange={(e) => setEmailCharset(e.target.value)}
-                              className="max-w-md" 
+                              className="max-w-md"
                             />
                           </div>
 
                           <div className="space-y-2 pt-4 border-t">
                             <Label className="text-sm font-semibold">BCC All Emails To</Label>
-                            <Input 
-                              placeholder="email@example.com" 
-                              className="max-w-md" 
+                            <Input
+                              placeholder="email@example.com"
+                              className="max-w-md"
                               value={bccEmail}
                               onChange={(e) => setBccEmail(e.target.value)}
                             />
@@ -1626,9 +1843,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                           <div className="space-y-2 pt-4 border-t">
                             <Label className="text-sm font-semibold">Email Signature</Label>
-                            <Textarea 
-                              placeholder="Enter email signature..." 
-                              className="max-w-md min-h-[100px]" 
+                            <Textarea
+                              placeholder="Enter email signature..."
+                              className="max-w-md min-h-[100px]"
                               value={emailSignature}
                               onChange={(e) => setEmailSignature(e.target.value)}
                             />
@@ -1664,12 +1881,12 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           Send test email to make sure that your SMTP settings is set correctly.
                         </p>
                         <div className="flex gap-2 max-w-md">
-                          <Input 
-                            placeholder="test@email.com" 
+                          <Input
+                            placeholder="test@email.com"
                             value={testEmail}
                             onChange={(e) => setTestEmail(e.target.value)}
                           />
-                          <Button 
+                          <Button
                             variant="secondary"
                             disabled={isTestingEmail}
                             onClick={async () => {
@@ -1789,8 +2006,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             </div>
                             <div className="relative w-full md:w-64">
                               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                              <Input 
-                                placeholder="Search..." 
+                              <Input
+                                placeholder="Search..."
                                 className="h-8 pl-8 text-xs focus-visible:ring-primary/20"
                               />
                             </div>
@@ -1834,10 +2051,10 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   <div className="flex flex-col gap-6">
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Purchase Key</Label>
-                      <Input 
-                        type="password" 
-                        placeholder="Enter your purchase key" 
-                        className="max-w-md" 
+                      <Input
+                        type="password"
+                        placeholder="Enter your purchase key"
+                        className="max-w-md"
                         value={purchaseKey}
                         onChange={(e) => setPurchaseKey(e.target.value)}
                       />
@@ -1900,66 +2117,66 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
-                    <Table>
-                      <TableHeader className="bg-muted/50">
-                        <TableRow>
-                          <TableHead className="w-[300px] font-bold">Variable Name</TableHead>
-                          <TableHead className="font-bold">Value</TableHead>
+                  <Table>
+                    <TableHeader className="bg-muted/50">
+                      <TableRow>
+                        <TableHead className="w-[300px] font-bold">Variable Name</TableHead>
+                        <TableHead className="font-bold">Value</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {[
+                        { name: "OS", value: "Windows NT 10.0" },
+                        { name: "Node.js Version", value: "v18.16.0" },
+                        { name: "Mongoose Version", value: "v7.0.0" },
+                        { name: "Webserver", value: "Vite/Express" },
+                        { name: "Environment", value: "Development", status: "secondary" },
+                        { name: "Database Status", value: "Connected", status: "success" },
+                        { name: "Max Upload Size", value: "100.00 MB" },
+                        { name: "Memory Limit", value: "512.00 MB" },
+                        { name: "Execution Time", value: "300s" },
+                        { name: "Base URL", value: "http://localhost:5173/" },
+                        { name: "Installation Path", value: "D:\\CRM ALL\\" },
+                        { name: "Active Modules", value: "24", status: "success" },
+                        { name: "Cron Status", value: "Active", status: "success" },
+                        { name: "CSRF Protection", value: "Enabled", status: "success" },
+                        { name: "bcmath", value: "Enabled", status: "success" },
+                        { name: "max_input_vars", value: "1000" },
+                        { name: "upload_max_filesize", value: "100.00 MB" },
+                        { name: "post_max_size", value: "100.00 MB" },
+                        { name: "max_execution_time", value: "300s" },
+                        { name: "memory_limit", value: "512.00 MB" },
+                        { name: "allow_url_fopen", value: "Yes", status: "success" },
+                        { name: "Suhosin", value: "No", status: "outline" },
+                        { name: "Environment", value: "Development", status: "secondary" },
+                        { name: "Cloudflare", value: "No", status: "outline" },
+                        { name: "pipe.php permissions", value: "0644" },
+                        { name: "Customers Theme", value: "modern_v2" },
+                        { name: "Available customers themes", value: "modern_v2, dark_pro, classic" },
+                        { name: "Files Permissions", value: "Writable", status: "success" },
+                        { name: "React Extension 'curl'", value: "Yes", status: "success" },
+                        { name: "React Extension 'openssl'", value: "Yes", status: "success" },
+                        { name: "React Extension 'mbstring'", value: "Yes", status: "success" },
+                        { name: "React Extension 'iconv'", value: "Yes", status: "success" },
+                        { name: "React Extension 'IMAP'", value: "No", status: "outline" },
+                        { name: "React Extension 'GD'", value: "Yes", status: "success" },
+                        { name: "React Extension 'zip'", value: "Yes", status: "success" },
+                      ].map((item, idx) => (
+                        <TableRow key={idx} className="hover:bg-muted/20">
+                          <TableCell className="font-medium text-muted-foreground">{item.name}</TableCell>
+                          <TableCell>
+                            {item.status ? (
+                              <Badge variant={item.status as any} className="font-mono text-[10px] uppercase">
+                                {item.value}
+                              </Badge>
+                            ) : (
+                              <span className="font-mono text-sm">{item.value}</span>
+                            )}
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {[
-                          { name: "OS", value: "Windows NT 10.0" },
-                          { name: "Node.js Version", value: "v18.16.0" },
-                          { name: "Mongoose Version", value: "v7.0.0" },
-                          { name: "Webserver", value: "Vite/Express" },
-                          { name: "Environment", value: "Development", status: "secondary" },
-                          { name: "Database Status", value: "Connected", status: "success" },
-                          { name: "Max Upload Size", value: "100.00 MB" },
-                          { name: "Memory Limit", value: "512.00 MB" },
-                          { name: "Execution Time", value: "300s" },
-                          { name: "Base URL", value: "http://localhost:5173/" },
-                          { name: "Installation Path", value: "D:\\CRM ALL\\" },
-                          { name: "Active Modules", value: "24", status: "success" },
-                          { name: "Cron Status", value: "Active", status: "success" },
-                          { name: "CSRF Protection", value: "Enabled", status: "success" },
-                          { name: "bcmath", value: "Enabled", status: "success" },
-                          { name: "max_input_vars", value: "1000" },
-                          { name: "upload_max_filesize", value: "100.00 MB" },
-                          { name: "post_max_size", value: "100.00 MB" },
-                          { name: "max_execution_time", value: "300s" },
-                          { name: "memory_limit", value: "512.00 MB" },
-                          { name: "allow_url_fopen", value: "Yes", status: "success" },
-                          { name: "Suhosin", value: "No", status: "outline" },
-                          { name: "Environment", value: "Development", status: "secondary" },
-                          { name: "Cloudflare", value: "No", status: "outline" },
-                          { name: "pipe.php permissions", value: "0644" },
-                          { name: "Customers Theme", value: "modern_v2" },
-                          { name: "Available customers themes", value: "modern_v2, dark_pro, classic" },
-                          { name: "Files Permissions", value: "Writable", status: "success" },
-                          { name: "React Extension 'curl'", value: "Yes", status: "success" },
-                          { name: "React Extension 'openssl'", value: "Yes", status: "success" },
-                          { name: "React Extension 'mbstring'", value: "Yes", status: "success" },
-                          { name: "React Extension 'iconv'", value: "Yes", status: "success" },
-                          { name: "React Extension 'IMAP'", value: "No", status: "outline" },
-                          { name: "React Extension 'GD'", value: "Yes", status: "success" },
-                          { name: "React Extension 'zip'", value: "Yes", status: "success" },
-                        ].map((item, idx) => (
-                          <TableRow key={idx} className="hover:bg-muted/20">
-                            <TableCell className="font-medium text-muted-foreground">{item.name}</TableCell>
-                            <TableCell>
-                              {item.status ? (
-                                <Badge variant={item.status as any} className="font-mono text-[10px] uppercase">
-                                  {item.value}
-                                </Badge>
-                              ) : (
-                                <span className="font-mono text-sm">{item.value}</span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
             )}
@@ -2638,10 +2855,10 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     <CardTitle className="text-lg">Payment Gateways</CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="p-0">
-                  <Tabs value={gatewaySubTab} onValueChange={setGatewaySubTab} className="flex flex-col min-h-[500px]">
-                    <div className="w-full bg-muted/20 border-b p-3">
-                      <TabsList className="w-full flex justify-start gap-2 h-auto bg-transparent p-0 overflow-x-auto flex-nowrap scroll-smooth custom-scrollbar-h">
+                <CardContent className="p-0 overflow-hidden sm:overflow-visible overflow-x-auto sm:overflow-x-visible">
+                  <Tabs value={gatewaySubTab} onValueChange={setGatewaySubTab} className="flex flex-col min-h-[500px] w-full max-w-full">
+                    <div className="w-full max-w-full overflow-x-auto bg-muted/20 border-b p-1.5 px-2 custom-scrollbar-h">
+                      <TabsList className="w-max min-w-full flex justify-start gap-1 h-auto bg-transparent p-0 flex-nowrap pb-1">
                         {[
                           { id: "general", label: "General" },
                           { id: "authorize", label: "Authorize.net Accept.js" },
@@ -2658,7 +2875,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           <TabsTrigger
                             key={sub.id}
                             value={sub.id}
-                            className="whitespace-nowrap px-4 py-2 rounded-md text-sm font-semibold transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:bg-muted shrink-0"
+                            className="whitespace-nowrap px-3 py-1.5 rounded-md text-sm font-semibold transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:bg-muted shrink-0"
                           >
                             {sub.label}
                           </TabsTrigger>
@@ -2818,6 +3035,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           </div>
                         </div>
                       </TabsContent>
+
 
                       <TabsContent value="instamojo" className="mt-0 space-y-6">
                         <div className="flex flex-col gap-6 pt-2">
@@ -3684,7 +3902,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           </SelectContent>
                         </Select>
                       </div>
- 
+
                       {/* Country */}
                       <div className="space-y-3 pt-6 border-t">
                         <Label className="text-sm font-bold">Default Country</Label>
@@ -3693,36 +3911,36 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             <SelectValue placeholder="Select country" />
                           </SelectTrigger>
                           <SelectContent className="max-h-[300px]">
-                             <SelectItem value="ar">Argentina</SelectItem>
-                             <SelectItem value="au">Australia</SelectItem>
-                             <SelectItem value="br">Brazil</SelectItem>
-                             <SelectItem value="ca">Canada</SelectItem>
-                             <SelectItem value="cn">China</SelectItem>
-                             <SelectItem value="eg">Egypt</SelectItem>
-                             <SelectItem value="fr">France</SelectItem>
-                             <SelectItem value="de">Germany</SelectItem>
-                             <SelectItem value="in">India</SelectItem>
-                             <SelectItem value="id">Indonesia</SelectItem>
-                             <SelectItem value="it">Italy</SelectItem>
-                             <SelectItem value="jp">Japan</SelectItem>
-                             <SelectItem value="my">Malaysia</SelectItem>
-                             <SelectItem value="mx">Mexico</SelectItem>
-                             <SelectItem value="nl">Netherlands</SelectItem>
-                             <SelectItem value="nz">New Zealand</SelectItem>
-                             <SelectItem value="ng">Nigeria</SelectItem>
-                             <SelectItem value="ph">Philippines</SelectItem>
-                             <SelectItem value="ru">Russia</SelectItem>
-                             <SelectItem value="sa">Saudi Arabia</SelectItem>
-                             <SelectItem value="sg">Singapore</SelectItem>
-                             <SelectItem value="za">South Africa</SelectItem>
-                             <SelectItem value="es">Spain</SelectItem>
-                             <SelectItem value="ch">Switzerland</SelectItem>
-                             <SelectItem value="th">Thailand</SelectItem>
-                             <SelectItem value="tr">Turkey</SelectItem>
-                             <SelectItem value="ae">United Arab Emirates</SelectItem>
-                             <SelectItem value="gb">United Kingdom</SelectItem>
-                             <SelectItem value="us">United States</SelectItem>
-                             <SelectItem value="vn">Vietnam</SelectItem>
+                            <SelectItem value="ar">Argentina</SelectItem>
+                            <SelectItem value="au">Australia</SelectItem>
+                            <SelectItem value="br">Brazil</SelectItem>
+                            <SelectItem value="ca">Canada</SelectItem>
+                            <SelectItem value="cn">China</SelectItem>
+                            <SelectItem value="eg">Egypt</SelectItem>
+                            <SelectItem value="fr">France</SelectItem>
+                            <SelectItem value="de">Germany</SelectItem>
+                            <SelectItem value="in">India</SelectItem>
+                            <SelectItem value="id">Indonesia</SelectItem>
+                            <SelectItem value="it">Italy</SelectItem>
+                            <SelectItem value="jp">Japan</SelectItem>
+                            <SelectItem value="my">Malaysia</SelectItem>
+                            <SelectItem value="mx">Mexico</SelectItem>
+                            <SelectItem value="nl">Netherlands</SelectItem>
+                            <SelectItem value="nz">New Zealand</SelectItem>
+                            <SelectItem value="ng">Nigeria</SelectItem>
+                            <SelectItem value="ph">Philippines</SelectItem>
+                            <SelectItem value="ru">Russia</SelectItem>
+                            <SelectItem value="sa">Saudi Arabia</SelectItem>
+                            <SelectItem value="sg">Singapore</SelectItem>
+                            <SelectItem value="za">South Africa</SelectItem>
+                            <SelectItem value="es">Spain</SelectItem>
+                            <SelectItem value="ch">Switzerland</SelectItem>
+                            <SelectItem value="th">Thailand</SelectItem>
+                            <SelectItem value="tr">Turkey</SelectItem>
+                            <SelectItem value="ae">United Arab Emirates</SelectItem>
+                            <SelectItem value="gb">United Kingdom</SelectItem>
+                            <SelectItem value="us">United States</SelectItem>
+                            <SelectItem value="vn">Vietnam</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -3733,13 +3951,13 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       <Label className="text-sm font-semibold">Visible Tabs (Profile)</Label>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             className="w-full max-w-md justify-between h-10 px-3 font-normal"
                           >
                             <span className={cn(custVisibleTabs.length === 0 && "text-muted-foreground")}>
-                              {custVisibleTabs.length > 0 
-                                ? `${custVisibleTabs.length} items selected` 
+                              {custVisibleTabs.length > 0
+                                ? `${custVisibleTabs.length} items selected`
                                 : "Select tabs..."}
                             </span>
                             <MoreHorizontal className="h-4 w-4 opacity-50 shrink-0" />
@@ -3748,17 +3966,17 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         <PopoverContent className="w-[300px] p-0" align="start">
                           <Command>
                             <div className="flex items-center justify-between p-2 border-b">
-                              <Button 
-                                variant="ghost" 
-                                size="xs" 
+                              <Button
+                                variant="ghost"
+                                size="xs"
                                 className="text-[10px] h-7 w-full hover:bg-primary/10 hover:text-primary"
                                 onClick={() => setCustVisibleTabs(["notes", "statement", "invoices", "payments", "proposals", "credit notes", "estimates", "subscriptions", "expenses", "contracts", "projects", "tasks", "tickets", "files", "vault", "reminders", "map"])}
                               >
                                 Select All
                               </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="xs" 
+                              <Button
+                                variant="ghost"
+                                size="xs"
                                 className="text-[10px] h-7 w-full hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => setCustVisibleTabs([])}
                               >
@@ -3768,9 +3986,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             <CommandGroup className="max-h-[300px] overflow-y-auto custom-scrollbar">
                               <div className="flex flex-col gap-1 p-1">
                                 {[
-                                  "Notes", "Statement", "Invoices", "Payments", "Proposals", 
-                                  "Credit Notes", "Estimates", "Subscriptions", "Expenses", 
-                                  "Contracts", "Projects", "Tasks", "Tickets", "Files", 
+                                  "Notes", "Statement", "Invoices", "Payments", "Proposals",
+                                  "Credit Notes", "Estimates", "Subscriptions", "Expenses",
+                                  "Contracts", "Projects", "Tasks", "Tickets", "Files",
                                   "Vault", "Reminders", "Map"
                                 ].map((tab) => {
                                   const id = tab.toLowerCase();
@@ -3801,13 +4019,13 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       <Label className="text-sm font-semibold">Required fields for registration (customers area)</Label>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             className="w-full max-w-md justify-between h-10 px-3 font-normal"
                           >
                             <span className={cn(custRequiredFields.length === 0 && "text-muted-foreground")}>
-                              {custRequiredFields.length > 0 
-                                ? `${custRequiredFields.length} fields required` 
+                              {custRequiredFields.length > 0
+                                ? `${custRequiredFields.length} fields required`
                                 : "Select required fields..."}
                             </span>
                             <MoreHorizontal className="h-4 w-4 opacity-50 shrink-0" />
@@ -3816,9 +4034,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         <PopoverContent className="w-[300px] p-0" align="start">
                           <Command>
                             <div className="flex items-center justify-between p-2 border-b">
-                              <Button 
-                                variant="ghost" 
-                                size="xs" 
+                              <Button
+                                variant="ghost"
+                                size="xs"
                                 className="text-[10px] h-7 w-full hover:bg-primary/10 hover:text-primary"
                                 onClick={() => setCustRequiredFields([
                                   "firstname-contact", "lastname-contact", "emailaddress-contact",
@@ -3830,9 +4048,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                               >
                                 Select All
                               </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="xs" 
+                              <Button
+                                variant="ghost"
+                                size="xs"
                                 className="text-[10px] h-7 w-full hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => setCustRequiredFields([])}
                               >
@@ -4007,8 +4225,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           "Invoices", "Estimates", "Contracts", "Proposals", "Support", "Projects"
                         ].map((perm) => (
                           <div key={perm} className="flex items-center space-x-2">
-                            <Checkbox 
-                              id={`perm-${perm}`} 
+                            <Checkbox
+                              id={`perm-${perm}`}
                               checked={custDefaultPermissions.includes(perm.toLowerCase())}
                               onCheckedChange={(checked) => {
                                 if (checked) setCustDefaultPermissions([...custDefaultPermissions, perm.toLowerCase()]);
@@ -4061,11 +4279,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                 <CardContent className="p-6 space-y-8">
                   <div className="space-y-3">
                     <Label className="text-sm font-bold">Limit tasks kanban rows per status</Label>
-                    <Input 
-                      type="number" 
-                      value={taskKanbanLimit} 
-                      onChange={(e) => setTaskKanbanLimit(parseInt(e.target.value) || 0)} 
-                      className="max-w-md h-11 border-muted-foreground/30" 
+                    <Input
+                      type="number"
+                      value={taskKanbanLimit}
+                      onChange={(e) => setTaskKanbanLimit(parseInt(e.target.value) || 0)}
+                      className="max-w-md h-11 border-muted-foreground/30"
                     />
                   </div>
 
@@ -4166,11 +4384,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* Modal Width */}
                   <div className="space-y-3 pt-6 border-t">
                     <Label className="text-sm font-bold">Modal Width Class (modal-lg, modal-xl, modal-xxl)</Label>
-                    <Input 
-                      value={taskModalWidthClass} 
-                      onChange={(e) => setTaskModalWidthClass(e.target.value)} 
-                      className="max-w-md h-11 border-muted-foreground/30" 
-                      placeholder="e.g. modal-lg" 
+                    <Input
+                      value={taskModalWidthClass}
+                      onChange={(e) => setTaskModalWidthClass(e.target.value)}
+                      className="max-w-md h-11 border-muted-foreground/30"
+                      placeholder="e.g. modal-lg"
                     />
                   </div>
                 </CardContent>
@@ -4266,20 +4484,20 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         <div className="space-y-6 pt-6 border-t">
                           <div className="space-y-3">
                             <Label className="text-sm font-bold">Maximum ticket attachments</Label>
-                            <Input 
-                              type="number" 
-                              value={supMaxAttachments} 
-                              onChange={(e) => setSupMaxAttachments(parseInt(e.target.value) || 0)} 
-                              className="max-w-md h-11 border-muted-foreground/30" 
+                            <Input
+                              type="number"
+                              value={supMaxAttachments}
+                              onChange={(e) => setSupMaxAttachments(parseInt(e.target.value) || 0)}
+                              className="max-w-md h-11 border-muted-foreground/30"
                             />
                           </div>
 
                           <div className="space-y-3">
                             <Label className="text-sm font-bold">Allowed attachments file extensions</Label>
-                            <Input 
-                              value={supAllowedExtensions} 
-                              onChange={(e) => setSupAllowedExtensions(e.target.value)} 
-                              className="max-w-md h-11 border-muted-foreground/30" 
+                            <Input
+                              value={supAllowedExtensions}
+                              onChange={(e) => setSupAllowedExtensions(e.target.value)}
+                              className="max-w-md h-11 border-muted-foreground/30"
                               placeholder=".jpg,.jpeg,.png,.pdf"
                             />
                           </div>
@@ -4290,7 +4508,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         {/* Information Box */}
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-2">
                           <div className="flex items-center gap-2">
-                             <h4 className="text-sm font-bold text-blue-800">cPanel Forwarder Path</h4>
+                            <h4 className="text-sm font-bold text-blue-800">cPanel Forwarder Path</h4>
                           </div>
                           <p className="text-xs text-blue-700 leading-relaxed">
                             To use email piping, you need to set up a forwarder in your cPanel. Point your support email address to the following script path:
@@ -4342,8 +4560,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       <TabsContent value="sup-form" className="mt-0">
                         <div className="min-h-[200px] flex items-center justify-center bg-muted/5 rounded-lg border border-dashed text-center p-8">
                           <div className="max-w-xs space-y-2">
-                             <p className="font-semibold text-muted-foreground">Ticket Form Settings</p>
-                             <p className="text-xs text-muted-foreground/70">Customize the public-facing ticket submission form here.</p>
+                            <p className="font-semibold text-muted-foreground">Ticket Form Settings</p>
+                            <p className="text-xs text-muted-foreground/70">Customize the public-facing ticket submission form here.</p>
                           </div>
                         </div>
                       </TabsContent>
@@ -4365,11 +4583,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* Kanban Limit */}
                   <div className="space-y-3">
                     <Label className="text-sm font-bold">Limit leads kanban rows per status</Label>
-                    <Input 
-                      type="number" 
-                      value={leadKanbanLimit} 
-                      onChange={(e) => setLeadKanbanLimit(parseInt(e.target.value) || 0)} 
-                      className="max-w-md h-11 border-muted-foreground/30" 
+                    <Input
+                      type="number"
+                      value={leadKanbanLimit}
+                      onChange={(e) => setLeadKanbanLimit(parseInt(e.target.value) || 0)}
+                      className="max-w-md h-11 border-muted-foreground/30"
                     />
                   </div>
 
@@ -4494,11 +4712,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* Modal Width */}
                   <div className="space-y-3 pt-6 border-t">
                     <Label className="text-sm font-bold">Modal Width Class (modal-lg, modal-xl, modal-xxl)</Label>
-                    <Input 
-                      value={leadModalWidth} 
-                      onChange={(e) => setLeadModalWidth(e.target.value)} 
-                      className="max-w-md h-11 border-muted-foreground/30" 
-                      placeholder="e.g. modal-lg" 
+                    <Input
+                      value={leadModalWidth}
+                      onChange={(e) => setLeadModalWidth(e.target.value)}
+                      className="max-w-md h-11 border-muted-foreground/30"
+                      placeholder="e.g. modal-lg"
                     />
                   </div>
                 </CardContent>
@@ -4518,20 +4736,20 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   <div className="space-y-6">
                     <div className="space-y-3">
                       <Label className="text-sm font-bold">Google API Key</Label>
-                      <Input 
-                        value={intGoogleApiKey} 
-                        onChange={(e) => setIntGoogleApiKey(e.target.value)} 
-                        className="max-w-md h-11 border-muted-foreground/30" 
-                        placeholder="Enter API Key" 
+                      <Input
+                        value={intGoogleApiKey}
+                        onChange={(e) => setIntGoogleApiKey(e.target.value)}
+                        className="max-w-md h-11 border-muted-foreground/30"
+                        placeholder="Enter API Key"
                       />
                     </div>
                     <div className="space-y-3 pt-6 border-t">
                       <Label className="text-sm font-bold">Google API Client ID</Label>
-                      <Input 
-                        value={intGoogleClientId} 
-                        onChange={(e) => setIntGoogleClientId(e.target.value)} 
-                        className="max-w-md h-11 border-muted-foreground/30" 
-                        placeholder="Enter Client ID" 
+                      <Input
+                        value={intGoogleClientId}
+                        onChange={(e) => setIntGoogleClientId(e.target.value)}
+                        className="max-w-md h-11 border-muted-foreground/30"
+                        placeholder="Enter Client ID"
                       />
                     </div>
                   </div>
@@ -4539,23 +4757,23 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* reCAPTCHA Section */}
                   <div className="space-y-6 pt-6 border-t">
                     <h3 className="text-sm font-extrabold uppercase tracking-wider text-primary">reCAPTCHA</h3>
-                    
+
                     <div className="space-y-3 pt-4">
                       <Label className="text-sm font-bold">Site key</Label>
-                      <Input 
-                        value={intRecaptchaSiteKey} 
-                        onChange={(e) => setIntRecaptchaSiteKey(e.target.value)} 
-                        className="max-w-md h-11 border-muted-foreground/30" 
+                      <Input
+                        value={intRecaptchaSiteKey}
+                        onChange={(e) => setIntRecaptchaSiteKey(e.target.value)}
+                        className="max-w-md h-11 border-muted-foreground/30"
                       />
                     </div>
-                    
+
                     <div className="space-y-3 pt-6 border-t">
                       <Label className="text-sm font-bold">Secret key</Label>
-                      <Input 
+                      <Input
                         type="password"
-                        value={intRecaptchaSecretKey} 
-                        onChange={(e) => setIntRecaptchaSecretKey(e.target.value)} 
-                        className="max-w-md h-11 border-muted-foreground/30" 
+                        value={intRecaptchaSecretKey}
+                        onChange={(e) => setIntRecaptchaSecretKey(e.target.value)}
+                        className="max-w-md h-11 border-muted-foreground/30"
                       />
                     </div>
 
@@ -4575,10 +4793,10 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                     <div className="space-y-3 pt-6 border-t">
                       <Label className="text-sm font-bold">Ignored IP Addresses</Label>
-                      <Textarea 
-                        value={intRecaptchaIgnoreIps} 
-                        onChange={(e) => setIntRecaptchaIgnoreIps(e.target.value)} 
-                        className="max-w-md min-h-[100px] border-muted-foreground/30" 
+                      <Textarea
+                        value={intRecaptchaIgnoreIps}
+                        onChange={(e) => setIntRecaptchaIgnoreIps(e.target.value)}
+                        className="max-w-md min-h-[100px] border-muted-foreground/30"
                         placeholder="Enter coma separated IP addresses"
                       />
                       <p className="text-xs text-muted-foreground italic">Enter coma separated IP addresses that you want the reCaptcha to skip validation.</p>
@@ -4588,32 +4806,32 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* Calendar & Picker */}
                   <div className="space-y-6 pt-6 border-t">
                     <div className="space-y-3">
-                       <h4 className="text-sm font-extrabold uppercase tracking-wider text-primary">Calendar</h4>
-                       <div className="pt-2">
-                         <Label className="text-sm font-bold">Google Calendar ID</Label>
-                         <Input 
-                            value={intGoogleCalendarId} 
-                            onChange={(e) => setIntGoogleCalendarId(e.target.value)} 
-                            className="max-w-md h-11 border-muted-foreground/30 mt-3" 
-                          />
-                       </div>
+                      <h4 className="text-sm font-extrabold uppercase tracking-wider text-primary">Calendar</h4>
+                      <div className="pt-2">
+                        <Label className="text-sm font-bold">Google Calendar ID</Label>
+                        <Input
+                          value={intGoogleCalendarId}
+                          onChange={(e) => setIntGoogleCalendarId(e.target.value)}
+                          className="max-w-md h-11 border-muted-foreground/30 mt-3"
+                        />
+                      </div>
                     </div>
 
                     <div className="space-y-3 pt-6 border-t">
-                       <h4 className="text-sm font-extrabold uppercase tracking-wider text-primary">Google Picker</h4>
-                       <div className="pt-2 flex flex-col gap-2">
-                         <Label className="text-sm font-bold">Enable Google Picker</Label>
-                         <div className="flex items-center space-x-6 pt-1">
-                            <div className="flex items-center space-x-2">
-                              <Checkbox id="picker-yes" checked={intGooglePickerEnabled === true} onCheckedChange={() => setIntGooglePickerEnabled(true)} />
-                              <label htmlFor="picker-yes" className="text-sm cursor-pointer select-none">Yes</label>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <Checkbox id="picker-no" checked={intGooglePickerEnabled === false} onCheckedChange={() => setIntGooglePickerEnabled(false)} />
-                              <label htmlFor="picker-no" className="text-sm cursor-pointer select-none">No</label>
-                            </div>
-                         </div>
-                       </div>
+                      <h4 className="text-sm font-extrabold uppercase tracking-wider text-primary">Google Picker</h4>
+                      <div className="pt-2 flex flex-col gap-2">
+                        <Label className="text-sm font-bold">Enable Google Picker</Label>
+                        <div className="flex items-center space-x-6 pt-1">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox id="picker-yes" checked={intGooglePickerEnabled === true} onCheckedChange={() => setIntGooglePickerEnabled(true)} />
+                            <label htmlFor="picker-yes" className="text-sm cursor-pointer select-none">Yes</label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Checkbox id="picker-no" checked={intGooglePickerEnabled === false} onCheckedChange={() => setIntGooglePickerEnabled(false)} />
+                            <label htmlFor="picker-no" className="text-sm cursor-pointer select-none">No</label>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -4633,42 +4851,42 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   <div className="space-y-6">
                     <div className="space-y-3">
                       <Label className="text-sm font-bold">APP ID</Label>
-                      <Input 
-                        value={intPusherAppId} 
-                        onChange={(e) => setIntPusherAppId(e.target.value)} 
-                        className="max-w-md h-11 border-muted-foreground/30" 
+                      <Input
+                        value={intPusherAppId}
+                        onChange={(e) => setIntPusherAppId(e.target.value)}
+                        className="max-w-md h-11 border-muted-foreground/30"
                       />
                     </div>
-                    
+
                     <div className="space-y-3 pt-6 border-t">
                       <Label className="text-sm font-bold">APP Key</Label>
-                      <Input 
-                        value={intPusherAppKey} 
-                        onChange={(e) => setIntPusherAppKey(e.target.value)} 
-                        className="max-w-md h-11 border-muted-foreground/30" 
+                      <Input
+                        value={intPusherAppKey}
+                        onChange={(e) => setIntPusherAppKey(e.target.value)}
+                        className="max-w-md h-11 border-muted-foreground/30"
                       />
                     </div>
 
                     <div className="space-y-3 pt-6 border-t">
                       <Label className="text-sm font-bold">APP Secret</Label>
-                      <Input 
+                      <Input
                         type="password"
-                        value={intPusherAppSecret} 
-                        onChange={(e) => setIntPusherAppSecret(e.target.value)} 
-                        className="max-w-md h-11 border-muted-foreground/30" 
+                        value={intPusherAppSecret}
+                        onChange={(e) => setIntPusherAppSecret(e.target.value)}
+                        className="max-w-md h-11 border-muted-foreground/30"
                       />
                     </div>
 
                     <div className="space-y-3 pt-6 border-t">
                       <Label className="text-sm font-bold">Cluster</Label>
-                      <Input 
-                        value={intPusherCluster} 
-                        onChange={(e) => setIntPusherCluster(e.target.value)} 
-                        className="max-w-md h-11 border-muted-foreground/30" 
+                      <Input
+                        value={intPusherCluster}
+                        onChange={(e) => setIntPusherCluster(e.target.value)}
+                        className="max-w-md h-11 border-muted-foreground/30"
                         placeholder="e.g. mt1"
                       />
                       <p className="text-[10px] text-muted-foreground italic">
-                        More information about clusters can be found here: 
+                        More information about clusters can be found here:
                         <a href="https://pusher.com/docs/clusters" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline ml-1">https://pusher.com/docs/clusters</a>
                       </p>
                     </div>
@@ -4706,11 +4924,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                     <div className="space-y-3 pt-6 border-t">
                       <Label className="text-sm font-bold">Auto Dismiss Desktop Notifications After X Seconds (0 to disable)</Label>
-                      <Input 
+                      <Input
                         type="number"
-                        value={intPusherDismissSeconds} 
-                        onChange={(e) => setIntPusherDismissSeconds(parseInt(e.target.value) || 0)} 
-                        className="max-w-md h-11 border-muted-foreground/30" 
+                        value={intPusherDismissSeconds}
+                        onChange={(e) => setIntPusherDismissSeconds(parseInt(e.target.value) || 0)}
+                        className="max-w-md h-11 border-muted-foreground/30"
                       />
                     </div>
                   </div>
@@ -4755,7 +4973,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         </Tooltip>
                       </TooltipProvider>
                     </div>
-                    <Textarea 
+                    <Textarea
                       value={aiSystemPrompt}
                       onChange={(e) => setAiSystemPrompt(e.target.value)}
                       placeholder="Enter OpenAI system prompt..."
@@ -4780,18 +4998,18 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     </div>
                     <div className="flex items-center space-x-6 pt-1">
                       <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id="ai-sum-yes" 
-                          checked={aiEnableSummarization === true} 
-                          onCheckedChange={() => setAiEnableSummarization(true)} 
+                        <Checkbox
+                          id="ai-sum-yes"
+                          checked={aiEnableSummarization === true}
+                          onCheckedChange={() => setAiEnableSummarization(true)}
                         />
                         <label htmlFor="ai-sum-yes" className="text-sm cursor-pointer select-none">Yes</label>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id="ai-sum-no" 
-                          checked={aiEnableSummarization === false} 
-                          onCheckedChange={() => setAiEnableSummarization(false)} 
+                        <Checkbox
+                          id="ai-sum-no"
+                          checked={aiEnableSummarization === false}
+                          onCheckedChange={() => setAiEnableSummarization(false)}
                         />
                         <label htmlFor="ai-sum-no" className="text-sm cursor-pointer select-none">No</label>
                       </div>
@@ -4815,18 +5033,18 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     </div>
                     <div className="flex items-center space-x-6 pt-1">
                       <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id="ai-reply-yes" 
-                          checked={aiEnableReplySuggestion === true} 
-                          onCheckedChange={() => setAiEnableReplySuggestion(true)} 
+                        <Checkbox
+                          id="ai-reply-yes"
+                          checked={aiEnableReplySuggestion === true}
+                          onCheckedChange={() => setAiEnableReplySuggestion(true)}
                         />
                         <label htmlFor="ai-reply-yes" className="text-sm cursor-pointer select-none">Yes</label>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id="ai-reply-no" 
-                          checked={aiEnableReplySuggestion === false} 
-                          onCheckedChange={() => setAiEnableReplySuggestion(false)} 
+                        <Checkbox
+                          id="ai-reply-no"
+                          checked={aiEnableReplySuggestion === false}
+                          onCheckedChange={() => setAiEnableReplySuggestion(false)}
                         />
                         <label htmlFor="ai-reply-no" className="text-sm cursor-pointer select-none">No</label>
                       </div>
@@ -4848,7 +5066,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* API Key */}
                   <div className="space-y-3">
                     <Label className="text-sm font-bold">OpenAI API Key</Label>
-                    <Input 
+                    <Input
                       type="password"
                       value={aiOpenAIKey}
                       onChange={(e) => setAiOpenAIKey(e.target.value)}
@@ -4876,7 +5094,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* Max Tokens */}
                   <div className="space-y-3 pt-6 border-t">
                     <Label className="text-sm font-bold">Max Output Tokens</Label>
-                    <Input 
+                    <Input
                       type="number"
                       value={aiMaxTokens}
                       onChange={(e) => setAiMaxTokens(parseInt(e.target.value) || 0)}
@@ -4889,7 +5107,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     <Label className="text-sm font-bold">Advanced Features</Label>
                     <div className="bg-muted/30 p-6 rounded-lg border border-dashed text-center space-y-4">
                       <div className="space-y-2">
-                        <Button className="gap-2">
+                        <Button className="gap-2" onClick={() => window.location.href = '/admin/setup/ai-fine-tuning'}>
                           <Bot className="h-4 w-4" />
                           OpenAI Fine-tuning
                         </Button>
@@ -4924,11 +5142,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           {/* Event Limit */}
                           <div className="space-y-3">
                             <Label className="text-sm font-bold">Calendar Events Limit (Month and Week View)</Label>
-                            <Input 
-                              type="number" 
-                              value={calEventLimit} 
-                              onChange={(e) => setCalEventLimit(parseInt(e.target.value) || 0)} 
-                              className="w-full h-11 border-muted-foreground/30" 
+                            <Input
+                              type="number"
+                              value={calEventLimit}
+                              onChange={(e) => setCalEventLimit(parseInt(e.target.value) || 0)}
+                              className="w-full h-11 border-muted-foreground/30"
                             />
                           </div>
 
@@ -4972,7 +5190,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         {/* Show on Calendar Section */}
                         <div className="space-y-6 pt-6 border-t">
                           <h3 className="text-sm font-extrabold uppercase tracking-wider text-primary">Show on Calendar</h3>
-                          
+
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
                             {[
                               { id: "cal-hide-reminders", label: "Hide notified reminders from calendar", state: calHideNotifiedReminders, setState: setCalHideNotifiedReminders },
@@ -4997,18 +5215,18 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                                 <Label htmlFor={item.id} className="text-sm font-medium cursor-pointer leading-tight pr-4">{item.label}</Label>
                                 <div className="flex items-center space-x-4 shrink-0">
                                   <div className="flex items-center space-x-1.5">
-                                    <Checkbox 
-                                      id={`${item.id}-yes`} 
-                                      checked={item.state === true} 
-                                      onCheckedChange={() => item.setState(true)} 
+                                    <Checkbox
+                                      id={`${item.id}-yes`}
+                                      checked={item.state === true}
+                                      onCheckedChange={() => item.setState(true)}
                                     />
                                     <label htmlFor={`${item.id}-yes`} className="text-xs cursor-pointer select-none">Yes</label>
                                   </div>
                                   <div className="flex items-center space-x-1.5">
-                                    <Checkbox 
-                                      id={`${item.id}-no`} 
-                                      checked={item.state === false} 
-                                      onCheckedChange={() => item.setState(false)} 
+                                    <Checkbox
+                                      id={`${item.id}-no`}
+                                      checked={item.state === false}
+                                      onCheckedChange={() => item.setState(false)}
                                     />
                                     <label htmlFor={`${item.id}-no`} className="text-xs cursor-pointer select-none">No</label>
                                   </div>
@@ -5032,17 +5250,17 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             <div key={item.id} className="flex flex-col gap-2 p-3 border rounded-xl bg-card/60 hover:bg-card transition-colors shadow-sm">
                               <Label className="text-sm font-bold text-foreground/80">{item.label}</Label>
                               <div className="flex items-center gap-3">
-                                <Input 
-                                  type="text" 
-                                  value={item.state} 
+                                <Input
+                                  type="text"
+                                  value={item.state}
                                   onChange={(e) => item.setState(e.target.value)}
                                   className="flex-1 h-10 text-xs font-mono bg-background/50 border-muted-foreground/20"
                                   placeholder="#000000"
                                 />
                                 <div className="relative h-10 w-10 shrink-0 rounded-lg border-2 border-muted-foreground/20 overflow-hidden shadow-sm hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer">
-                                  <input 
-                                    type="color" 
-                                    value={item.state} 
+                                  <input
+                                    type="color"
+                                    value={item.state}
                                     onChange={(e) => item.setState(e.target.value)}
                                     className="absolute -inset-2 h-14 w-14 cursor-pointer bg-transparent"
                                   />
@@ -5086,17 +5304,17 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                               </SelectTrigger>
                               <SelectContent tabIndex={-1}>
                                 {[
-                                  "roboto", "dejavuserif", "freeserif", "courierb", "dejavusansmono", "stsongstdlight", 
-                                  "freesans", "helveticab", "times", "pdfacourier", "courier", "thniramitias", 
-                                  "cordiaupc", "thsarabunb", "dejavusanscondensedb", "timesb", "aealarabiya", 
-                                  "kozgoopromedium", "dejavuserifcondensedb", "dejavusansextralight", "thniramitasb", 
-                                  "cordiaupcb", "angsanaupc", "freemonoob", "angsanaupcb", "symbol", "pdfasymbol", 
-                                  "hysmyeongjostdmedium", "freesansb", "dejavusanscondensed", "cid0jp", 
-                                  "khmeroscontent", "khmeros", "pdfahelvetica", "dejavusansmonoob", "freeserifb", 
-                                  "pdfacourierb", "kozminproregular", "helvetica", "dejavuserifcondensed", 
-                                  "dejavusans", "dejavuserifb", "aefurat", "freemono", "pdfazapfdingbats", 
-                                  "notosansb", "hind", "cid0kr", "pdfatimes", "droidsansfallback", "cid0cs", 
-                                  "msungstdlight", "pdfatimesb", "pdfahelveticab", "zapfdingbats", "dejavusansb", 
+                                  "roboto", "dejavuserif", "freeserif", "courierb", "dejavusansmono", "stsongstdlight",
+                                  "freesans", "helveticab", "times", "pdfacourier", "courier", "thniramitias",
+                                  "cordiaupc", "thsarabunb", "dejavusanscondensedb", "timesb", "aealarabiya",
+                                  "kozgoopromedium", "dejavuserifcondensedb", "dejavusansextralight", "thniramitasb",
+                                  "cordiaupcb", "angsanaupc", "freemonoob", "angsanaupcb", "symbol", "pdfasymbol",
+                                  "hysmyeongjostdmedium", "freesansb", "dejavusanscondensed", "cid0jp",
+                                  "khmeroscontent", "khmeros", "pdfahelvetica", "dejavusansmonoob", "freeserifb",
+                                  "pdfacourierb", "kozminproregular", "helvetica", "dejavuserifcondensed",
+                                  "dejavusans", "dejavuserifb", "aefurat", "freemono", "pdfazapfdingbats",
+                                  "notosansb", "hind", "cid0kr", "pdfatimes", "droidsansfallback", "cid0cs",
+                                  "msungstdlight", "pdfatimesb", "pdfahelveticab", "zapfdingbats", "dejavusansb",
                                   "notosans", "thsarabun", "pyidaungsu", "hindb", "khmerosbokor", "cid0ct"
                                 ].map((font) => (
                                   <SelectItem key={font} value={font}>{font}</SelectItem>
@@ -5123,22 +5341,22 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           {/* font size */}
                           <div className="space-y-3 border-t pt-4">
                             <Label className="text-sm font-bold">Default font size</Label>
-                            <Input 
-                              type="number" 
-                              value={pdfFontSize} 
-                              onChange={(e) => setPdfFontSize(parseInt(e.target.value) || 0)} 
-                              className="w-full h-11 border-muted-foreground/30 max-w-[200px]" 
+                            <Input
+                              type="number"
+                              value={pdfFontSize}
+                              onChange={(e) => setPdfFontSize(parseInt(e.target.value) || 0)}
+                              className="w-full h-11 border-muted-foreground/30 max-w-[200px]"
                             />
                           </div>
 
                           {/* logo width */}
                           <div className="space-y-3 border-t pt-4">
                             <Label className="text-sm font-bold">Logo Width (PX)</Label>
-                            <Input 
-                              type="number" 
-                              value={pdfLogoWidth} 
-                              onChange={(e) => setPdfLogoWidth(parseInt(e.target.value) || 0)} 
-                              className="w-full h-11 border-muted-foreground/30 max-w-[200px]" 
+                            <Input
+                              type="number"
+                              value={pdfLogoWidth}
+                              onChange={(e) => setPdfLogoWidth(parseInt(e.target.value) || 0)}
+                              className="w-full h-11 border-muted-foreground/30 max-w-[200px]"
                             />
                           </div>
                         </div>
@@ -5146,10 +5364,10 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         {/* Logo URL */}
                         <div className="space-y-3 pt-6 border-t max-w-2xl">
                           <Label className="text-sm font-bold">Custom PDF Company Logo URL</Label>
-                          <Input 
-                            value={pdfLogoUrl} 
-                            onChange={(e) => setPdfLogoUrl(e.target.value)} 
-                            className="w-full h-11 border-muted-foreground/30" 
+                          <Input
+                            value={pdfLogoUrl}
+                            onChange={(e) => setPdfLogoUrl(e.target.value)}
+                            className="w-full h-11 border-muted-foreground/30"
                             placeholder="https://example.com/logo.png"
                           />
                           <p className="text-xs text-muted-foreground italic">If you want to use a different logo specifically for PDFs, enter the URL here. Leave empty to use the default company logo.</p>
@@ -5161,16 +5379,16 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           <div className="flex flex-col gap-2 p-3 border rounded-xl bg-card/60 hover:bg-card transition-colors shadow-sm">
                             <Label className="text-sm font-bold text-foreground/80">Items table heading color</Label>
                             <div className="flex items-center gap-3">
-                              <Input 
-                                type="text" 
-                                value={pdfTableHeadingBg} 
+                              <Input
+                                type="text"
+                                value={pdfTableHeadingBg}
                                 onChange={(e) => setPdfTableHeadingBg(e.target.value)}
                                 className="flex-1 h-10 text-xs font-mono bg-background/50 border-muted-foreground/20"
                               />
                               <div className="relative h-10 w-10 shrink-0 rounded-lg border-2 border-muted-foreground/20 overflow-hidden cursor-pointer">
-                                <input 
-                                  type="color" 
-                                  value={pdfTableHeadingBg} 
+                                <input
+                                  type="color"
+                                  value={pdfTableHeadingBg}
                                   onChange={(e) => setPdfTableHeadingBg(e.target.value)}
                                   className="absolute -inset-2 h-14 w-14 cursor-pointer bg-transparent"
                                 />
@@ -5182,16 +5400,16 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           <div className="flex flex-col gap-2 p-3 border rounded-xl bg-card/60 hover:bg-card transition-colors shadow-sm">
                             <Label className="text-sm font-bold text-foreground/80">Items table heading text color</Label>
                             <div className="flex items-center gap-3">
-                              <Input 
-                                type="text" 
-                                value={pdfTableHeadingText} 
+                              <Input
+                                type="text"
+                                value={pdfTableHeadingText}
                                 onChange={(e) => setPdfTableHeadingText(e.target.value)}
                                 className="flex-1 h-10 text-xs font-mono bg-background/50 border-muted-foreground/20"
                               />
                               <div className="relative h-10 w-10 shrink-0 rounded-lg border-2 border-muted-foreground/20 overflow-hidden cursor-pointer">
-                                <input 
-                                  type="color" 
-                                  value={pdfTableHeadingText} 
+                                <input
+                                  type="color"
+                                  value={pdfTableHeadingText}
                                   onChange={(e) => setPdfTableHeadingText(e.target.value)}
                                   className="absolute -inset-2 h-14 w-14 cursor-pointer bg-transparent"
                                 />
@@ -5260,9 +5478,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                                 <>
                                   <img src={pdfSignatureImage} alt="Signature Preview" className="max-h-full object-contain p-4 transition-transform group-hover:scale-105" />
                                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                    <Button 
-                                      variant="destructive" 
-                                      size="icon" 
+                                    <Button
+                                      variant="destructive"
+                                      size="icon"
                                       className="h-8 w-8 rounded-full"
                                       onClick={() => setPdfSignatureImage("")}
                                     >
@@ -5285,15 +5503,15 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                               <div className="space-y-3">
                                 <Label className="text-sm font-semibold">Upload Signature</Label>
                                 <div className="flex items-center gap-4">
-                                  <input 
-                                    type="file" 
-                                    accept="image/*" 
-                                    className="hidden" 
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
                                     ref={sigInputRef}
                                     onChange={handleSigUpload}
                                   />
-                                  <Button 
-                                    onClick={() => sigInputRef.current?.click()} 
+                                  <Button
+                                    onClick={() => sigInputRef.current?.click()}
                                     className="h-12 px-8 gap-3 shadow-md hover:shadow-lg transition-all"
                                   >
                                     <Upload className="h-5 w-5" />
@@ -5307,12 +5525,12 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                                   )}
                                 </div>
                               </div>
-                              
+
                             </div>
                           </div>
                         </div>
                       </TabsContent>
-                      
+
                       <TabsContent value="pdf-formats" className="mt-0 space-y-6">
                         <div className="grid grid-cols-1 gap-6 max-w-2xl">
                           {[
@@ -5381,55 +5599,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                     <div className="space-y-3 pt-6 border-t">
                       <Label className="text-base font-bold">Legal Bound Text</Label>
-                      <Textarea 
-                        value={esignLegalText} 
-                        onChange={(e) => setEsignLegalText(e.target.value)}
-                        className="min-h-[120px] border-muted-foreground/30 resize-none"
-                        placeholder="Enter the legal binding text that will appear above the signature field..."
-                      />
-                      <p className="text-xs text-muted-foreground italic">This text will be shown to users before they provide their digital signature.</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {activeTab === "oth-esign" && (
-              <Card className="border shadow-sm">
-                <CardHeader className="border-b bg-muted/30">
-                  <div className="flex items-center gap-2">
-                    <PenLine className="h-5 w-5 text-primary" />
-                    <CardTitle className="text-lg">E-Sign Settings</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6 space-y-8">
-                  <div className="grid grid-cols-1 gap-8 max-w-2xl">
-                    {[
-                      { id: "esign-prop", label: "Proposal", sublabel: "Require digital signature and identity confirmation on accept", state: esignProposal, setState: setEsignProposal },
-                      { id: "esign-est", label: "Estimate", sublabel: "Require digital signature and identity confirmation on accept", state: esignEstimate, setState: setEsignEstimate },
-                    ].map((item, idx) => (
-                      <div key={item.id} className={cn("space-y-3", idx > 0 && "pt-6 border-t")}>
-                        <div className="space-y-1">
-                          <Label className="text-base font-bold">{item.label}</Label>
-                          <p className="text-sm text-muted-foreground">{item.sublabel}</p>
-                        </div>
-                        <div className="flex items-center space-x-6 pt-1">
-                          <div className="flex items-center space-x-2">
-                            <Checkbox id={`${item.id}-yes`} checked={item.state === true} onCheckedChange={() => item.setState(true)} />
-                            <label htmlFor={`${item.id}-yes`} className="text-sm cursor-pointer select-none">Yes</label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <Checkbox id={`${item.id}-no`} checked={item.state === false} onCheckedChange={() => item.setState(false)} />
-                            <label htmlFor={`${item.id}-no`} className="text-sm cursor-pointer select-none">No</label>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    <div className="space-y-3 pt-6 border-t">
-                      <Label className="text-base font-bold">Legal Bound Text</Label>
-                      <Textarea 
-                        value={esignLegalText} 
+                      <Textarea
+                        value={esignLegalText}
                         onChange={(e) => setEsignLegalText(e.target.value)}
                         className="min-h-[120px] border-muted-foreground/30 resize-none"
                         placeholder="Enter the legal binding text that will appear above the signature field..."
@@ -5457,11 +5628,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         {tags.length > 0 ? (
                           tags.map((tag) => (
                             <div key={tag} className="flex items-center justify-between p-4 rounded-xl bg-primary/5 border border-primary/10 hover:bg-primary/10 transition-colors group">
-                                <div className="flex items-center gap-3">
-                                    <Tag className="h-4 w-4 text-primary/40" />
-                                    <span className="text-sm font-semibold text-primary">{tag}</span>
-                                </div>
-                              <button 
+                              <div className="flex items-center gap-3">
+                                <Tag className="h-4 w-4 text-primary/40" />
+                                <span className="text-sm font-semibold text-primary">{tag}</span>
+                              </div>
+                              <button
                                 onClick={() => setTags(tags.filter(t => t !== tag))}
                                 className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all lg:opacity-0 group-hover:opacity-100"
                               >
@@ -5517,8 +5688,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                           <div className="space-y-3">
                             <Label className="text-sm font-bold">API Key</Label>
-                            <Input 
-                              value={smsClickatellKey} 
+                            <Input
+                              value={smsClickatellKey}
                               onChange={(e) => setSmsClickatellKey(e.target.value)}
                               className="h-11 border-muted-foreground/30"
                               placeholder="Enter Clickatell API Key"
@@ -5551,13 +5722,13 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         </AccordionTrigger>
                         <AccordionContent className="pb-6 pt-2 space-y-6 border-t border-muted/30 mt-2">
                           <div className="space-y-4">
-                             <div className="p-4 bg-primary/5 rounded-lg border border-primary/10 flex items-start gap-3">
+                            <div className="p-4 bg-primary/5 rounded-lg border border-primary/10 flex items-start gap-3">
                               <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                               <p className="text-xs leading-relaxed text-muted-foreground">
                                 MSG91 SMS integration is one way messaging, means that your customers won't be able to reply to the SMS.
                               </p>
                             </div>
-                            
+
                             <div className="p-4 bg-amber-500/5 rounded-lg border border-amber-500/20 flex items-start gap-3">
                               <AlertCircle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
                               <p className="text-xs leading-relaxed text-amber-600 font-medium">
@@ -5573,8 +5744,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                                 What is a sender ID? How to select a sender ID <ExternalLink className="h-3 w-3" />
                               </a>
                             </div>
-                            <Input 
-                              value={smsMsg91Sender} 
+                            <Input
+                              value={smsMsg91Sender}
                               onChange={(e) => setSmsMsg91Sender(e.target.value)}
                               className="h-11 border-muted-foreground/30"
                               placeholder="Enter MSG91 Sender ID"
@@ -5591,8 +5762,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                           <div className="space-y-3 pt-4 border-t">
                             <Label className="text-sm font-bold">Auth Key</Label>
-                            <Input 
-                              value={smsMsg91Auth} 
+                            <Input
+                              value={smsMsg91Auth}
                               onChange={(e) => setSmsMsg91Auth(e.target.value)}
                               className="h-11 border-muted-foreground/30"
                               placeholder="Enter MSG91 Auth Key"
@@ -5633,8 +5804,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                           <div className="space-y-3">
                             <Label className="text-sm font-bold">Account SID</Label>
-                            <Input 
-                              value={smsTwilioSid} 
+                            <Input
+                              value={smsTwilioSid}
                               onChange={(e) => setSmsTwilioSid(e.target.value)}
                               className="h-11 border-muted-foreground/30"
                               placeholder="AC..."
@@ -5643,9 +5814,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                           <div className="space-y-3 pt-4 border-t">
                             <Label className="text-sm font-bold">Auth Token</Label>
-                            <Input 
+                            <Input
                               type="password"
-                              value={smsTwilioToken} 
+                              value={smsTwilioToken}
                               onChange={(e) => setSmsTwilioToken(e.target.value)}
                               className="h-11 border-muted-foreground/30"
                               placeholder="Twilio Auth Token"
@@ -5654,8 +5825,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                           <div className="space-y-3 pt-4 border-t">
                             <Label className="text-sm font-bold">Twilio Phone Number</Label>
-                            <Input 
-                              value={smsTwilioPhone} 
+                            <Input
+                              value={smsTwilioPhone}
                               onChange={(e) => setSmsTwilioPhone(e.target.value)}
                               className="h-11 border-muted-foreground/30"
                               placeholder="+1234567890"
@@ -5663,14 +5834,14 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           </div>
 
                           <div className="space-y-3 pt-4 border-t">
-                             <div className="flex flex-col gap-1">
+                            <div className="flex flex-col gap-1">
                               <Label className="text-sm font-bold">Alphanumeric Sender ID</Label>
                               <a href="https://www.twilio.com/blog/personalize-sms-alphanumeric-sender-id" target="_blank" rel="noopener noreferrer" className="text-[11px] text-primary hover:underline inline-flex items-center gap-1">
                                 Personalized SMS with Alphanumeric Sender ID <ExternalLink className="h-3 w-3" />
                               </a>
                             </div>
-                            <Input 
-                              value={smsTwilioAlpha} 
+                            <Input
+                              value={smsTwilioAlpha}
                               onChange={(e) => setSmsTwilioAlpha(e.target.value)}
                               className="h-11 border-muted-foreground/30"
                               placeholder="Your Brand Name"
@@ -5695,7 +5866,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     </Accordion>
 
                     <div className="pt-8 border-t space-y-8">
-                       <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2">
                         <Terminal className="h-5 w-5 text-primary" />
                         <div className="flex items-center gap-2">
                           <h3 className="text-lg font-bold">Triggers</h3>
@@ -5714,97 +5885,97 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                       <div className="grid grid-cols-1 gap-12">
                         {[
-                          { 
-                            id: "trig-inv-overdue", 
-                            label: "Invoice Overdue Notice", 
+                          {
+                            id: "trig-inv-overdue",
+                            label: "Invoice Overdue Notice",
                             desc: "Trigger when invoice overdue notice is sent to customer contacts.",
                             fields: ["contact_firstname", "contact_lastname", "client_company", "client_vat_number", "client_id", "invoice_link", "invoice_number", "invoice_duedate", "invoice_date", "invoice_status", "invoice_subtotal", "invoice_total", "invoice_amount_due", "invoice_short_url", "total_days_overdue"],
                             state: smsTriggerInvoiceOverdue,
                             setState: setSmsTriggerInvoiceOverdue
                           },
-                          { 
-                            id: "trig-inv-due", 
-                            label: "Invoice Due Notice", 
+                          {
+                            id: "trig-inv-due",
+                            label: "Invoice Due Notice",
                             desc: "Trigger when invoice due notice is sent to customer contacts.",
                             fields: ["contact_firstname", "contact_lastname", "client_company", "client_vat_number", "client_id", "invoice_link", "invoice_number", "invoice_duedate", "invoice_date", "invoice_status", "invoice_subtotal", "invoice_total", "invoice_amount_due", "invoice_short_url", "total_days_overdue"],
                             state: smsTriggerInvoiceDue,
                             setState: setSmsTriggerInvoiceDue
                           },
-                          { 
-                            id: "trig-inv-paid", 
-                            label: "Invoice Payment Recorded", 
+                          {
+                            id: "trig-inv-paid",
+                            label: "Invoice Payment Recorded",
                             desc: "Trigger when invoice payment is recorded.",
                             fields: ["contact_firstname", "contact_lastname", "client_company", "client_vat_number", "client_id", "invoice_link", "invoice_number", "invoice_duedate", "invoice_date", "invoice_status", "invoice_subtotal", "invoice_total", "invoice_amount_due", "invoice_short_url", "total_days_overdue"],
                             state: smsTriggerInvoicePaid,
                             setState: setSmsTriggerInvoicePaid
                           },
-                          { 
-                            id: "trig-est-expire", 
-                            label: "Estimate Expiration Reminder", 
+                          {
+                            id: "trig-est-expire",
+                            label: "Estimate Expiration Reminder",
                             desc: "Trigger when expiration reminder should be send to customer contacts.",
                             fields: ["contact_firstname", "contact_lastname", "client_company", "client_vat_number", "client_id", "invoice_link", "invoice_number", "invoice_duedate", "invoice_date", "invoice_status", "invoice_subtotal", "invoice_total", "invoice_amount_due", "invoice_short_url", "total_days_overdue"],
                             state: smsTriggerEstExpire,
                             setState: setSmsTriggerEstExpire
                           },
-                          { 
-                            id: "trig-prop-expire", 
-                            label: "Proposal Expiration Reminder", 
+                          {
+                            id: "trig-prop-expire",
+                            label: "Proposal Expiration Reminder",
                             desc: "Trigger when expiration reminder should be send to proposal.",
                             fields: ["proposal_number", "proposal_id", "proposal_subject", "proposal_date", "proposal_open_till", "proposal_subtotal", "proposal_total", "proposal_proposal_to", "proposal_link", "proposal_short_url"],
                             state: smsTriggerPropExpire,
                             setState: setSmsTriggerPropExpire
                           },
-                          { 
-                            id: "trig-prop-comment-cust", 
-                            label: "New Comment on Proposal (to customer)", 
+                          {
+                            id: "trig-prop-comment-cust",
+                            label: "New Comment on Proposal (to customer)",
                             desc: "Trigger when staff member comments on proposal, SMS will be sent to proposal number (customer/lead).",
                             fields: ["proposal_number", "proposal_id", "proposal_subject", "proposal_date", "proposal_open_till", "proposal_subtotal", "proposal_total", "proposal_proposal_to", "proposal_link", "proposal_short_url"],
                             state: smsTriggerPropCommentCust,
                             setState: setSmsTriggerPropCommentCust
                           },
-                          { 
-                            id: "trig-prop-comment-staff", 
-                            label: "New Comment on Proposal (to staff)", 
+                          {
+                            id: "trig-prop-comment-staff",
+                            label: "New Comment on Proposal (to staff)",
                             desc: "Trigger when customer/lead comments on proposal, SMS will be sent to proposal creator and assigned staff member.",
                             fields: ["proposal_number", "proposal_id", "proposal_subject", "proposal_date", "proposal_open_till", "proposal_subtotal", "proposal_total", "proposal_proposal_to", "proposal_link", "proposal_short_url"],
                             state: smsTriggerPropCommentStaff,
                             setState: setSmsTriggerPropCommentStaff
                           },
-                          { 
-                            id: "trig-cont-comment-cust", 
-                            label: "New Comment on Contract (to customer)", 
+                          {
+                            id: "trig-cont-comment-cust",
+                            label: "New Comment on Contract (to customer)",
                             desc: "Trigger when staff member add comment to contract, SMS will be sent customer contacts.",
                             fields: ["contact_firstname", "contact_lastname", "client_company", "client_vat_number", "client_id", "invoice_link", "invoice_number", "invoice_duedate", "invoice_date", "invoice_status", "invoice_subtotal", "invoice_total", "invoice_amount_due", "invoice_short_url", "total_days_overdue"],
                             state: smsTriggerContCommentCust,
                             setState: setSmsTriggerContCommentCust
                           },
-                          { 
-                            id: "trig-cont-comment-staff", 
-                            label: "New Comment on Contract (to staff)", 
+                          {
+                            id: "trig-cont-comment-staff",
+                            label: "New Comment on Contract (to staff)",
                             desc: "Trigger when customer add comment to contract, SMS will be sent to contract creator.",
                             fields: ["contract_id", "contract_subject", "contract_datestart", "contract_dateend", "contract_contract_value", "contract_link", "contract_short_url"],
                             state: smsTriggerContCommentStaff,
                             setState: setSmsTriggerContCommentStaff
                           },
-                          { 
-                            id: "trig-cont-expire", 
-                            label: "Contract Expiration Reminder", 
+                          {
+                            id: "trig-cont-expire",
+                            label: "Contract Expiration Reminder",
                             desc: "Trigger when expiration reminder should be send via Cron Job to customer contacts.",
                             fields: ["contact_firstname", "contact_lastname", "client_company", "client_vat_number", "client_id", "invoice_link", "invoice_number", "invoice_duedate", "invoice_date", "invoice_status", "invoice_subtotal", "invoice_total", "invoice_amount_due", "invoice_short_url", "total_days_overdue"],
                             state: smsTriggerContExpire,
                             setState: setSmsTriggerContExpire
                           },
-                          { 
-                            id: "trig-cont-sign", 
-                            label: "Contract Sign Reminder", 
+                          {
+                            id: "trig-cont-sign",
+                            label: "Contract Sign Reminder",
                             desc: "Trigger when the contract is first time sent to the customer and automatically stopped when the contract is signed.",
                             fields: ["contact_firstname", "contact_lastname", "client_company", "client_vat_number", "client_id", "invoice_link", "invoice_number", "invoice_duedate", "invoice_date", "invoice_status", "invoice_subtotal", "invoice_total", "invoice_amount_due", "invoice_short_url", "total_days_overdue"],
                             state: smsTriggerContSign,
                             setState: setSmsTriggerContSign
                           },
-                          { 
-                            id: "trig-staff-reminder", 
-                            label: "Staff Reminder", 
+                          {
+                            id: "trig-staff-reminder",
+                            label: "Staff Reminder",
                             desc: "Trigger when staff is notified for a specific custom reminder.",
                             fields: ["staff_firstname", "staff_lastname", "staff_reminder_description", "staff_reminder_date", "staff_reminder_relation_name", "staff_reminder_relation_link"],
                             state: smsTriggerStaffReminder,
@@ -5814,7 +5985,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           <div key={trig.id} className="space-y-4">
                             <div className="flex items-center justify-between gap-4">
                               <Label className="text-base font-bold">{trig.label}</Label>
-                              
+
                               <Popover>
                                 <PopoverTrigger asChild>
                                   <div className="inline-flex items-center gap-1.5 cursor-pointer text-primary hover:text-primary/80 transition-all">
@@ -5829,9 +6000,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                                   </div>
                                   <div className="p-4 flex flex-wrap gap-1.5 max-h-[250px] overflow-y-auto">
                                     {trig.fields.map(field => (
-                                      <Badge 
-                                        key={field} 
-                                        variant="outline" 
+                                      <Badge
+                                        key={field}
+                                        variant="outline"
                                         className="font-mono text-[10px] py-1 select-all cursor-default"
                                       >
                                         {"{"}{field}{"}"}
@@ -5841,10 +6012,10 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                                 </PopoverContent>
                               </Popover>
                             </div>
-                            
+
                             <div className="space-y-3">
                               <p className="text-xs text-muted-foreground leading-relaxed italic">{trig.desc}</p>
-                              <Textarea 
+                              <Textarea
                                 value={trig.state}
                                 onChange={(e) => trig.setState(e.target.value)}
                                 className="min-h-[100px] border-muted-foreground/30 resize-none font-mono text-sm leading-relaxed"
@@ -5869,24 +6040,24 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       <CardTitle className="text-lg">Misc Settings</CardTitle>
                     </div>
                     <div className="flex items-center overflow-x-auto no-scrollbar px-2">
-                       {[
-                         { id: "misc", label: "Misc" },
-                         { id: "tables", label: "Tables" },
-                         { id: "inline", label: "Inline Create" }
-                       ].map((tab) => (
-                         <button
-                           key={tab.id}
-                           onClick={() => setActiveMiscSubTab(tab.id)}
-                           className={cn(
-                             "flex items-center px-4 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
-                             activeMiscSubTab === tab.id 
-                               ? "border-primary text-primary bg-primary/5" 
-                               : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                           )}
-                         >
-                           {tab.label}
-                         </button>
-                       ))}
+                      {[
+                        { id: "misc", label: "Misc" },
+                        { id: "tables", label: "Tables" },
+                        { id: "inline", label: "Inline Create" }
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          onClick={() => setActiveMiscSubTab(tab.id)}
+                          className={cn(
+                            "flex items-center px-4 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
+                            activeMiscSubTab === tab.id
+                              ? "border-primary text-primary bg-primary/5"
+                              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                          )}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </CardHeader>
@@ -5894,185 +6065,185 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   <div className="max-w-4xl">
                     {/* Misc Content */}
                     {activeMiscSubTab === "misc" && (
-                       <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300 max-w-2xl">
-                          <div className="space-y-4">
-                             <Label className="text-sm font-bold leading-relaxed">Require client to be logged in to view contract</Label>
-                             <div className="flex items-center space-x-8">
-                                <div className="flex items-center space-x-3">
-                                   <Checkbox id="contract-login-yes" checked={miscRequireContractLogin === true} onCheckedChange={() => setMiscRequireContractLogin(true)} />
-                                   <Label htmlFor="contract-login-yes" className="font-semibold cursor-pointer">Yes</Label>
-                                </div>
-                                <div className="flex items-center space-x-3">
-                                   <Checkbox id="contract-login-no" checked={miscRequireContractLogin === false} onCheckedChange={() => setMiscRequireContractLogin(false)} />
-                                   <Label htmlFor="contract-login-no" className="font-semibold cursor-pointer">No</Label>
-                                </div>
-                             </div>
+                      <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300 max-w-2xl">
+                        <div className="space-y-4">
+                          <Label className="text-sm font-bold leading-relaxed">Require client to be logged in to view contract</Label>
+                          <div className="flex items-center space-x-8">
+                            <div className="flex items-center space-x-3">
+                              <Checkbox id="contract-login-yes" checked={miscRequireContractLogin === true} onCheckedChange={() => setMiscRequireContractLogin(true)} />
+                              <Label htmlFor="contract-login-yes" className="font-semibold cursor-pointer">Yes</Label>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <Checkbox id="contract-login-no" checked={miscRequireContractLogin === false} onCheckedChange={() => setMiscRequireContractLogin(false)} />
+                              <Label htmlFor="contract-login-no" className="font-semibold cursor-pointer">No</Label>
+                            </div>
                           </div>
+                        </div>
 
-                          <div className="space-y-3 pt-6 border-t">
-                            <Label className="text-sm font-bold">Dropbox APP Key</Label>
-                            <Input value={miscDropboxAppKey} onChange={(e) => setMiscDropboxAppKey(e.target.value)} className="h-11 border-muted-foreground/30" />
+                        <div className="space-y-3 pt-6 border-t">
+                          <Label className="text-sm font-bold">Dropbox APP Key</Label>
+                          <Input value={miscDropboxAppKey} onChange={(e) => setMiscDropboxAppKey(e.target.value)} className="h-11 border-muted-foreground/30" />
+                        </div>
+
+                        <div className="space-y-3">
+                          <Label className="text-sm font-bold">Max file size upload in Media (MB)</Label>
+                          <Input value={miscMaxFileSize} onChange={(e) => setMiscMaxFileSize(e.target.value)} className="h-11 border-muted-foreground/30" type="number" />
+                        </div>
+
+                        <div className="space-y-3">
+                          <Label className="text-sm font-bold">Maximum files upload on post</Label>
+                          <Input value={miscMaxFilesPost} onChange={(e) => setMiscMaxFilesPost(e.target.value)} className="h-11 border-muted-foreground/30" type="number" />
+                        </div>
+
+                        <div className="space-y-3">
+                          <Label className="text-sm font-bold">Limit Top Search Bar Results to</Label>
+                          <Input value={miscLimitSearch} onChange={(e) => setMiscLimitSearch(e.target.value)} className="h-11 border-muted-foreground/30" type="number" />
+                        </div>
+
+                        <div className="space-y-3">
+                          <Label className="text-sm font-bold">Default Staff Role</Label>
+                          <Select value={miscDefaultRole} onValueChange={setMiscDefaultRole}>
+                            <SelectTrigger className="h-11 border-muted-foreground/30">
+                              <SelectValue placeholder="Select Role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Super Admin">Super Admin</SelectItem>
+                              <SelectItem value="Admin">Admin</SelectItem>
+                              <SelectItem value="Marketing">Marketing</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-3">
+                          <Label className="text-sm font-bold">Delete system activity log older then X months</Label>
+                          <Input value={miscDeleteLogMonths} onChange={(e) => setMiscDeleteLogMonths(e.target.value)} className="h-11 border-muted-foreground/30" type="number" />
+                        </div>
+
+                        <div className="space-y-4 pt-6 border-t">
+                          <Label className="text-sm font-bold leading-relaxed">Show setup menu item only when hover with mouse on main sidebar area</Label>
+                          <div className="flex items-center space-x-8">
+                            <div className="flex items-center space-x-3">
+                              <Checkbox id="setup-hover-yes" checked={miscShowSetupHover === true} onCheckedChange={() => setMiscShowSetupHover(true)} />
+                              <Label htmlFor="setup-hover-yes" className="font-semibold cursor-pointer">Yes</Label>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <Checkbox id="setup-hover-no" checked={miscShowSetupHover === false} onCheckedChange={() => setMiscShowSetupHover(false)} />
+                              <Label htmlFor="setup-hover-no" className="font-semibold cursor-pointer">No</Label>
+                            </div>
                           </div>
-      
-                          <div className="space-y-3">
-                            <Label className="text-sm font-bold">Max file size upload in Media (MB)</Label>
-                            <Input value={miscMaxFileSize} onChange={(e) => setMiscMaxFileSize(e.target.value)} className="h-11 border-muted-foreground/30" type="number" />
+                        </div>
+
+                        <div className="space-y-4 pt-6 border-t">
+                          <Label className="text-sm font-bold leading-relaxed">Show help menu item on setup menu</Label>
+                          <div className="flex items-center space-x-8">
+                            <div className="flex items-center space-x-3">
+                              <Checkbox id="help-menu-yes" checked={miscShowHelpMenu === true} onCheckedChange={() => setMiscShowHelpMenu(true)} />
+                              <Label htmlFor="help-menu-yes" className="font-semibold cursor-pointer">Yes</Label>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <Checkbox id="help-menu-no" checked={miscShowHelpMenu === false} onCheckedChange={() => setMiscShowHelpMenu(false)} />
+                              <Label htmlFor="help-menu-no" className="font-semibold cursor-pointer">No</Label>
+                            </div>
                           </div>
-      
-                          <div className="space-y-3">
-                             <Label className="text-sm font-bold">Maximum files upload on post</Label>
-                             <Input value={miscMaxFilesPost} onChange={(e) => setMiscMaxFilesPost(e.target.value)} className="h-11 border-muted-foreground/30" type="number" />
+                        </div>
+
+                        <div className="space-y-4 pt-6 border-t">
+                          <Label className="text-sm font-bold leading-relaxed">Use minified files version for css and js (only system files)</Label>
+                          <div className="flex items-center space-x-8">
+                            <div className="flex items-center space-x-3">
+                              <Checkbox id="minified-yes" checked={miscUseMinified === true} onCheckedChange={() => setMiscUseMinified(true)} />
+                              <Label htmlFor="minified-yes" className="font-semibold cursor-pointer">Yes</Label>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <Checkbox id="minified-no" checked={miscUseMinified === false} onCheckedChange={() => setMiscUseMinified(false)} />
+                              <Label htmlFor="minified-no" className="font-semibold cursor-pointer">No</Label>
+                            </div>
                           </div>
-      
-                          <div className="space-y-3">
-                             <Label className="text-sm font-bold">Limit Top Search Bar Results to</Label>
-                             <Input value={miscLimitSearch} onChange={(e) => setMiscLimitSearch(e.target.value)} className="h-11 border-muted-foreground/30" type="number" />
-                          </div>
-      
-                          <div className="space-y-3">
-                             <Label className="text-sm font-bold">Default Staff Role</Label>
-                             <Select value={miscDefaultRole} onValueChange={setMiscDefaultRole}>
-                                <SelectTrigger className="h-11 border-muted-foreground/30">
-                                   <SelectValue placeholder="Select Role" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                   <SelectItem value="Super Admin">Super Admin</SelectItem>
-                                   <SelectItem value="Admin">Admin</SelectItem>
-                                   <SelectItem value="Marketing">Marketing</SelectItem>
-                                </SelectContent>
-                             </Select>
-                          </div>
-      
-                          <div className="space-y-3">
-                             <Label className="text-sm font-bold">Delete system activity log older then X months</Label>
-                             <Input value={miscDeleteLogMonths} onChange={(e) => setMiscDeleteLogMonths(e.target.value)} className="h-11 border-muted-foreground/30" type="number" />
-                          </div>
-      
-                          <div className="space-y-4 pt-6 border-t">
-                             <Label className="text-sm font-bold leading-relaxed">Show setup menu item only when hover with mouse on main sidebar area</Label>
-                             <div className="flex items-center space-x-8">
-                                <div className="flex items-center space-x-3">
-                                   <Checkbox id="setup-hover-yes" checked={miscShowSetupHover === true} onCheckedChange={() => setMiscShowSetupHover(true)} />
-                                   <Label htmlFor="setup-hover-yes" className="font-semibold cursor-pointer">Yes</Label>
-                                </div>
-                                <div className="flex items-center space-x-3">
-                                   <Checkbox id="setup-hover-no" checked={miscShowSetupHover === false} onCheckedChange={() => setMiscShowSetupHover(false)} />
-                                   <Label htmlFor="setup-hover-no" className="font-semibold cursor-pointer">No</Label>
-                                </div>
-                             </div>
-                          </div>
-      
-                          <div className="space-y-4 pt-6 border-t">
-                             <Label className="text-sm font-bold leading-relaxed">Show help menu item on setup menu</Label>
-                             <div className="flex items-center space-x-8">
-                                <div className="flex items-center space-x-3">
-                                   <Checkbox id="help-menu-yes" checked={miscShowHelpMenu === true} onCheckedChange={() => setMiscShowHelpMenu(true)} />
-                                   <Label htmlFor="help-menu-yes" className="font-semibold cursor-pointer">Yes</Label>
-                                </div>
-                                <div className="flex items-center space-x-3">
-                                   <Checkbox id="help-menu-no" checked={miscShowHelpMenu === false} onCheckedChange={() => setMiscShowHelpMenu(false)} />
-                                   <Label htmlFor="help-menu-no" className="font-semibold cursor-pointer">No</Label>
-                                </div>
-                             </div>
-                          </div>
-      
-                          <div className="space-y-4 pt-6 border-t">
-                             <Label className="text-sm font-bold leading-relaxed">Use minified files version for css and js (only system files)</Label>
-                             <div className="flex items-center space-x-8">
-                                <div className="flex items-center space-x-3">
-                                   <Checkbox id="minified-yes" checked={miscUseMinified === true} onCheckedChange={() => setMiscUseMinified(true)} />
-                                   <Label htmlFor="minified-yes" className="font-semibold cursor-pointer">Yes</Label>
-                                </div>
-                                <div className="flex items-center space-x-3">
-                                   <Checkbox id="minified-no" checked={miscUseMinified === false} onCheckedChange={() => setMiscUseMinified(false)} />
-                                   <Label htmlFor="minified-no" className="font-semibold cursor-pointer">No</Label>
-                                </div>
-                             </div>
-                          </div>
-                       </div>
+                        </div>
+                      </div>
                     )}
 
                     {/* Tables Content */}
                     {activeMiscSubTab === "tables" && (
-                       <div className="space-y-10 animate-in fade-in slide-in-from-top-2 duration-300 max-w-2xl">
+                      <div className="space-y-10 animate-in fade-in slide-in-from-top-2 duration-300 max-w-2xl">
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <p dangerouslySetInnerHTML={{ __html: "Currently supported tables: Customers, Leads, Tickets, Tasks, Projects, Payments, Subscriptions, Expenses, Proposals, Knowledge Base, Contracts <br /><br /> Note: Changing this option will delete all saved table orders!" }} />
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <Label className="text-sm font-bold">Save last order for tables</Label>
+                          </div>
+                          <div className="flex items-center space-x-8">
+                            <div className="flex items-center space-x-3">
+                              <Checkbox id="table-order-yes" checked={miscSaveTableOrder === true} onCheckedChange={() => setMiscSaveTableOrder(true)} />
+                              <Label htmlFor="table-order-yes" className="font-semibold cursor-pointer">Yes</Label>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <Checkbox id="table-order-no" checked={miscSaveTableOrder === false} onCheckedChange={() => setMiscSaveTableOrder(false)} />
+                              <Label htmlFor="table-order-no" className="font-semibold cursor-pointer">No</Label>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-6 pt-8 border-t">
+                          <Label className="text-sm font-bold">Show table export button</Label>
                           <div className="space-y-4">
-                             <div className="flex items-center gap-2">
-                                <TooltipProvider>
-                                   <Tooltip>
-                                      <TooltipTrigger asChild>
-                                         <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                                      </TooltipTrigger>
-                                      <TooltipContent className="max-w-xs">
-                                         <p dangerouslySetInnerHTML={{ __html: "Currently supported tables: Customers, Leads, Tickets, Tasks, Projects, Payments, Subscriptions, Expenses, Proposals, Knowledge Base, Contracts <br /><br /> Note: Changing this option will delete all saved table orders!" }} />
-                                      </TooltipContent>
-                                   </Tooltip>
-                                </TooltipProvider>
-                                <Label className="text-sm font-bold">Save last order for tables</Label>
-                             </div>
-                             <div className="flex items-center space-x-8">
-                                <div className="flex items-center space-x-3">
-                                   <Checkbox id="table-order-yes" checked={miscSaveTableOrder === true} onCheckedChange={() => setMiscSaveTableOrder(true)} />
-                                   <Label htmlFor="table-order-yes" className="font-semibold cursor-pointer">Yes</Label>
-                                </div>
-                                <div className="flex items-center space-x-3">
-                                   <Checkbox id="table-order-no" checked={miscSaveTableOrder === false} onCheckedChange={() => setMiscSaveTableOrder(false)} />
-                                   <Label htmlFor="table-order-no" className="font-semibold cursor-pointer">No</Label>
-                                </div>
-                             </div>
+                            <div className="flex items-center space-x-4">
+                              <Checkbox id="export-all" checked={miscTableExport === "all"} onCheckedChange={() => setMiscTableExport("all")} />
+                              <Label htmlFor="export-all" className="font-medium cursor-pointer">To all staff members</Label>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                              <Checkbox id="export-admins" checked={miscTableExport === "admins"} onCheckedChange={() => setMiscTableExport("admins")} />
+                              <Label htmlFor="export-admins" className="font-medium cursor-pointer">Only to administrators</Label>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                              <Checkbox id="export-hide" checked={miscTableExport === "hide"} onCheckedChange={() => setMiscTableExport("hide")} />
+                              <Label htmlFor="export-hide" className="font-medium cursor-pointer">Hide export button for all staff members</Label>
+                            </div>
                           </div>
-      
-                          <div className="space-y-6 pt-8 border-t">
-                             <Label className="text-sm font-bold">Show table export button</Label>
-                             <div className="space-y-4">
-                                <div className="flex items-center space-x-4">
-                                   <Checkbox id="export-all" checked={miscTableExport === "all"} onCheckedChange={() => setMiscTableExport("all")} />
-                                   <Label htmlFor="export-all" className="font-medium cursor-pointer">To all staff members</Label>
-                                </div>
-                                <div className="flex items-center space-x-4">
-                                   <Checkbox id="export-admins" checked={miscTableExport === "admins"} onCheckedChange={() => setMiscTableExport("admins")} />
-                                   <Label htmlFor="export-admins" className="font-medium cursor-pointer">Only to administrators</Label>
-                                </div>
-                                <div className="flex items-center space-x-4">
-                                   <Checkbox id="export-hide" checked={miscTableExport === "hide"} onCheckedChange={() => setMiscTableExport("hide")} />
-                                   <Label htmlFor="export-hide" className="font-medium cursor-pointer">Hide export button for all staff members</Label>
-                                </div>
-                             </div>
-                          </div>
-      
-                          <div className="space-y-4 pt-8 border-t">
-                             <Label className="text-sm font-bold">Tables Pagination Limit</Label>
-                             <Input value={miscTablePagination} onChange={(e) => setMiscTablePagination(e.target.value)} className="h-11 max-w-[120px] border-muted-foreground/30" type="number" />
-                          </div>
-                       </div>
+                        </div>
+
+                        <div className="space-y-4 pt-8 border-t">
+                          <Label className="text-sm font-bold">Tables Pagination Limit</Label>
+                          <Input value={miscTablePagination} onChange={(e) => setMiscTablePagination(e.target.value)} className="h-11 max-w-[120px] border-muted-foreground/30" type="number" />
+                        </div>
+                      </div>
                     )}
 
                     {/* Inline Create Content */}
                     {activeMiscSubTab === "inline" && (
-                       <div className="space-y-10 animate-in fade-in slide-in-from-top-2 duration-300 max-w-3xl">
-                          {[
-                            { id: "lead-status", label: "Allow non-admin staff members to create Lead Status in Lead create/edit area?", state: miscInlineLeadStatus, setState: setMiscInlineLeadStatus },
-                            { id: "lead-source", label: "Allow non-admin staff members to create Lead Source in Lead create/edit area?", state: miscInlineLeadSource, setState: setMiscInlineLeadSource },
-                            { id: "cust-group", label: "Allow non-admin staff members to create Customer Group in Customer create/edit area?", state: miscInlineCustomerGroup, setState: setMiscInlineCustomerGroup },
-                            { id: "ticket-service", label: "Allow non-admin staff members to create Service in Ticket create/edit area?", state: miscInlineService, setState: setMiscInlineService },
-                            { id: "ticket-replies", label: "Allow non-admin staff members to save predefined replies from ticket message", state: miscInlinePredefinedReplies, setState: setMiscInlinePredefinedReplies },
-                            { id: "contract-type", label: "Allow non-admin staff members to create Contract type in Contract create/edit area?", state: miscInlineContractType, setState: setMiscInlineContractType },
-                            { id: "expense-cat", label: "Allow non-admin staff members to create Expense Category in Expense create/edit area?", state: miscInlineExpenseCategory, setState: setMiscInlineExpenseCategory },
-                          ].map((item, idx) => (
-                            <div key={item.id} className={cn("space-y-4", idx > 0 && "pt-8 border-t")}>
-                              <Label className="text-sm font-bold leading-relaxed">{item.label}</Label>
-                              <div className="flex items-center space-x-10">
-                                 <div className="flex items-center space-x-3">
-                                    <Checkbox id={`${item.id}-yes`} checked={item.state === true} onCheckedChange={() => item.setState(true)} />
-                                    <Label htmlFor={`${item.id}-yes`} className="font-semibold cursor-pointer">Yes</Label>
-                                 </div>
-                                 <div className="flex items-center space-x-3">
-                                    <Checkbox id={`${item.id}-no`} checked={item.state === false} onCheckedChange={() => item.setState(false)} />
-                                    <Label htmlFor={`${item.id}-no`} className="font-semibold cursor-pointer">No</Label>
-                                 </div>
+                      <div className="space-y-10 animate-in fade-in slide-in-from-top-2 duration-300 max-w-3xl">
+                        {[
+                          { id: "lead-status", label: "Allow non-admin staff members to create Lead Status in Lead create/edit area?", state: miscInlineLeadStatus, setState: setMiscInlineLeadStatus },
+                          { id: "lead-source", label: "Allow non-admin staff members to create Lead Source in Lead create/edit area?", state: miscInlineLeadSource, setState: setMiscInlineLeadSource },
+                          { id: "cust-group", label: "Allow non-admin staff members to create Customer Group in Customer create/edit area?", state: miscInlineCustomerGroup, setState: setMiscInlineCustomerGroup },
+                          { id: "ticket-service", label: "Allow non-admin staff members to create Service in Ticket create/edit area?", state: miscInlineService, setState: setMiscInlineService },
+                          { id: "ticket-replies", label: "Allow non-admin staff members to save predefined replies from ticket message", state: miscInlinePredefinedReplies, setState: setMiscInlinePredefinedReplies },
+                          { id: "contract-type", label: "Allow non-admin staff members to create Contract type in Contract create/edit area?", state: miscInlineContractType, setState: setMiscInlineContractType },
+                          { id: "expense-cat", label: "Allow non-admin staff members to create Expense Category in Expense create/edit area?", state: miscInlineExpenseCategory, setState: setMiscInlineExpenseCategory },
+                        ].map((item, idx) => (
+                          <div key={item.id} className={cn("space-y-4", idx > 0 && "pt-8 border-t")}>
+                            <Label className="text-sm font-bold leading-relaxed">{item.label}</Label>
+                            <div className="flex items-center space-x-10">
+                              <div className="flex items-center space-x-3">
+                                <Checkbox id={`${item.id}-yes`} checked={item.state === true} onCheckedChange={() => item.setState(true)} />
+                                <Label htmlFor={`${item.id}-yes`} className="font-semibold cursor-pointer">Yes</Label>
+                              </div>
+                              <div className="flex items-center space-x-3">
+                                <Checkbox id={`${item.id}-no`} checked={item.state === false} onCheckedChange={() => item.setState(false)} />
+                                <Label htmlFor={`${item.id}-no`} className="font-semibold cursor-pointer">No</Label>
                               </div>
                             </div>
-                          ))}
-                       </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </CardContent>
@@ -6088,29 +6259,29 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       <CardTitle className="text-lg">Cron Job Settings</CardTitle>
                     </div>
                     <div className="flex items-center overflow-x-auto no-scrollbar px-2">
-                       {[
-                         { id: "command", label: "Command" },
-                         { id: "invoice", label: "Invoice" },
-                         { id: "estimates", label: "Estimates" },
-                         { id: "proposals", label: "Proposals" },
-                         { id: "expenses", label: "Expenses" },
-                         { id: "contracts", label: "Contracts" },
-                         { id: "tasks", label: "Tasks" },
-                         { id: "tickets", label: "Tickets" },
-                       ].map((section) => (
-                         <button
-                           key={section.id}
-                           onClick={() => setActiveCronSection(section.id)}
-                           className={cn(
-                             "flex items-center px-4 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
-                             activeCronSection === section.id 
-                               ? "border-primary text-primary bg-primary/5" 
-                               : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                           )}
-                         >
-                           {section.label}
-                         </button>
-                       ))}
+                      {[
+                        { id: "command", label: "Command" },
+                        { id: "invoice", label: "Invoice" },
+                        { id: "estimates", label: "Estimates" },
+                        { id: "proposals", label: "Proposals" },
+                        { id: "expenses", label: "Expenses" },
+                        { id: "contracts", label: "Contracts" },
+                        { id: "tasks", label: "Tasks" },
+                        { id: "tickets", label: "Tickets" },
+                      ].map((section) => (
+                        <button
+                          key={section.id}
+                          onClick={() => setActiveCronSection(section.id)}
+                          className={cn(
+                            "flex items-center px-4 py-3 text-sm font-bold transition-all border-b-2 whitespace-nowrap",
+                            activeCronSection === section.id
+                              ? "border-primary text-primary bg-primary/5"
+                              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                          )}
+                        >
+                          {section.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </CardHeader>
@@ -6118,333 +6289,333 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   <div className="max-w-4xl">
                     {/* Command Content */}
                     {activeCronSection === "command" && (
-                       <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <div className="p-6 bg-primary/5 rounded-2xl border border-primary/10 space-y-4">
-                             <div className="flex items-center gap-2 text-primary">
-                                <Terminal className="h-4 w-4" />
-                                <span className="text-xs font-bold uppercase tracking-wider">System Cron Command</span>
-                             </div>
-                             <p className="text-xs text-muted-foreground leading-relaxed">Ensure this command is configured in your server's crontab settings for all automated features to work correctly.</p>
-                             <code className="block p-4 bg-background border rounded-lg font-mono text-sm break-all shadow-inner">
-                               wget -q -O- https://taskmanager.fuertedevelopers.in/cron/index
-                             </code>
+                      <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="p-6 bg-primary/5 rounded-2xl border border-primary/10 space-y-4">
+                          <div className="flex items-center gap-2 text-primary">
+                            <Terminal className="h-4 w-4" />
+                            <span className="text-xs font-bold uppercase tracking-wider">System Cron Command</span>
                           </div>
-                          <Button className="h-11 px-8 shadow-sm">
-                            Run Cron Manually
-                          </Button>
-                       </div>
+                          <p className="text-xs text-muted-foreground leading-relaxed">Ensure this command is configured in your server's crontab settings for all automated features to work correctly.</p>
+                          <code className="block p-4 bg-background border rounded-lg font-mono text-sm break-all shadow-inner">
+                            wget -q -O- https://taskmanager.fuertedevelopers.in/cron/index
+                          </code>
+                        </div>
+                        <Button className="h-11 px-8 shadow-sm">
+                          Run Cron Manually
+                        </Button>
+                      </div>
                     )}
 
                     {/* Invoice Content */}
                     {activeCronSection === "invoice" && (
-                       <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300 max-w-2xl">
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                                  </TooltipTrigger>
-                                  <TooltipContent className="max-w-xs">
-                                    <p>Used for recurring invoices, overdue notices etc..</p>
-                                    <p className="mt-1 font-bold">Hour of day to perform automatic operations</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                              <Label className="text-sm font-bold">Hour of day to perform automatic operations</Label>
+                      <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300 max-w-2xl">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <p>Used for recurring invoices, overdue notices etc..</p>
+                                  <p className="mt-1 font-bold">Hour of day to perform automatic operations</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <Label className="text-sm font-bold">Hour of day to perform automatic operations</Label>
+                          </div>
+                          <Input value={cronInvoiceHour} onChange={(e) => setCronInvoiceHour(e.target.value)} className="h-11 border-muted-foreground/30 max-w-sm" placeholder="9" />
+                        </div>
+
+                        <div className="pt-8 border-t space-y-10">
+                          <div className="space-y-6">
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-bold text-primary italic">Overdue Notices</h4>
+                              <p className="text-[11px] text-muted-foreground">Reminders sent when an invoice passes its due date.</p>
                             </div>
-                            <Input value={cronInvoiceHour} onChange={(e) => setCronInvoiceHour(e.target.value)} className="h-11 border-muted-foreground/30 max-w-sm" placeholder="9" />
+                            <div className="space-y-4">
+                              <div className="space-y-3">
+                                <Label className="text-xs font-bold">Auto send reminder after (days)</Label>
+                                <Input value={cronInvoiceOverdueStart} onChange={(e) => setCronInvoiceOverdueStart(e.target.value)} className="h-11 border-muted-foreground/30 max-w-sm" />
+                              </div>
+                              <div className="space-y-3">
+                                <Label className="text-xs font-bold">Auto re-send reminder after (days)</Label>
+                                <Input value={cronInvoiceOverdueResend} onChange={(e) => setCronInvoiceOverdueResend(e.target.value)} className="h-11 border-muted-foreground/30 max-w-sm" />
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="pt-8 border-t space-y-10">
-                             <div className="space-y-6">
-                                <div className="space-y-1">
-                                  <h4 className="text-sm font-bold text-primary italic">Overdue Notices</h4>
-                                  <p className="text-[11px] text-muted-foreground">Reminders sent when an invoice passes its due date.</p>
-                                </div>
-                                <div className="space-y-4">
-                                  <div className="space-y-3">
-                                    <Label className="text-xs font-bold">Auto send reminder after (days)</Label>
-                                    <Input value={cronInvoiceOverdueStart} onChange={(e) => setCronInvoiceOverdueStart(e.target.value)} className="h-11 border-muted-foreground/30 max-w-sm" />
-                                  </div>
-                                  <div className="space-y-3">
-                                    <Label className="text-xs font-bold">Auto re-send reminder after (days)</Label>
-                                    <Input value={cronInvoiceOverdueResend} onChange={(e) => setCronInvoiceOverdueResend(e.target.value)} className="h-11 border-muted-foreground/30 max-w-sm" />
-                                  </div>
-                                </div>
-                             </div>
-
-                             <div className="space-y-6 pt-8 border-t border-dashed">
-                                <div className="space-y-1">
-                                  <h4 className="text-sm font-bold text-primary italic">Due Reminders</h4>
-                                  <p className="text-[11px] text-muted-foreground">Advance reminders for upcoming payments.</p>
-                                </div>
-                                <div className="space-y-4">
-                                  <div className="space-y-3">
-                                    <Label className="text-xs font-bold">Send due reminder X days before due date</Label>
-                                    <Input value={cronInvoiceDueStart} onChange={(e) => setCronInvoiceDueStart(e.target.value)} className="h-11 border-muted-foreground/30 max-w-sm" />
-                                  </div>
-                                  <div className="space-y-3">
-                                    <Label className="text-xs font-bold">Auto re-send reminder after (days)</Label>
-                                    <Input value={cronInvoiceDueResend} onChange={(e) => setCronInvoiceDueResend(e.target.value)} className="h-11 border-muted-foreground/30 max-w-sm" />
-                                  </div>
-                                </div>
-                             </div>
+                          <div className="space-y-6 pt-8 border-t border-dashed">
+                            <div className="space-y-1">
+                              <h4 className="text-sm font-bold text-primary italic">Due Reminders</h4>
+                              <p className="text-[11px] text-muted-foreground">Advance reminders for upcoming payments.</p>
+                            </div>
+                            <div className="space-y-4">
+                              <div className="space-y-3">
+                                <Label className="text-xs font-bold">Send due reminder X days before due date</Label>
+                                <Input value={cronInvoiceDueStart} onChange={(e) => setCronInvoiceDueStart(e.target.value)} className="h-11 border-muted-foreground/30 max-w-sm" />
+                              </div>
+                              <div className="space-y-3">
+                                <Label className="text-xs font-bold">Auto re-send reminder after (days)</Label>
+                                <Input value={cronInvoiceDueResend} onChange={(e) => setCronInvoiceDueResend(e.target.value)} className="h-11 border-muted-foreground/30 max-w-sm" />
+                              </div>
+                            </div>
                           </div>
+                        </div>
 
-                          <div className="pt-8 border-t space-y-8">
-                             <h4 className="text-sm font-bold text-primary italic">Recurring Invoices</h4>
-                             <div className="space-y-8">
-                                <div className="space-y-3">
-                                   <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Automation Behavior</Label>
-                                   <div className="space-y-4 p-5 bg-muted/20 rounded-2xl max-w-xl">
-                                      <div className="flex items-center gap-3">
-                                        <Checkbox id="rec-renewed" checked={cronInvoiceRecurringType === "renewed"} onCheckedChange={() => setCronInvoiceRecurringType("renewed")} />
-                                        <Label htmlFor="rec-renewed" className="text-sm font-medium cursor-pointer">Generate and autosend renewed invoice</Label>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        <Checkbox id="rec-unpaid" checked={cronInvoiceRecurringType === "unpaid"} onCheckedChange={() => setCronInvoiceRecurringType("unpaid")} />
-                                        <Label htmlFor="rec-unpaid" className="text-sm font-medium cursor-pointer">Generate a Unpaid Invoice</Label>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        <Checkbox id="rec-draft" checked={cronInvoiceRecurringDraft} onCheckedChange={(checked) => setCronInvoiceRecurringDraft(checked as boolean)} />
-                                        <Label htmlFor="rec-draft" className="text-sm font-medium cursor-pointer">Generate a Draft Invoice</Label>
-                                      </div>
-                                   </div>
+                        <div className="pt-8 border-t space-y-8">
+                          <h4 className="text-sm font-bold text-primary italic">Recurring Invoices</h4>
+                          <div className="space-y-8">
+                            <div className="space-y-3">
+                              <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Automation Behavior</Label>
+                              <div className="space-y-4 p-5 bg-muted/20 rounded-2xl max-w-xl">
+                                <div className="flex items-center gap-3">
+                                  <Checkbox id="rec-renewed" checked={cronInvoiceRecurringType === "renewed"} onCheckedChange={() => setCronInvoiceRecurringType("renewed")} />
+                                  <Label htmlFor="rec-renewed" className="text-sm font-medium cursor-pointer">Generate and autosend renewed invoice</Label>
                                 </div>
+                                <div className="flex items-center gap-3">
+                                  <Checkbox id="rec-unpaid" checked={cronInvoiceRecurringType === "unpaid"} onCheckedChange={() => setCronInvoiceRecurringType("unpaid")} />
+                                  <Label htmlFor="rec-unpaid" className="text-sm font-medium cursor-pointer">Generate a Unpaid Invoice</Label>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <Checkbox id="rec-draft" checked={cronInvoiceRecurringDraft} onCheckedChange={(checked) => setCronInvoiceRecurringDraft(checked as boolean)} />
+                                  <Label htmlFor="rec-draft" className="text-sm font-medium cursor-pointer">Generate a Draft Invoice</Label>
+                                </div>
+                              </div>
+                            </div>
 
-                                <div className="space-y-4">
-                                   <div className="flex items-center gap-2">
-                                     <TooltipProvider>
-                                       <Tooltip>
-                                         <TooltipTrigger asChild>
-                                           <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                                         </TooltipTrigger>
-                                         <TooltipContent className="max-w-xs">
-                                           <p>If this field is set to YES and the recurring invoices is not with status PAID, the new invoice will NOT be created.</p>
-                                         </TooltipContent>
-                                       </Tooltip>
-                                     </TooltipProvider>
-                                     <Label className="text-sm font-bold">Only create if previous is paid?</Label>
-                                   </div>
-                                   <div className="flex items-center space-x-8 p-5 bg-muted/20 rounded-2xl max-w-sm">
-                                     <div className="flex items-center space-x-3">
-                                       <Checkbox id="rec-paid-only-yes" checked={cronInvoiceRecurringPaidOnly === true} onCheckedChange={() => setCronInvoiceRecurringPaidOnly(true)} />
-                                       <label htmlFor="rec-paid-only-yes" className="text-sm font-semibold cursor-pointer">Yes</label>
-                                     </div>
-                                     <div className="flex items-center space-x-3">
-                                       <Checkbox id="rec-paid-only-no" checked={cronInvoiceRecurringPaidOnly === false} onCheckedChange={() => setCronInvoiceRecurringPaidOnly(false)} />
-                                       <label htmlFor="rec-paid-only-no" className="text-sm font-semibold cursor-pointer">No</label>
-                                     </div>
-                                   </div>
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-2">
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs">
+                                      <p>If this field is set to YES and the recurring invoices is not with status PAID, the new invoice will NOT be created.</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                                <Label className="text-sm font-bold">Only create if previous is paid?</Label>
+                              </div>
+                              <div className="flex items-center space-x-8 p-5 bg-muted/20 rounded-2xl max-w-sm">
+                                <div className="flex items-center space-x-3">
+                                  <Checkbox id="rec-paid-only-yes" checked={cronInvoiceRecurringPaidOnly === true} onCheckedChange={() => setCronInvoiceRecurringPaidOnly(true)} />
+                                  <label htmlFor="rec-paid-only-yes" className="text-sm font-semibold cursor-pointer">Yes</label>
                                 </div>
-                             </div>
+                                <div className="flex items-center space-x-3">
+                                  <Checkbox id="rec-paid-only-no" checked={cronInvoiceRecurringPaidOnly === false} onCheckedChange={() => setCronInvoiceRecurringPaidOnly(false)} />
+                                  <label htmlFor="rec-paid-only-no" className="text-sm font-semibold cursor-pointer">No</label>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                       </div>
+                        </div>
+                      </div>
                     )}
 
                     {/* Estimates Content */}
                     {activeCronSection === "estimates" && (
-                       <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 max-w-sm">
-                             <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>24 hours format eq. 9 for 9am or 15 for 3pm.</p>
-                                        <p className="mt-1 font-bold">Hour of day to perform automatic operations</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  <Label className="text-sm font-bold">Hour of day to perform automatic operations</Label>
-                                </div>
-                                <Input value={cronEstimateHour} onChange={(e) => setCronEstimateHour(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="9" />
-                             </div>
-                             <div className="space-y-3">
-                                <Label className="text-sm font-bold">Send expiration reminder before (DAYS)</Label>
-                                <Input value={cronEstimateBefore} onChange={(e) => setCronEstimateBefore(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="1" />
-                             </div>
-                       </div>
+                      <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 max-w-sm">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>24 hours format eq. 9 for 9am or 15 for 3pm.</p>
+                                  <p className="mt-1 font-bold">Hour of day to perform automatic operations</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <Label className="text-sm font-bold">Hour of day to perform automatic operations</Label>
+                          </div>
+                          <Input value={cronEstimateHour} onChange={(e) => setCronEstimateHour(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="9" />
+                        </div>
+                        <div className="space-y-3">
+                          <Label className="text-sm font-bold">Send expiration reminder before (DAYS)</Label>
+                          <Input value={cronEstimateBefore} onChange={(e) => setCronEstimateBefore(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="1" />
+                        </div>
+                      </div>
                     )}
 
                     {/* Proposals Content */}
                     {activeCronSection === "proposals" && (
-                       <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 max-w-sm">
-                             <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>24 hours format eq. 9 for 9am or 15 for 3pm.</p>
-                                        <p className="mt-1 font-bold">Hour of day to perform automatic operations</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  <Label className="text-sm font-bold">Hour of day to perform automatic operations</Label>
-                                </div>
-                                <Input value={cronProposalHour} onChange={(e) => setCronProposalHour(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="9" />
-                             </div>
-                             <div className="space-y-3">
-                                <Label className="text-sm font-bold">Send expiration reminder before (DAYS)</Label>
-                                <Input value={cronProposalBefore} onChange={(e) => setCronProposalBefore(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="1" />
-                             </div>
-                       </div>
+                      <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 max-w-sm">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>24 hours format eq. 9 for 9am or 15 for 3pm.</p>
+                                  <p className="mt-1 font-bold">Hour of day to perform automatic operations</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <Label className="text-sm font-bold">Hour of day to perform automatic operations</Label>
+                          </div>
+                          <Input value={cronProposalHour} onChange={(e) => setCronProposalHour(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="9" />
+                        </div>
+                        <div className="space-y-3">
+                          <Label className="text-sm font-bold">Send expiration reminder before (DAYS)</Label>
+                          <Input value={cronProposalBefore} onChange={(e) => setCronProposalBefore(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="1" />
+                        </div>
+                      </div>
                     )}
 
                     {/* Expenses Content */}
                     {activeCronSection === "expenses" && (
-                       <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <div className="space-y-3 max-w-sm">
-                             <div className="flex items-center gap-2">
-                               <TooltipProvider>
-                                 <Tooltip>
-                                   <TooltipTrigger asChild>
-                                     <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                                   </TooltipTrigger>
-                                   <TooltipContent>
-                                     <p>24 hours format eq. 9 for 9am or 15 for 3pm.</p>
-                                   </TooltipContent>
-                                 </Tooltip>
-                               </TooltipProvider>
-                               <Label className="text-sm font-bold">Hour of day to perform automatic operations</Label>
-                             </div>
-                             <Input value={cronExpenseHour} onChange={(e) => setCronExpenseHour(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="9" />
+                      <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="space-y-3 max-w-sm">
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>24 hours format eq. 9 for 9am or 15 for 3pm.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <Label className="text-sm font-bold">Hour of day to perform automatic operations</Label>
                           </div>
-                       </div>
+                          <Input value={cronExpenseHour} onChange={(e) => setCronExpenseHour(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="9" />
+                        </div>
+                      </div>
                     )}
 
                     {/* Contracts Content */}
                     {activeCronSection === "contracts" && (
-                       <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 max-w-sm">
-                             <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>24 hours format eq. 9 for 9am or 15 for 3pm.</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  <Label className="text-sm font-bold">Hour of day to perform automatic operations</Label>
-                                </div>
-                                <Input value={cronContractHour} onChange={(e) => setCronContractHour(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="9" />
-                             </div>
-                             <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>Expiration reminder notification in days</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  <Label className="text-sm font-bold">Send expiration reminder before (DAYS)</Label>
-                                </div>
-                                <Input value={cronContractBefore} onChange={(e) => setCronContractBefore(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="1" />
-                             </div>
-
-                          <div className="pt-8 border-t space-y-4">
-                             <div className="flex flex-col gap-1">
-                               <h4 className="text-sm font-bold text-primary italic">Sign Reminders</h4>
-                               <p className="text-[11px] text-muted-foreground">Reminders automatically stop when the contract is digitally signed.</p>
-                             </div>
-                             <div className="space-y-3">
-                               <Label className="text-xs font-bold">Send sign reminder every (days)</Label>
-                               <Input value={cronContractSignResend} onChange={(e) => setCronContractSignResend(e.target.value)} className="h-11 border-muted-foreground/30 max-w-xs" />
-                             </div>
+                      <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 max-w-sm">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>24 hours format eq. 9 for 9am or 15 for 3pm.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <Label className="text-sm font-bold">Hour of day to perform automatic operations</Label>
                           </div>
-                       </div>
+                          <Input value={cronContractHour} onChange={(e) => setCronContractHour(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="9" />
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Expiration reminder notification in days</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <Label className="text-sm font-bold">Send expiration reminder before (DAYS)</Label>
+                          </div>
+                          <Input value={cronContractBefore} onChange={(e) => setCronContractBefore(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="1" />
+                        </div>
+
+                        <div className="pt-8 border-t space-y-4">
+                          <div className="flex flex-col gap-1">
+                            <h4 className="text-sm font-bold text-primary italic">Sign Reminders</h4>
+                            <p className="text-[11px] text-muted-foreground">Reminders automatically stop when the contract is digitally signed.</p>
+                          </div>
+                          <div className="space-y-3">
+                            <Label className="text-xs font-bold">Send sign reminder every (days)</Label>
+                            <Input value={cronContractSignResend} onChange={(e) => setCronContractSignResend(e.target.value)} className="h-11 border-muted-foreground/30 max-w-xs" />
+                          </div>
+                        </div>
+                      </div>
                     )}
 
                     {/* Tasks Content */}
                     {activeCronSection === "tasks" && (
-                       <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 max-w-sm">
-                             <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                                      </TooltipTrigger>
-                                      <TooltipContent>
-                                        <p>24 hours format eq. 9 for 9am or 15 for 3pm. It is used for recurring Task, Task reminders etc.</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  <Label className="text-sm font-bold">Hour of day to perform automatic operations</Label>
-                                </div>
-                                <Input value={cronTaskHour} onChange={(e) => setCronTaskHour(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="9" />
-                             </div>
-                             <div className="space-y-3">
-                                <div className="flex items-center gap-2">
-                                  <TooltipProvider>
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                                      </TooltipTrigger>
-                                      <TooltipContent className="max-w-xs">
-                                        <p>Notify task assignees about deadline before X days.</p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  </TooltipProvider>
-                                  <Label className="text-sm font-bold">Task deadline reminder before (Days)</Label>
-                                </div>
-                                <Input value={cronTaskDeadlineBefore} onChange={(e) => setCronTaskDeadlineBefore(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="2" />
-                             </div>
-                             
-                             <div className="space-y-3 pt-6 border-t border-dashed">
-                                <Label className="text-sm font-bold">Automaticaly stop task timers after (hours)</Label>
-                                <Input value={cronTaskStopTimers} onChange={(e) => setCronTaskStopTimers(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="0" />
-                             </div>
-                             
-                             <div className="space-y-4 pt-4">
-                                <Label className="text-sm font-bold">Send email reminder for unbilled tasks?</Label>
-                                <div className="flex items-center space-x-10 p-5 bg-muted/20 rounded-2xl">
-                                  <div className="flex items-center space-x-3">
-                                    <Checkbox id="billable-yes" checked={cronTaskBillableReminder === true} onCheckedChange={() => setCronTaskBillableReminder(true)} />
-                                    <label htmlFor="billable-yes" className="text-sm font-semibold cursor-pointer">Yes</label>
-                                  </div>
-                                  <div className="flex items-center space-x-3">
-                                    <Checkbox id="billable-no" checked={cronTaskBillableReminder === false} onCheckedChange={() => setCronTaskBillableReminder(false)} />
-                                    <label htmlFor="billable-no" className="text-sm font-semibold cursor-pointer">No</label>
-                                  </div>
-                                </div>
-                             </div>
-                       </div>
+                      <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 max-w-sm">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>24 hours format eq. 9 for 9am or 15 for 3pm. It is used for recurring Task, Task reminders etc.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <Label className="text-sm font-bold">Hour of day to perform automatic operations</Label>
+                          </div>
+                          <Input value={cronTaskHour} onChange={(e) => setCronTaskHour(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="9" />
+                        </div>
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  <p>Notify task assignees about deadline before X days.</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <Label className="text-sm font-bold">Task deadline reminder before (Days)</Label>
+                          </div>
+                          <Input value={cronTaskDeadlineBefore} onChange={(e) => setCronTaskDeadlineBefore(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="2" />
+                        </div>
+
+                        <div className="space-y-3 pt-6 border-t border-dashed">
+                          <Label className="text-sm font-bold">Automaticaly stop task timers after (hours)</Label>
+                          <Input value={cronTaskStopTimers} onChange={(e) => setCronTaskStopTimers(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="0" />
+                        </div>
+
+                        <div className="space-y-4 pt-4">
+                          <Label className="text-sm font-bold">Send email reminder for unbilled tasks?</Label>
+                          <div className="flex items-center space-x-10 p-5 bg-muted/20 rounded-2xl">
+                            <div className="flex items-center space-x-3">
+                              <Checkbox id="billable-yes" checked={cronTaskBillableReminder === true} onCheckedChange={() => setCronTaskBillableReminder(true)} />
+                              <label htmlFor="billable-yes" className="text-sm font-semibold cursor-pointer">Yes</label>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <Checkbox id="billable-no" checked={cronTaskBillableReminder === false} onCheckedChange={() => setCronTaskBillableReminder(false)} />
+                              <label htmlFor="billable-no" className="text-sm font-semibold cursor-pointer">No</label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     )}
 
                     {/* Tickets Content */}
                     {activeCronSection === "tickets" && (
-                       <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
-                          <div className="space-y-3 max-w-sm">
-                             <div className="flex items-center gap-2">
-                               <TooltipProvider>
-                                 <Tooltip>
-                                   <TooltipTrigger asChild>
-                                     <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                                   </TooltipTrigger>
-                                   <TooltipContent>
-                                     <p>Set 0 to disable</p>
-                                   </TooltipContent>
-                                 </Tooltip>
-                               </TooltipProvider>
-                               <Label className="text-sm font-bold">Auto close ticket after (Hours)</Label>
-                             </div>
-                             <Input value={cronTicketAutoClose} onChange={(e) => setCronTicketAutoClose(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="0" />
+                      <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="space-y-3 max-w-sm">
+                          <div className="flex items-center gap-2">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Set 0 to disable</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <Label className="text-sm font-bold">Auto close ticket after (Hours)</Label>
                           </div>
-                       </div>
+                          <Input value={cronTicketAutoClose} onChange={(e) => setCronTicketAutoClose(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="0" />
+                        </div>
+                      </div>
                     )}
                   </div>
                 </CardContent>

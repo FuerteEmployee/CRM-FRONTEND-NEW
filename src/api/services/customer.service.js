@@ -11,12 +11,17 @@ export const customerService = {
   update: (id, data) => apiClient.put(`/clients/${id}`, data),
 
   delete: (id) => apiClient.delete(`/clients/${id}`),
+  getStatement: (id, params) => apiClient.get(`/clients/${id}/statement`, { params }),
 
   // Contacts
   getContacts: (clientId) => apiClient.get(`/clients/${clientId}/contacts`),
 
   createContact: (clientId, data) =>
     apiClient.post(`/clients/${clientId}/contacts`, data),
+
+  updateContact: (id, data) => apiClient.put(`/clients/contacts/${id}`, data),
+
+  deleteContact: (id) => apiClient.delete(`/clients/contacts/${id}`),
 
   // Vault
   getVault: (clientId) => apiClient.get(`/clients/${clientId}/vault`),
