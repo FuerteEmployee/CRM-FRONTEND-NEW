@@ -68,14 +68,18 @@ import { useSettings } from "@/context/SettingsContext";
 
 const mainNav = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
+  { title: "Chat", url: "/admin/chat", icon: MessageSquare },
+];
+
+const customersNav = [
   {
     title: "Customers",
     url: "/admin/customers",
     icon: Users,
     permission: "Customers",
   },
-  { title: "Chat", url: "/admin/chat", icon: MessageSquare },
 ];
+
 
 const salesNav = [
   {
@@ -101,12 +105,6 @@ const salesNav = [
     url: "/admin/payments",
     icon: Wallet,
     permission: "Payments",
-  },
-  {
-    title: "Credit Notes",
-    url: "/admin/credit-notes",
-    icon: FileCheck,
-    permission: "Credit Notes",
   },
   { title: "Items", url: "/admin/items", icon: Package, permission: "Items" },
 ];
@@ -508,6 +506,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
                 {renderItems(mainNav)}
+                {renderItems(customersNav)}
                 {renderCollapsibleItem("Sales", Zap, salesNav)}
                 {renderItems(managementNav)}
                 {renderCollapsibleItem("Utilities", CircleDot, utilitiesNav)}

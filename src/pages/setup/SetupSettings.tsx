@@ -575,7 +575,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   const [compInfoFormat, setCompInfoFormat] = useState(() => getInit("compInfoFormat", ""));
 
   // PDF State
-  const [pdfFont, setPdfFont] = useState(() => getInit("pdfFont", "roboto"));
+  const [pdfFont, setPdfFont] = useState(() => getInit("pdfFont", "outfit"));
   const [pdfSwapDetails, setPdfSwapDetails] = useState(() => getInit("pdfSwapDetails", false));
   const [pdfFontSize, setPdfFontSize] = useState(() => getInit("pdfFontSize", "10"));
   const [pdfTableHeadingBg, setPdfTableHeadingBg] = useState(() => getInit("pdfTableHeadingBg", "#323a45"));
@@ -5303,20 +5303,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                                 <SelectValue placeholder="Select font" />
                               </SelectTrigger>
                               <SelectContent tabIndex={-1}>
-                                {[
-                                  "roboto", "dejavuserif", "freeserif", "courierb", "dejavusansmono", "stsongstdlight",
-                                  "freesans", "helveticab", "times", "pdfacourier", "courier", "thniramitias",
-                                  "cordiaupc", "thsarabunb", "dejavusanscondensedb", "timesb", "aealarabiya",
-                                  "kozgoopromedium", "dejavuserifcondensedb", "dejavusansextralight", "thniramitasb",
-                                  "cordiaupcb", "angsanaupc", "freemonoob", "angsanaupcb", "symbol", "pdfasymbol",
-                                  "hysmyeongjostdmedium", "freesansb", "dejavusanscondensed", "cid0jp",
-                                  "khmeroscontent", "khmeros", "pdfahelvetica", "dejavusansmonoob", "freeserifb",
-                                  "pdfacourierb", "kozminproregular", "helvetica", "dejavuserifcondensed",
-                                  "dejavusans", "dejavuserifb", "aefurat", "freemono", "pdfazapfdingbats",
-                                  "notosansb", "hind", "cid0kr", "pdfatimes", "droidsansfallback", "cid0cs",
-                                  "msungstdlight", "pdfatimesb", "pdfahelveticab", "zapfdingbats", "dejavusansb",
-                                  "notosans", "thsarabun", "pyidaungsu", "hindb", "khmerosbokor", "cid0ct"
-                                ].map((font) => (
+                                {["outfit", "roboto", "dejavuserif", "freeserif", "courierb", "dejavusansmono", "stsongstdlight", "freesans", "helveticab", "times", "pdfacourier", "courier", "thniramitias", "cordiaupc", "thsarabunb", "dejavusanscondensedb", "timesb", "aealarabiya", "kozgoopromedium", "dejavuserifcondensedb", "dejavusansextralight", "thniramitasb", "cordiaupcb", "angsanaupc", "freemonoob", "angsanaupcb", "symbol", "pdfasymbol", "hysmyeongjostdmedium", "freesansb", "dejavusanscondensed", "cid0jp", "khmeroscontent", "khmeros", "pdfahelvetica", "dejavusansmonoob", "freeserifb", "pdfacourierb", "kozminproregular", "helvetica", "dejavuserifcondensed", "dejavusans", "dejavuserifb", "aefurat", "freemono", "pdfazapfdingbats", "notosansb", "hind", "cid0kr", "pdfatimes", "droidsansfallback", "cid0cs", "msungstdlight", "pdfatimesb", "pdfahelveticab", "zapfdingbats", "dejavusansb", "notosans", "thsarabun", "pyidaungsu", "hindb", "khmerosbokor", "cid0ct"].map((font) => (
                                   <SelectItem key={font} value={font}>{font}</SelectItem>
                                 ))}
                               </SelectContent>

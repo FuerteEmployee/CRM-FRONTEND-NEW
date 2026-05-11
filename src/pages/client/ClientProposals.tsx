@@ -8,7 +8,7 @@ const proposals = [
   {
     id: "PROP-101",
     subject: "Brand Identity",
-    amount: "$8,500.00",
+    amount: "₹8,500.00",
     date: "2024-03-25",
     open_till: "2024-04-25",
     status: "Open",
@@ -16,7 +16,7 @@ const proposals = [
   {
     id: "PROP-102",
     subject: "Social Media Strategy",
-    amount: "$2,400.00",
+    amount: "₹2,400.00",
     date: "2024-03-26",
     open_till: "2024-04-26",
     status: "Revised",

@@ -226,10 +226,9 @@ const Customers = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Customers</h1>
-          <Link to="#" className="text-sm text-primary hover:underline">
+          <Link to="/admin/contacts" className="text-sm text-primary hover:underline">
             Contacts →
-          </Link>
-        </div>
+          </Link>        </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <Card className="border-t-2 border-t-border">
@@ -660,6 +659,9 @@ const Customers = () => {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                <Button variant="outline" size="sm" className="text-xs h-8" asChild>
+                  <Link to="/admin/contacts">Contacts</Link>
+                </Button>
                 <Button variant="outline" size="sm" className="text-xs h-8">
                   Bulk Actions
                 </Button>
@@ -735,27 +737,31 @@ const Customers = () => {
                           </span>
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
-                          {"-"}
+                          {c.primaryContact ? (
+                            <Link to="/admin/contacts" className="text-primary hover:underline">
+                              {c.primaryContact.firstname} {c.primaryContact.lastname}
+                            </Link>
+                          ) : "-"}
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
-                          {"-"}
+                          {c.primaryContact?.email || "-"}
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
                           {c.phonenumber}
                         </td>
-                         <td className="p-3">
-                           <Switch
-                             checked={c.active}
-                             disabled={!can("Customers", "Edit")}
-                             onCheckedChange={(val) =>
-                               updateMutation.mutate({
-                                 id: c._id || "",
-                                 data: { active: val },
-                               })
-                             }
-                             className="scale-75"
-                           />
-                         </td>
+                        <td className="p-3">
+                          <Switch
+                            checked={c.active}
+                            disabled={!can("Customers", "Edit")}
+                            onCheckedChange={(val) =>
+                              updateMutation.mutate({
+                                id: c._id || "",
+                                data: { active: val },
+                              })
+                            }
+                            className="scale-75"
+                          />
+                        </td>
                         <td className="p-3">
                           <div className="flex gap-1 flex-wrap">
                             {c.groups?.map((g: any) => (
@@ -772,20 +778,19 @@ const Customers = () => {
                         <td className="p-3 text-sm text-muted-foreground">
                           {formatDate(c.datecreated)}
                         </td>
-                         <td className="p-3">
-                           <TableActions
-                             onView={() => navigate(`/admin/customers/${c._id}`)}
-                             onEdit={can("Customers", "Edit") ? () => {
-                               // Map groups to IDs if they are objects (populated)
-                               const normalized = {
-                                 ...c,
-                                 groups: c.groups?.map((g: any) => g._id || g)
-                               };
-                               setEditItem(normalized);
-                             } : undefined}
-                             onDelete={can("Customers", "Delete") ? () => deleteMutation.mutate(c._id || "") : undefined}
-                           />
-                         </td>
+                        <td className="p-3">
+                          <TableActions
+                            onView={() => navigate(`/admin/customers/${c._id}`)}
+                            onEdit={can("Customers", "Edit") ? () => {
+                              const normalized = {
+                                ...c,
+                                groups: c.groups?.map((g: any) => g._id || g)
+                              };
+                              setEditItem(normalized);
+                            } : undefined}
+                            onDelete={can("Customers", "Delete") ? () => deleteMutation.mutate(c._id || "") : undefined}
+                          />
+                        </td>
                       </tr>
                     ))
                   )}
@@ -798,351 +803,10 @@ const Customers = () => {
                 Showing 1 to {Math.min(itemsPerPage, filtered.length)} of{" "}
                 {filtered.length} entries
               </span>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((p) => p - 1)}
-                >
-                  Previous
-                </Button>
-                {Array.from({ length: totalPages }, (_, i) => (
-                  <Button
-                    key={i + 1}
-                    variant={currentPage === i + 1 ? "default" : "outline"}
-                    size="sm"
-                    className="w-8 h-8 p-0"
-                    onClick={() => setCurrentPage(i + 1)}
-                  >
-                    {i + 1}
-                  </Button>
-                ))}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
             </div>
           </CardContent>
         </Card>
       </div>
-
-      <Dialog open={!!viewItem} onOpenChange={() => setViewItem(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Customer Details</DialogTitle>
-          </DialogHeader>
-          {viewItem && (
-            <div className="space-y-3 pt-2">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">Company</p>
-                  <p className="text-sm font-medium">{viewItem.company}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Phone</p>
-                  <p className="text-sm">{viewItem.phonenumber || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Website</p>
-                  <p className="text-sm">{viewItem.website || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <p className="text-sm">
-                    {viewItem.active ? "Active" : "Inactive"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">City</p>
-                  <p className="text-sm">{viewItem.city || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Country</p>
-                  <p className="text-sm">{viewItem.country || "-"}</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!editItem} onOpenChange={() => setEditItem(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Customer</DialogTitle>
-          </DialogHeader>
-          {editItem && (
-            <Tabs defaultValue="details" className="pt-2">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="details">Customer Details</TabsTrigger>
-                <TabsTrigger value="billing">Billing & Shipping</TabsTrigger>
-              </TabsList>
-              <TabsContent value="details" className="space-y-4 pt-2">
-                <div className="space-y-2">
-                  <Label>
-                    Company <span className="text-destructive">*</span>
-                  </Label>
-                  <Input 
-                    value={editItem.company || ""} 
-                    onChange={(e) => setEditItem({ ...editItem, company: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>VAT Number</Label>
-                    <Input 
-                      placeholder="VAT number" 
-                      value={editItem.vat || ""}
-                      onChange={(e) => setEditItem({ ...editItem, vat: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Phone</Label>
-                    <Input 
-                      type="tel" 
-                      value={editItem.phonenumber || ""} 
-                      onChange={(e) => setEditItem({ ...editItem, phonenumber: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Website</Label>
-                  <Input 
-                    type="url" 
-                    placeholder="https://example.com" 
-                    value={editItem.website || ""}
-                    onChange={(e) => setEditItem({ ...editItem, website: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Groups</Label>
-                    <div className="flex gap-2">
-                      <Select
-                        onValueChange={(val) => setEditItem({ ...editItem, groups: [val] })}
-                        defaultValue={editItem.groups?.[0]}
-                      >
-                        <SelectTrigger className="flex-1">
-                          <SelectValue placeholder="Select group" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {groups.map((g) => (
-                            <SelectItem key={g._id || g.name} value={g.name}>
-                              {g.name}
-                            </SelectItem>
-                          ))}
-                          {groups.length === 0 && (
-                            <div className="p-2 text-sm text-muted-foreground text-center">No groups found</div>
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="shrink-0"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Currency</Label>
-                    <Select
-                      onValueChange={(val) => setEditItem({ ...editItem, currency: val })}
-                      value={editItem.currency || ""}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select currency" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="USD">$ USD</SelectItem>
-                        <SelectItem value="EUR">€ EUR</SelectItem>
-                        <SelectItem value="GBP">£ GBP</SelectItem>
-                        <SelectItem value="INR">₹ INR</SelectItem>
-                        <SelectItem value="AUD">A$ AUD</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Default Language</Label>
-                  <SearchableSelect
-                    options={LANGUAGES}
-                    placeholder="Select language"
-                    value={editItem.default_language || ""}
-                    onValueChange={(val) => setEditItem({ ...editItem, default_language: val })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Address</Label>
-                  <Textarea 
-                    placeholder="Full address" 
-                    rows={2} 
-                    value={editItem.address || ""}
-                    onChange={(e) => setEditItem({ ...editItem, address: e.target.value })}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>City</Label>
-                    <Input 
-                      placeholder="City" 
-                      value={editItem.city || ""}
-                      onChange={(e) => setEditItem({ ...editItem, city: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>State</Label>
-                    <Input 
-                      placeholder="State" 
-                      value={editItem.state || ""}
-                      onChange={(e) => setEditItem({ ...editItem, state: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Zip Code</Label>
-                    <Input 
-                      placeholder="Zip code" 
-                      value={editItem.zip || ""}
-                      onChange={(e) => setEditItem({ ...editItem, zip: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Country</Label>
-                    <SearchableSelect
-                      options={COUNTRIES.map(c => ({ label: c, value: c }))}
-                      placeholder="Select country"
-                      value={editItem.country || ""}
-                      onValueChange={(val) => setEditItem({ ...editItem, country: val })}
-                    />
-                  </div>
-                </div>
-              </TabsContent>
-              <TabsContent value="billing" className="space-y-4 pt-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-sm">Billing Address</h3>
-                    <div className="space-y-2">
-                      <Label>Street</Label>
-                      <Textarea 
-                        placeholder="Street address" 
-                        rows={2} 
-                        value={editItem.billing_street || ""}
-                        onChange={(e) => setEditItem({ ...editItem, billing_street: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>City</Label>
-                      <Input 
-                        placeholder="City" 
-                        value={editItem.billing_city || ""}
-                        onChange={(e) => setEditItem({ ...editItem, billing_city: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>State</Label>
-                      <Input 
-                        placeholder="State" 
-                        value={editItem.billing_state || ""}
-                        onChange={(e) => setEditItem({ ...editItem, billing_state: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Zip Code</Label>
-                      <Input 
-                        placeholder="Zip code" 
-                        value={editItem.billing_zip || ""}
-                        onChange={(e) => setEditItem({ ...editItem, billing_zip: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Country</Label>
-                      <SearchableSelect
-                        options={COUNTRIES.map(c => ({ label: c, value: c }))}
-                        placeholder="Select country"
-                        value={editItem.billing_country || ""}
-                        onValueChange={(val) => setEditItem({ ...editItem, billing_country: val })}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-sm">Shipping Address</h3>
-                    <div className="space-y-2">
-                      <Label>Street</Label>
-                      <Textarea 
-                        placeholder="Street address" 
-                        rows={2} 
-                        value={editItem.shipping_street || ""}
-                        onChange={(e) => setEditItem({ ...editItem, shipping_street: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>City</Label>
-                      <Input 
-                        placeholder="City" 
-                        value={editItem.shipping_city || ""}
-                        onChange={(e) => setEditItem({ ...editItem, shipping_city: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>State</Label>
-                      <Input 
-                        placeholder="State" 
-                        value={editItem.shipping_state || ""}
-                        onChange={(e) => setEditItem({ ...editItem, shipping_state: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Zip Code</Label>
-                      <Input 
-                        placeholder="Zip code" 
-                        value={editItem.shipping_zip || ""}
-                        onChange={(e) => setEditItem({ ...editItem, shipping_zip: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Country</Label>
-                      <SearchableSelect
-                        options={COUNTRIES.map(c => ({ label: c, value: c }))}
-                        placeholder="Select country"
-                        value={editItem.shipping_country || ""}
-                        onValueChange={(val) => setEditItem({ ...editItem, shipping_country: val })}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm">
-                    Same as Customer Info
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    Copy Billing Address
-                  </Button>
-                </div>
-              </TabsContent>
-            </Tabs>
-          )}
-          <Button
-            className="w-full"
-            onClick={() => {
-              if (editItem) {
-                updateMutation.mutate({ id: editItem._id, data: editItem });
-                setEditItem(null);
-              }
-            }}
-          >
-            Save Changes
-          </Button>
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   );
 };

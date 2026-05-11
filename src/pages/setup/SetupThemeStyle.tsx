@@ -450,7 +450,7 @@ export default function SetupThemeStyle() {
                         <tr>
                           <td className="py-3 px-4">Web Development Services</td>
                           <td className="py-3 px-4 text-muted-foreground">1</td>
-                          <td className="py-3 px-4 font-medium">$1,500.00</td>
+                          <td className="py-3 px-4 font-medium">₹1,500.00</td>
                         </tr>
                       </tbody>
                     </table>

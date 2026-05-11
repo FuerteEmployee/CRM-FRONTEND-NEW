@@ -18,9 +18,10 @@ const ClientLogin = () => {
     e.preventDefault();
     setIsLoading(true);
     
-    // Mock login
+    // Mock login — store client session so root redirect knows who is logged in
     setTimeout(() => {
       setIsLoading(false);
+      localStorage.setItem("crm_client", JSON.stringify({ email }));
       toast({
         title: "Login Successful",
         description: "Welcome back to your project portal.",

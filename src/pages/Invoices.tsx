@@ -275,7 +275,7 @@ const Invoices = () => {
                           </td>
                           <td className="p-3 text-sm">{inv.clientid || "N/A"}</td>
                           <td className="p-3 text-sm font-medium">
-                            ${(inv.total || 0).toLocaleString()}
+                            ₹{(inv.total || 0).toLocaleString()}
                           </td>
                           <td className="p-3">
                             <Badge variant="outline" className={status.color}>
@@ -338,7 +338,7 @@ const Invoices = () => {
                 <div>
                   <p className="text-xs text-muted-foreground">Amount</p>
                   <p className="text-sm font-medium">
-                    ${(viewItem.total || 0).toLocaleString()}
+                    ₹{(viewItem.total || 0).toLocaleString()}
                   </p>
                 </div>
                 <div>

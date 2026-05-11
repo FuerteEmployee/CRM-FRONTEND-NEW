@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,8 +30,6 @@ import {
   ChevronLeft,
   Search,
   Download,
-  Trash2,
-  Plus,
   Save,
   Check,
   Archive,
@@ -72,7 +70,12 @@ import {
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
-  DropdownMenuTrigger 
+  DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuSeparator,
+  DropdownMenuPortal
 } from "@/components/ui/dropdown-menu";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
@@ -99,8 +102,38 @@ import {
   Palette,
   AlignLeft,
   AlignCenter,
-  AlignRight
+  AlignRight,
+  AlignJustify,
+  Pencil,
+  MoreHorizontal,
+  Undo,
+  Redo,
+  Scissors,
+  Copy,
+  ClipboardPaste,
+  SquareMousePointer,
+  History,
+  Code,
+  Maximize,
+  Play,
+  Code2,
+  Minus,
+  Strikethrough,
+  Superscript,
+  Subscript,
+  Upload,
+  Lock,
+  Columns,
+  Rows,
+  Table as TableIcon,
+  MousePointer2,
+  Trash2,
+  Plus,
+  Calendar
 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { TableActions } from "@/components/TableActions";
+
 
 const sidebarItems = [
   { id: "profile", label: "Profile", icon: User },
@@ -201,9 +234,22 @@ export default function CustomerView() {
   const [noteSearch, setNoteSearch] = useState("");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteItemsPerPage, setNoteItemsPerPage] = useState("25");
-  const [statementPeriod, setStatementPeriod] = useState("this_month");
+  const [statementPeriod, setStatementPeriod] = useState("all");
   const [customRange, setCustomRange] = useState({ from: "", to: "" });
   const [isMailModalOpen, setIsMailModalOpen] = useState(false);
+  const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const [isMediaDialogOpen, setIsMediaDialogOpen] = useState(false);
+  const [isCodeSampleDialogOpen, setIsCodeSampleDialogOpen] = useState(false);
+  const [isSourceCodeDialogOpen, setIsSourceCodeDialogOpen] = useState(false);
+  const [editorFont, setEditorFont] = useState("inherit");
+  const [editorFontSize, setEditorFontSize] = useState("12");
+  const [hoveredTableSize, setHoveredTableSize] = useState({ rows: 0, cols: 0 });
+  const [insertedTable, setInsertedTable] = useState<{ rows: number, cols: number } | null>(null);
+  const [imageForm, setImageForm] = useState({ source: "", alt: "", width: "", height: "" });
+  const [linkForm, setLinkForm] = useState({ url: "", text: "", title: "", target: "current" });
+  const [mediaForm, setMediaForm] = useState({ source: "", width: "", height: "", embed: "" });
+  const [codeSampleForm, setCodeSampleForm] = useState({ language: "HTML/XML", code: "" });
   const [mailForm, setMailForm] = useState({
     email: "",
     cc: "",
@@ -216,6 +262,14 @@ export default function CustomerView() {
   const [paymentItemsPerPage, setPaymentItemsPerPage] = useState("10");
   const [proposalSearch, setProposalSearch] = useState("");
   const [proposalItemsPerPage, setProposalItemsPerPage] = useState("10");
+  const [creditNoteSearch, setCreditNoteSearch] = useState("");
+  const [creditNoteItemsPerPage, setCreditNoteItemsPerPage] = useState("10");
+  const [isZipModalOpen, setIsZipModalOpen] = useState(false);
+  const [zipForm, setZipForm] = useState({
+    status: "All",
+    fromDate: "",
+    toDate: "",
+  });
   const [contactForm, setContactForm] = useState<any>({
     firstname: "",
     lastname: "",
@@ -252,7 +306,7 @@ export default function CustomerView() {
   const { data: contacts = [], isLoading: isLoadingContacts } = useQuery({
     queryKey: ["contacts", id],
     queryFn: () => customerService.getContacts(id!),
-    enabled: activeTab === "contacts",
+    enabled: activeTab === "contacts" || isMailModalOpen,
   });
 
   const deleteContactMutation = useMutation({
@@ -372,12 +426,512 @@ export default function CustomerView() {
         from = new Date(today.getFullYear() - 1, 0, 1);
         to = new Date(today.getFullYear() - 1, 11, 31);
         break;
+      case "all":
+        from = new Date(0);
+        to = new Date();
+        break;
       case "period":
         from = customRange.from ? new Date(customRange.from) : new Date(0);
         to = customRange.to ? new Date(customRange.to) : new Date();
         break;
     }
     return { from: from.toISOString(), to: to.toISOString() };
+  };
+
+  const loadScript = (src: string) => new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.onload = resolve;
+    document.head.appendChild(script);
+  });
+
+  const handleExportInvoices = (type: 'csv' | 'pdf' | 'print') => {
+    if (!invoices || invoices.length === 0) {
+      toast({ title: "No data", description: "There are no invoices to export.", variant: "destructive" });
+      return;
+    }
+
+    if (type === 'print') {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        toast({ title: "Error", description: "Please allow pop-ups to print.", variant: "destructive" });
+        return;
+      }
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Invoices - ${customer?.company}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+            body { font-family: 'Outfit', sans-serif; padding: 40px; color: #1e293b; }
+            h1 { font-size: 24px; margin-bottom: 20px; color: #0f172a; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background: #f8fafc; text-align: left; padding: 12px; border-bottom: 2px solid #e2e8f0; font-size: 12px; text-transform: uppercase; font-weight: 800; }
+            td { padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+            .status { font-size: 10px; font-weight: bold; text-transform: uppercase; }
+            @media print {
+              body { padding: 20px; }
+              @page { margin: 2cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>Invoices for ${customer?.company}</h1>
+          <table>
+            <thead>
+              <tr>
+                <th>Invoice #</th>
+                <th>Amount</th>
+                <th>Date</th>
+                <th>Due Date</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${invoices.map((inv: any) => `
+                <tr>
+                  <td>${inv.number}</td>
+                  <td style="font-weight: 600;">₹${inv.total?.toLocaleString()}</td>
+                  <td>${formatDate(inv.date)}</td>
+                  <td>${formatDate(inv.duedate)}</td>
+                  <td class="status">${inv.status}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <script>
+            window.onload = () => {
+              window.print();
+              setTimeout(() => window.close(), 500);
+            };
+          </script>
+        </body>
+        </html>
+      `;
+      printWindow.document.write(html);
+      printWindow.document.close();
+      return;
+    }
+
+    if (type === 'csv') {
+      const headers = ["Invoice #", "Amount", "Total Tax", "Date", "Project", "Due Date", "Status"];
+      const rows = invoices.map((inv: any) => [
+        inv.number,
+        inv.total,
+        inv.total_tax,
+        formatDate(inv.date),
+        inv.project?.name || "",
+        formatDate(inv.duedate),
+        inv.status
+      ]);
+
+      const csvContent = [
+        headers.join(","),
+        ...rows.map(row => row.join(","))
+      ].join("\n");
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `invoices_${customer?.company || 'export'}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast({ title: "Export Successful", description: "Invoice CSV has been downloaded." });
+      return;
+    }
+
+    if (type === 'pdf') {
+      toast({ title: "Generating PDF", description: "Please wait while we prepare your document..." });
+      
+      const loadScript = (src: string) => new Promise((resolve) => {
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = resolve;
+        document.head.appendChild(script);
+      });
+
+      const startExport = async () => {
+        if (!(window as any).html2canvas) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+        if (!(window as any).jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+
+        const hiddenContainer = document.createElement('div');
+        hiddenContainer.style.position = 'fixed';
+        hiddenContainer.style.left = '-9999px';
+        hiddenContainer.style.top = '0';
+        hiddenContainer.style.width = '800px';
+        hiddenContainer.style.background = 'white';
+        hiddenContainer.style.padding = '40px';
+        hiddenContainer.style.fontFamily = "'Outfit', sans-serif";
+
+        hiddenContainer.innerHTML = `
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+            .pdf-container {
+              padding: 60px;
+              background: white;
+              font-family: 'Outfit', sans-serif !important;
+              color: #1e293b;
+            }
+            .pdf-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              margin-bottom: 40px;
+              border-bottom: 2px solid #f1f5f9;
+              padding-bottom: 20px;
+            }
+            .pdf-title {
+              font-size: 28px;
+              font-weight: 800;
+              color: #0f172a;
+              margin: 0;
+            }
+            .pdf-table {
+              width: 100%;
+              border-collapse: separate;
+              border-spacing: 0;
+              margin-top: 20px;
+            }
+            .pdf-table th {
+              background: #f8fafc;
+              text-align: left;
+              padding: 16px;
+              border-bottom: 2px solid #e2e8f0;
+              font-size: 11px;
+              text-transform: uppercase;
+              font-weight: 800;
+              letter-spacing: 0.05em;
+              color: #64748b;
+            }
+            .pdf-table td {
+              padding: 16px;
+              border-bottom: 1px solid #f1f5f9;
+              font-size: 13px;
+              font-weight: 500;
+            }
+            .pdf-status {
+              font-size: 10px;
+              font-weight: 800;
+              text-transform: uppercase;
+              padding: 4px 8px;
+              border-radius: 4px;
+              background: #f1f5f9;
+            }
+            * { font-family: 'Outfit', sans-serif !important; }
+          </style>
+          <div class="pdf-container">
+            <div class="pdf-header">
+              <h1 class="pdf-title">Invoices for ${customer?.company}</h1>
+            </div>
+            <table class="pdf-table">
+              <thead>
+                <tr>
+                  <th>Invoice #</th>
+                  <th>Amount</th>
+                  <th>Date</th>
+                  <th>Due Date</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${invoices.map((inv: any) => `
+                  <tr>
+                    <td style="font-weight: 700; color: #0f172a;">${inv.number}</td>
+                    <td style="font-weight: 800; color: #0f172a;">₹${inv.total?.toLocaleString()}</td>
+                    <td style="color: #64748b;">${formatDate(inv.date)}</td>
+                    <td style="color: #64748b;">${formatDate(inv.duedate)}</td>
+                    <td><span class="pdf-status">${inv.status}</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+
+        document.body.appendChild(hiddenContainer);
+
+        try {
+          // Wait for fonts to be loaded in the main document
+          await document.fonts.ready;
+          
+          // Wait for images if any
+          const images = hiddenContainer.getElementsByTagName('img');
+          await Promise.all([...images].map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
+          }));
+
+          // Final small delay to ensure all CSS and fonts are applied
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          const canvas = await (window as any).html2canvas(hiddenContainer, {
+            scale: 2,
+            useCORS: true,
+            logging: false,
+            allowTaint: true,
+            backgroundColor: '#ffffff'
+          });
+          
+          const imgData = canvas.toDataURL('image/png');
+          const { jsPDF } = (window as any).jspdf;
+          const pdf = new jsPDF('p', 'mm', 'a4');
+          const pdfWidth = pdf.internal.pageSize.getWidth();
+          const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+          
+          pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+          pdf.save(`Invoices_${customer?.company.replace(/\s+/g, '_')}.pdf`);
+          toast({ title: "Success", description: "Invoices PDF downloaded successfully." });
+        } catch (err) {
+          console.error('PDF export failed:', err);
+          toast({ title: "Error", description: "Failed to generate PDF.", variant: "destructive" });
+        } finally {
+          document.body.removeChild(hiddenContainer);
+        }
+      };
+
+      startExport();
+    }
+  };
+
+  const handlePrintStatement = async (isDownload = false) => {
+    if (!finalStatementData) return;
+
+    if (!isDownload) {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        toast({
+          title: "Error",
+          description: "Please allow pop-ups to print the statement.",
+          variant: "destructive"
+        });
+        return;
+      }
+      const fromDate = formatDate(finalStatementData.from);
+      const toDate = formatDate(finalStatementData.to);
+      const doc = printWindow.document;
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Account Summary - ${customer?.company}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+            body { font-family: 'Outfit', -apple-system, sans-serif; color: #333; padding: 40px; line-height: 1.6; font-size: 14px; background: white; }
+            .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 40px; align-items: flex-start; }
+            .to-section { flex: 1; }
+            .to-label { font-weight: 700; font-size: 16px; margin-bottom: 5px; color: #000; }
+            .customer-name { font-weight: 600; font-size: 15px; margin-bottom: 15px; }
+            .vat-number { color: #666; font-size: 13px; margin-top: 20px; }
+            .company-info { text-align: right; line-height: 1.4; color: #000; font-weight: 500; }
+            .company-name { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+            .summary-header-section { text-align: right; margin-top: 40px; margin-bottom: 20px; }
+            .summary-title { font-size: 22px; font-weight: 700; color: #000; margin-bottom: 5px; }
+            .summary-period { font-size: 14px; color: #666; }
+            .summary-table-container { display: flex; justify-content: flex-end; margin-bottom: 40px; }
+            .summary-table { width: 320px; border-top: 1px solid #ccc; border-bottom: 1px solid #ccc; padding: 10px 0; }
+            .summary-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+            .summary-row.total { font-weight: 700; color: #000; margin-top: 5px; }
+            .showing-text { text-align: center; margin-bottom: 20px; font-weight: 600; color: #000; font-size: 13px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th { text-align: left; background: #eee; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; }
+            td { padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; color: #444; }
+            .text-right { text-align: right; }
+            .font-bold { font-weight: 700; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="to-section">
+                <div class="to-label">To</div>
+                <div class="customer-name">${customer?.company}</div>
+                <div class="vat-number">VAT Number: ${customer?.vat || ''}</div>
+              </div>
+              <div class="company-info">
+                <div class="company-name">Fuerte Developers</div>
+                <div>405, The Spireee</div>
+                <div>Rajkot Rajkot</div>
+                <div>India 360007</div>
+              </div>
+            </div>
+
+            <div class="summary-header-section">
+              <div class="summary-title">Account Summary</div>
+              <div class="summary-period">${fromDate} To ${toDate}</div>
+            </div>
+
+            <div class="summary-table-container">
+              <div class="summary-table">
+                <div class="summary-row"><span>Beginning Balance:</span> <span>₹${(finalStatementData.beginningBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                <div class="summary-row"><span>Invoiced Amount:</span> <span>₹${(finalStatementData.totalInvoiced || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                <div class="summary-row"><span>Amount Paid:</span> <span>₹${(finalStatementData.totalPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                <div class="summary-row total"><span>Balance Due:</span> <span>₹${(finalStatementData.balanceDue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+              </div>
+            </div>
+
+            <div class="showing-text">
+              Showing all invoices and payments between ${fromDate} and ${toDate}
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 15%;">Date</th>
+                  <th style="width: 45%;">Details</th>
+                  <th class="text-right">Amount</th>
+                  <th class="text-right">Payments</th>
+                  <th class="text-right">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>${fromDate}</td>
+                  <td class="font-bold">Beginning Balance</td>
+                  <td class="text-right">0.00</td>
+                  <td class="text-right">0.00</td>
+                  <td class="text-right">₹${(finalStatementData.beginningBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                </tr>
+                ${finalStatementData.entries.map((entry: any) => `
+                  <tr>
+                    <td>${formatDate(entry.date)}</td>
+                    <td>${entry.details}</td>
+                    <td class="text-right">${entry.amount > 0 ? entry.amount.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00'}</td>
+                    <td class="text-right">${entry.payments > 0 ? entry.payments.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00'}</td>
+                    <td class="text-right">₹${entry.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                `).join('')}
+                <tr>
+                  <td colspan="4" class="text-right font-bold" style="padding-top: 20px; border-bottom: none;">Balance Due</td>
+                  <td class="text-right font-bold" style="padding-top: 20px; border-bottom: none;">₹${(finalStatementData.balanceDue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <script>window.onload = () => window.print();</script>
+        </body>
+        </html>
+      `;
+      doc.write(html);
+      doc.close();
+      return;
+    }
+
+    // Silent Download Logic
+
+    if (!(window as any).html2canvas) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+    if (!(window as any).jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+
+    const fromDate = formatDate(finalStatementData.from);
+    const toDate = formatDate(finalStatementData.to);
+
+    // Create a hidden container on the main page
+    const hiddenContainer = document.createElement('div');
+    hiddenContainer.style.position = 'fixed';
+    hiddenContainer.style.left = '-9999px';
+    hiddenContainer.style.top = '0';
+    hiddenContainer.style.width = '800px';
+    hiddenContainer.style.background = 'white';
+    hiddenContainer.style.padding = '40px';
+    hiddenContainer.style.fontFamily = "'Outfit', sans-serif";
+
+    hiddenContainer.innerHTML = `
+      <div style="display: flex; justify-content: space-between; margin-bottom: 40px; align-items: flex-start;">
+        <div style="flex: 1;">
+          <div style="font-weight: 700; font-size: 16px; margin-bottom: 5px; color: #000;">To</div>
+          <div style="font-weight: 600; font-size: 15px; margin-bottom: 15px;">${customer?.company}</div>
+          <div style="color: #666; font-size: 13px; margin-top: 20px;">VAT Number: ${customer?.vat || ''}</div>
+        </div>
+        <div style="text-align: right; line-height: 1.4; color: #000; font-weight: 500;">
+          <div style="font-weight: 700; font-size: 15px; margin-bottom: 2px;">Fuerte Developers</div>
+          <div>405, The Spireee</div>
+          <div>Rajkot Rajkot</div>
+          <div>India 360007</div>
+        </div>
+      </div>
+
+      <div style="text-align: right; margin-top: 40px; margin-bottom: 20px;">
+        <div style="font-size: 22px; font-weight: 700; color: #000; margin-bottom: 5px;">Account Summary</div>
+        <div style="font-size: 14px; color: #666;">${fromDate} To ${toDate}</div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; margin-bottom: 40px;">
+        <div style="width: 320px; border-top: 1px solid #ccc; border-bottom: 1px solid #ccc; padding: 10px 0;">
+          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;"><span>Beginning Balance:</span> <span>₹${(finalStatementData.beginningBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;"><span>Invoiced Amount:</span> <span>₹${(finalStatementData.totalInvoiced || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;"><span>Amount Paid:</span> <span>₹${(finalStatementData.totalPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; font-weight: 700; color: #000; margin-top: 5px;"><span>Balance Due:</span> <span>₹${(finalStatementData.balanceDue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin-bottom: 20px; font-weight: 600; color: #000; font-size: 13px;">
+        Showing all invoices and payments between ${fromDate} and ${toDate}
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+          <tr>
+            <th style="text-align: left; background: #eee; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 15%;">Date</th>
+            <th style="text-align: left; background: #eee; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 45%;">Details</th>
+            <th style="text-align: right; background: #eee; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 13%;">Amount</th>
+            <th style="text-align: right; background: #eee; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 13%;">Payments</th>
+            <th style="text-align: right; background: #eee; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 14%;">Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee;">${fromDate}</td>
+            <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; font-weight: 700;">Beginning Balance</td>
+            <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">0.00</td>
+            <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">0.00</td>
+            <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">₹${(finalStatementData.beginningBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+          </tr>
+          ${finalStatementData.entries.map((entry: any) => `
+            <tr>
+              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee;">${formatDate(entry.date)}</td>
+              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee;">${entry.details}</td>
+              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">${entry.amount > 0 ? entry.amount.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00'}</td>
+              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">${entry.payments > 0 ? entry.payments.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00'}</td>
+              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">₹${entry.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            </tr>
+          `).join('')}
+          <tr>
+            <td colspan="4" style="text-align: right; font-weight: 700; padding: 20px 12px 10px;">Balance Due</td>
+            <td style="text-align: right; font-weight: 700; padding: 20px 12px 10px;">₹${(finalStatementData.balanceDue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    document.body.appendChild(hiddenContainer);
+
+    try {
+      const canvas = await (window as any).html2canvas(hiddenContainer, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const { jsPDF } = (window as any).jspdf;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Statement_${customer?.company.replace(/\s+/g, '_')}.pdf`);
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+      toast({ title: "Error", description: "Direct download failed. Please use the Print option.", variant: "destructive" });
+    } finally {
+      document.body.removeChild(hiddenContainer);
+    }
   };
 
   const { data: statementData, isLoading: isLoadingStatement } = useQuery({
@@ -389,13 +943,13 @@ export default function CustomerView() {
   const { data: invoices = [], isLoading: isLoadingInvoices } = useQuery({
     queryKey: ["invoices", id],
     queryFn: () => salesService.getInvoices({ client: id }),
-    enabled: activeTab === "invoices",
+    enabled: activeTab === "invoices" || activeTab === "statement" || isMailModalOpen,
   });
 
   const { data: payments = [], isLoading: isLoadingPayments } = useQuery({
     queryKey: ["payments", id],
     queryFn: () => salesService.getPaymentsByCustomer(id!),
-    enabled: activeTab === "payments",
+    enabled: activeTab === "payments" || activeTab === "statement" || isMailModalOpen,
   });
 
   const { data: proposals = [], isLoading: isLoadingProposals } = useQuery({
@@ -403,6 +957,74 @@ export default function CustomerView() {
     queryFn: () => salesService.getProposals({ rel_id: id, rel_type: "customer" }),
     enabled: activeTab === "proposals",
   });
+
+  const { data: creditNotes = [], isLoading: isLoadingCreditNotes } = useQuery({
+    queryKey: ["credit-notes", id],
+    queryFn: () => salesService.getCreditNotesByCustomer(id!),
+    enabled: activeTab === "credit-notes",
+  });
+
+  const computedStatementData = useMemo(() => {
+    const { from, to } = getStatementRange();
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
+
+    // 1. Get all transactions (Invoices and Payments)
+    // Invoices
+    const invoiceEntries = invoices.map(inv => ({
+      date: new Date(inv.date),
+      details: `Invoice ${inv.number}`,
+      amount: inv.total || 0,
+      payments: 0,
+      type: 'invoice'
+    }));
+
+    // Payments
+    const paymentEntries = payments.map(pay => ({
+      date: new Date(pay.date),
+      details: `Payment for Invoice ${pay.invoice?.number || pay.invoice_id || ''}`,
+      amount: 0,
+      payments: pay.amount || 0,
+      type: 'payment'
+    }));
+
+    // Combined
+    const allTransactions = [...invoiceEntries, ...paymentEntries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // 2. Calculate Beginning Balance (transactions before 'from' date)
+    const transactionsBefore = allTransactions.filter(t => t.date < fromDate);
+    const beginningBalance = transactionsBefore.reduce((acc, t) => acc + t.amount - t.payments, 0);
+
+    // 3. Filter transactions within range
+    const transactionsInRange = allTransactions.filter(t => t.date >= fromDate && t.date <= toDate);
+
+    // 4. Calculate entries with running balance
+    let currentBalance = beginningBalance;
+    const entries = transactionsInRange.map(t => {
+      currentBalance += t.amount - t.payments;
+      return {
+        ...t,
+        balance: currentBalance
+      };
+    });
+
+    const totalInvoiced = transactionsInRange.reduce((acc, t) => acc + t.amount, 0);
+    const totalPaid = transactionsInRange.reduce((acc, t) => acc + t.payments, 0);
+    const balanceDue = beginningBalance + totalInvoiced - totalPaid;
+
+    return {
+      from,
+      to,
+      beginningBalance,
+      totalInvoiced,
+      totalPaid,
+      balanceDue,
+      entries
+    };
+  }, [invoices, payments, statementPeriod, customRange]);
+
+  const finalStatementData = statementData && statementData.entries?.length > 0 ? statementData : computedStatementData;
+  const isStatementLoading = isLoadingStatement || (activeTab === "statement" && (isLoadingInvoices || isLoadingPayments));
 
   const handleCloseModal = () => {
     setIsContactModalOpen(false);
@@ -569,10 +1191,6 @@ export default function CustomerView() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => updateMutation.mutate(formData)} disabled={updateMutation.isPending} className="gap-2">
-              <Save className="h-4 w-4" />
-              Save Changes
-            </Button>
           </div>
         </div>
 
@@ -713,6 +1331,12 @@ export default function CustomerView() {
                               </div>
                             </section>
                           </div>
+                          <div className="mt-8 pt-6 border-t border-border/50 flex justify-end">
+                            <Button size="sm" onClick={() => updateMutation.mutate(formData)} disabled={updateMutation.isPending} className="gap-2 px-8">
+                              <Save className="h-4 w-4" />
+                              Save Changes
+                            </Button>
+                          </div>
                         </TabsContent>
 
                         <TabsContent value="billing" className="mt-0 outline-none">
@@ -785,6 +1409,12 @@ export default function CustomerView() {
                                 </div>
                               </div>
                             </section>
+                          </div>
+                          <div className="mt-8 pt-6 border-t border-border/50 flex justify-end">
+                            <Button size="sm" onClick={() => updateMutation.mutate(formData)} disabled={updateMutation.isPending} className="gap-2 px-8">
+                              <Save className="h-4 w-4" />
+                              Save Changes
+                            </Button>
                           </div>
                         </TabsContent>
 
@@ -1229,7 +1859,11 @@ export default function CustomerView() {
                                 </td>
                               </tr>
                             ) : (
-                              contacts.map((contact: any) => (
+                              [...(contacts || [])].sort((a: any, b: any) => {
+                                const nameA = `${a.firstname || ""} ${a.lastname || ""}`.toLowerCase();
+                                const nameB = `${b.firstname || ""} ${b.lastname || ""}`.toLowerCase();
+                                return nameA.localeCompare(nameB);
+                              }).map((contact: any) => (
                                 <tr key={contact._id} className="hover:bg-muted/30 transition-colors group">
                                   <td className="px-6 py-4 font-semibold text-foreground">
                                     {contact.firstname} {contact.lastname}
@@ -1259,24 +1893,11 @@ export default function CustomerView() {
                                     {contact.last_login ? formatDate(contact.last_login) : "Never"}
                                   </td>
                                   <td className="px-6 py-4 text-right">
-                                    <div className="flex items-center justify-end gap-2">
-                                      <button 
-                                        className="text-[11px] font-bold text-primary hover:underline transition-all"
-                                        onClick={() => handleEditContact(contact)}
-                                      >
-                                        Edit
-                                      </button>
-                                      <span className="text-muted-foreground/30">|</span>
-                                      <button 
-                                        className="text-[11px] font-bold text-destructive hover:underline transition-all"
-                                        onClick={() => {
-                                          if (confirm("Are you sure you want to delete this contact?")) {
-                                            deleteContactMutation.mutate(contact._id);
-                                          }
-                                        }}
-                                      >
-                                        Delete
-                                      </button>
+                                    <div className="flex items-center justify-end">
+                                      <TableActions
+                                        onEdit={() => handleEditContact(contact)}
+                                        onDelete={() => deleteContactMutation.mutate(contact._id)}
+                                      />
                                     </div>
                                   </td>
                                 </tr>
@@ -1511,6 +2132,7 @@ export default function CustomerView() {
                               <SelectItem value="last_month">Last Month</SelectItem>
                               <SelectItem value="this_year">This Year</SelectItem>
                               <SelectItem value="last_year">Last Year</SelectItem>
+                              <SelectItem value="all">All Time</SelectItem>
                               <SelectItem value="period">Period</SelectItem>
                             </SelectContent>
                           </Select>
@@ -1534,28 +2156,25 @@ export default function CustomerView() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-9 gap-2 font-bold uppercase tracking-wider text-[10px] shadow-sm">
-                            <Download className="h-3.5 w-3.5 text-primary" />
-                            Download
+                        <div className="flex items-center gap-1.5">
+                          <Button variant="outline" size="icon" className="h-9 w-9 shadow-sm hover:bg-primary/5 hover:border-primary/30 transition-colors" onClick={() => handlePrintStatement(false)}>
+                            <Printer className="h-4 w-4 text-primary" />
                           </Button>
-                          <Button variant="outline" size="sm" className="h-9 gap-2 font-bold uppercase tracking-wider text-[10px] shadow-sm">
-                            <Printer className="h-3.5 w-3.5 text-primary" />
-                            Print
+
+                          <Button variant="outline" size="icon" className="h-9 w-9 shadow-sm hover:bg-primary/5 hover:border-primary/30 transition-colors" onClick={() => handlePrintStatement(true)}>
+                            <div className="relative flex flex-col items-center justify-center">
+                              <FileText className="h-4 w-4 text-primary" />
+                              <span className="absolute -bottom-1.5 text-[6px] font-bold text-primary bg-background px-0.5 leading-none">PDF</span>
+                            </div>
                           </Button>
-                          <Button 
-                            variant="default" 
-                            size="sm" 
-                            className="h-9 gap-2 font-bold uppercase tracking-wider text-[10px] shadow-lg shadow-primary/20"
-                            onClick={() => setIsMailModalOpen(true)}
-                          >
-                            <Mail className="h-3.5 w-3.5" />
-                            Mail
+
+                          <Button variant="outline" size="icon" className="h-9 w-9 shadow-sm hover:bg-primary/5 hover:border-primary/30 transition-colors" onClick={() => setIsMailModalOpen(true)}>
+                            <Mail className="h-4 w-4 text-primary" />
                           </Button>
                         </div>
                       </div>
 
-                      {isLoadingStatement ? (
+                      {isStatementLoading ? (
                         <div className="space-y-8 animate-pulse">
                           <div className="flex justify-between">
                             <Skeleton className="h-24 w-48" />
@@ -1589,7 +2208,7 @@ export default function CustomerView() {
                                 </div>
                                 <div className="text-right">
                                   <p className="text-sm font-mono font-bold text-foreground bg-muted/20 px-3 py-1 rounded border border-border/50">
-                                    {formatDate(statementData?.from)} To {formatDate(statementData?.to)}
+                                    {formatDate(finalStatementData?.from)} To {formatDate(finalStatementData?.to)}
                                   </p>
                                 </div>
                               </div>
@@ -1600,15 +2219,15 @@ export default function CustomerView() {
                           <div className="flex justify-end pr-6">
                             <div className="w-[300px] space-y-2">
                               {[
-                                { label: "Beginning Balance:", value: statementData?.beginningBalance, color: "text-foreground" },
-                                { label: "Invoiced Amount:", value: statementData?.totalInvoiced, color: "text-foreground" },
-                                { label: "Amount Paid:", value: statementData?.totalPaid, color: "text-foreground" },
-                                { label: "Balance Due:", value: statementData?.balanceDue, color: "text-foreground", bold: true },
+                                { label: "Beginning Balance:", value: finalStatementData?.beginningBalance, color: "text-foreground" },
+                                { label: "Invoiced Amount:", value: finalStatementData?.totalInvoiced, color: "text-foreground" },
+                                { label: "Amount Paid:", value: finalStatementData?.totalPaid, color: "text-foreground" },
+                                { label: "Balance Due:", value: finalStatementData?.balanceDue, color: "text-foreground", bold: true },
                               ].map((item, i) => (
                                 <div key={i} className="flex justify-between items-center text-sm">
                                   <span className="font-medium text-muted-foreground">{item.label}</span>
                                   <span className={cn("font-bold", item.bold && "text-destructive font-black")}>
-                                    ${item.value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    ₹{item.value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                   </span>
                                 </div>
                               ))}
@@ -1617,7 +2236,7 @@ export default function CustomerView() {
 
                           <div className="space-y-4">
                             <p className="text-sm font-medium text-muted-foreground italic bg-muted/10 p-3 rounded-xl border border-dashed border-border/50">
-                              Showing all invoices and payments between {formatDate(statementData?.from)} and {formatDate(statementData?.to)}
+                              Showing all invoices and payments between {formatDate(finalStatementData?.from)} and {formatDate(finalStatementData?.to)}
                             </p>
 
                             <div className="rounded-2xl border border-border/50 overflow-hidden bg-background shadow-sm">
@@ -1633,33 +2252,33 @@ export default function CustomerView() {
                                 </thead>
                                 <tbody className="divide-y divide-border/50">
                                   <tr className="bg-muted/10 font-medium">
-                                    <td className="px-6 py-4 text-muted-foreground">{formatDate(statementData?.from)}</td>
+                                    <td className="px-6 py-4 text-muted-foreground">{formatDate(finalStatementData?.from)}</td>
                                     <td className="px-6 py-4 italic">Beginning Balance</td>
                                     <td className="px-6 py-4 text-right">-</td>
                                     <td className="px-6 py-4 text-right">-</td>
                                     <td className="px-6 py-4 text-right font-bold">
-                                      ${statementData?.beginningBalance?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                      ₹{finalStatementData?.beginningBalance?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </td>
                                   </tr>
-                                  {statementData?.entries.map((entry: any, i: number) => (
+                                  {finalStatementData?.entries.map((entry: any, i: number) => (
                                     <tr key={i} className="hover:bg-muted/30 transition-colors">
                                       <td className="px-6 py-4 text-muted-foreground">{formatDate(entry.date)}</td>
                                       <td className="px-6 py-4 font-medium">{entry.details}</td>
                                       <td className="px-6 py-4 text-right text-primary font-bold">
-                                        {entry.amount > 0 ? `$${entry.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "-"}
+                                        {entry.amount > 0 ? `₹${entry.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "-"}
                                       </td>
                                       <td className="px-6 py-4 text-right text-green-500 font-bold">
-                                        {entry.payments > 0 ? `$${entry.payments.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "-"}
+                                        {entry.payments > 0 ? `₹${entry.payments.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "-"}
                                       </td>
                                       <td className="px-6 py-4 text-right font-bold">
-                                        ${entry.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        ₹{entry.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                       </td>
                                     </tr>
                                   ))}
                                   <tr className="bg-primary/[0.03] font-black">
                                     <td colSpan={4} className="px-6 py-5 text-right uppercase tracking-widest text-[10px] text-primary">Balance Due</td>
                                     <td className="px-6 py-5 text-right text-lg text-destructive">
-                                      ${statementData?.balanceDue?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                      ₹{finalStatementData?.balanceDue?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                                     </td>
                                   </tr>
                                 </tbody>
@@ -1683,8 +2302,12 @@ export default function CustomerView() {
                             <Plus className="h-4 w-4" />
                             Create New Invoice
                           </Button>
-                          <Button variant="outline" className="rounded-xl font-bold gap-2">
-                            <Archive className="h-4 w-4" />
+                          <Button 
+                            variant="outline" 
+                            className="rounded-xl font-bold gap-2 shadow-sm hover:bg-muted transition-all active:scale-95"
+                            onClick={() => setIsZipModalOpen(true)}
+                          >
+                            <Archive className="h-4 w-4 text-primary" />
                             Zip Invoice
                           </Button>
                         </div>
@@ -1695,19 +2318,19 @@ export default function CustomerView() {
                         {[
                           { 
                             label: "Outstanding Invoices", 
-                            value: `$${invoices.reduce((acc: number, inv: any) => (inv.status === "unpaid" || inv.status === "partially_paid") ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 
+                            value: `₹${invoices.reduce((acc: number, inv: any) => (inv.status === "unpaid" || inv.status === "partially_paid") ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 
                             color: "text-orange-500", 
                             bg: "bg-orange-500/5" 
                           },
                           { 
                             label: "Past Due Invoices", 
-                            value: `$${invoices.reduce((acc: number, inv: any) => (inv.status !== "paid" && new Date(inv.duedate) < new Date()) ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 
+                            value: `₹${invoices.reduce((acc: number, inv: any) => (inv.status !== "paid" && new Date(inv.duedate) < new Date()) ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 
                             color: "text-destructive", 
                             bg: "bg-destructive/5" 
                           },
                           { 
                             label: "Paid Invoices", 
-                            value: `$${invoices.reduce((acc: number, inv: any) => inv.status === "paid" ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 
+                            value: `₹${invoices.reduce((acc: number, inv: any) => inv.status === "paid" ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 
                             color: "text-green-500", 
                             bg: "bg-green-500/5" 
                           }
@@ -1740,20 +2363,25 @@ export default function CustomerView() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
-                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                              <DropdownMenuItem 
+                                className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
+                                onClick={() => handleExportInvoices('pdf')}
+                              >
                                 <FileText className="h-4 w-4 text-red-500 group-hover:scale-110 transition-transform" />
                                 <span className="text-xs font-bold">PDF</span>
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                              <DropdownMenuItem 
+                                className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
+                                onClick={() => handleExportInvoices('csv')}
+                              >
                                 <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
                                 <span className="text-xs font-bold">CSV</span>
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
-                                <FileText className="h-4 w-4 text-green-500 group-hover:scale-110 transition-transform" />
-                                <span className="text-xs font-bold">Excel</span>
-                              </DropdownMenuItem>
                               <div className="h-px bg-border/50 my-1 mx-1" />
-                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                              <DropdownMenuItem 
+                                className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
+                                onClick={() => handleExportInvoices('print')}
+                              >
                                 <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
                                 <span className="text-xs font-bold">Print</span>
                               </DropdownMenuItem>
@@ -1796,8 +2424,8 @@ export default function CustomerView() {
                               invoices.map((inv: any) => (
                                 <tr key={inv._id} className="hover:bg-muted/30 transition-colors">
                                   <td className="px-6 py-4 font-bold text-primary">{inv.number}</td>
-                                  <td className="px-6 py-4 font-black text-foreground">${inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">${inv.total_tax?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 font-black text-foreground">₹{inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">₹{inv.total_tax?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                   <td className="px-6 py-4 text-muted-foreground">{formatDate(inv.date)}</td>
                                   <td className="px-6 py-4 text-muted-foreground">{inv.project?.name || "-"}</td>
                                   <td className="px-6 py-4">
@@ -1875,7 +2503,10 @@ export default function CustomerView() {
                       {/* Header Actions */}
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div className="flex items-center gap-3">
-                          <Button className="rounded-xl font-bold gap-2 shadow-lg shadow-primary/20">
+                          <Button 
+                            className="rounded-xl font-bold gap-2 shadow-lg shadow-primary/20"
+                            onClick={() => setIsZipPaymentsModalOpen(true)}
+                          >
                             <CreditCard className="h-4 w-4" />
                             Zip Payments
                           </Button>
@@ -1957,7 +2588,7 @@ export default function CustomerView() {
                                   <td className="px-6 py-4 font-medium text-foreground">{pay.invoice?.number || "-"}</td>
                                   <td className="px-6 py-4 uppercase text-[10px] font-black tracking-widest text-muted-foreground">{pay.paymentmode}</td>
                                   <td className="px-6 py-4 font-mono text-[11px]">{pay.transactionid || "-"}</td>
-                                  <td className="px-6 py-4 font-black text-green-600">${pay.amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 font-black text-green-600">₹{pay.amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                   <td className="px-6 py-4 text-muted-foreground">{formatDate(pay.date)}</td>
                                 </tr>
                               ))
@@ -1970,6 +2601,256 @@ export default function CustomerView() {
                       <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
                         <p className="text-xs font-bold text-muted-foreground italic">
                           Showing 1 to {payments.length} of {payments.length} entries
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
+                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "credit-notes" && (
+                    <div className="p-6 space-y-6 animate-in fade-in duration-500">
+                      {/* Credits Available Bar */}
+                      <div className="bg-[#FFFBEB] border-l-4 border-[#F59E0B] p-4 rounded-r-lg shadow-sm">
+                        <p className="text-sm font-medium text-[#92400E]">
+                          ₹0.00 credits available.
+                        </p>
+                      </div>
+
+                      {/* Header Actions */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="flex items-center gap-3">
+                          <Button 
+                            className="bg-[#0F172A] hover:bg-[#1E293B] text-white rounded-lg font-bold gap-2 px-4 h-10 shadow-sm"
+                            onClick={() => navigate(`/admin/credit-notes/create/${id}`)}
+                          >
+                            <Plus className="h-4 w-4" />
+                            New Credit Note
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            className="rounded-lg font-bold gap-2 border-border/60 hover:bg-muted/50 h-10 px-4"
+                            onClick={() => setIsZipModalOpen(true)}
+                          >
+                            <FileText className="h-4 w-4" />
+                            Zip Credit Notes
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Zip Credit Notes Modal */}
+                      <Dialog open={isZipModalOpen} onOpenChange={setIsZipModalOpen}>
+                        <DialogContent className="max-w-md rounded-2xl p-0 overflow-hidden border-none shadow-2xl">
+                          <DialogHeader className="px-6 py-4 border-b border-border/40 bg-muted/5">
+                            <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
+                              Zip Credit Notes
+                            </DialogTitle>
+                          </DialogHeader>
+                          
+                          <div className="p-6 space-y-6">
+                            {/* Status Section */}
+                            <div className="space-y-3">
+                              <Label className="text-sm font-bold text-foreground/80 uppercase tracking-wider">Status</Label>
+                              <div className="grid grid-cols-2 gap-3">
+                                {["All", "Open", "Closed", "Void"].map((status) => (
+                                  <div 
+                                    key={status}
+                                    className={`flex items-center space-x-3 p-3 rounded-xl border-2 transition-all cursor-pointer ${
+                                      zipForm.status === status 
+                                        ? "border-primary bg-primary/5 text-primary shadow-sm" 
+                                        : "border-border/40 hover:border-border/80 text-muted-foreground"
+                                    }`}
+                                    onClick={() => setZipForm({ ...zipForm, status })}
+                                  >
+                                    <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                                      zipForm.status === status ? "border-primary" : "border-muted-foreground/40"
+                                    }`}>
+                                      {zipForm.status === status && <div className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                                    </div>
+                                    <span className="text-sm font-bold">{status}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Date Range Section */}
+                            <div className="grid grid-cols-1 gap-4">
+                              <div className="space-y-2">
+                                <Label className="text-sm font-bold text-foreground/80">From Date:</Label>
+                                <div className="relative group">
+                                  <Input 
+                                    type="date" 
+                                    className="h-11 rounded-xl border-border/60 focus:ring-primary/20 bg-muted/10 group-hover:bg-muted/20 transition-colors pl-4"
+                                    value={zipForm.fromDate}
+                                    onChange={(e) => setZipForm({ ...zipForm, fromDate: e.target.value })}
+                                  />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-sm font-bold text-foreground/80">To Date:</Label>
+                                <div className="relative group">
+                                  <Input 
+                                    type="date" 
+                                    className="h-11 rounded-xl border-border/60 focus:ring-primary/20 bg-muted/10 group-hover:bg-muted/20 transition-colors pl-4"
+                                    value={zipForm.toDate}
+                                    onChange={(e) => setZipForm({ ...zipForm, toDate: e.target.value })}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/40 bg-muted/5">
+                            <Button 
+                              variant="outline" 
+                              className="rounded-xl px-6 h-11 font-bold border-border/60"
+                              onClick={() => setIsZipModalOpen(false)}
+                            >
+                              Close
+                            </Button>
+                            <Button 
+                              className="rounded-xl px-8 h-11 font-bold bg-[#0F172A] hover:bg-[#1E293B] shadow-lg shadow-primary/20"
+                              onClick={() => {
+                                setIsZipModalOpen(false);
+                                toast({
+                                  title: "Export Started",
+                                  description: `Zipping ${zipForm.status} credit notes...`,
+                                });
+                              }}
+                            >
+                              Save
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+
+                      {/* Table Controls */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <Select value={creditNoteItemsPerPage} onValueChange={setCreditNoteItemsPerPage}>
+                            <SelectTrigger className="h-10 w-[80px] bg-white border border-border/60 shadow-sm rounded-lg text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["10", "25", "50", "100", "All"].map(v => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-10 rounded-lg font-bold text-xs gap-2 border border-border/60 bg-white shadow-sm px-4">
+                                Export
+                                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                              {["PDF", "CSV", "Excel", "Print"].map(type => (
+                                <DropdownMenuItem key={type} className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                  <FileText className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                                  <span className="text-xs font-bold">{type}</span>
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-10 w-10 rounded-lg border border-border/60 bg-white shadow-sm"
+                            onClick={() => queryClient.invalidateQueries({ queryKey: ["credit-notes", id] })}
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </Button>
+                        </div>
+
+                        <div className="relative w-full md:w-64">
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground flex items-center justify-center border-r border-border/50 pr-2 mr-2">
+                            <Search className="h-3.5 w-3.5" />
+                          </div>
+                          <Input 
+                            placeholder="Search..." 
+                            className="pl-10 h-10 bg-white border border-border/60 shadow-sm rounded-lg text-sm"
+                            value={creditNoteSearch}
+                            onChange={(e) => setCreditNoteSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Credit Notes Table */}
+                      <div className="rounded-xl border border-border/40 overflow-hidden bg-white shadow-sm">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm text-left border-collapse">
+                            <thead className="bg-[#F8FAFC] text-[#64748B] border-b border-border/40">
+                              <tr>
+                                {[
+                                  { label: "Credit Note #", sortable: true },
+                                  { label: "Credit Note Date" },
+                                  { label: "Status" },
+                                  { label: "Project" },
+                                  { label: "Reference #" },
+                                  { label: "Amount" },
+                                  { label: "Remaining Amount" }
+                                ].map((h, i) => (
+                                  <th key={i} className="px-6 py-4 font-semibold text-[13px] whitespace-nowrap">
+                                    <div className="flex items-center gap-2">
+                                      {h.label}
+                                      {h.sortable && (
+                                        <div className="p-1 rounded bg-muted/50">
+                                          <ChevronDown className="h-3 w-3" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/30">
+                              {isLoadingCreditNotes ? (
+                                Array(3).fill(0).map((_, i) => (
+                                  <tr key={i}><td colSpan={7} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                ))
+                              ) : creditNotes.length === 0 ? (
+                                <tr>
+                                  <td colSpan={7} className="px-6 py-10 text-left text-muted-foreground">
+                                    No entries found
+                                  </td>
+                                </tr>
+                              ) : (
+                                creditNotes.map((cn: any) => (
+                                  <tr key={cn._id} className="hover:bg-muted/10 transition-colors border-b border-border/20 last:border-0">
+                                    <td className="px-6 py-4 font-bold text-primary">{cn.number || cn._id.slice(-6).toUpperCase()}</td>
+                                    <td className="px-6 py-4 text-muted-foreground">{formatDate(cn.date)}</td>
+                                    <td className="px-6 py-4">
+                                      <Badge className={cn(
+                                        "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
+                                        cn.status === "Applied" || cn.status === "paid" ? "bg-green-500/10 text-green-500" :
+                                        cn.status === "Pending" ? "bg-orange-500/10 text-orange-500" :
+                                        "bg-muted text-muted-foreground"
+                                      )}>
+                                        {cn.status}
+                                      </Badge>
+                                    </td>
+                                    <td className="px-6 py-4 text-muted-foreground">{cn.project?.name || "-"}</td>
+                                    <td className="px-6 py-4 text-muted-foreground">{cn.reference || "-"}</td>
+                                    <td className="px-6 py-4 font-bold text-foreground">${cn.total?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || cn.amount?.toLocaleString()}</td>
+                                    <td className="px-6 py-4 font-bold text-foreground">${(cn.remaining_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+                        <p className="text-xs text-muted-foreground">
+                          Showing 1 to {creditNotes.length} of {creditNotes.length} entries
                         </p>
                         <div className="flex items-center gap-2">
                           <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
@@ -2115,7 +2996,7 @@ export default function CustomerView() {
                     </div>
                   )}
 
-                  {activeTab !== "profile" && activeTab !== "contacts" && activeTab !== "notes" && activeTab !== "statement" && activeTab !== "invoices" && activeTab !== "payments" && activeTab !== "proposals" && (
+                  {activeTab !== "profile" && activeTab !== "contacts" && activeTab !== "notes" && activeTab !== "statement" && activeTab !== "invoices" && activeTab !== "payments" && activeTab !== "proposals" && activeTab !== "credit-notes" && (
                     <div className="px-6 py-12">
                       <div className="flex flex-col items-center justify-center min-h-[400px] text-muted-foreground bg-muted/10 rounded-3xl border-2 border-dashed border-border/50 animate-in fade-in zoom-in duration-500">
                         <div className="relative mb-6">
@@ -2140,50 +3021,116 @@ export default function CustomerView() {
         </div>
       </div>
       <Dialog open={isMailModalOpen} onOpenChange={setIsMailModalOpen}>
-        <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
-          <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4 flex items-center justify-between">
+        <DialogContent className="max-w-[750px] w-[95vw] p-0 overflow-hidden rounded-xl shadow-2xl">
+          <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between">
             <DialogHeader>
-              <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
-                <Mail className="h-5 w-5" />
-                Send Statement by Email
-              </DialogTitle>
+              <DialogTitle className="text-xl font-bold text-foreground">Account Summary</DialogTitle>
             </DialogHeader>
           </div>
 
-          <div className="p-0 flex flex-col h-[85vh]">
+          <div className="p-0 flex flex-col" style={{ height: 'calc(100vh - 200px)', maxHeight: '75vh' }}>
             {/* Header / Fields Section */}
-            <div className="p-6 space-y-4 bg-muted/10 border-b border-border/50">
-              <div className="flex items-center gap-4">
-                <Label className="w-20 text-[10px] font-black uppercase text-muted-foreground tracking-widest text-right">To</Label>
-                <div className="relative flex-1">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input 
-                    placeholder="Search contact email..." 
-                    className="pl-8 h-9 bg-background/50 border-none shadow-none focus:bg-background transition-all rounded-lg"
-                    value={mailForm.email}
-                    onChange={(e) => setMailForm(p => ({ ...p, email: e.target.value }))}
-                  />
-                </div>
+            <div className="p-6 space-y-4 bg-background border-b border-border/50">
+              <div className="space-y-2">
+                <Label className="text-sm font-bold text-foreground">Email to</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className={cn(
+                        "w-full justify-between h-10 rounded-lg border-border/50 bg-muted/5 font-normal text-muted-foreground",
+                        mailForm.email && "text-foreground font-medium"
+                      )}
+                    >
+                      <div className="flex flex-wrap gap-1 items-center overflow-hidden">
+                        {mailForm.email ? (
+                          <span className="truncate">{mailForm.email}</span>
+                        ) : (
+                          "Select contact email..."
+                        )}
+                      </div>
+                      <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                    <Command className="rounded-xl border shadow-md">
+                      <CommandInput placeholder="Search contacts..." className="h-9" />
+                      <CommandEmpty>No contact found.</CommandEmpty>
+                      <CommandGroup className="max-h-[300px] overflow-y-auto p-1">
+                        {/* Static Options from user request */}
+                        {["admin@gmail.com", "admin1@gmail.com", "tirth@gmail.com"].map((email) => {
+                          const emails = mailForm.email ? mailForm.email.split(',').map(e => e.trim()) : [];
+                          const isSelected = emails.includes(email);
+                          
+                          return (
+                            <CommandItem
+                              key={email}
+                              onSelect={() => {
+                                let newEmails;
+                                if (isSelected) {
+                                  newEmails = emails.filter(e => e !== email);
+                                } else {
+                                  newEmails = [...emails, email];
+                                }
+                                setMailForm(p => ({ ...p, email: newEmails.join(', ') }));
+                              }}
+                              className="flex items-center justify-between py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
+                            >
+                              <div className="flex flex-col">
+                                <span className="text-xs font-bold">{email}</span>
+                                <span className="text-[10px] text-muted-foreground">Default Admin</span>
+                              </div>
+                              {isSelected && <Check className="h-4 w-4 text-primary" />}
+                            </CommandItem>
+                          );
+                        })}
+
+                        {/* Dynamic Contacts */}
+                        {contacts.map((contact: any) => {
+                          const emails = mailForm.email ? mailForm.email.split(',').map(e => e.trim()) : [];
+                          const isSelected = emails.includes(contact.email);
+                          
+                          return (
+                            <CommandItem
+                              key={contact._id}
+                              onSelect={() => {
+                                let newEmails;
+                                if (isSelected) {
+                                  newEmails = emails.filter(e => e !== contact.email);
+                                } else {
+                                  newEmails = [...emails, contact.email];
+                                }
+                                setMailForm(p => ({ ...p, email: newEmails.join(', ') }));
+                              }}
+                              className="flex items-center justify-between py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
+                            >
+                              <div className="flex flex-col">
+                                <span className="text-xs font-bold">{contact.email}</span>
+                                <span className="text-[10px] text-muted-foreground">{contact.firstname} {contact.lastname}</span>
+                              </div>
+                              {isSelected && <Check className="h-4 w-4 text-primary" />}
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
-              
-              <div className="flex items-center gap-4">
-                <Label className="w-20 text-[10px] font-black uppercase text-muted-foreground tracking-widest text-right">Cc</Label>
-                <Input 
-                  placeholder="Add carbon copy..." 
-                  className="flex-1 h-9 bg-background/50 border-none shadow-none focus:bg-background transition-all rounded-lg"
+
+              <div className="space-y-2">
+                <Label className="text-sm font-bold text-foreground">CC</Label>
+                <Input
+                  placeholder=""
+                  className="w-full h-10 rounded-lg border-border/50 bg-muted/5"
                   value={mailForm.cc}
                   onChange={(e) => setMailForm(p => ({ ...p, cc: e.target.value }))}
                 />
               </div>
 
-              <div className="flex items-center gap-4">
-                <Label className="w-20 text-[10px] font-black uppercase text-muted-foreground tracking-widest text-right">Subject</Label>
-                <Input 
-                  placeholder="Email subject..." 
-                  className="flex-1 h-9 bg-background/50 border-none shadow-none focus:bg-background transition-all rounded-lg font-bold"
-                  value={mailForm.subject}
-                  onChange={(e) => setMailForm(p => ({ ...p, subject: e.target.value }))}
-                />
+              <div className="pt-2">
+                <Label className="text-sm font-bold text-foreground uppercase tracking-tight">Preview Email Template</Label>
               </div>
             </div>
 
@@ -2191,94 +3138,775 @@ export default function CustomerView() {
             <div className="bg-background border-b border-border/50 shadow-sm flex flex-col">
               {/* Menu Tier */}
               <div className="flex items-center gap-4 px-4 h-8 text-[11px] font-medium text-foreground/70 border-b border-border/10">
-                {["File", "Edit", "View", "Insert", "Format", "Tools", "Table", "Help"].map(item => (
-                  <span key={item} className="cursor-pointer hover:bg-muted px-2 py-0.5 rounded transition-colors">{item}</span>
-                ))}
+                {/* File */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild><span className="cursor-pointer hover:bg-muted px-2 py-0.5 rounded">File</span></DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-48 p-1">
+                    <DropdownMenuItem className="flex justify-between items-center h-8 bg-primary/5 text-primary">
+                      <div className="flex items-center gap-2"><Printer className="h-4 w-4" /><span>Print...</span></div>
+                      <span className="text-[10px] text-muted-foreground/70">Ctrl+P</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {/* Edit */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild><span className="cursor-pointer hover:bg-muted px-2 py-0.5 rounded">Edit</span></DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 p-1">
+                    <DropdownMenuItem className="flex justify-between items-center h-8"><div className="flex items-center gap-2"><Undo className="h-3.5 w-3.5" />Undo</div><span className="text-[10px] text-muted-foreground">Ctrl+Z</span></DropdownMenuItem>
+                    <DropdownMenuItem className="flex justify-between items-center h-8 opacity-50"><div className="flex items-center gap-2"><Redo className="h-3.5 w-3.5" />Redo</div><span className="text-[10px]">Ctrl+Y</span></DropdownMenuItem>
+                    <div className="h-px bg-border/50 my-1" />
+                    <DropdownMenuItem className="flex justify-between items-center h-8"><div className="flex items-center gap-2"><Scissors className="h-3.5 w-3.5" />Cut</div><span className="text-[10px] text-muted-foreground">Ctrl+X</span></DropdownMenuItem>
+                    <DropdownMenuItem className="flex justify-between items-center h-8"><div className="flex items-center gap-2"><Copy className="h-3.5 w-3.5" />Copy</div><span className="text-[10px] text-muted-foreground">Ctrl+C</span></DropdownMenuItem>
+                    <DropdownMenuItem className="flex justify-between items-center h-8"><div className="flex items-center gap-2"><ClipboardPaste className="h-3.5 w-3.5" />Paste</div><span className="text-[10px] text-muted-foreground">Ctrl+V</span></DropdownMenuItem>
+                    <div className="h-px bg-border/50 my-1" />
+                    <DropdownMenuItem className="flex justify-between items-center h-8"><div className="flex items-center gap-2"><SquareMousePointer className="h-3.5 w-3.5" />Select all</div><span className="text-[10px] text-muted-foreground">Ctrl+A</span></DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {/* View */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild><span className="cursor-pointer hover:bg-muted px-2 py-0.5 rounded">View</span></DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 p-1">
+                    <DropdownMenuItem className="flex items-center gap-2 h-8 bg-primary/5 text-primary" onClick={() => setIsSourceCodeDialogOpen(true)}><Code className="h-4 w-4" /><span>Source code</span></DropdownMenuItem>
+                    <div className="h-px bg-border/50 my-1" />
+                    <DropdownMenuItem className="flex justify-between items-center h-8"><div className="flex items-center gap-2 pl-6"><span>Visual aids</span></div><Check className="h-4 w-4" /></DropdownMenuItem>
+                    <DropdownMenuItem className="flex items-center gap-2 h-8"><SquareMousePointer className="h-4 w-4" /><span>Show blocks</span></DropdownMenuItem>
+                    <div className="h-px bg-border/50 my-1" />
+                    <DropdownMenuItem className="flex justify-between items-center h-8"><div className="flex items-center gap-2"><Maximize className="h-4 w-4" /><span>Fullscreen</span></div><span className="text-[10px] text-muted-foreground/70">Ctrl+Shift+F</span></DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {/* Insert */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild><span className="cursor-pointer hover:bg-muted px-2 py-0.5 rounded">Insert</span></DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 p-1">
+                    <DropdownMenuItem className="flex items-center gap-2 h-8 bg-blue-50 text-blue-600 rounded-md" onClick={() => setIsImageDialogOpen(true)}><ImageIcon className="h-4 w-4" /><span>Image...</span></DropdownMenuItem>
+                    <DropdownMenuItem className="flex justify-between items-center h-8 px-2 rounded-md" onClick={() => setIsLinkDialogOpen(true)}><div className="flex items-center gap-2"><Link2 className="h-4 w-4" /><span>Link...</span></div><span className="text-[10px] text-muted-foreground/70">Ctrl+K</span></DropdownMenuItem>
+                    <DropdownMenuItem className="flex items-center gap-2 h-8 px-2 rounded-md" onClick={() => setIsMediaDialogOpen(true)}><Play className="h-4 w-4" /><span>Media...</span></DropdownMenuItem>
+                    <DropdownMenuItem className="flex items-center gap-2 h-8 px-2 rounded-md" onClick={() => setIsCodeSampleDialogOpen(true)}><Code2 className="h-4 w-4" /><span>Code sample...</span></DropdownMenuItem>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group data-[state=open]:bg-blue-50 data-[state=open]:text-blue-600">
+                        <div className="flex items-center gap-2">
+                          <TableIcon className="h-4 w-4 opacity-70" />
+                          <span className="text-[13px] font-medium">Table</span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent side="right" sideOffset={12} alignOffset={-4} className="p-1 w-[222px] bg-white shadow-2xl rounded-xl border border-border/20 animate-in slide-in-from-left-2 duration-200">
+                          <div className="p-2 flex flex-col items-center">
+                            <div className="grid grid-cols-10 border-[0.5px] border-border/30 w-[202px] h-[202px]" onMouseLeave={() => setHoveredTableSize({ rows: 0, cols: 0 })}>
+                              {Array.from({ length: 10 }).map((_, r) => (
+                                <Fragment key={r}>
+                                  {Array.from({ length: 10 }).map((_, c) => {
+                                    const sel = c < hoveredTableSize.cols && r < hoveredTableSize.rows;
+                                    return (
+                                      <div
+                                        key={`${r}-${c}`}
+                                        className={cn(
+                                          "w-5 h-5 border-[0.5px] border-border/10 cursor-pointer transition-colors duration-75",
+                                          sel ? "bg-blue-100 border-blue-400" : "bg-white hover:bg-blue-50"
+                                        )}
+                                        onMouseEnter={() => setHoveredTableSize({ rows: r+1, cols: c+1 })}
+                                        onClick={() => setInsertedTable({ rows: r+1, cols: c+1 })}
+                                      />
+                                    );
+                                  })}
+                                </Fragment>
+                              ))}
+                            </div>
+                            <div className="text-center text-[11px] text-blue-600/60 mt-2 font-bold tracking-widest">
+                              {hoveredTableSize.cols > 0 ? `${hoveredTableSize.cols} x ${hoveredTableSize.rows}` : "0 x 0"}
+                            </div>
+                          </div>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
+                    <div className="h-px bg-border/50 my-1" />
+                    <DropdownMenuItem className="flex items-center gap-2 h-8 px-2 rounded-md"><Minus className="h-4 w-4 opacity-70" /><span>Horizontal line</span></DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {/* Format */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild><span className="cursor-pointer hover:bg-muted px-2 py-0.5 rounded">Format</span></DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 p-1 max-h-[300px] overflow-y-auto">
+                    <DropdownMenuItem className="flex justify-between items-center h-8 bg-primary/5 text-primary"><div className="flex items-center gap-2"><Bold className="h-4 w-4" /><span className="font-bold">Bold</span></div><span className="text-[10px]">Ctrl+B</span></DropdownMenuItem>
+                    <DropdownMenuItem className="flex justify-between items-center h-8"><div className="flex items-center gap-2"><Italic className="h-4 w-4" /><span className="italic">Italic</span></div><span className="text-[10px] text-muted-foreground/70">Ctrl+I</span></DropdownMenuItem>
+                    <DropdownMenuItem className="flex justify-between items-center h-8"><div className="flex items-center gap-2"><Underline className="h-4 w-4" /><span className="underline">Underline</span></div><span className="text-[10px] text-muted-foreground/70">Ctrl+U</span></DropdownMenuItem>
+                    <DropdownMenuItem className="flex items-center gap-2 h-8"><Strikethrough className="h-4 w-4" /><span className="line-through">Strikethrough</span></DropdownMenuItem>
+                    <DropdownMenuItem className="flex items-center gap-2 h-8"><Superscript className="h-4 w-4" /><span>Superscript</span></DropdownMenuItem>
+                    <DropdownMenuItem className="flex items-center gap-2 h-8"><Subscript className="h-4 w-4" /><span>Subscript</span></DropdownMenuItem>
+                    <DropdownMenuItem className="flex items-center gap-2 h-8"><Code className="h-4 w-4" /><span>Code</span></DropdownMenuItem>
+                    <div className="h-px bg-border/50 my-1" />
+                    {["Formats","Blocks","Fonts","Font sizes"].map(item => (
+                      <DropdownMenuItem key={item} className="flex justify-between items-center h-8"><span className="pl-6">{item}</span><ChevronDown className="h-3 w-3 -rotate-90 opacity-50" /></DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {/* Tools */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild><span className="cursor-pointer hover:bg-muted px-2 py-0.5 rounded">Tools</span></DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-56 p-1">
+                    <DropdownMenuItem className="flex items-center gap-2 h-8 bg-blue-50 text-blue-600 rounded-md cursor-pointer" onClick={() => setIsSourceCodeDialogOpen(true)}>
+                      <Code className="h-4 w-4" />
+                      <span className="font-medium">Source code</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <span className="cursor-pointer hover:bg-muted px-2 py-0.5 rounded transition-colors data-[state=open]:bg-blue-50 data-[state=open]:text-blue-600">Table</span>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52 p-1 bg-white shadow-xl rounded-xl border border-border/40">
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group data-[state=open]:bg-blue-50 data-[state=open]:text-blue-600">
+                        <div className="flex items-center gap-2">
+                          <TableIcon className="h-3.5 w-3.5 opacity-70" />
+                          <span className="text-[13px] font-medium">Table</span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent side="left" sideOffset={12} alignOffset={-4} className="p-1 w-[222px] bg-white shadow-2xl rounded-xl border border-border/20 animate-in slide-in-from-right-2 duration-200">
+                          <div className="p-2 flex flex-col items-center">
+                            <div className="grid grid-cols-10 border-[0.5px] border-border/30 w-[202px] h-[202px]" onMouseLeave={() => setHoveredTableSize({ rows: 0, cols: 0 })}>
+                              {Array.from({ length: 10 }).map((_, r) => (
+                                <Fragment key={r}>
+                                  {Array.from({ length: 10 }).map((_, c) => {
+                                    const sel = c < hoveredTableSize.cols && r < hoveredTableSize.rows;
+                                    return (
+                                      <div 
+                                        key={`${r}-${c}`} 
+                                        className={cn(
+                                          "w-5 h-5 border-[0.5px] border-border/10 cursor-pointer transition-colors duration-75", 
+                                          sel ? "bg-blue-100 border-blue-400" : "bg-white hover:bg-blue-50"
+                                        )} 
+                                        onMouseEnter={() => setHoveredTableSize({ rows: r+1, cols: c+1 })} 
+                                        onClick={() => setInsertedTable({ rows: r+1, cols: c+1 })} 
+                                      />
+                                    );
+                                  })}
+                                </Fragment>
+                              ))}
+                            </div>
+                            <div className="text-center text-[11px] text-blue-600/60 mt-2 font-bold tracking-widest">
+                              {hoveredTableSize.cols} x {hoveredTableSize.rows}
+                            </div>
+                          </div>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
+
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
+                        <div className="flex items-center gap-2">
+                          <MousePointer2 className="h-3.5 w-3.5 opacity-70" />
+                          <span className="text-[13px] font-medium">Cell</span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent side="left" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert cell before</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert cell after</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete cell</DropdownMenuItem>
+                          <DropdownMenuSeparator className="my-1" />
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Merge cells</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Split cell</DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
+
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
+                        <div className="flex items-center gap-2">
+                          <Rows className="h-3.5 w-3.5 opacity-70" />
+                          <span className="text-[13px] font-medium">Row</span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent side="left" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert row before</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert row after</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete row</DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
+
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
+                        <div className="flex items-center gap-2">
+                          <Columns className="h-3.5 w-3.5 opacity-70" />
+                          <span className="text-[13px] font-medium">Column</span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent side="left" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert column before</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert column after</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete column</DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
+
+                    <DropdownMenuSeparator className="my-1" />
+                    <DropdownMenuItem className="flex items-center gap-2 h-8 px-2 text-[13px] opacity-40 cursor-not-allowed">
+                      <TableIcon className="h-3.5 w-3.5" />
+                      <span className="font-medium">Table properties</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2 h-8 px-2 text-[13px] text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md cursor-pointer" 
+                      onClick={() => setInsertedTable(null)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span className="font-medium">Delete table</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
               </div>
-              
+
               {/* Toolbar Tier */}
-              <div className="flex items-center gap-1 p-1.5 overflow-x-auto no-scrollbar">
-                <div className="flex items-center bg-muted/50 rounded-lg p-0.5 gap-1">
-                  <Select defaultValue="inter">
-                    <SelectTrigger className="h-7 w-[120px] text-[11px] font-semibold border-none bg-transparent hover:bg-muted transition-colors">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="inter">System Font</SelectItem>
-                      <SelectItem value="roboto">Roboto</SelectItem>
-                      <SelectItem value="mono">Space Mono</SelectItem>
+              <div className="flex items-center gap-1 p-2 overflow-x-auto no-scrollbar border-b border-border/50">
+                <div className="flex items-center gap-1 px-2">
+                  <Select value={editorFont === "inherit" ? "System Font" : editorFont.split(",")[0]} onValueChange={(val) => {
+                    const map: Record<string, string> = {"System Font":"inherit","Andale Mono":"Andale Mono,monospace","Arial":"Arial,sans-serif","Arial Black":"Arial Black,sans-serif","Book Antiqua":"Book Antiqua,serif","Comic Sans MS":"Comic Sans MS,cursive","Courier New":"Courier New,monospace","Georgia":"Georgia,serif","Helvetica":"Helvetica,sans-serif","Impact":"Impact,sans-serif","Tahoma":"Tahoma,sans-serif","Times New Roman":"Times New Roman,serif","Trebuchet MS":"Trebuchet MS,sans-serif","Verdana":"Verdana,sans-serif"};
+                    setEditorFont(map[val] || "inherit");
+                  }}>
+                    <SelectTrigger className="h-8 w-[120px] text-xs border-none bg-transparent hover:bg-muted"><SelectValue /></SelectTrigger>
+                    <SelectContent className="max-h-[300px]">
+                      {[["System Font","inherit"],["Andale Mono","Andale Mono,monospace"],["Arial","Arial,sans-serif"],["Arial Black","Arial Black,sans-serif"],["Book Antiqua","Book Antiqua,serif"],["Comic Sans MS","Comic Sans MS,cursive"],["Courier New","Courier New,monospace"],["Georgia","Georgia,serif"],["Helvetica","Helvetica,sans-serif"],["Impact","Impact,sans-serif"],["Tahoma","Tahoma,sans-serif"],["Times New Roman","Times New Roman,serif"],["Trebuchet MS","Trebuchet MS,sans-serif"],["Verdana","Verdana,sans-serif"]].map(([name, family]) => (
+                        <SelectItem key={name} value={name} style={{ fontFamily: family }}>{name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
-                  <div className="w-px h-4 bg-border/50 mx-0.5" />
-                  <Select defaultValue="14">
-                    <SelectTrigger className="h-7 w-[60px] text-[11px] font-semibold border-none bg-transparent hover:bg-muted transition-colors">
-                      <SelectValue />
-                    </SelectTrigger>
+                  <Select value={`${editorFontSize}pt`} onValueChange={(val) => setEditorFontSize(val.replace("pt", ""))}>
+                    <SelectTrigger className="h-8 w-[70px] text-xs border-none bg-transparent hover:bg-muted"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="12">12</SelectItem>
-                      <SelectItem value="14">14</SelectItem>
-                      <SelectItem value="16">16</SelectItem>
+                      {[8,9,10,11,12,14,18,24,30,36,48,60,72,96].map(s => <SelectItem key={s} value={`${s}pt`}>{s}pt</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="w-px h-6 bg-border/50 mx-1" />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div className="flex items-center gap-1 cursor-pointer hover:bg-muted p-1 rounded">
+                      <span className="text-sm font-bold border-b-2 border-foreground leading-none">A</span>
+                      <ChevronDown className="h-3 w-3 opacity-30" />
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="p-2 grid grid-cols-8 gap-1 w-auto">
+                    {["#000000","#434343","#666666","#999999","#b7b7b7","#cccccc","#d9d9d9","#ffffff","#980000","#ff0000","#ff9900","#ffff00","#00ff00","#00ffff","#4a86e8","#0000ff","#9900ff","#ff00ff"].map(c => (
+                      <div key={c} className="w-5 h-5 rounded-sm border border-border/50 cursor-pointer hover:scale-110 transition-transform" style={{ backgroundColor: c }} />
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <div className="flex items-center gap-1 cursor-pointer hover:bg-muted p-1 rounded">
+                      <Pencil className="h-4 w-4" />
+                      <ChevronDown className="h-3 w-3 opacity-30" />
+                    </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="p-2 grid grid-cols-8 gap-1 w-auto">
+                    {["#ffff00","#00ff00","#00ffff","#ff00ff","#ff0000","#0000ff","#00008b","#006400","#8b0000","#ffffff"].map(c => (
+                      <div key={c} className="w-5 h-5 rounded-sm border border-border/50 cursor-pointer hover:scale-110 transition-transform" style={{ backgroundColor: c }} />
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <div className="w-px h-6 bg-border/50 mx-1" />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-blue-50 hover:text-blue-600 transition-colors rounded-md group">
+                      <TableIcon className="h-3.5 w-3.5 opacity-70" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-52 p-1 bg-white shadow-xl rounded-xl border border-border/40">
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group data-[state=open]:bg-blue-50 data-[state=open]:text-blue-600">
+                        <div className="flex items-center gap-2">
+                          <TableIcon className="h-3.5 w-3.5 opacity-70" />
+                          <span className="text-[13px] font-medium">Table</span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent side="right" sideOffset={12} alignOffset={-4} className="p-1 w-[222px] bg-white shadow-2xl rounded-xl border border-border/20 animate-in slide-in-from-left-2 duration-200">
+                          <div className="p-2 flex flex-col items-center">
+                            <div className="grid grid-cols-10 border-[0.5px] border-border/30 w-[202px] h-[202px]" onMouseLeave={() => setHoveredTableSize({ rows: 0, cols: 0 })}>
+                              {Array.from({ length: 10 }).map((_, r) => (
+                                <Fragment key={r}>
+                                  {Array.from({ length: 10 }).map((_, c) => {
+                                    const sel = c < hoveredTableSize.cols && r < hoveredTableSize.rows;
+                                    return (
+                                      <div 
+                                        key={`${r}-${c}`} 
+                                        className={cn(
+                                          "w-5 h-5 border-[0.5px] border-border/10 cursor-pointer transition-colors duration-75", 
+                                          sel ? "bg-blue-100 border-blue-400" : "bg-white hover:bg-blue-50"
+                                        )} 
+                                        onMouseEnter={() => setHoveredTableSize({ rows: r+1, cols: c+1 })} 
+                                        onClick={() => setInsertedTable({ rows: r+1, cols: c+1 })} 
+                                      />
+                                    );
+                                  })}
+                                </Fragment>
+                              ))}
+                            </div>
+                            <div className="text-center text-[11px] text-blue-600/60 mt-2 font-bold tracking-widest">
+                              {hoveredTableSize.cols} x {hoveredTableSize.rows}
+                            </div>
+                          </div>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
 
-                <div className="w-px h-6 bg-border mx-2" />
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
+                        <div className="flex items-center gap-2">
+                          <MousePointer2 className="h-3.5 w-3.5 opacity-70" />
+                          <span className="text-[13px] font-medium">Cell</span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent side="right" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert cell before</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert cell after</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete cell</DropdownMenuItem>
+                          <DropdownMenuSeparator className="my-1" />
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Merge cells</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Split cell</DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
 
-                <div className="flex items-center gap-0.5">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted transition-colors"><Bold className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted transition-colors"><Italic className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted transition-colors"><Underline className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted transition-colors text-red-500"><Palette className="h-4 w-4" /></Button>
-                </div>
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
+                        <div className="flex items-center gap-2">
+                          <Rows className="h-3.5 w-3.5 opacity-70" />
+                          <span className="text-[13px] font-medium">Row</span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent side="right" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert row before</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert row after</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete row</DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
 
-                <div className="w-px h-6 bg-border mx-2" />
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
+                        <div className="flex items-center gap-2">
+                          <Columns className="h-3.5 w-3.5 opacity-70" />
+                          <span className="text-[13px] font-medium">Column</span>
+                        </div>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent side="right" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert column before</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert column after</DropdownMenuItem>
+                          <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete column</DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
+                    </DropdownMenuSub>
 
-                <div className="flex items-center gap-0.5">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted transition-colors"><Link2 className="h-4 w-4 text-blue-500" /></Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted transition-colors"><ImageIcon className="h-4 w-4 text-green-500" /></Button>
-                </div>
+                    <DropdownMenuSeparator className="my-1" />
+                    <DropdownMenuItem className="flex items-center gap-2 h-8 px-2 text-[13px] opacity-40 cursor-not-allowed">
+                      <TableIcon className="h-3.5 w-3.5" />
+                      <span className="font-medium">Table properties</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      className="flex items-center gap-2 h-8 px-2 text-[13px] text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md cursor-pointer" 
+                      onClick={() => setInsertedTable(null)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span className="font-medium">Delete table</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-                <div className="w-px h-6 bg-border mx-2" />
+                <div className="w-px h-6 bg-border/50 mx-1" />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted transition-colors rounded-lg">
+                      <MoreHorizontal className="h-4 w-4 text-foreground/70" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[380px] p-4 shadow-2xl rounded-2xl bg-white border border-border/40 animate-in fade-in zoom-in duration-200" align="end" sideOffset={12}>
+                    <div className="flex flex-col gap-4">
+                      {/* Top Row: Formatting and Tools */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-9 w-9 bg-[#DCEBFF] text-[#0070F3] hover:bg-[#CFE4FF] transition-colors rounded-lg">
+                            <Bold className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-muted/80 rounded-lg">
+                            <Italic className="h-4 w-4 text-foreground/70" />
+                          </Button>
+                        </div>
 
-                <div className="flex items-center gap-0.5">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted transition-colors bg-muted/50"><AlignLeft className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted transition-colors"><AlignCenter className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted transition-colors"><AlignRight className="h-4 w-4" /></Button>
-                </div>
+                        <div className="w-px h-6 bg-border/20 mx-1" />
 
-                <div className="w-px h-6 bg-border mx-2" />
+                        <div className="flex items-center gap-0.5">
+                          <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-muted/80 rounded-lg"><AlignLeft className="h-4 w-4 text-foreground/70" /></Button>
+                          <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-muted/80 rounded-lg"><AlignCenter className="h-4 w-4 text-foreground/70" /></Button>
+                          <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-muted/80 rounded-lg"><AlignRight className="h-4 w-4 text-foreground/70" /></Button>
+                          <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-muted/80 rounded-lg"><AlignJustify className="h-4 w-4 text-foreground/70" /></Button>
+                        </div>
 
-                <div className="flex items-center gap-0.5">
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted transition-colors"><List className="h-4 w-4" /></Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted transition-colors"><ListOrdered className="h-4 w-4" /></Button>
-                </div>
+                        <div className="w-px h-6 bg-border/20 mx-1" />
+
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-muted/80 rounded-lg" onClick={() => setIsImageDialogOpen(true)}><ImageIcon className="h-4 w-4 text-foreground/70" /></Button>
+                          <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-muted/80 rounded-lg" onClick={() => setIsLinkDialogOpen(true)}><Link2 className="h-4 w-4 text-foreground/70" /></Button>
+                        </div>
+                      </div>
+                      
+                      <div className="h-px bg-border/10 w-full" />
+                      
+                      {/* Bottom Row: Lists and History */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1.5 hover:bg-muted/80 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer group">
+                            <List className="h-4 w-4 text-foreground/70" />
+                            <ChevronDown className="h-3.5 w-3.5 opacity-30 group-hover:opacity-60" />
+                          </div>
+                          <div className="flex items-center gap-1.5 hover:bg-muted/80 px-2.5 py-1.5 rounded-lg transition-colors cursor-pointer group">
+                            <ListOrdered className="h-4 w-4 text-foreground/70" />
+                            <ChevronDown className="h-3.5 w-3.5 opacity-30 group-hover:opacity-60" />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          <div className="w-px h-6 bg-border/20" />
+                          <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-muted/80 rounded-lg">
+                            <History className="h-4 w-4 text-foreground/50" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
               </div>
             </div>
 
+
             {/* Editor Area */}
             <div className="flex-1 overflow-y-auto bg-[#F8F9FA] p-8">
-              <div className="max-w-[700px] mx-auto bg-white shadow-sm border border-border/30 min-h-full rounded-sm p-12 focus-within:ring-2 ring-primary/10 transition-all">
-                <Textarea 
-                  value={mailForm.body}
-                  onChange={(e) => setMailForm(p => ({ ...p, body: e.target.value }))}
-                  className="w-full h-full border-none focus-visible:ring-0 rounded-none resize-none p-0 text-sm leading-[1.8] text-foreground/80 min-h-[500px]"
-                />
+              <div className="max-w-[700px] mx-auto bg-white shadow-sm border border-border/30 min-h-full rounded-sm p-12 focus-within:ring-2 ring-primary/10 transition-all relative">
+                {insertedTable && (
+                  <div className="relative border-2 border-[#7FBFFF] mb-16">
+                    <div className="absolute -top-1.5 -left-1.5 w-3 h-3 bg-[#0070F3] border-white border-2 rounded-sm z-10" />
+                    <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-[#0070F3] border-white border-2 rounded-sm z-10" />
+                    <div className="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-[#0070F3] border-white border-2 rounded-sm z-10" />
+                    <div className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-[#0070F3] border-white border-2 rounded-sm z-10" />
+                    <table className="w-full border-collapse table-fixed border-2 border-[#4A90C4]">
+                      <tbody>
+                        {Array.from({ length: insertedTable.rows }).map((_, r) => (
+                          <tr key={r}>
+                            {Array.from({ length: insertedTable.cols }).map((_, c) => (
+                              <td key={c} className="border-2 border-[#4A90C4] h-12 px-3 text-sm focus:outline-none" contentEditable suppressContentEditableWarning />
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <div className="absolute -bottom-14 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-white shadow-xl border border-border/40 p-1.5 rounded-xl z-20 whitespace-nowrap">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 gap-2 px-2 hover:bg-blue-50 hover:text-blue-600 transition-colors rounded-md group">
+                          <TableIcon className="h-3.5 w-3.5 opacity-70" />
+                          <span className="text-xs font-medium">Table</span>
+                          <ChevronDown className="h-3 w-3 opacity-40" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" side="top" className="w-52 p-1 bg-white shadow-xl rounded-xl border border-border/40">
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group data-[state=open]:bg-blue-50 data-[state=open]:text-blue-600">
+                            <div className="flex items-center gap-2">
+                              <TableIcon className="h-3.5 w-3.5 opacity-70" />
+                              <span className="text-[13px] font-medium">Table</span>
+                            </div>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuPortal>
+                            <DropdownMenuSubContent side="right" sideOffset={12} alignOffset={-4} className="p-1 w-[222px] bg-white shadow-2xl rounded-xl border border-border/20 animate-in slide-in-from-left-2 duration-200">
+                              <div className="p-2 flex flex-col items-center">
+                                <div className="grid grid-cols-10 border-[0.5px] border-border/30 w-[202px] h-[202px]" onMouseLeave={() => setHoveredTableSize({ rows: 0, cols: 0 })}>
+                                  {Array.from({ length: 10 }).map((_, r) => (
+                                    <Fragment key={r}>
+                                      {Array.from({ length: 10 }).map((_, c) => {
+                                        const sel = c < hoveredTableSize.cols && r < hoveredTableSize.rows;
+                                        return (
+                                          <div 
+                                            key={`${r}-${c}`} 
+                                            className={cn(
+                                              "w-5 h-5 border-[0.5px] border-border/10 cursor-pointer transition-colors duration-75", 
+                                              sel ? "bg-blue-100 border-blue-400" : "bg-white hover:bg-blue-50"
+                                            )} 
+                                            onMouseEnter={() => setHoveredTableSize({ rows: r+1, cols: c+1 })} 
+                                            onClick={() => setInsertedTable({ rows: r+1, cols: c+1 })} 
+                                          />
+                                        );
+                                      })}
+                                    </Fragment>
+                                  ))}
+                                </div>
+                                <div className="text-center text-[11px] text-blue-600/60 mt-2 font-bold tracking-widest">
+                                  {hoveredTableSize.cols} x {hoveredTableSize.rows}
+                                </div>
+                              </div>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuPortal>
+                        </DropdownMenuSub>
+
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
+                            <div className="flex items-center gap-2">
+                              <MousePointer2 className="h-3.5 w-3.5 opacity-70" />
+                              <span className="text-[13px] font-medium">Cell</span>
+                            </div>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuPortal>
+                            <DropdownMenuSubContent side="right" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
+                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert cell before</DropdownMenuItem>
+                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert cell after</DropdownMenuItem>
+                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete cell</DropdownMenuItem>
+                              <DropdownMenuSeparator className="my-1" />
+                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Merge cells</DropdownMenuItem>
+                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Split cell</DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuPortal>
+                        </DropdownMenuSub>
+
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
+                            <div className="flex items-center gap-2">
+                              <Rows className="h-3.5 w-3.5 opacity-70" />
+                              <span className="text-[13px] font-medium">Row</span>
+                            </div>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuPortal>
+                            <DropdownMenuSubContent side="right" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
+                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert row before</DropdownMenuItem>
+                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert row after</DropdownMenuItem>
+                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete row</DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuPortal>
+                        </DropdownMenuSub>
+
+                        <DropdownMenuSub>
+                          <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
+                            <div className="flex items-center gap-2">
+                              <Columns className="h-3.5 w-3.5 opacity-70" />
+                              <span className="text-[13px] font-medium">Column</span>
+                            </div>
+                          </DropdownMenuSubTrigger>
+                          <DropdownMenuPortal>
+                            <DropdownMenuSubContent side="right" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
+                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert column before</DropdownMenuItem>
+                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert column after</DropdownMenuItem>
+                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete column</DropdownMenuItem>
+                            </DropdownMenuSubContent>
+                          </DropdownMenuPortal>
+                        </DropdownMenuSub>
+
+                        <DropdownMenuSeparator className="my-1" />
+                        <DropdownMenuItem className="flex items-center gap-2 h-8 px-2 text-[13px] opacity-40 cursor-not-allowed">
+                          <TableIcon className="h-3.5 w-3.5" />
+                          <span className="font-medium">Table properties</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="flex items-center gap-2 h-8 px-2 text-[13px] text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md cursor-pointer" 
+                          onClick={() => setInsertedTable(null)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span className="font-medium">Delete table</span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" title="Delete" onClick={() => setInsertedTable(null)}><Plus className="h-4 w-4 rotate-45" /></Button>
+                      <div className="w-px h-5 bg-border/50 mx-1" />
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Remove row" onClick={() => setInsertedTable(t => t && t.rows > 1 ? { ...t, rows: t.rows - 1 } : t)}><Rows className="h-4 w-4 rotate-180" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Add row" onClick={() => setInsertedTable(t => t ? { ...t, rows: t.rows + 1 } : t)}><Rows className="h-4 w-4" /></Button>
+                      <div className="w-px h-5 bg-border/50 mx-1" />
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Remove column" onClick={() => setInsertedTable(t => t && t.cols > 1 ? { ...t, cols: t.cols - 1 } : t)}><Columns className="h-4 w-4 -scale-x-100" /></Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" title="Add column" onClick={() => setInsertedTable(t => t ? { ...t, cols: t.cols + 1 } : t)}><Columns className="h-4 w-4" /></Button>
+                    </div>
+                  </div>
+                )}
+                <Textarea value={mailForm.body} onChange={(e) => setMailForm(p => ({ ...p, body: e.target.value }))} className="w-full h-full border-none focus-visible:ring-0 rounded-none resize-none p-0 leading-[1.8] text-foreground/80 min-h-[400px]" style={{ fontFamily: editorFont, fontSize: `${editorFontSize}pt` }} />
               </div>
             </div>
 
             {/* Footer */}
-            <div className="p-4 bg-background border-t border-border/50 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/5 text-primary border border-primary/10">
-                  <FileText className="h-3.5 w-3.5" />
-                  <span className="text-[10px] font-black uppercase tracking-widest">Statement Attached</span>
+            <div className="p-4 bg-background border-t border-border/50 flex items-center justify-end gap-3">
+              <Button variant="outline" onClick={() => setIsMailModalOpen(false)} className="rounded-lg h-9 w-24">Close</Button>
+              <Button className="rounded-lg h-9 w-24 bg-[#1E293B] hover:bg-[#0F172A] text-white">Send</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Insert Image Dialog */}
+      <Dialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}>
+        <DialogContent className="max-w-md p-6 rounded-xl shadow-2xl">
+          <h2 className="text-xl font-medium mb-5">Insert/Edit Image</h2>
+          <div className="space-y-4">
+            <div className="space-y-1.5"><Label className="text-sm text-muted-foreground">Source</Label>
+              <div className="flex gap-2"><Input className="h-10" value={imageForm.source} onChange={e => setImageForm(p => ({ ...p, source: e.target.value }))} /><Button variant="outline" size="icon" className="h-10 w-10 shrink-0"><Upload className="h-4 w-4" /></Button></div>
+            </div>
+            <div className="space-y-1.5"><Label className="text-sm text-muted-foreground">Alternative description</Label><Input className="h-10" value={imageForm.alt} onChange={e => setImageForm(p => ({ ...p, alt: e.target.value }))} /></div>
+            <div className="flex gap-4">
+              <div className="flex-1 space-y-1.5"><Label className="text-sm text-muted-foreground">Width</Label><Input className="h-10" value={imageForm.width} onChange={e => setImageForm(p => ({ ...p, width: e.target.value }))} /></div>
+              <div className="flex-1 space-y-1.5"><Label className="text-sm text-muted-foreground">Height</Label><div className="flex gap-2"><Input className="h-10" value={imageForm.height} onChange={e => setImageForm(p => ({ ...p, height: e.target.value }))} /><Button variant="ghost" size="icon" className="h-10 w-10 shrink-0"><Lock className="h-4 w-4" /></Button></div></div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 mt-8"><Button variant="ghost" onClick={() => setIsImageDialogOpen(false)} className="bg-muted px-6">Cancel</Button><Button className="bg-[#0070F3] hover:bg-[#0060E0] text-white px-8" onClick={() => setIsImageDialogOpen(false)}>Save</Button></div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Insert Link Dialog */}
+      <Dialog open={isLinkDialogOpen} onOpenChange={setIsLinkDialogOpen}>
+        <DialogContent className="max-w-md p-6 rounded-xl shadow-2xl">
+          <h2 className="text-xl font-medium mb-5">Insert/Edit Link</h2>
+          <div className="space-y-4">
+            <div className="space-y-1.5"><Label className="text-sm text-muted-foreground">URL</Label><div className="flex gap-2"><Input className="h-10" value={linkForm.url} onChange={e => setLinkForm(p => ({ ...p, url: e.target.value }))} /><Button variant="outline" size="icon" className="h-10 w-10 shrink-0"><Upload className="h-4 w-4" /></Button></div></div>
+            <div className="space-y-1.5"><Label className="text-sm text-muted-foreground">Text to display</Label><Input className="h-10" value={linkForm.text} onChange={e => setLinkForm(p => ({ ...p, text: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label className="text-sm text-muted-foreground">Title</Label><Input className="h-10" value={linkForm.title} onChange={e => setLinkForm(p => ({ ...p, title: e.target.value }))} /></div>
+            <div className="space-y-1.5"><Label className="text-sm text-muted-foreground">Open link in...</Label>
+              <Select value={linkForm.target} onValueChange={v => setLinkForm(p => ({ ...p, target: v }))}><SelectTrigger className="h-10 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="current">Current window</SelectItem><SelectItem value="new">New window</SelectItem></SelectContent></Select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 mt-8"><Button variant="ghost" onClick={() => setIsLinkDialogOpen(false)} className="bg-muted px-6">Cancel</Button><Button className="bg-[#0070F3] hover:bg-[#0060E0] text-white px-8" onClick={() => setIsLinkDialogOpen(false)}>Save</Button></div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Insert Media Dialog */}
+      <Dialog open={isMediaDialogOpen} onOpenChange={setIsMediaDialogOpen}>
+        <DialogContent className="max-w-md p-6 rounded-xl shadow-2xl">
+          <h2 className="text-xl font-medium mb-4">Insert/Edit Media</h2>
+          <Tabs defaultValue="general" className="w-full">
+            <TabsList className="bg-transparent h-auto p-0 gap-6 border-b w-full justify-start rounded-none mb-5">
+              <TabsTrigger value="general" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 pb-2 text-sm">General</TabsTrigger>
+              <TabsTrigger value="embed" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-0 pb-2 text-sm">Embed</TabsTrigger>
+            </TabsList>
+            <TabsContent value="general" className="space-y-4 m-0">
+              <div className="space-y-1.5"><Label className="text-sm text-muted-foreground">Source</Label><div className="flex gap-2"><Input className="h-10" value={mediaForm.source} onChange={e => setMediaForm(p => ({ ...p, source: e.target.value }))} /><Button variant="outline" size="icon" className="h-10 w-10 shrink-0"><Upload className="h-4 w-4" /></Button></div></div>
+              <div className="flex gap-4">
+                <div className="flex-1 space-y-1.5"><Label className="text-sm text-muted-foreground">Width</Label><Input className="h-10" value={mediaForm.width} onChange={e => setMediaForm(p => ({ ...p, width: e.target.value }))} /></div>
+                <div className="flex-1 space-y-1.5"><Label className="text-sm text-muted-foreground">Height</Label><div className="flex gap-2"><Input className="h-10" value={mediaForm.height} onChange={e => setMediaForm(p => ({ ...p, height: e.target.value }))} /><Button variant="ghost" size="icon" className="h-10 w-10 shrink-0"><Lock className="h-4 w-4" /></Button></div></div>
+              </div>
+            </TabsContent>
+            <TabsContent value="embed" className="m-0"><Textarea className="min-h-[120px]" value={mediaForm.embed} onChange={e => setMediaForm(p => ({ ...p, embed: e.target.value }))} /></TabsContent>
+          </Tabs>
+          <div className="flex justify-end gap-3 mt-8"><Button variant="ghost" onClick={() => setIsMediaDialogOpen(false)} className="bg-muted px-6">Cancel</Button><Button className="bg-[#0070F3] hover:bg-[#0060E0] text-white px-8" onClick={() => setIsMediaDialogOpen(false)}>Save</Button></div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Insert Code Sample Dialog */}
+      <Dialog open={isCodeSampleDialogOpen} onOpenChange={setIsCodeSampleDialogOpen}>
+        <DialogContent className="max-w-4xl p-6 rounded-xl shadow-2xl">
+          <h2 className="text-xl font-medium mb-5">Insert/Edit Code Sample</h2>
+          <div className="space-y-4">
+            <div className="space-y-1.5"><Label className="text-sm text-muted-foreground">Language</Label>
+              <Select value={codeSampleForm.language} onValueChange={v => setCodeSampleForm(p => ({ ...p, language: v }))}><SelectTrigger className="h-10 w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="HTML/XML">HTML/XML</SelectItem><SelectItem value="JavaScript">JavaScript</SelectItem><SelectItem value="CSS">CSS</SelectItem><SelectItem value="PHP">PHP</SelectItem><SelectItem value="Python">Python</SelectItem></SelectContent></Select>
+            </div>
+            <div className="space-y-1.5"><Label className="text-sm text-muted-foreground">Code view</Label><Textarea className="min-h-[400px] font-mono text-sm p-4 bg-muted/5" value={codeSampleForm.code} onChange={e => setCodeSampleForm(p => ({ ...p, code: e.target.value }))} /></div>
+          </div>
+          <div className="flex justify-end gap-3 mt-8"><Button variant="ghost" onClick={() => setIsCodeSampleDialogOpen(false)} className="bg-muted px-6">Cancel</Button><Button className="bg-[#0070F3] hover:bg-[#0060E0] text-white px-8" onClick={() => setIsCodeSampleDialogOpen(false)}>Save</Button></div>
+        </DialogContent>
+      </Dialog>
+      {/* Source Code Dialog */}
+      <Dialog open={isSourceCodeDialogOpen} onOpenChange={setIsSourceCodeDialogOpen}>
+        <DialogContent className="max-w-4xl p-6 rounded-xl shadow-2xl border-none">
+          <div className="mb-4">
+            <h2 className="text-xl font-bold text-foreground">Source Code</h2>
+          </div>
+          <div className="relative">
+            <Textarea 
+              className="min-h-[450px] font-mono text-sm p-6 bg-slate-50 border-blue-200 focus-visible:ring-blue-500 rounded-xl resize-none" 
+              value={mailForm.body} 
+              onChange={e => setMailForm(p => ({ ...p, body: e.target.value }))} 
+            />
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button variant="ghost" onClick={() => setIsSourceCodeDialogOpen(false)} className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-6 rounded-lg font-bold">Cancel</Button>
+            <Button className="bg-[#0070F3] hover:bg-[#0060E0] text-white px-8 rounded-lg font-bold shadow-lg shadow-blue-200" onClick={() => setIsSourceCodeDialogOpen(false)}>Save</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={isZipModalOpen} onOpenChange={setIsZipModalOpen}>
+        <DialogContent className="max-w-[600px] h-[500px] p-0 overflow-hidden rounded-xl shadow-2xl border-none flex flex-col bg-white">
+          <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between bg-white shrink-0">
+            <h2 className="text-xl font-bold text-foreground">ZIP Invoices</h2>
+          </div>
+          
+          <div className="p-8 space-y-8 bg-white flex-1 overflow-y-auto no-scrollbar">
+            <div className="space-y-4">
+              <Label className="text-sm font-bold text-foreground">Status</Label>
+              <RadioGroup 
+                value={zipForm.status} 
+                onValueChange={(v) => setZipForm(p => ({ ...p, status: v }))}
+                className="space-y-3"
+              >
+                {["All", "Unpaid", "Paid", "Partially Paid", "Overdue", "Cancelled", "Draft"].map((status) => (
+                  <div key={status} className="flex items-center space-x-3 group cursor-pointer">
+                    <RadioGroupItem value={status} id={`status-${status}`} className="h-4 w-4 border-2 border-muted-foreground/30 text-primary focus:ring-primary" />
+                    <Label 
+                      htmlFor={`status-${status}`} 
+                      className={cn(
+                        "text-sm font-medium transition-colors cursor-pointer",
+                        zipForm.status === status ? "text-primary" : "text-foreground/70 group-hover:text-foreground"
+                      )}
+                    >
+                      {status}
+                    </Label>
+                  </div>
+                ))}
+              </RadioGroup>
+            </div>
+
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label className="text-sm font-bold text-foreground">From Date:</Label>
+                <div className="relative group">
+                  <Input 
+                    type="date"
+                    className="h-10 px-4 rounded-lg border-border/50 bg-muted/5 text-sm focus:bg-background transition-all"
+                    value={zipForm.fromDate}
+                    onChange={(e) => setZipForm(p => ({ ...p, fromDate: e.target.value }))}
+                  />
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Button variant="ghost" onClick={() => setIsMailModalOpen(false)} className="rounded-xl font-bold h-9">Cancel</Button>
-                <Button className="rounded-xl px-10 h-10 shadow-lg shadow-primary/20 font-black tracking-widest uppercase text-xs">Send Now</Button>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-bold text-foreground">To Date:</Label>
+                <div className="relative group">
+                  <Input 
+                    type="date"
+                    className="h-10 px-4 rounded-lg border-border/50 bg-muted/5 text-sm focus:bg-background transition-all"
+                    value={zipForm.toDate}
+                    onChange={(e) => setZipForm(p => ({ ...p, toDate: e.target.value }))}
+                  />
+                </div>
               </div>
             </div>
+          </div>
+
+          <div className="px-6 py-4 bg-muted/10 border-t border-border/50 flex items-center justify-end gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => setIsZipModalOpen(false)} 
+              className="rounded-lg h-9 px-4 font-bold text-xs"
+            >
+              Close
+            </Button>
+            <Button 
+              className="rounded-lg h-9 px-6 bg-[#1E293B] hover:bg-[#0F172A] text-white font-bold text-xs shadow-lg"
+              onClick={() => {
+                console.log("Saving ZIP Request:", zipForm);
+                setIsZipModalOpen(false);
+              }}
+            >
+              Save
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -6,6 +6,7 @@ import { queryClient } from "@/lib/queryClient";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PermissionProvider, usePermissionContext } from "@/context/PermissionContext";
 import { Loader2 } from "lucide-react";
+import { Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
@@ -13,7 +14,9 @@ import Projects from "./pages/Projects";
 import Tasks from "./pages/Tasks";
 import Customers from "./pages/Customers";
 import Invoices from "./pages/Invoices";
+import Contacts from "./pages/Contacts";
 import Expenses from "./pages/Expenses";
+
 import Profile from "./pages/Profile";
 import ActivityLogs from "./pages/ActivityLogs";
 import Calendar from "./pages/Calendar";
@@ -84,6 +87,45 @@ import ClientProposals from "./pages/client/ClientProposals";
 import ClientSupport from "./pages/client/ClientSupport";
 import ClientKnowledgeBase from "./pages/client/ClientKnowledgeBase";
 
+
+// Redirect logged-out users away from protected pages
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = usePermissionContext();
+  if (loading) return null; // wait for session check
+  if (!user) return <Navigate to="/admin/login" replace />;
+  return <>{children}</>;
+};
+
+// Redirect already-logged-in users away from the login page
+const PublicRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = usePermissionContext();
+  if (loading) return null; // wait for session check
+  if (user) return <Navigate to="/admin/dashboard" replace />;
+  return <>{children}</>;
+};
+
+// Smart root: checks who is logged in and sends them to the right place
+//  - Admin logged in  → /admin/dashboard
+//  - Client logged in → /dashboard (client dashboard)
+//  - Nobody           → /admin/login
+const SmartRoot = () => {
+  const { user, loading } = usePermissionContext();
+  if (loading) return null; // wait for admin session check
+
+  if (user) {
+    // Admin is logged in
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+
+  const clientSession = localStorage.getItem("crm_client");
+  if (clientSession) {
+    // Client is logged in
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // Nobody is logged in — go to Admin login
+  return <Navigate to="/admin/login" replace />;
+};
 
 const MainApp = () => {
   const { loading } = usePermissionContext();
@@ -158,8 +200,11 @@ const MainApp = () => {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Root → smart redirect based on who is logged in */}
+        <Route path="/" element={<SmartRoot />} />
+
         {/* Client Side Routes */}
-        <Route path="/" element={<ClientLogin />} />
+        <Route path="/client/login" element={<ClientLogin />} />
         <Route element={<ClientLayout />}>
           <Route path="/dashboard" element={<ClientDashboard />} />
           <Route path="/projects" element={<ClientProjects />} />
@@ -173,81 +218,85 @@ const MainApp = () => {
 
         {/* Admin Side Routes */}
         <Route path="/admin">
-          <Route path="login" element={<Login />} />
+          {/* Public-only: redirects to dashboard if already logged in */}
+          <Route path="login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="forgot-password" element={<ForgotPassword />} />
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="projects" element={<Projects />} />
-          <Route path="tasks" element={<Tasks />} />
-          <Route path="customers" element={<Customers />} />
-          <Route path="customers/:id" element={<CustomerView />} />
-          <Route path="invoices" element={<Invoices />} />
-          <Route path="invoices/create/:clientId?" element={<InvoiceCreate />} />
-          <Route path="invoices/edit/:id" element={<InvoiceCreate />} />
-          <Route path="expenses" element={<Expenses />} />
-          <Route path="profile" element={<Profile />} />
-          <Route path="activity" element={<ActivityLogs />} />
-          <Route path="calendar" element={<Calendar />} />
-          <Route path="leads" element={<Leads />} />
-          <Route path="subscriptions" element={<Subscriptions />} />
-          <Route path="contracts" element={<Contracts />} />
-          <Route path="support" element={<Support />} />
-          <Route path="estimate-request" element={<EstimateRequest />} />
-          <Route path="knowledge-base" element={<KnowledgeBase />} />
-          <Route path="chat" element={<Chat />} />
-          <Route path="time-tracking" element={<TimeTracking />} />
-          <Route path="utilities" element={<Utilities />} />
-          <Route path="reports" element={<Reports />} />
-          <Route path="setup" element={<Setup />} />
-          <Route path="proposals" element={<Proposals />} />
-          <Route path="proposals/create/:clientId?" element={<ProposalCreate />} />
-          <Route path="proposals/edit/:id" element={<ProposalCreate />} />
-          <Route path="estimates" element={<Estimates />} />
-          <Route path="payments" element={<Payments />} />
-          <Route path="credit-notes" element={<CreditNotes />} />
-          <Route path="items" element={<Items />} />
-          <Route path="media" element={<Media />} />
-          <Route path="bulk-export" element={<BulkExport />} />
-          <Route path="goals" element={<Goals />} />
-          <Route path="reports/sales" element={<ReportSales />} />
-          <Route path="reports/expenses" element={<ReportExpenses />} />
-          <Route path="reports/expenses-vs-income" element={<ReportExpensesVsIncome />} />
-          <Route path="reports/leads" element={<ReportLeads />} />
-          <Route path="reports/timesheets" element={<ReportTimesheets />} />
-          <Route path="reports/kb-articles" element={<ReportKBArticles />} />
-          
+
+          {/* Protected: redirects to login if not authenticated */}
+          <Route path="dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+          <Route path="projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+          <Route path="tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
+          <Route path="customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+          <Route path="customers/:id" element={<ProtectedRoute><CustomerView /></ProtectedRoute>} />
+          <Route path="contacts" element={<ProtectedRoute><Contacts /></ProtectedRoute>} />
+          <Route path="invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
+          <Route path="invoices/create/:clientId?" element={<ProtectedRoute><InvoiceCreate /></ProtectedRoute>} />
+          <Route path="invoices/edit/:id" element={<ProtectedRoute><InvoiceCreate /></ProtectedRoute>} />
+          <Route path="expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
+          <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          <Route path="activity" element={<ProtectedRoute><ActivityLogs /></ProtectedRoute>} />
+          <Route path="calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
+          <Route path="leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
+          <Route path="subscriptions" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} />
+          <Route path="contracts" element={<ProtectedRoute><Contracts /></ProtectedRoute>} />
+          <Route path="support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
+          <Route path="estimate-request" element={<ProtectedRoute><EstimateRequest /></ProtectedRoute>} />
+          <Route path="knowledge-base" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
+          <Route path="chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+          <Route path="time-tracking" element={<ProtectedRoute><TimeTracking /></ProtectedRoute>} />
+          <Route path="utilities" element={<ProtectedRoute><Utilities /></ProtectedRoute>} />
+          <Route path="reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+          <Route path="setup" element={<ProtectedRoute><Setup /></ProtectedRoute>} />
+          <Route path="proposals" element={<ProtectedRoute><Proposals /></ProtectedRoute>} />
+          <Route path="proposals/create/:clientId?" element={<ProtectedRoute><ProposalCreate /></ProtectedRoute>} />
+          <Route path="proposals/edit/:id" element={<ProtectedRoute><ProposalCreate /></ProtectedRoute>} />
+          <Route path="estimates" element={<ProtectedRoute><Estimates /></ProtectedRoute>} />
+          <Route path="payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
+          <Route path="credit-notes" element={<ProtectedRoute><CreditNotes /></ProtectedRoute>} />
+          <Route path="items" element={<ProtectedRoute><Items /></ProtectedRoute>} />
+          <Route path="media" element={<ProtectedRoute><Media /></ProtectedRoute>} />
+          <Route path="bulk-export" element={<ProtectedRoute><BulkExport /></ProtectedRoute>} />
+          <Route path="goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
+          <Route path="reports/sales" element={<ProtectedRoute><ReportSales /></ProtectedRoute>} />
+          <Route path="reports/expenses" element={<ProtectedRoute><ReportExpenses /></ProtectedRoute>} />
+          <Route path="reports/expenses-vs-income" element={<ProtectedRoute><ReportExpensesVsIncome /></ProtectedRoute>} />
+          <Route path="reports/leads" element={<ProtectedRoute><ReportLeads /></ProtectedRoute>} />
+          <Route path="reports/timesheets" element={<ProtectedRoute><ReportTimesheets /></ProtectedRoute>} />
+          <Route path="reports/kb-articles" element={<ProtectedRoute><ReportKBArticles /></ProtectedRoute>} />
+
           {/* Setup sub-routes */}
-          <Route path="setup/staff" element={<SetupStaff />} />
-          <Route path="setup/staff/new" element={<SetupStaffForm />} />
-          <Route path="setup/staff/:id" element={<SetupStaffForm />} />
-          <Route path="setup/customers/groups" element={<SetupCustomerGroups />} />
-          <Route path="setup/support/departments" element={<SetupSupportDepartments />} />
-          <Route path="setup/support/predefined-replies" element={<SetupPredefinedReplies />} />
-          <Route path="setup/support/ticket-priority" element={<SetupTicketPriority />} />
-          <Route path="setup/support/ticket-statuses" element={<SetupTicketStatuses />} />
-          <Route path="setup/support/services" element={<SetupServices />} />
-          <Route path="setup/support/spam-filters" element={<SetupSpamFilters />} />
-          <Route path="setup/leads/sources" element={<SetupLeadsSources />} />
-          <Route path="setup/leads/statuses" element={<SetupLeadsStatuses />} />
-          <Route path="setup/leads/email-integration" element={<SetupLeadsEmailIntegration />} />
-          <Route path="setup/leads/web-to-lead" element={<SetupLeadsWebToLead />} />
-          <Route path="setup/finance/tax-rates" element={<SetupTaxRates />} />
-          <Route path="setup/finance/currencies" element={<SetupCurrencies />} />
-          <Route path="setup/finance/payment-modes" element={<SetupPaymentModes />} />
-          <Route path="setup/finance/expense-categories" element={<SetupExpensesCategories />} />
-          <Route path="setup/contracts/contract-types" element={<SetupContractTypes />} />
-          <Route path="setup/estimate-request/form-fields" element={<SetupEstimateRequestFormFields />} />
-          <Route path="setup/estimate-request/statuses" element={<SetupEstimateStatus />} />
-          <Route path="setup/estimate-request/form-fields/new" element={<EstimateRequestFormBuilder />} />
-          <Route path="setup/estimate-request/form-fields/:id" element={<EstimateRequestFormBuilder />} />
-          <Route path="setup/modules" element={<SetupModules />} />
-          <Route path="setup/email-templates" element={<SetupEmailTemplates />} />
-          <Route path="setup/custom-fields" element={<SetupCustomFields />} />
-          <Route path="setup/gdpr" element={<SetupGDPR />} />
-          <Route path="setup/roles" element={<SetupRoles />} />
-          <Route path="setup/theme" element={<SetupThemeStyle />} />
-          <Route path="setup/settings" element={<SetupSettings />} />
-          <Route path="setup/ai-fine-tuning" element={<SetupAIFineTuning />} />
-          <Route path="setup/help" element={<SetupHelp />} />
+          <Route path="setup/staff" element={<ProtectedRoute><SetupStaff /></ProtectedRoute>} />
+          <Route path="setup/staff/new" element={<ProtectedRoute><SetupStaffForm /></ProtectedRoute>} />
+          <Route path="setup/staff/:id" element={<ProtectedRoute><SetupStaffForm /></ProtectedRoute>} />
+          <Route path="setup/customers/groups" element={<ProtectedRoute><SetupCustomerGroups /></ProtectedRoute>} />
+          <Route path="setup/support/departments" element={<ProtectedRoute><SetupSupportDepartments /></ProtectedRoute>} />
+          <Route path="setup/support/predefined-replies" element={<ProtectedRoute><SetupPredefinedReplies /></ProtectedRoute>} />
+          <Route path="setup/support/ticket-priority" element={<ProtectedRoute><SetupTicketPriority /></ProtectedRoute>} />
+          <Route path="setup/support/ticket-statuses" element={<ProtectedRoute><SetupTicketStatuses /></ProtectedRoute>} />
+          <Route path="setup/support/services" element={<ProtectedRoute><SetupServices /></ProtectedRoute>} />
+          <Route path="setup/support/spam-filters" element={<ProtectedRoute><SetupSpamFilters /></ProtectedRoute>} />
+          <Route path="setup/leads/sources" element={<ProtectedRoute><SetupLeadsSources /></ProtectedRoute>} />
+          <Route path="setup/leads/statuses" element={<ProtectedRoute><SetupLeadsStatuses /></ProtectedRoute>} />
+          <Route path="setup/leads/email-integration" element={<ProtectedRoute><SetupLeadsEmailIntegration /></ProtectedRoute>} />
+          <Route path="setup/leads/web-to-lead" element={<ProtectedRoute><SetupLeadsWebToLead /></ProtectedRoute>} />
+          <Route path="setup/finance/tax-rates" element={<ProtectedRoute><SetupTaxRates /></ProtectedRoute>} />
+          <Route path="setup/finance/currencies" element={<ProtectedRoute><SetupCurrencies /></ProtectedRoute>} />
+          <Route path="setup/finance/payment-modes" element={<ProtectedRoute><SetupPaymentModes /></ProtectedRoute>} />
+          <Route path="setup/finance/expense-categories" element={<ProtectedRoute><SetupExpensesCategories /></ProtectedRoute>} />
+          <Route path="setup/contracts/contract-types" element={<ProtectedRoute><SetupContractTypes /></ProtectedRoute>} />
+          <Route path="setup/estimate-request/form-fields" element={<ProtectedRoute><SetupEstimateRequestFormFields /></ProtectedRoute>} />
+          <Route path="setup/estimate-request/statuses" element={<ProtectedRoute><SetupEstimateStatus /></ProtectedRoute>} />
+          <Route path="setup/estimate-request/form-fields/new" element={<ProtectedRoute><EstimateRequestFormBuilder /></ProtectedRoute>} />
+          <Route path="setup/estimate-request/form-fields/:id" element={<ProtectedRoute><EstimateRequestFormBuilder /></ProtectedRoute>} />
+          <Route path="setup/modules" element={<ProtectedRoute><SetupModules /></ProtectedRoute>} />
+          <Route path="setup/email-templates" element={<ProtectedRoute><SetupEmailTemplates /></ProtectedRoute>} />
+          <Route path="setup/custom-fields" element={<ProtectedRoute><SetupCustomFields /></ProtectedRoute>} />
+          <Route path="setup/gdpr" element={<ProtectedRoute><SetupGDPR /></ProtectedRoute>} />
+          <Route path="setup/roles" element={<ProtectedRoute><SetupRoles /></ProtectedRoute>} />
+          <Route path="setup/theme" element={<ProtectedRoute><SetupThemeStyle /></ProtectedRoute>} />
+          <Route path="setup/settings" element={<ProtectedRoute><SetupSettings /></ProtectedRoute>} />
+          <Route path="setup/ai-fine-tuning" element={<ProtectedRoute><SetupAIFineTuning /></ProtectedRoute>} />
+          <Route path="setup/help" element={<ProtectedRoute><SetupHelp /></ProtectedRoute>} />
         </Route>
 
         <Route path="/forms/quote/:id" element={<PublicForm />} />

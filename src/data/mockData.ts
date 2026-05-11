@@ -34,7 +34,7 @@ export const recentActivities = [
   { id: 2, user: "Mike Johnson", action: "created invoice", target: "INV-0042", time: "15 min ago", avatar: "MJ" },
   { id: 3, user: "Emily Davis", action: "added customer", target: "Acme Corp", time: "1 hour ago", avatar: "ED" },
   { id: 4, user: "Alex Turner", action: "updated project", target: "Mobile App v2", time: "2 hours ago", avatar: "AT" },
-  { id: 5, user: "Lisa Park", action: "submitted expense", target: "$450 - Software License", time: "3 hours ago", avatar: "LP" },
+  { id: 5, user: "Lisa Park", action: "submitted expense", target: "₹450 - Software License", time: "3 hours ago", avatar: "LP" },
   { id: 6, user: "Tom Wilson", action: "moved task to Done", target: "API Integration", time: "4 hours ago", avatar: "TW" },
 ];
 

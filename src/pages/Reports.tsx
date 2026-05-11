@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
-import { Download, FileText, TrendingUp, Users, DollarSign, ChevronDown, FileSpreadsheet, FileJson, FileType, Printer } from "lucide-react";
+import { Download, FileText, TrendingUp, Users, IndianRupee, ChevronDown, FileSpreadsheet, FileJson, FileType, Printer } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -80,7 +80,7 @@ const Reports = () => {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2 rounded-lg bg-primary/10"><DollarSign className="h-5 w-5 text-primary" /></div><div><p className="text-2xl font-bold">$108.9K</p><p className="text-xs text-muted-foreground">Total Revenue</p></div></CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2 rounded-lg bg-primary/10"><IndianRupee className="h-5 w-5 text-primary" /></div><div><p className="text-2xl font-bold">₹108.9K</p><p className="text-xs text-muted-foreground">Total Revenue</p></div></CardContent></Card>
           <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2 rounded-lg bg-success/10"><TrendingUp className="h-5 w-5 text-success" /></div><div><p className="text-2xl font-bold">+18%</p><p className="text-xs text-muted-foreground">Growth</p></div></CardContent></Card>
           <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2 rounded-lg bg-info/10"><FileText className="h-5 w-5 text-info" /></div><div><p className="text-2xl font-bold">5</p><p className="text-xs text-muted-foreground">Active Projects</p></div></CardContent></Card>
           <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2 rounded-lg bg-warning/10"><Users className="h-5 w-5 text-warning" /></div><div><p className="text-2xl font-bold">89</p><p className="text-xs text-muted-foreground">Customers</p></div></CardContent></Card>

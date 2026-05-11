@@ -11,7 +11,7 @@ import { Plus, Crosshair, TrendingUp, Target } from "lucide-react";
 import { useState } from "react";
 
 const goals = [
-  { id: "g1", title: "Increase Monthly Revenue", target: "$50,000", current: "$38,200", progress: 76, status: "On Track", deadline: "2026-06-30" },
+  { id: "g1", title: "Increase Monthly Revenue", target: "₹50,000", current: "₹38,200", progress: 76, status: "On Track", deadline: "2026-06-30" },
   { id: "g2", title: "Acquire 20 New Customers", target: "20", current: "14", progress: 70, status: "On Track", deadline: "2026-06-30" },
   { id: "g3", title: "Reduce Churn to 5%", target: "5%", current: "7.2%", progress: 40, status: "Behind", deadline: "2026-12-31" },
   { id: "g4", title: "Launch Mobile App", target: "100%", current: "55%", progress: 55, status: "On Track", deadline: "2026-05-30" },

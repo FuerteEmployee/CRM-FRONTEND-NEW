@@ -14,7 +14,7 @@ const estimates = [
   {
     id: "EST-001",
     subject: "Cloud Migration",
-    amount: "$5,400.00",
+    amount: "₹5,400.00",
     date: "2024-03-20",
     expiry: "2024-04-20",
     status: "Pending",
@@ -22,7 +22,7 @@ const estimates = [
   {
     id: "EST-002",
     subject: "Design System",
-    amount: "$3,200.00",
+    amount: "₹3,200.00",
     date: "2024-03-22",
     expiry: "2024-04-22",
     status: "Accepted",

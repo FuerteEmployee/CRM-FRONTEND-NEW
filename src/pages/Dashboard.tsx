@@ -220,19 +220,19 @@ const Dashboard = () => {
           <Card className="border-l-4 border-l-yellow-500">
             <CardContent className="p-4">
               <p className="text-sm text-yellow-600 font-medium">Outstanding Invoices</p>
-              <p className="text-xl font-bold">${pendingInvoices.toLocaleString()}</p>
+              <p className="text-xl font-bold">₹{pendingInvoices.toLocaleString()}</p>
             </CardContent>
           </Card>
           <Card className="border-l-4 border-l-destructive">
             <CardContent className="p-4">
               <p className="text-sm text-destructive font-medium">Past Due Invoices</p>
-              <p className="text-xl font-bold">${overdueInvoices.toLocaleString()}</p>
+              <p className="text-xl font-bold">₹{overdueInvoices.toLocaleString()}</p>
             </CardContent>
           </Card>
           <Card className="border-l-4 border-l-green-500">
             <CardContent className="p-4">
               <p className="text-sm text-green-600 font-medium">Paid Invoices</p>
-              <p className="text-xl font-bold">${paidInvoices.toLocaleString()}</p>
+              <p className="text-xl font-bold">₹{paidInvoices.toLocaleString()}</p>
             </CardContent>
           </Card>
         </div>
@@ -505,14 +505,14 @@ const Dashboard = () => {
                   <AreaChart data={revenueData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="month" className="text-xs" tick={{ fill: "hsl(215, 16%, 47%)" }} />
-                    <YAxis className="text-xs" tick={{ fill: "hsl(215, 16%, 47%)" }} tickFormatter={(v) => `$${v / 1000}k`} />
+                    <YAxis className="text-xs" tick={{ fill: "hsl(215, 16%, 47%)" }} tickFormatter={(v) => `₹${v / 1000}k`} />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: "hsl(var(--card))",
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
-                      formatter={(value: number) => [`$${value.toLocaleString()}`, undefined]}
+                      formatter={(value: number) => [`₹${value.toLocaleString()}`, undefined]}
                     />
                     <Area type="monotone" dataKey="revenue" stroke="hsl(213, 44%, 25%)" fill="hsl(213, 44%, 25%)" fillOpacity={0.15} strokeWidth={2} />
                     <Area type="monotone" dataKey="expenses" stroke="hsl(215, 16%, 47%)" fill="hsl(215, 16%, 47%)" fillOpacity={0.08} strokeWidth={2} />
