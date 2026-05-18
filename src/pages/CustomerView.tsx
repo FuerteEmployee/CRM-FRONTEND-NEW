@@ -7,25 +7,25 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  User, 
-  Users, 
-  StickyNote, 
-  LineChart, 
-  FileText, 
-  CreditCard, 
-  ClipboardList, 
-  Receipt, 
-  Target, 
-  RefreshCw, 
-  Wallet, 
-  FileSignature, 
-  Folder, 
-  CheckSquare, 
-  HelpCircle, 
-  Paperclip, 
-  ShieldCheck, 
-  Bell, 
+import {
+  User,
+  Users,
+  StickyNote,
+  LineChart,
+  FileText,
+  CreditCard,
+  ClipboardList,
+  Receipt,
+  Target,
+  RefreshCw,
+  Wallet,
+  FileSignature,
+  Folder,
+  CheckSquare,
+  HelpCircle,
+  Paperclip,
+  ShieldCheck,
+  Bell,
   MapPin,
   ChevronLeft,
   Search,
@@ -40,17 +40,23 @@ import { customerService } from "@/api/services/customer.service";
 import { staffService } from "@/api/services/staff.service";
 import { noteService } from "@/api/services/note.service";
 import { salesService } from "@/api/services/sales.service";
+import { creditNoteService } from "@/api/services/credit_note.service";
+import { contractService } from "@/api/services/contract.service";
+import { estimateService } from "@/api/services/estimate.service";
+import { projectService } from "@/api/services/project.service";
+import { taskService } from "@/api/services/task.service";
+import { supportService } from "@/api/services/support.service";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
-import { 
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -60,16 +66,16 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { 
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
@@ -80,14 +86,14 @@ import {
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  ChevronDown, 
-  FileSpreadsheet, 
-  FileJson, 
-  FileType, 
-  Printer, 
-  Eye, 
-  EyeOff, 
+import {
+  ChevronDown,
+  FileSpreadsheet,
+  FileJson,
+  FileType,
+  Printer,
+  Eye,
+  EyeOff,
   ImagePlus,
   Info,
   Mail,
@@ -129,7 +135,11 @@ import {
   MousePointer2,
   Trash2,
   Plus,
-  Calendar
+  Calendar,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  FileDown
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { TableActions } from "@/components/TableActions";
@@ -205,17 +215,17 @@ const LANGUAGES = [
   { value: "fr", label: "French" }
 ];
 
-import { 
-  Popover, 
-  PopoverContent, 
-  PopoverTrigger 
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
 } from "@/components/ui/popover";
-import { 
-  Command, 
-  CommandEmpty, 
-  CommandGroup, 
-  CommandInput, 
-  CommandItem 
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem
 } from "@/components/ui/command";
 
 export default function CustomerView() {
@@ -223,6 +233,15 @@ export default function CustomerView() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "profile");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (activeTab !== params.get("tab")) {
+      params.set("tab", activeTab);
+      navigate({ search: params.toString() }, { replace: true });
+    }
+  }, [activeTab, navigate]);
+
   const [itemsPerPage, setItemsPerPage] = useState("25");
   const [formData, setFormData] = useState<any>({});
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
@@ -262,13 +281,55 @@ export default function CustomerView() {
   const [paymentItemsPerPage, setPaymentItemsPerPage] = useState("10");
   const [proposalSearch, setProposalSearch] = useState("");
   const [proposalItemsPerPage, setProposalItemsPerPage] = useState("10");
+  const [contractSearch, setContractSearch] = useState("");
+  const [contractItemsPerPage, setContractItemsPerPage] = useState("10");
   const [creditNoteSearch, setCreditNoteSearch] = useState("");
   const [creditNoteItemsPerPage, setCreditNoteItemsPerPage] = useState("10");
-  const [isZipModalOpen, setIsZipModalOpen] = useState(false);
-  const [zipForm, setZipForm] = useState({
-    status: "All",
-    fromDate: "",
-    toDate: "",
+  const [subscriptionSearch, setSubscriptionSearch] = useState("");
+  const [subscriptionItemsPerPage, setSubscriptionItemsPerPage] = useState("10");
+  const [expenseSearch, setExpenseSearch] = useState("");
+  const [expenseItemsPerPage, setExpenseItemsPerPage] = useState("10");
+  const [ticketSearch, setTicketSearch] = useState("");
+  const [ticketItemsPerPage, setTicketItemsPerPage] = useState("10");
+  const [estimateSearch, setEstimateSearch] = useState("");
+  const [estimateItemsPerPage, setEstimateItemsPerPage] = useState("10");
+  const [projectSearch, setProjectSearch] = useState("");
+  const [projectItemsPerPage, setProjectItemsPerPage] = useState("10");
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskItemsPerPage, setTaskItemsPerPage] = useState("10");
+  const [fileSearch, setFileSearch] = useState("");
+  const [fileItemsPerPage, setFileItemsPerPage] = useState("10");
+  const [vaultSearch, setVaultSearch] = useState("");
+  const [vaultItemsPerPage, setVaultItemsPerPage] = useState("10");
+  const [isVaultModalOpen, setIsVaultModalOpen] = useState(false);
+  const [vaultFormData, setVaultFormData] = useState<any>({
+    server: "",
+    port: "",
+    username: "",
+    password: "",
+    description: "",
+    visibility: "all_staff",
+    share_in_projects: false
+  });
+  const [visibleVaultPasswords, setVisibleVaultPasswords] = useState<Record<string, boolean>>({});
+  const [reminderSearch, setReminderSearch] = useState("");
+  const [reminderItemsPerPage, setReminderItemsPerPage] = useState("10");
+  const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  const [reminderFormData, setReminderFormData] = useState<any>({
+    date: "",
+    staff: "",
+    description: "",
+    notify_by_email: false
+  });
+  const [taskRelatedFilter, setTaskRelatedFilter] = useState({
+    customer: true,
+    projects: false,
+    invoices: false,
+    estimates: false,
+    contracts: false,
+    tickets: false,
+    expenses: false,
+    proposals: false
   });
   const [contactForm, setContactForm] = useState<any>({
     firstname: "",
@@ -285,6 +346,17 @@ export default function CustomerView() {
     email_notifications: [],
     active: true
   });
+  const [isZipPaymentsModalOpen, setIsZipPaymentsModalOpen] = useState(false);
+  const [zipPaymentsForm, setZipPaymentsForm] = useState({
+    payment_made_by: "all",
+    from_date: "",
+    to_date: ""
+  });
+  const [isZipModalOpen, setIsZipModalOpen] = useState(false);
+  const [zipForm, setZipForm] = useState({ status: "all", fromDate: "", toDate: "" });
+  const [isZipCreditNotesModalOpen, setIsZipCreditNotesModalOpen] = useState(false);
+  const [zipCreditNotesForm, setZipCreditNotesForm] = useState({ status: "all", fromDate: "", toDate: "" });
+  const [mapForm, setMapForm] = useState({ latitude: "", longitude: "" });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -306,7 +378,7 @@ export default function CustomerView() {
   const { data: contacts = [], isLoading: isLoadingContacts } = useQuery({
     queryKey: ["contacts", id],
     queryFn: () => customerService.getContacts(id!),
-    enabled: activeTab === "contacts" || isMailModalOpen,
+    enabled: activeTab === "contacts" || activeTab === "tickets" || isMailModalOpen,
   });
 
   const deleteContactMutation = useMutation({
@@ -342,7 +414,7 @@ export default function CustomerView() {
   });
 
   const toggleContactStatusMutation = useMutation({
-    mutationFn: ({ contactId, active }: { contactId: string; active: boolean }) => 
+    mutationFn: ({ contactId, active }: { contactId: string; active: boolean }) =>
       customerService.updateContact(contactId, { active }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contacts", id] });
@@ -359,6 +431,7 @@ export default function CustomerView() {
     enabled: activeTab === "notes",
   });
 
+
   const createNoteMutation = useMutation({
     mutationFn: (description: string) => noteService.create({ rel_id: id, rel_type: "customer", description }),
     onSuccess: () => {
@@ -374,7 +447,7 @@ export default function CustomerView() {
   });
 
   const updateNoteMutation = useMutation({
-    mutationFn: ({ noteId, description }: { noteId: string; description: string }) => 
+    mutationFn: ({ noteId, description }: { noteId: string; description: string }) =>
       noteService.update(noteId, { description }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["notes", id] });
@@ -403,8 +476,8 @@ export default function CustomerView() {
 
     switch (statementPeriod) {
       case "today":
-        from = new Date(today.setHours(0,0,0,0));
-        to = new Date(today.setHours(23,59,59,999));
+        from = new Date(today.setHours(0, 0, 0, 0));
+        to = new Date(today.setHours(23, 59, 59, 999));
         break;
       case "this_week":
         from = new Date(today.setDate(today.getDate() - today.getDay()));
@@ -437,6 +510,209 @@ export default function CustomerView() {
     }
     return { from: from.toISOString(), to: to.toISOString() };
   };
+
+  const { data: projects = [], isLoading: isLoadingProjects } = useQuery({
+    queryKey: ["projects", id],
+    queryFn: () => projectService.getAll({ clientid: id }),
+    enabled: activeTab === "projects",
+  });
+
+  const { data: customerTasks = [], isLoading: isLoadingTasks } = useQuery({
+    queryKey: ["customerTasks", id, taskRelatedFilter],
+    queryFn: () => taskService.getAll({
+      rel_id: id,
+      rel_type: "customer",
+      // Add other related filters if needed by backend
+    }),
+    enabled: activeTab === "tasks",
+  });
+
+  const { data: customerTickets = [], isLoading: isLoadingTickets } = useQuery({
+    queryKey: ["customerTickets", id],
+    queryFn: () => supportService.getTickets({ clientid: id }),
+    enabled: activeTab === "tickets",
+  });
+
+  const { data: customerFiles = [], isLoading: isLoadingFiles } = useQuery({
+    queryKey: ["customerFiles", id],
+    queryFn: () => customerService.getFiles(id!),
+    enabled: activeTab === "files",
+  });
+
+  const { data: customerVault = [], isLoading: isLoadingVault } = useQuery({
+    queryKey: ["customerVault", id],
+    queryFn: () => customerService.getVault(id!),
+    enabled: activeTab === "vault",
+  });
+
+  const { data: customerReminders = [], isLoading: isLoadingReminders } = useQuery({
+    queryKey: ["customerReminders", id],
+    queryFn: () => customerService.getReminders(id!),
+    enabled: activeTab === "reminders",
+  });
+
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: supportService.getDepartments,
+  });
+
+  const { data: priorities = [] } = useQuery({
+    queryKey: ["priorities"],
+    queryFn: supportService.getPriorities,
+  });
+
+  const { data: services = [] } = useQuery({
+    queryKey: ["services"],
+    queryFn: supportService.getServices,
+  });
+
+  const filteredReminders = useMemo(() => {
+    return customerReminders.filter((r: any) =>
+      r.description?.toLowerCase().includes(reminderSearch.toLowerCase()) ||
+      r.staff?.firstname?.toLowerCase().includes(reminderSearch.toLowerCase()) ||
+      r.staff?.lastname?.toLowerCase().includes(reminderSearch.toLowerCase())
+    );
+  }, [customerReminders, reminderSearch]);
+
+  const createReminderMutation = useMutation({
+    mutationFn: (data: any) => customerService.createReminder(id!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customerReminders", id] });
+      setIsReminderModalOpen(false);
+      setReminderFormData({
+        date: "",
+        staff: "",
+        description: "",
+        notify_by_email: false
+      });
+      toast({ title: "Success", description: "Reminder set successfully" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+
+  const deleteReminderMutation = useMutation({
+    mutationFn: (reminderId: string) => apiClient.delete(`/clients/reminders/${reminderId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customerReminders", id] });
+      toast({ title: "Success", description: "Reminder removed successfully" });
+    }
+  });
+
+  const filteredVault = useMemo(() => {
+    return customerVault.filter((v: any) =>
+      v.server?.toLowerCase().includes(vaultSearch.toLowerCase()) ||
+      v.username?.toLowerCase().includes(vaultSearch.toLowerCase())
+    );
+  }, [customerVault, vaultSearch]);
+
+  const createVaultMutation = useMutation({
+    mutationFn: (data: any) => customerService.createVaultEntry(id!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customerVault", id] });
+      setIsVaultModalOpen(false);
+      setVaultFormData({
+        server: "",
+        port: "",
+        username: "",
+        password: "",
+        description: "",
+        visibility: "all_staff",
+        share_in_projects: false
+      });
+      toast({ title: "Success", description: "Vault entry created successfully" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+
+  const deleteVaultMutation = useMutation({
+    mutationFn: (vaultId: string) => apiClient.delete(`/clients/vault/${vaultId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customerVault", id] });
+      toast({ title: "Success", description: "Vault entry removed successfully" });
+    }
+  });
+
+
+
+  const updateMapMutation = useMutation({
+    mutationFn: (data: any) => customerService.update(id!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customer", id] });
+      toast({ title: "Success", description: "Map coordinates updated successfully" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+
+  useEffect(() => {
+    if (customer) {
+      setMapForm({
+        latitude: customer.latitude || "",
+        longitude: customer.longitude || ""
+      });
+    }
+  }, [customer]);
+
+  const filteredFiles = useMemo(() => {
+    return customerFiles.filter((f: any) =>
+      f.file_name?.toLowerCase().includes(fileSearch.toLowerCase())
+    );
+  }, [customerFiles, fileSearch]);
+
+  const uploadFileMutation = useMutation({
+    mutationFn: (data: FormData) => customerService.uploadFile(id!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customerFiles", id] });
+      toast({ title: "Success", description: "File uploaded successfully" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+
+  const deleteFileMutation = useMutation({
+    mutationFn: (fileId: string) => customerService.deleteFile(id!, fileId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customerFiles", id] });
+      toast({ title: "Success", description: "File deleted successfully" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  });
+
+  const filteredTickets = useMemo(() => {
+    return customerTickets.filter((t: any) =>
+      t.subject?.toLowerCase().includes(ticketSearch.toLowerCase())
+    );
+  }, [customerTickets, ticketSearch]);
+
+  const filteredTasks = useMemo(() => {
+    return customerTasks.filter((t: any) =>
+      t.name?.toLowerCase().includes(taskSearch.toLowerCase())
+    );
+  }, [customerTasks, taskSearch]);
+
+  const filteredProjects = useMemo(() => {
+    return projects.filter((p: any) =>
+      p.name?.toLowerCase().includes(projectSearch.toLowerCase())
+    );
+  }, [projects, projectSearch]);
+
+  const projectStats = useMemo(() => {
+    return {
+      notStarted: projects.filter((p: any) => p.status === 1).length,
+      inProgress: projects.filter((p: any) => p.status === 2).length,
+      onHold: projects.filter((p: any) => p.status === 3).length,
+      finished: projects.filter((p: any) => p.status === 4).length,
+      cancelled: projects.filter((p: any) => p.status === 5).length,
+    };
+  }, [projects]);
 
   const loadScript = (src: string) => new Promise((resolve) => {
     const script = document.createElement('script');
@@ -547,7 +823,7 @@ export default function CustomerView() {
 
     if (type === 'pdf') {
       toast({ title: "Generating PDF", description: "Please wait while we prepare your document..." });
-      
+
       const loadScript = (src: string) => new Promise((resolve) => {
         const script = document.createElement('script');
         script.src = src;
@@ -658,7 +934,7 @@ export default function CustomerView() {
         try {
           // Wait for fonts to be loaded in the main document
           await document.fonts.ready;
-          
+
           // Wait for images if any
           const images = hiddenContainer.getElementsByTagName('img');
           await Promise.all([...images].map(img => {
@@ -676,13 +952,13 @@ export default function CustomerView() {
             allowTaint: true,
             backgroundColor: '#ffffff'
           });
-          
+
           const imgData = canvas.toDataURL('image/png');
           const { jsPDF } = (window as any).jspdf;
           const pdf = new jsPDF('p', 'mm', 'a4');
           const pdfWidth = pdf.internal.pageSize.getWidth();
           const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-          
+
           pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
           pdf.save(`Invoices_${customer?.company.replace(/\s+/g, '_')}.pdf`);
           toast({ title: "Success", description: "Invoices PDF downloaded successfully." });
@@ -917,13 +1193,13 @@ export default function CustomerView() {
         logging: false,
         backgroundColor: '#ffffff'
       });
-      
+
       const imgData = canvas.toDataURL('image/png');
       const { jsPDF } = (window as any).jspdf;
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      
+
       pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save(`Statement_${customer?.company.replace(/\s+/g, '_')}.pdf`);
     } catch (err) {
@@ -939,6 +1215,8 @@ export default function CustomerView() {
     queryFn: () => customerService.getStatement(id!, getStatementRange()),
     enabled: activeTab === "statement",
   });
+
+  const finalStatementData = statementData;
 
   const { data: invoices = [], isLoading: isLoadingInvoices } = useQuery({
     queryKey: ["invoices", id],
@@ -958,73 +1236,35 @@ export default function CustomerView() {
     enabled: activeTab === "proposals",
   });
 
+  const { data: customerContracts = [], isLoading: isLoadingContracts } = useQuery({
+    queryKey: ["customerContracts", id],
+    queryFn: () => contractService.getContracts({ client: id }),
+    enabled: activeTab === "contracts",
+  });
+
   const { data: creditNotes = [], isLoading: isLoadingCreditNotes } = useQuery({
-    queryKey: ["credit-notes", id],
-    queryFn: () => salesService.getCreditNotesByCustomer(id!),
+    queryKey: ["creditNotes", id],
+    queryFn: () => creditNoteService.getAll({ client: id }),
     enabled: activeTab === "credit-notes",
   });
 
-  const computedStatementData = useMemo(() => {
-    const { from, to } = getStatementRange();
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
+  const { data: estimates = [], isLoading: isLoadingEstimates } = useQuery({
+    queryKey: ["estimates", id],
+    queryFn: () => estimateService.getEstimates({ client: id }),
+    enabled: activeTab === "estimates",
+  });
 
-    // 1. Get all transactions (Invoices and Payments)
-    // Invoices
-    const invoiceEntries = invoices.map(inv => ({
-      date: new Date(inv.date),
-      details: `Invoice ${inv.number}`,
-      amount: inv.total || 0,
-      payments: 0,
-      type: 'invoice'
-    }));
+  const { data: subscriptions = [], isLoading: isLoadingSubscriptions } = useQuery({
+    queryKey: ["subscriptions", id],
+    queryFn: () => salesService.getSubscriptions(),
+    enabled: activeTab === "subscriptions",
+  });
 
-    // Payments
-    const paymentEntries = payments.map(pay => ({
-      date: new Date(pay.date),
-      details: `Payment for Invoice ${pay.invoice?.number || pay.invoice_id || ''}`,
-      amount: 0,
-      payments: pay.amount || 0,
-      type: 'payment'
-    }));
-
-    // Combined
-    const allTransactions = [...invoiceEntries, ...paymentEntries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    // 2. Calculate Beginning Balance (transactions before 'from' date)
-    const transactionsBefore = allTransactions.filter(t => t.date < fromDate);
-    const beginningBalance = transactionsBefore.reduce((acc, t) => acc + t.amount - t.payments, 0);
-
-    // 3. Filter transactions within range
-    const transactionsInRange = allTransactions.filter(t => t.date >= fromDate && t.date <= toDate);
-
-    // 4. Calculate entries with running balance
-    let currentBalance = beginningBalance;
-    const entries = transactionsInRange.map(t => {
-      currentBalance += t.amount - t.payments;
-      return {
-        ...t,
-        balance: currentBalance
-      };
-    });
-
-    const totalInvoiced = transactionsInRange.reduce((acc, t) => acc + t.amount, 0);
-    const totalPaid = transactionsInRange.reduce((acc, t) => acc + t.payments, 0);
-    const balanceDue = beginningBalance + totalInvoiced - totalPaid;
-
-    return {
-      from,
-      to,
-      beginningBalance,
-      totalInvoiced,
-      totalPaid,
-      balanceDue,
-      entries
-    };
-  }, [invoices, payments, statementPeriod, customRange]);
-
-  const finalStatementData = statementData && statementData.entries?.length > 0 ? statementData : computedStatementData;
-  const isStatementLoading = isLoadingStatement || (activeTab === "statement" && (isLoadingInvoices || isLoadingPayments));
+  const { data: customerExpenses = [], isLoading: isLoadingExpenses } = useQuery({
+    queryKey: ["customerExpenses", id],
+    queryFn: () => salesService.getExpenses({ client: id }),
+    enabled: activeTab === "expenses",
+  });
 
   const handleCloseModal = () => {
     setIsContactModalOpen(false);
@@ -1135,6 +1375,34 @@ export default function CustomerView() {
     setFormData((prev: any) => ({ ...prev, [name]: value }));
   };
 
+  const expenseStats = useMemo(() => {
+    return {
+      total: customerExpenses.reduce((sum, e) => sum + (e.amount || 0), 0),
+      billable: customerExpenses.filter(e => e.billable).reduce((sum, e) => sum + (e.amount || 0), 0),
+      nonBillable: customerExpenses.filter(e => !e.billable).reduce((sum, e) => sum + (e.amount || 0), 0),
+      notInvoiced: customerExpenses.filter(e => e.billable && !e.invoiceid).reduce((sum, e) => sum + (e.amount || 0), 0),
+      billed: customerExpenses.filter(e => e.invoiceid).reduce((sum, e) => sum + (e.amount || 0), 0),
+    };
+  }, [customerExpenses]);
+
+  const filteredExpenses = customerExpenses.filter((e: any) => {
+    const searchStr = expenseSearch.toLowerCase();
+    return (
+      (e.expense_name || "").toLowerCase().includes(searchStr) ||
+      (e.category || "").toLowerCase().includes(searchStr) ||
+      (e.reference_no || "").toLowerCase().includes(searchStr)
+    );
+  });
+
+  const filteredContracts = customerContracts.filter((c: any) => {
+    const searchStr = contractSearch.toLowerCase();
+    return (
+      (c.subject || "").toLowerCase().includes(searchStr) ||
+      (c.contract_type || "").toLowerCase().includes(searchStr) ||
+      (c.project?.name || "").toLowerCase().includes(searchStr)
+    );
+  });
+
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -1166,9 +1434,9 @@ export default function CustomerView() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => navigate("/admin/customers")}
               className="rounded-full hover:bg-primary/10 transition-colors"
             >
@@ -1206,7 +1474,7 @@ export default function CustomerView() {
                     onClick={() => setActiveTab(item.id)}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200 text-left w-full",
-                      activeTab === item.id 
+                      activeTab === item.id
                         ? "bg-primary text-primary-foreground shadow-md scale-[1.02]"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     )}
@@ -1228,20 +1496,20 @@ export default function CustomerView() {
                     <Tabs defaultValue="details" className="w-full">
                       <div className="px-6 py-4 border-b border-border/50 bg-muted/20">
                         <TabsList className="bg-transparent gap-6 h-auto p-0">
-                          <TabsTrigger 
-                            value="details" 
+                          <TabsTrigger
+                            value="details"
                             className="px-0 py-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary border-b-2 border-transparent data-[state=active]:border-primary rounded-none font-semibold text-sm transition-all"
                           >
                             Customer Details
                           </TabsTrigger>
-                          <TabsTrigger 
-                            value="billing" 
+                          <TabsTrigger
+                            value="billing"
                             className="px-0 py-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary border-b-2 border-transparent data-[state=active]:border-primary rounded-none font-semibold text-sm transition-all"
                           >
                             Billing & Shipping
                           </TabsTrigger>
-                          <TabsTrigger 
-                            value="admins" 
+                          <TabsTrigger
+                            value="admins"
                             className="px-0 py-2 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary border-b-2 border-transparent data-[state=active]:border-primary rounded-none font-semibold text-sm transition-all"
                           >
                             Customer Admins
@@ -1448,7 +1716,7 @@ export default function CustomerView() {
                                 </Command>
                               </PopoverContent>
                             </Popover>
-                            
+
                             <div className="flex items-center gap-2">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -1526,9 +1794,9 @@ export default function CustomerView() {
                                         {formatDateTime(admin.date_assigned)}
                                       </td>
                                       <td className="px-6 py-4 text-right">
-                                        <Button 
-                                          variant="ghost" 
-                                          size="icon" 
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
                                           className="text-destructive hover:bg-destructive/10 transition-all duration-200"
                                           onClick={() => removeAdminMutation.mutate(admin.staff?._id || admin.staff)}
                                         >
@@ -1574,7 +1842,7 @@ export default function CustomerView() {
                                 New Contact
                               </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0 border-none shadow-2xl bg-background/95 backdrop-blur-xl outline-none">
+                            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0 border-none shadow-2xl bg-white outline-none">
                               <DialogHeader className="p-6 bg-muted/30 border-b border-border/50 sticky top-0 z-10">
                                 <DialogTitle className="text-xl font-bold tracking-tight">
                                   {isEditingContact ? "Edit Contact" : "Add New Contact"}
@@ -1586,9 +1854,9 @@ export default function CustomerView() {
                                 <div className="space-y-1.5">
                                   <Label className="text-xs font-bold uppercase text-muted-foreground">Profile Image</Label>
                                   <div className="flex flex-col gap-3">
-                                    <Input 
-                                      type="file" 
-                                      accept="image/*" 
+                                    <Input
+                                      type="file"
+                                      accept="image/*"
                                       className="cursor-pointer file:bg-primary file:text-primary-foreground file:border-none file:rounded-md file:px-3 file:py-1 file:mr-4 file:hover:bg-primary/90 file:transition-colors"
                                       onChange={(e) => {
                                         const file = e.target.files?.[0];
@@ -1604,7 +1872,7 @@ export default function CustomerView() {
                                     {contactForm.profile_image && (
                                       <div className="relative h-20 w-20 rounded-lg overflow-hidden border border-border shadow-sm">
                                         <img src={contactForm.profile_image} className="h-full w-full object-cover" alt="Preview" />
-                                        <button 
+                                        <button
                                           className="absolute top-0 right-0 bg-destructive text-white p-1 rounded-bl-lg opacity-0 hover:opacity-100 transition-opacity"
                                           onClick={() => setContactForm((p: any) => ({ ...p, profile_image: null }))}
                                         >
@@ -1651,14 +1919,14 @@ export default function CustomerView() {
                                     <div className="space-y-1.5">
                                       <Label className="text-xs font-bold uppercase text-muted-foreground">Password <span className="text-destructive">*</span></Label>
                                       <div className="relative">
-                                        <Input 
-                                          name="password" 
-                                          value={contactForm.password} 
-                                          onChange={handleContactFormChange} 
-                                          type={showPassword ? "text" : "password"} 
+                                        <Input
+                                          name="password"
+                                          value={contactForm.password}
+                                          onChange={handleContactFormChange}
+                                          type={showPassword ? "text" : "password"}
                                           placeholder="Password"
                                         />
-                                        <button 
+                                        <button
                                           type="button"
                                           onClick={() => setShowPassword(!showPassword)}
                                           className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
@@ -1681,10 +1949,10 @@ export default function CustomerView() {
                                         <Label htmlFor="send_set_password_email" className="text-sm cursor-pointer">Send SET password email</Label>
                                       </div>
                                       <div className="flex items-center gap-3 pt-2 border-t border-border/50">
-                                        <Switch 
-                                          id="contact-active" 
-                                          checked={contactForm.active} 
-                                          onCheckedChange={(v) => setContactForm((p: any) => ({ ...p, active: v }))} 
+                                        <Switch
+                                          id="contact-active"
+                                          checked={contactForm.active}
+                                          onCheckedChange={(v) => setContactForm((p: any) => ({ ...p, active: v }))}
                                         />
                                         <Label htmlFor="contact-active" className="text-sm font-bold cursor-pointer">Status</Label>
                                       </div>
@@ -1710,8 +1978,8 @@ export default function CustomerView() {
                                       <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
                                         {["Invoices", "Estimates", "Contracts", "Proposals", "Support", "Projects"].map((p) => (
                                           <div key={p} className="flex items-center gap-3">
-                                            <Checkbox 
-                                              id={`perm-${p}`} 
+                                            <Checkbox
+                                              id={`perm-${p}`}
                                               checked={(contactForm.permissions || []).includes(p)}
                                               onCheckedChange={() => handlePermissionChange(p, "permissions")}
                                             />
@@ -1728,7 +1996,7 @@ export default function CustomerView() {
                                       <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
                                         {["Invoice", "Estimate", "Credit Note", "Project", "Tickets", "Task", "Contract"].map((n) => (
                                           <div key={n} className="flex items-center gap-3">
-                                            <Checkbox 
+                                            <Checkbox
                                               id={`notif-${n}`}
                                               checked={(contactForm.email_notifications || []).includes(n)}
                                               onCheckedChange={() => handlePermissionChange(n, "email_notifications")}
@@ -1758,8 +2026,8 @@ export default function CustomerView() {
 
                               <DialogFooter className="p-6 bg-muted/30 border-t border-border/50">
                                 <Button variant="outline" onClick={handleCloseModal}>Cancel</Button>
-                                <Button 
-                                  onClick={() => isEditingContact ? updateContactMutation.mutate(contactForm) : createContactMutation.mutate(contactForm)} 
+                                <Button
+                                  onClick={() => isEditingContact ? updateContactMutation.mutate(contactForm) : createContactMutation.mutate(contactForm)}
                                   disabled={createContactMutation.isPending || updateContactMutation.isPending}
                                 >
                                   {createContactMutation.isPending || updateContactMutation.isPending ? "Saving..." : isEditingContact ? "Save Changes" : "Create Contact"}
@@ -1768,7 +2036,7 @@ export default function CustomerView() {
                             </DialogContent>
                           </Dialog>
                         </div>
-                        
+
                         <div className="flex items-center gap-3">
                           <div className="flex gap-1 bg-muted/30 p-1 rounded-lg border border-border/50">
                             <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
@@ -1814,10 +2082,10 @@ export default function CustomerView() {
                               </DropdownMenuContent>
                             </DropdownMenu>
 
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              className="h-8 w-8 p-0" 
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0"
                               onClick={() => queryClient.invalidateQueries({ queryKey: ["contacts", id] })}
                             >
                               <RefreshCw className="h-3.5 w-3.5" />
@@ -1826,8 +2094,8 @@ export default function CustomerView() {
 
                           <div className="relative">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                            <Input 
-                              placeholder="Search contacts..." 
+                            <Input
+                              placeholder="Search contacts..."
                               className="h-8 pl-8 w-[200px] text-xs transition-all focus:w-[250px]"
                             />
                           </div>
@@ -1878,12 +2146,12 @@ export default function CustomerView() {
                                     {contact.phonenumber || "-"}
                                   </td>
                                   <td className="px-6 py-4">
-                                    <Switch 
-                                      checked={contact.active} 
-                                      onCheckedChange={(checked) => 
-                                        toggleContactStatusMutation.mutate({ 
-                                          contactId: contact._id, 
-                                          active: checked 
+                                    <Switch
+                                      checked={contact.active}
+                                      onCheckedChange={(checked) =>
+                                        toggleContactStatusMutation.mutate({
+                                          contactId: contact._id,
+                                          active: checked
                                         })
                                       }
                                       disabled={toggleContactStatusMutation.isPending}
@@ -1929,8 +2197,8 @@ export default function CustomerView() {
                   {activeTab === "notes" && (
                     <div className="p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                       <div className="flex flex-col gap-4">
-                        <Button 
-                          onClick={() => setShowNewNote(!showNewNote)} 
+                        <Button
+                          onClick={() => setShowNewNote(!showNewNote)}
                           className="w-fit gap-2 bg-primary hover:bg-primary/90 shadow-md"
                           size="sm"
                         >
@@ -1940,8 +2208,8 @@ export default function CustomerView() {
 
                         {showNewNote && (
                           <div className="space-y-3 p-4 bg-muted/20 rounded-xl border border-border/50 animate-in slide-in-from-top-2 duration-300">
-                            <Textarea 
-                              placeholder="Note description..." 
+                            <Textarea
+                              placeholder="Note description..."
                               value={noteDescription}
                               onChange={(e) => setNoteDescription(e.target.value)}
                               className="min-h-[100px] bg-background focus:ring-1 ring-primary/20"
@@ -1952,8 +2220,8 @@ export default function CustomerView() {
                                 setEditingNoteId(null);
                                 setNoteDescription("");
                               }}>Cancel</Button>
-                              <Button 
-                                size="sm" 
+                              <Button
+                                size="sm"
                                 onClick={() => {
                                   if (editingNoteId) {
                                     updateNoteMutation.mutate({ noteId: editingNoteId, description: noteDescription });
@@ -2017,8 +2285,8 @@ export default function CustomerView() {
 
                           <div className="relative">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                            <Input 
-                              placeholder="Search notes..." 
+                            <Input
+                              placeholder="Search notes..."
                               value={noteSearch}
                               onChange={(e) => setNoteSearch(e.target.value)}
                               className="h-8 pl-8 w-[200px] text-xs transition-all focus:w-[250px]"
@@ -2063,9 +2331,9 @@ export default function CustomerView() {
                                       </td>
                                       <td className="px-6 py-4 text-right">
                                         <div className="flex items-center justify-end gap-1">
-                                          <Button 
-                                            variant="ghost" 
-                                            size="icon" 
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
                                             className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                                             onClick={() => {
                                               setEditingNoteId(note._id);
@@ -2076,9 +2344,9 @@ export default function CustomerView() {
                                           >
                                             <Edit2 className="h-3.5 w-3.5" />
                                           </Button>
-                                          <Button 
-                                            variant="ghost" 
-                                            size="icon" 
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
                                             className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                                             onClick={() => {
                                               if (confirm("Are you sure you want to delete this note?")) {
@@ -2139,16 +2407,16 @@ export default function CustomerView() {
 
                           {statementPeriod === "period" && (
                             <div className="flex items-center gap-2 animate-in slide-in-from-left-2 duration-300">
-                              <Input 
-                                type="date" 
-                                className="h-9 w-[130px] text-xs shadow-sm" 
+                              <Input
+                                type="date"
+                                className="h-9 w-[130px] text-xs shadow-sm"
                                 value={customRange.from}
                                 onChange={(e) => setCustomRange(p => ({ ...p, from: e.target.value }))}
                               />
                               <span className="text-muted-foreground text-xs font-bold">to</span>
-                              <Input 
-                                type="date" 
-                                className="h-9 w-[130px] text-xs shadow-sm" 
+                              <Input
+                                type="date"
+                                className="h-9 w-[130px] text-xs shadow-sm"
                                 value={customRange.to}
                                 onChange={(e) => setCustomRange(p => ({ ...p, to: e.target.value }))}
                               />
@@ -2174,7 +2442,7 @@ export default function CustomerView() {
                         </div>
                       </div>
 
-                      {isStatementLoading ? (
+                      {isLoadingStatement ? (
                         <div className="space-y-8 animate-pulse">
                           <div className="flex justify-between">
                             <Skeleton className="h-24 w-48" />
@@ -2295,15 +2563,15 @@ export default function CustomerView() {
                       {/* Header Actions */}
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div className="flex items-center gap-3">
-                          <Button 
+                          <Button
                             className="rounded-xl font-bold gap-2 shadow-lg shadow-primary/20"
                             onClick={() => navigate(`/admin/invoices/create/${id}`)}
                           >
                             <Plus className="h-4 w-4" />
                             Create New Invoice
                           </Button>
-                          <Button 
-                            variant="outline" 
+                          <Button
+                            variant="outline"
                             className="rounded-xl font-bold gap-2 shadow-sm hover:bg-muted transition-all active:scale-95"
                             onClick={() => setIsZipModalOpen(true)}
                           >
@@ -2316,23 +2584,23 @@ export default function CustomerView() {
                       {/* Stats Cards */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         {[
-                          { 
-                            label: "Outstanding Invoices", 
-                            value: `₹${invoices.reduce((acc: number, inv: any) => (inv.status === "unpaid" || inv.status === "partially_paid") ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 
-                            color: "text-orange-500", 
-                            bg: "bg-orange-500/5" 
+                          {
+                            label: "Outstanding Invoices",
+                            value: `₹${invoices.reduce((acc: number, inv: any) => (inv.status === "unpaid" || inv.status === "partially_paid") ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                            color: "text-orange-500",
+                            bg: "bg-orange-500/5"
                           },
-                          { 
-                            label: "Past Due Invoices", 
-                            value: `₹${invoices.reduce((acc: number, inv: any) => (inv.status !== "paid" && new Date(inv.duedate) < new Date()) ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 
-                            color: "text-destructive", 
-                            bg: "bg-destructive/5" 
+                          {
+                            label: "Past Due Invoices",
+                            value: `₹${invoices.reduce((acc: number, inv: any) => (inv.status !== "paid" && new Date(inv.duedate) < new Date()) ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                            color: "text-destructive",
+                            bg: "bg-destructive/5"
                           },
-                          { 
-                            label: "Paid Invoices", 
-                            value: `₹${invoices.reduce((acc: number, inv: any) => inv.status === "paid" ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 
-                            color: "text-green-500", 
-                            bg: "bg-green-500/5" 
+                          {
+                            label: "Paid Invoices",
+                            value: `₹${invoices.reduce((acc: number, inv: any) => inv.status === "paid" ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                            color: "text-green-500",
+                            bg: "bg-green-500/5"
                           }
                         ].map((stat, i) => (
                           <div key={i} className={cn("p-6 rounded-3xl border border-border/50 shadow-sm transition-all hover:shadow-md", stat.bg)}>
@@ -2363,14 +2631,14 @@ export default function CustomerView() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
                                 onClick={() => handleExportInvoices('pdf')}
                               >
                                 <FileText className="h-4 w-4 text-red-500 group-hover:scale-110 transition-transform" />
                                 <span className="text-xs font-bold">PDF</span>
                               </DropdownMenuItem>
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
                                 onClick={() => handleExportInvoices('csv')}
                               >
@@ -2378,7 +2646,7 @@ export default function CustomerView() {
                                 <span className="text-xs font-bold">CSV</span>
                               </DropdownMenuItem>
                               <div className="h-px bg-border/50 my-1 mx-1" />
-                              <DropdownMenuItem 
+                              <DropdownMenuItem
                                 className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
                                 onClick={() => handleExportInvoices('print')}
                               >
@@ -2390,8 +2658,8 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <Input 
-                            placeholder="Search invoices..." 
+                          <Input
+                            placeholder="Search invoices..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={invoiceSearch}
                             onChange={(e) => setInvoiceSearch(e.target.value)}
@@ -2442,18 +2710,18 @@ export default function CustomerView() {
                                     <Badge className={cn(
                                       "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
                                       inv.status === "paid" ? "bg-green-500/10 text-green-500" :
-                                      inv.status === "unpaid" ? "bg-orange-500/10 text-orange-500" :
-                                      inv.status === "partially_paid" ? "bg-blue-500/10 text-blue-500" :
-                                      "bg-muted text-muted-foreground"
+                                        inv.status === "unpaid" ? "bg-orange-500/10 text-orange-500" :
+                                          inv.status === "partially_paid" ? "bg-blue-500/10 text-blue-500" :
+                                            "bg-muted text-muted-foreground"
                                     )}>
                                       {inv.status}
                                     </Badge>
                                   </td>
                                   <td className="px-6 py-4 text-right">
                                     <div className="flex items-center gap-2 justify-end">
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon" 
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
                                         className="h-8 w-8 rounded-lg text-primary hover:bg-primary/10 transition-colors"
                                         title="Edit Invoice"
                                         onClick={(e) => {
@@ -2463,9 +2731,9 @@ export default function CustomerView() {
                                       >
                                         <Edit2 className="h-3.5 w-3.5" />
                                       </Button>
-                                      <Button 
-                                        variant="ghost" 
-                                        size="icon" 
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
                                         className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
                                         title="View PDF"
                                         onClick={(e) => {
@@ -2498,12 +2766,151 @@ export default function CustomerView() {
                     </div>
                   )}
 
+                  {activeTab === "credit-notes" && (
+                    <div className="p-6 space-y-8 animate-in fade-in duration-500">
+                      {/* Credits Available Banner */}
+                      <div className="bg-primary/5 border border-primary/10 rounded-2xl p-6 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-white rounded-xl shadow-sm border border-primary/10">
+                            <Receipt className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <p className="text-xl font-black text-foreground">${creditNotes.reduce((acc: number, cn: any) => acc + (cn.remaining_amount ?? cn.total), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} credits available.</p>
+                            <p className="text-[10px] font-bold text-primary uppercase tracking-widest mt-1">Available balance to apply to invoices</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Header Actions */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="flex items-center gap-3">
+                          <Button
+                            className="rounded-xl font-bold gap-2 shadow-lg shadow-primary/20"
+                            onClick={() => navigate(`/admin/credit-notes/create/${id}`)}
+                          >
+                            <Plus className="h-4 w-4" />
+                            New Credit Note
+                          </Button>
+                          <Button
+                            variant="outline"
+                            className="rounded-xl font-bold gap-2"
+                            onClick={() => setIsZipCreditNotesModalOpen(true)}
+                          >
+                            <Archive className="h-4 w-4" />
+                            Zip Credit Notes
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Table Controls */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+                        <div className="flex items-center gap-3">
+                          <Select value={creditNoteItemsPerPage} onValueChange={setCreditNoteItemsPerPage}>
+                            <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["10", "25", "50", "100", "All"].map(v => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm">
+                                <Download className="h-3.5 w-3.5 text-primary" />
+                                Export
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                              {["PDF", "CSV", "Excel", "Print"].map(type => (
+                                <DropdownMenuItem key={type} className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                  <FileText className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                                  <span className="text-xs font-bold">{type}</span>
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="relative w-full md:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Search credit notes..."
+                            className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+                            value={creditNoteSearch}
+                            onChange={(e) => setCreditNoteSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Credit Notes Table */}
+                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
+                            <tr>
+                              {["Credit Note #", "Credit Note Date", "Status", "Project", "Reference#", "Amount", "Remaining Amount"].map(h => (
+                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/50">
+                            {isLoadingCreditNotes ? (
+                              Array(3).fill(0).map((_, i) => (
+                                <tr key={i}><td colSpan={7} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                              ))
+                            ) : creditNotes.length === 0 ? (
+                              <tr>
+                                <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground italic">
+                                  No credit notes found for this customer.
+                                </td>
+                              </tr>
+                            ) : (
+                              creditNotes.map((cn: any) => (
+                                <tr key={cn._id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="px-6 py-4 font-bold text-primary">{cn.number || (cn._id.slice(-6).toUpperCase())}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(cn.date)}</td>
+                                  <td className="px-6 py-4">
+                                    <Badge className={cn(
+                                      "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
+                                      cn.status === 1 ? "bg-green-500/10 text-green-500" :
+                                        cn.status === 2 ? "bg-blue-500/10 text-blue-500" :
+                                          cn.status === 3 ? "bg-muted text-muted-foreground" :
+                                            "bg-muted text-muted-foreground"
+                                    )}>
+                                      {cn.status === 1 ? "Open" : cn.status === 2 ? "Closed" : cn.status === 3 ? "Void" : "Unknown"}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-6 py-4 text-muted-foreground">{cn.project?.name || "-"}</td>
+                                  <td className="px-6 py-4 font-mono text-[11px]">{cn.reference || "-"}</td>
+                                  <td className="px-6 py-4 font-black text-foreground">${cn.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 font-black text-primary">${(cn.remaining_amount ?? cn.total)?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+                        <p className="text-xs font-bold text-muted-foreground italic">
+                          Showing 1 to {creditNotes.length} of {creditNotes.length} entries
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
+                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {activeTab === "payments" && (
                     <div className="p-6 space-y-8 animate-in fade-in duration-500">
                       {/* Header Actions */}
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div className="flex items-center gap-3">
-                          <Button 
+                          <Button
                             className="rounded-xl font-bold gap-2 shadow-lg shadow-primary/20"
                             onClick={() => setIsZipPaymentsModalOpen(true)}
                           >
@@ -2551,8 +2958,8 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <Input 
-                            placeholder="Search payments..." 
+                          <Input
+                            placeholder="Search payments..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={paymentSearch}
                             onChange={(e) => setPaymentSearch(e.target.value)}
@@ -2611,262 +3018,14 @@ export default function CustomerView() {
                     </div>
                   )}
 
-                  {activeTab === "credit-notes" && (
-                    <div className="p-6 space-y-6 animate-in fade-in duration-500">
-                      {/* Credits Available Bar */}
-                      <div className="bg-[#FFFBEB] border-l-4 border-[#F59E0B] p-4 rounded-r-lg shadow-sm">
-                        <p className="text-sm font-medium text-[#92400E]">
-                          ₹0.00 credits available.
-                        </p>
-                      </div>
 
-                      {/* Header Actions */}
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                        <div className="flex items-center gap-3">
-                          <Button 
-                            className="bg-[#0F172A] hover:bg-[#1E293B] text-white rounded-lg font-bold gap-2 px-4 h-10 shadow-sm"
-                            onClick={() => navigate(`/admin/credit-notes/create/${id}`)}
-                          >
-                            <Plus className="h-4 w-4" />
-                            New Credit Note
-                          </Button>
-                          <Button 
-                            variant="outline" 
-                            className="rounded-lg font-bold gap-2 border-border/60 hover:bg-muted/50 h-10 px-4"
-                            onClick={() => setIsZipModalOpen(true)}
-                          >
-                            <FileText className="h-4 w-4" />
-                            Zip Credit Notes
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Zip Credit Notes Modal */}
-                      <Dialog open={isZipModalOpen} onOpenChange={setIsZipModalOpen}>
-                        <DialogContent className="max-w-md rounded-2xl p-0 overflow-hidden border-none shadow-2xl">
-                          <DialogHeader className="px-6 py-4 border-b border-border/40 bg-muted/5">
-                            <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-2">
-                              Zip Credit Notes
-                            </DialogTitle>
-                          </DialogHeader>
-                          
-                          <div className="p-6 space-y-6">
-                            {/* Status Section */}
-                            <div className="space-y-3">
-                              <Label className="text-sm font-bold text-foreground/80 uppercase tracking-wider">Status</Label>
-                              <div className="grid grid-cols-2 gap-3">
-                                {["All", "Open", "Closed", "Void"].map((status) => (
-                                  <div 
-                                    key={status}
-                                    className={`flex items-center space-x-3 p-3 rounded-xl border-2 transition-all cursor-pointer ${
-                                      zipForm.status === status 
-                                        ? "border-primary bg-primary/5 text-primary shadow-sm" 
-                                        : "border-border/40 hover:border-border/80 text-muted-foreground"
-                                    }`}
-                                    onClick={() => setZipForm({ ...zipForm, status })}
-                                  >
-                                    <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
-                                      zipForm.status === status ? "border-primary" : "border-muted-foreground/40"
-                                    }`}>
-                                      {zipForm.status === status && <div className="h-1.5 w-1.5 rounded-full bg-primary" />}
-                                    </div>
-                                    <span className="text-sm font-bold">{status}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Date Range Section */}
-                            <div className="grid grid-cols-1 gap-4">
-                              <div className="space-y-2">
-                                <Label className="text-sm font-bold text-foreground/80">From Date:</Label>
-                                <div className="relative group">
-                                  <Input 
-                                    type="date" 
-                                    className="h-11 rounded-xl border-border/60 focus:ring-primary/20 bg-muted/10 group-hover:bg-muted/20 transition-colors pl-4"
-                                    value={zipForm.fromDate}
-                                    onChange={(e) => setZipForm({ ...zipForm, fromDate: e.target.value })}
-                                  />
-                                </div>
-                              </div>
-                              <div className="space-y-2">
-                                <Label className="text-sm font-bold text-foreground/80">To Date:</Label>
-                                <div className="relative group">
-                                  <Input 
-                                    type="date" 
-                                    className="h-11 rounded-xl border-border/60 focus:ring-primary/20 bg-muted/10 group-hover:bg-muted/20 transition-colors pl-4"
-                                    value={zipForm.toDate}
-                                    onChange={(e) => setZipForm({ ...zipForm, toDate: e.target.value })}
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/40 bg-muted/5">
-                            <Button 
-                              variant="outline" 
-                              className="rounded-xl px-6 h-11 font-bold border-border/60"
-                              onClick={() => setIsZipModalOpen(false)}
-                            >
-                              Close
-                            </Button>
-                            <Button 
-                              className="rounded-xl px-8 h-11 font-bold bg-[#0F172A] hover:bg-[#1E293B] shadow-lg shadow-primary/20"
-                              onClick={() => {
-                                setIsZipModalOpen(false);
-                                toast({
-                                  title: "Export Started",
-                                  description: `Zipping ${zipForm.status} credit notes...`,
-                                });
-                              }}
-                            >
-                              Save
-                            </Button>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-
-                      {/* Table Controls */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <Select value={creditNoteItemsPerPage} onValueChange={setCreditNoteItemsPerPage}>
-                            <SelectTrigger className="h-10 w-[80px] bg-white border border-border/60 shadow-sm rounded-lg text-xs">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {["10", "25", "50", "100", "All"].map(v => (
-                                <SelectItem key={v} value={v}>{v}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="sm" className="h-10 rounded-lg font-bold text-xs gap-2 border border-border/60 bg-white shadow-sm px-4">
-                                Export
-                                <ChevronDown className="h-3.5 w-3.5 opacity-50" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
-                              {["PDF", "CSV", "Excel", "Print"].map(type => (
-                                <DropdownMenuItem key={type} className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
-                                  <FileText className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-                                  <span className="text-xs font-bold">{type}</span>
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
-                            className="h-10 w-10 rounded-lg border border-border/60 bg-white shadow-sm"
-                            onClick={() => queryClient.invalidateQueries({ queryKey: ["credit-notes", id] })}
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
-                        </div>
-
-                        <div className="relative w-full md:w-64">
-                          <div className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground flex items-center justify-center border-r border-border/50 pr-2 mr-2">
-                            <Search className="h-3.5 w-3.5" />
-                          </div>
-                          <Input 
-                            placeholder="Search..." 
-                            className="pl-10 h-10 bg-white border border-border/60 shadow-sm rounded-lg text-sm"
-                            value={creditNoteSearch}
-                            onChange={(e) => setCreditNoteSearch(e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Credit Notes Table */}
-                      <div className="rounded-xl border border-border/40 overflow-hidden bg-white shadow-sm">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm text-left border-collapse">
-                            <thead className="bg-[#F8FAFC] text-[#64748B] border-b border-border/40">
-                              <tr>
-                                {[
-                                  { label: "Credit Note #", sortable: true },
-                                  { label: "Credit Note Date" },
-                                  { label: "Status" },
-                                  { label: "Project" },
-                                  { label: "Reference #" },
-                                  { label: "Amount" },
-                                  { label: "Remaining Amount" }
-                                ].map((h, i) => (
-                                  <th key={i} className="px-6 py-4 font-semibold text-[13px] whitespace-nowrap">
-                                    <div className="flex items-center gap-2">
-                                      {h.label}
-                                      {h.sortable && (
-                                        <div className="p-1 rounded bg-muted/50">
-                                          <ChevronDown className="h-3 w-3" />
-                                        </div>
-                                      )}
-                                    </div>
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border/30">
-                              {isLoadingCreditNotes ? (
-                                Array(3).fill(0).map((_, i) => (
-                                  <tr key={i}><td colSpan={7} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
-                                ))
-                              ) : creditNotes.length === 0 ? (
-                                <tr>
-                                  <td colSpan={7} className="px-6 py-10 text-left text-muted-foreground">
-                                    No entries found
-                                  </td>
-                                </tr>
-                              ) : (
-                                creditNotes.map((cn: any) => (
-                                  <tr key={cn._id} className="hover:bg-muted/10 transition-colors border-b border-border/20 last:border-0">
-                                    <td className="px-6 py-4 font-bold text-primary">{cn.number || cn._id.slice(-6).toUpperCase()}</td>
-                                    <td className="px-6 py-4 text-muted-foreground">{formatDate(cn.date)}</td>
-                                    <td className="px-6 py-4">
-                                      <Badge className={cn(
-                                        "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
-                                        cn.status === "Applied" || cn.status === "paid" ? "bg-green-500/10 text-green-500" :
-                                        cn.status === "Pending" ? "bg-orange-500/10 text-orange-500" :
-                                        "bg-muted text-muted-foreground"
-                                      )}>
-                                        {cn.status}
-                                      </Badge>
-                                    </td>
-                                    <td className="px-6 py-4 text-muted-foreground">{cn.project?.name || "-"}</td>
-                                    <td className="px-6 py-4 text-muted-foreground">{cn.reference || "-"}</td>
-                                    <td className="px-6 py-4 font-bold text-foreground">${cn.total?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || cn.amount?.toLocaleString()}</td>
-                                    <td className="px-6 py-4 font-bold text-foreground">${(cn.remaining_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                  </tr>
-                                ))
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs text-muted-foreground">
-                          Showing 1 to {creditNotes.length} of {creditNotes.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
 
                   {activeTab === "proposals" && (
                     <div className="p-6 space-y-8 animate-in fade-in duration-500">
                       {/* Header Actions */}
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div className="flex items-center gap-3">
-                          <Button 
+                          <Button
                             className="rounded-xl font-bold gap-2 shadow-lg shadow-primary/20"
                             onClick={() => navigate(`/admin/proposals/create/${id}`)}
                           >
@@ -2908,8 +3067,8 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <Input 
-                            placeholder="Search proposals..." 
+                          <Input
+                            placeholder="Search proposals..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={proposalSearch}
                             onChange={(e) => setProposalSearch(e.target.value)}
@@ -2960,19 +3119,19 @@ export default function CustomerView() {
                                     <Badge className={cn(
                                       "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
                                       prop.status === 1 ? "bg-muted text-muted-foreground" :
-                                      prop.status === 2 ? "bg-blue-500/10 text-blue-500" :
-                                      prop.status === 3 ? "bg-primary/10 text-primary" :
-                                      prop.status === 4 ? "bg-orange-500/10 text-orange-500" :
-                                      prop.status === 5 ? "bg-destructive/10 text-destructive" :
-                                      prop.status === 6 ? "bg-green-500/10 text-green-500" :
-                                      "bg-muted text-muted-foreground"
+                                        prop.status === 2 ? "bg-blue-500/10 text-blue-500" :
+                                          prop.status === 3 ? "bg-primary/10 text-primary" :
+                                            prop.status === 4 ? "bg-orange-500/10 text-orange-500" :
+                                              prop.status === 5 ? "bg-destructive/10 text-destructive" :
+                                                prop.status === 6 ? "bg-green-500/10 text-green-500" :
+                                                  "bg-muted text-muted-foreground"
                                     )}>
                                       {prop.status === 1 ? "Draft" :
-                                       prop.status === 2 ? "Sent" :
-                                       prop.status === 3 ? "Open" :
-                                       prop.status === 4 ? "Revised" :
-                                       prop.status === 5 ? "Declined" :
-                                       prop.status === 6 ? "Accepted" : "Unknown"}
+                                        prop.status === 2 ? "Sent" :
+                                          prop.status === 3 ? "Open" :
+                                            prop.status === 4 ? "Revised" :
+                                              prop.status === 5 ? "Declined" :
+                                                prop.status === 6 ? "Accepted" : "Unknown"}
                                     </Badge>
                                   </td>
                                 </tr>
@@ -2996,12 +3155,1646 @@ export default function CustomerView() {
                     </div>
                   )}
 
-                  {activeTab !== "profile" && activeTab !== "contacts" && activeTab !== "notes" && activeTab !== "statement" && activeTab !== "invoices" && activeTab !== "payments" && activeTab !== "proposals" && activeTab !== "credit-notes" && (
+                  {activeTab === "estimates" && (
+                    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+                      {/* Header Actions */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-primary/10 rounded-2xl">
+                            <Target className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight">Estimates</h2>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Financial proposal documents</p>
+                          </div>
+                        </div>
+                        <Button
+                          className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
+                          onClick={() => navigate(`/admin/estimates/create/${id}`)}
+                        >
+                          <Plus className="h-4 w-4" />
+                          New Estimate
+                        </Button>
+                      </div>
+
+                      {/* Status Summary Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                        {[
+                          { label: "Draft", color: "text-slate-500", bg: "bg-slate-50", border: "border-slate-200" },
+                          { label: "Sent", color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200" },
+                          { label: "Expired", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" },
+                          { label: "Declined", color: "text-red-600", bg: "bg-red-50", border: "border-red-200" },
+                          { label: "Accepted", color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200" },
+                        ].map((status) => {
+                          const count = estimates.filter((e: any) => e.status?.toLowerCase() === status.label.toLowerCase()).length;
+                          const total = estimates
+                            .filter((e: any) => e.status?.toLowerCase() === status.label.toLowerCase())
+                            .reduce((sum: number, e: any) => sum + (e.total || 0), 0);
+
+                          return (
+                            <Card key={status.label} className={cn("border shadow-sm rounded-2xl overflow-hidden", status.bg, status.border)}>
+                              <CardContent className="p-5">
+                                <div className="flex flex-col gap-1">
+                                  <span className={cn("text-[9px] font-black uppercase tracking-[0.2em]", status.color)}>
+                                    {status.label}
+                                  </span>
+                                  <div className="flex items-baseline justify-between mt-2">
+                                    <span className="text-xl font-black text-slate-900">{count}</span>
+                                    <span className="text-[11px] font-bold text-slate-500">
+                                      ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+
+                      {/* Table Controls */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+                        <div className="flex items-center gap-3">
+                          <Select value={estimateItemsPerPage} onValueChange={setEstimateItemsPerPage}>
+                            <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["10", "25", "50", "100", "All"].map(v => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm">
+                                <Download className="h-3.5 w-3.5 text-primary" />
+                                Export
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-red-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">PDF</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">CSV</span>
+                              </DropdownMenuItem>
+                              <div className="h-px bg-border/50 my-1 mx-1" />
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">Print</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="relative w-full md:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Search estimates..."
+                            className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+                            value={estimateSearch}
+                            onChange={(e) => setEstimateSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Estimates Table */}
+                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
+                            <tr>
+                              {["Estimate #", "Subject", "Total", "Date", "Open Till", "Tags", "Date Created", "Status"].map(h => (
+                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/50">
+                            {isLoadingEstimates ? (
+                              Array(3).fill(0).map((_, i) => (
+                                <tr key={i}><td colSpan={8} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                              ))
+                            ) : estimates.length === 0 ? (
+                              <tr>
+                                <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
+                                  No estimates found for this customer.
+                                </td>
+                              </tr>
+                            ) : (
+                              estimates.map((est: any) => (
+                                <tr key={est._id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="px-6 py-4 font-bold text-primary">{est.number || est._id.slice(-6).toUpperCase()}</td>
+                                  <td className="px-6 py-4 font-medium text-foreground">{est.subject}</td>
+                                  <td className="px-6 py-4 font-black text-foreground">${est.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(est.date)}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{est.open_till ? formatDate(est.open_till) : "-"}</td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex flex-wrap gap-1">
+                                      {est.tags?.map((tag: string, i: number) => (
+                                        <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
+                                          {tag}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(est.createdAt)}</td>
+                                  <td className="px-6 py-4">
+                                    <Badge className={cn(
+                                      "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
+                                      est.status === 1 ? "bg-muted text-muted-foreground" :
+                                        est.status === 2 ? "bg-blue-500/10 text-blue-500" :
+                                          est.status === 3 ? "bg-primary/10 text-primary" :
+                                            est.status === 4 ? "bg-orange-500/10 text-orange-500" :
+                                              est.status === 5 ? "bg-destructive/10 text-destructive" :
+                                                "bg-muted text-muted-foreground"
+                                    )}>
+                                      {est.status === 1 ? "Draft" :
+                                        est.status === 2 ? "Sent" :
+                                          est.status === 3 ? "Open" :
+                                            est.status === 4 ? "Revised" :
+                                              est.status === 5 ? "Declined" : "Unknown"}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+                        <p className="text-xs font-bold text-muted-foreground italic">
+                          Showing 1 to {estimates.length} of {estimates.length} entries
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
+                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "subscriptions" && (
+                    <div className="p-6 space-y-8 animate-in fade-in duration-500">
+                      {/* Header Actions */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="flex items-center gap-3">
+                          <Button
+                            className="rounded-xl font-bold gap-2 shadow-lg shadow-primary/20"
+                            onClick={() => navigate(`/admin/subscriptions/create/${id}`)}
+                          >
+                            <Plus className="h-4 w-4" />
+                            New Subscription
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Table Controls */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+                        <div className="flex items-center gap-3">
+                          <Select value={subscriptionItemsPerPage} onValueChange={setSubscriptionItemsPerPage}>
+                            <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["10", "25", "50", "100", "All"].map(v => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm">
+                                <Download className="h-3.5 w-3.5 text-primary" />
+                                Export
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-red-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">PDF</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">CSV</span>
+                              </DropdownMenuItem>
+                              <div className="h-px bg-border/50 my-1 mx-1" />
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">Print</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="relative w-full md:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Search subscriptions..."
+                            className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+                            value={subscriptionSearch}
+                            onChange={(e) => setSubscriptionSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Subscriptions Table */}
+                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
+                            <tr>
+                              {["#", "Subscription Name", "Project", "Status", "Next Billing Cycle", "Date Subscribed", "Last Sent"].map(h => (
+                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/50">
+                            {isLoadingSubscriptions ? (
+                              Array(3).fill(0).map((_, i) => (
+                                <tr key={i}><td colSpan={7} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                              ))
+                            ) : subscriptions.length === 0 ? (
+                              <tr>
+                                <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground italic">
+                                  No entries found
+                                </td>
+                              </tr>
+                            ) : (
+                              subscriptions.map((s: any, index: number) => (
+                                <tr key={s._id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="px-6 py-4 font-bold text-slate-400">{index + 1}</td>
+                                  <td className="px-6 py-4 font-bold text-primary">{s.name}</td>
+                                  <td className="px-6 py-4 text-muted-foreground italic">{s.project?.name || "N/A"}</td>
+                                  <td className="px-6 py-4">
+                                    <Badge className={cn(
+                                      "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
+                                      s.status === "active" ? "bg-green-500/10 text-green-500" : "bg-muted text-muted-foreground"
+                                    )}>
+                                      {s.status}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-6 py-4 text-muted-foreground">{s.next_billing_cycle ? formatDate(s.next_billing_cycle) : "N/A"}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{s.date_subscribed ? formatDate(s.date_subscribed) : "-"}</td>
+                                  <td className="px-6 py-4 text-muted-foreground italic">{s.last_sent ? formatDate(s.last_sent) : "Never"}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+                        <p className="text-xs font-bold text-muted-foreground italic">
+                          Showing 1 to {subscriptions.length} of {subscriptions.length} entries
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
+                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "expenses" && (
+                    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+                      {/* Header Actions */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-primary/10 rounded-2xl">
+                            <Wallet className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight">Expenses</h2>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Client related expenditures</p>
+                          </div>
+                        </div>
+                        <Button
+                          className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
+                          onClick={() => navigate(`/admin/expenses/create?clientId=${id}`)}
+                        >
+                          <Plus className="h-4 w-4" />
+                          Record Expense
+                        </Button>
+                      </div>
+
+                      {/* Status Cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                        {[
+                          { title: "Total", value: expenseStats.total, icon: Wallet, color: "text-blue-600", bg: "bg-blue-50" },
+                          { title: "Billable", value: expenseStats.billable, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
+                          { title: "Non Billable", value: expenseStats.nonBillable, icon: XCircle, color: "text-rose-600", bg: "bg-rose-50" },
+                          { title: "Not Invoiced", value: expenseStats.notInvoiced, icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
+                          { title: "Billed", value: expenseStats.billed, icon: FileDown, color: "text-indigo-600", bg: "bg-indigo-50" },
+                        ].map((card, i) => (
+                          <Card key={i} className="border-none shadow-sm rounded-2xl bg-background/50 border border-border/50 overflow-hidden">
+                            <CardContent className="p-5">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className={`p-2 rounded-xl ${card.bg} ${card.color}`}>
+                                  <card.icon className="h-4 w-4" />
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">
+                                  {card.title}
+                                </p>
+                                <p className="text-lg font-black text-foreground">
+                                  ₹{card.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+
+                      {/* Table Controls */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+                        <div className="flex items-center gap-3">
+                          <Select value={expenseItemsPerPage} onValueChange={setExpenseItemsPerPage}>
+                            <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["10", "25", "50", "100", "All"].map(v => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm">
+                                <Download className="h-3.5 w-3.5 text-primary" />
+                                Export
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-rose-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">PDF</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">CSV</span>
+                              </DropdownMenuItem>
+                              <div className="h-px bg-border/50 my-1 mx-1" />
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">Print</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="relative w-full md:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Search expenses..."
+                            className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+                            value={expenseSearch}
+                            onChange={(e) => setExpenseSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Expenses Table */}
+                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
+                            <tr>
+                              {["Category", "Amount", "Name", "Receipt", "Date", "Project", "Invoice", "Reference #", "Payment Mode"].map(h => (
+                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/50">
+                            {isLoadingExpenses ? (
+                              Array(3).fill(0).map((_, i) => (
+                                <tr key={i}><td colSpan={9} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                              ))
+                            ) : filteredExpenses.length === 0 ? (
+                              <tr>
+                                <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground italic">
+                                  No expenses found for this customer.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredExpenses.map((exp: any) => (
+                                <tr key={exp._id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="px-6 py-4">
+                                    <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest bg-background border-none shadow-sm px-2 py-0.5">
+                                      {exp.category || "General"}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-6 py-4 font-black text-foreground">₹{(exp.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 text-muted-foreground font-medium">{exp.expense_name || "-"}</td>
+                                  <td className="px-6 py-4">
+                                    {exp.receipt ? (
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg bg-muted/20 hover:text-primary">
+                                        <Eye className="h-3.5 w-3.5" />
+                                      </Button>
+                                    ) : (
+                                      <span className="text-[9px] font-bold text-muted-foreground/30 uppercase">None</span>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-4 text-muted-foreground">{exp.date ? formatDate(exp.date) : "-"}</td>
+                                  <td className="px-6 py-4 text-muted-foreground italic">{exp.project?.name || exp.project || "-"}</td>
+                                  <td className="px-6 py-4">
+                                    {exp.invoiceid ? (
+                                      <Badge className="bg-indigo-50 text-indigo-600 border-none font-black text-[9px] tracking-tighter rounded-md px-2">
+                                        {exp.invoiceid?.number || "MATCHED"}
+                                      </Badge>
+                                    ) : (
+                                      <span className="text-[10px] font-bold text-muted-foreground/30">N/A</span>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-4 font-mono text-[10px] text-muted-foreground">{exp.reference_no || "-"}</td>
+                                  <td className="px-6 py-4">
+                                    <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none text-[9px] font-bold uppercase tracking-widest rounded-md px-2">
+                                      {exp.paymentmode || "Cash"}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+                        <p className="text-xs font-bold text-muted-foreground italic">
+                          Showing 1 to {filteredExpenses.length} of {filteredExpenses.length} entries
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
+                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "contracts" && (
+                    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+                      {/* Header Actions */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-primary/10 rounded-2xl">
+                            <FileSignature className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight">Contracts</h2>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Legal agreements and signatures</p>
+                          </div>
+                        </div>
+                        <Button
+                          className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
+                          onClick={() => navigate(`/admin/contracts/create?clientId=${id}`)}
+                        >
+                          <Plus className="h-4 w-4" />
+                          New Contract
+                        </Button>
+                      </div>
+
+                      {/* Table Controls */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+                        <div className="flex items-center gap-3">
+                          <Select value={contractItemsPerPage} onValueChange={setContractItemsPerPage}>
+                            <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["10", "25", "50", "100", "All"].map(v => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm">
+                                <Download className="h-3.5 w-3.5 text-primary" />
+                                Export
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-rose-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">PDF</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">CSV</span>
+                              </DropdownMenuItem>
+                              <div className="h-px bg-border/50 my-1 mx-1" />
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">Print</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="relative w-full md:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Search contracts..."
+                            className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+                            value={contractSearch}
+                            onChange={(e) => setContractSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Contracts Table */}
+                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
+                            <tr>
+                              {["#", "Subject", "Contract Type", "Contract Value", "Start Date", "End Date", "Project", "Signature"].map(h => (
+                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/50">
+                            {isLoadingContracts ? (
+                              Array(3).fill(0).map((_, i) => (
+                                <tr key={i}><td colSpan={8} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                              ))
+                            ) : filteredContracts.length === 0 ? (
+                              <tr>
+                                <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
+                                  No contracts found for this customer.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredContracts.map((c: any, idx: number) => (
+                                <tr key={c._id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
+                                  <td className="px-6 py-4 font-bold text-primary">{c.subject}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">
+                                    <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none text-[9px] font-bold uppercase tracking-widest rounded-md px-2">
+                                      {c.contract_type || "N/A"}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-6 py-4 font-black text-foreground">₹{(c.contract_value || 0).toLocaleString()}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{c.datestart ? formatDate(c.datestart) : "-"}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{c.dateend ? formatDate(c.dateend) : "-"}</td>
+                                  <td className="px-6 py-4 text-muted-foreground italic">{c.project?.name || "-"}</td>
+                                  <td className="px-6 py-4">
+                                    {c.is_signed ? (
+                                      <Badge className="bg-emerald-50 text-emerald-600 border-none font-black text-[9px] tracking-widest rounded-md px-2">
+                                        SIGNED
+                                      </Badge>
+                                    ) : (
+                                      <Badge className="bg-amber-50 text-amber-600 border-none font-black text-[9px] tracking-widest rounded-md px-2">
+                                        PENDING
+                                      </Badge>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+                        <p className="text-xs font-bold text-muted-foreground italic">
+                          Showing 1 to {filteredContracts.length} of {filteredContracts.length} entries
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
+                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "projects" && (
+                    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+                      {/* Header Actions */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-primary/10 rounded-2xl">
+                            <Folder className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight">Projects</h2>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Customer projects and development</p>
+                          </div>
+                        </div>
+                        <Button
+                          className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
+                          onClick={() => navigate(`/admin/projects/create/${id}`)}
+                        >
+                          <Plus className="h-4 w-4" />
+                          New Project
+                        </Button>
+                      </div>
+
+                      {/* Status Summary Cards */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                        {[
+                          { title: "Not Started", value: projectStats.notStarted, color: "text-slate-500", bg: "bg-slate-50" },
+                          { title: "In Progress", value: projectStats.inProgress, color: "text-blue-500", bg: "bg-blue-50" },
+                          { title: "On Hold", value: projectStats.onHold, color: "text-amber-500", bg: "bg-amber-50" },
+                          { title: "Cancelled", value: projectStats.cancelled, color: "text-rose-500", bg: "bg-rose-50" },
+                          { title: "Finished", value: projectStats.finished, color: "text-emerald-500", bg: "bg-emerald-50" },
+                        ].map((stat, i) => (
+                          <Card key={i} className="border-none shadow-sm rounded-2xl bg-background/50 border border-border/50">
+                            <CardContent className="p-5">
+                              <p className={`text-[10px] font-black uppercase tracking-widest ${stat.color} mb-1`}>{stat.title}</p>
+                              <p className="text-2xl font-black text-foreground">{stat.value}</p>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+
+                      {/* Table Controls */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+                        <div className="flex items-center gap-3">
+                          <Select value={projectItemsPerPage} onValueChange={setProjectItemsPerPage}>
+                            <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["10", "25", "50", "100", "All"].map(v => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm">
+                                <Download className="h-3.5 w-3.5 text-primary" />
+                                Export
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-rose-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">PDF</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">CSV</span>
+                              </DropdownMenuItem>
+                              <div className="h-px bg-border/50 my-1 mx-1" />
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">Print</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="relative w-full md:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Search projects..."
+                            className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+                            value={projectSearch}
+                            onChange={(e) => setProjectSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Projects Table */}
+                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
+                            <tr>
+                              {["#", "Project Name", "Tags", "Start Date", "Deadline", "Members", "Status"].map(h => (
+                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/50">
+                            {isLoadingProjects ? (
+                              Array(3).fill(0).map((_, i) => (
+                                <tr key={i}><td colSpan={7} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                              ))
+                            ) : filteredProjects.length === 0 ? (
+                              <tr>
+                                <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground italic">
+                                  No projects found for this customer.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredProjects.map((p: any, idx: number) => (
+                                <tr key={p._id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
+                                  <td className="px-6 py-4 font-bold text-primary">{p.name}</td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex flex-wrap gap-1">
+                                      {p.tags?.map((tag: string, i: number) => (
+                                        <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
+                                          {tag}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-muted-foreground">{p.start_date ? formatDate(p.start_date) : "-"}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{p.deadline ? formatDate(p.deadline) : "-"}</td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex -space-x-2">
+                                      {p.team?.map((m: any, i: number) => (
+                                        <div key={i} className="h-7 w-7 rounded-full border-2 border-background bg-muted flex items-center justify-center text-[10px] font-black uppercase overflow-hidden" title={m.firstname + " " + m.lastname}>
+                                          {m.firstname?.[0]}{m.lastname?.[0]}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <Badge className={cn(
+                                      "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
+                                      p.status === 1 ? "bg-slate-100 text-slate-600" :
+                                        p.status === 2 ? "bg-blue-500/10 text-blue-500" :
+                                          p.status === 3 ? "bg-amber-500/10 text-amber-500" :
+                                            p.status === 4 ? "bg-emerald-500/10 text-emerald-500" :
+                                              p.status === 5 ? "bg-rose-500/10 text-rose-500" : "bg-muted text-muted-foreground"
+                                    )}>
+                                      {p.status === 1 ? "Not Started" :
+                                        p.status === 2 ? "In Progress" :
+                                          p.status === 3 ? "On Hold" :
+                                            p.status === 4 ? "Finished" :
+                                              p.status === 5 ? "Cancelled" : "Unknown"}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+                        <p className="text-xs font-bold text-muted-foreground italic">
+                          Showing 1 to {filteredProjects.length} of {filteredProjects.length} entries
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
+                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "tasks" && (
+                    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+                      {/* Header Actions */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-primary/10 rounded-2xl">
+                            <CheckSquare className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight">Tasks</h2>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Management and execution pipeline</p>
+                          </div>
+                        </div>
+                        <Button
+                          className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
+                          onClick={() => navigate(`/admin/tasks/create?rel_id=${id}&rel_type=customer`)}
+                        >
+                          <Plus className="h-4 w-4" />
+                          New Task
+                        </Button>
+                      </div>
+
+                      {/* Related To Filters */}
+                      <div className="space-y-4">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Related To:</Label>
+                        <div className="flex flex-wrap gap-6 items-center bg-slate-50/50 p-6 rounded-3xl border border-slate-100">
+                          {Object.entries(taskRelatedFilter).map(([key, value]) => (
+                            <div key={key} className="flex items-center space-x-3">
+                              <Checkbox
+                                id={`filter-${key}`}
+                                checked={value}
+                                onCheckedChange={(checked) => setTaskRelatedFilter(prev => ({ ...prev, [key]: !!checked }))}
+                                className="h-4 w-4 rounded"
+                              />
+                              <Label htmlFor={`filter-${key}`} className="text-[10px] font-black uppercase tracking-widest text-slate-600 cursor-pointer capitalize">{key}</Label>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Table Controls */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+                        <div className="flex items-center gap-3">
+                          <Select value={taskItemsPerPage} onValueChange={setTaskItemsPerPage}>
+                            <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["10", "25", "50", "100", "All"].map(v => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm">
+                                <Download className="h-3.5 w-3.5 text-primary" />
+                                Export
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-rose-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">PDF</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">CSV</span>
+                              </DropdownMenuItem>
+                              <div className="h-px bg-border/50 my-1 mx-1" />
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">Print</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="relative w-full md:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Search tasks..."
+                            className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+                            value={taskSearch}
+                            onChange={(e) => setTaskSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Tasks Table */}
+                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
+                            <tr>
+                              {["#", "Name", "Status", "Start Date", "Due Date", "Assigned to", "Tags", "Priority"].map(h => (
+                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/50">
+                            {isLoadingTasks ? (
+                              Array(3).fill(0).map((_, i) => (
+                                <tr key={i}><td colSpan={8} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                              ))
+                            ) : filteredTasks.length === 0 ? (
+                              <tr>
+                                <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
+                                  No tasks found for this customer.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredTasks.map((t: any, idx: number) => (
+                                <tr key={t._id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
+                                  <td className="px-6 py-4 font-bold text-primary">{t.name}</td>
+                                  <td className="px-6 py-4">
+                                    <Badge className={cn(
+                                      "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
+                                      t.status === 1 ? "bg-slate-100 text-slate-600" :
+                                        t.status === 2 ? "bg-amber-100 text-amber-600" :
+                                          t.status === 3 ? "bg-blue-100 text-blue-600" :
+                                            t.status === 4 ? "bg-indigo-100 text-indigo-600" :
+                                              t.status === 5 ? "bg-emerald-100 text-emerald-600" : "bg-muted text-muted-foreground"
+                                    )}>
+                                      {t.status === 1 ? "Not Started" :
+                                        t.status === 2 ? "Awaiting Feedback" :
+                                          t.status === 3 ? "Testing" :
+                                            t.status === 4 ? "In Progress" :
+                                              t.status === 5 ? "Complete" : "Unknown"}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-6 py-4 text-muted-foreground">{t.startdate ? formatDate(t.startdate) : "-"}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{t.duedate ? formatDate(t.duedate) : "-"}</td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex -space-x-2">
+                                      {t.assignees?.map((a: any, i: number) => (
+                                        <div key={i} className="h-7 w-7 rounded-full border-2 border-background bg-slate-100 flex items-center justify-center text-[10px] font-black uppercase text-primary shadow-sm" title={`${a.firstname} ${a.lastname}`}>
+                                          {a.firstname?.[0]}{a.lastname?.[0]}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex flex-wrap gap-1">
+                                      {t.tags?.map((tag: string, i: number) => (
+                                        <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
+                                          {tag}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <Badge variant="outline" className={cn(
+                                      "text-[10px] font-black uppercase tracking-widest border-2",
+                                      t.priority === 1 ? "border-slate-200 text-slate-500" :
+                                        t.priority === 2 ? "border-blue-200 text-blue-500" :
+                                          t.priority === 3 ? "border-amber-200 text-amber-500" :
+                                            t.priority === 4 ? "border-rose-200 text-rose-500" : ""
+                                    )}>
+                                      {t.priority === 1 ? "Low" :
+                                        t.priority === 2 ? "Medium" :
+                                          t.priority === 3 ? "High" :
+                                            t.priority === 4 ? "Urgent" : "None"}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+                        <p className="text-xs font-bold text-muted-foreground italic">
+                          Showing 1 to {filteredTasks.length} of {filteredTasks.length} entries
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
+                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "tickets" && (
+                    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+                      {/* Header Actions */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-primary/10 rounded-2xl">
+                            <HelpCircle className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight">Tickets</h2>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Support and communication channel</p>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => navigate(`/admin/support/create?clientId=${id}`)}
+                          className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
+                        >
+                          <Plus className="h-4 w-4" />
+                          New Ticket
+                        </Button>
+                      </div>
+
+                      {/* Table Controls */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+                        <div className="flex items-center gap-3">
+                          <Select value={ticketItemsPerPage} onValueChange={setTicketItemsPerPage}>
+                            <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["10", "25", "50", "100", "All"].map(v => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm">
+                                <Download className="h-3.5 w-3.5 text-primary" />
+                                Export
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-rose-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">PDF</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">CSV</span>
+                              </DropdownMenuItem>
+                              <div className="h-px bg-border/50 my-1 mx-1" />
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">Print</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="relative w-full md:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Search tickets..."
+                            className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+                            value={ticketSearch}
+                            onChange={(e) => setTicketSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Tickets Table */}
+                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
+                            <tr>
+                              {["#", "Subject", "Tags", "Department", "Service", "Contact", "Status", "Priority", "Last Reply", "Created"].map(h => (
+                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/50">
+                            {isLoadingTickets ? (
+                              Array(3).fill(0).map((_, i) => (
+                                <tr key={i}><td colSpan={10} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                              ))
+                            ) : filteredTickets.length === 0 ? (
+                              <tr>
+                                <td colSpan={10} className="px-6 py-12 text-center text-muted-foreground italic">
+                                  No tickets found for this customer.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredTickets.map((t: any, idx: number) => (
+                                <tr key={t._id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
+                                  <td className="px-6 py-4 font-bold text-primary">{t.subject}</td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex flex-wrap gap-1">
+                                      {t.tags?.map((tag: string, i: number) => (
+                                        <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
+                                          {tag}
+                                        </Badge>
+                                      ))}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-muted-foreground">{t.department?.name || "-"}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{t.service?.name || "-"}</td>
+                                  <td className="px-6 py-4 text-muted-foreground font-bold">{t.contact?.firstname} {t.contact?.lastname}</td>
+                                  <td className="px-6 py-4">
+                                    <Badge className={cn(
+                                      "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
+                                      t.status === 1 ? "bg-slate-100 text-slate-600" :
+                                        t.status === 2 ? "bg-blue-500/10 text-blue-500" :
+                                          t.status === 3 ? "bg-amber-500/10 text-amber-500" : "bg-muted text-muted-foreground"
+                                    )}>
+                                      {t.status_name || "Unknown"}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <Badge variant="outline" className={cn(
+                                      "text-[10px] font-black uppercase tracking-widest border-2",
+                                      t.priority === 1 ? "border-slate-200 text-slate-500" :
+                                        t.priority === 2 ? "border-blue-200 text-blue-500" :
+                                          t.priority === 3 ? "border-rose-200 text-rose-500" : ""
+                                    )}>
+                                      {t.priority_name || "None"}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-6 py-4 text-muted-foreground">{t.last_reply ? formatDate(t.last_reply) : "-"}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{t.date_created ? formatDate(t.date_created) : "-"}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+                        <p className="text-xs font-bold text-muted-foreground italic">
+                          Showing 1 to {filteredTickets.length} of {filteredTickets.length} entries
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
+                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "files" && (
+                    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+                      {/* Header Actions */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-primary/10 rounded-2xl">
+                            <Paperclip className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight">Files</h2>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Manage customer documents</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Warning Alert */}
+                      <div className="flex items-center gap-4 p-4 rounded-2xl bg-amber-50 border border-amber-100/50 animate-in slide-in-from-top-2">
+                        <div className="p-2 bg-amber-500/10 rounded-xl">
+                          <HelpCircle className="h-5 w-5 text-amber-500" />
+                        </div>
+                        <p className="text-sm font-bold text-amber-700">Files from projects and tasks linked to the customer are not shown on this table.</p>
+                      </div>
+
+                      {/* Dropzone */}
+                      <div className="group relative">
+                        <div className="absolute inset-0 bg-primary/5 blur-xl rounded-[2.5rem] opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="relative border-2 border-dashed border-slate-200 rounded-[2.5rem] p-12 text-center hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer overflow-hidden">
+                          <input
+                            type="file"
+                            multiple
+                            onChange={(e) => {
+                              if (e.target.files?.length) {
+                                const formData = new FormData();
+                                Array.from(e.target.files).forEach(f => formData.append("files", f));
+                                uploadFileMutation.mutate(formData);
+                              }
+                            }}
+                            className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                          />
+                          <div className="flex flex-col items-center gap-4">
+                            <div className="p-5 bg-primary/10 rounded-3xl group-hover:scale-110 transition-transform duration-500">
+                              <Plus className="h-8 w-8 text-primary" />
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-lg font-black text-slate-700">Drop files here to upload</p>
+                              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">or click to browse from your computer</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Table Controls */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+                        <div className="flex items-center gap-3">
+                          <Select value={fileItemsPerPage} onValueChange={setFileItemsPerPage}>
+                            <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["10", "25", "50", "100", "All"].map(v => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm">
+                                <Download className="h-3.5 w-3.5 text-primary" />
+                                Export
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-rose-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">PDF</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">CSV</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="relative w-full md:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Search files..."
+                            className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+                            value={fileSearch}
+                            onChange={(e) => setFileSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Files Table */}
+                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
+                            <tr>
+                              {["#", "File", "Show to customers area", "Date Uploaded", "Options"].map(h => (
+                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/50">
+                            {isLoadingFiles ? (
+                              Array(3).fill(0).map((_, i) => (
+                                <tr key={i}><td colSpan={5} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                              ))
+                            ) : filteredFiles.length === 0 ? (
+                              <tr>
+                                <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground italic">
+                                  No files found for this customer.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredFiles.map((f: any, idx: number) => (
+                                <tr key={f._id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className="p-2 bg-blue-50 rounded-lg">
+                                        <FileText className="h-4 w-4 text-blue-500" />
+                                      </div>
+                                      <span className="font-bold text-slate-700">{f.file_name}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <Switch
+                                      checked={f.visible_to_customer}
+                                      onCheckedChange={(val) => {
+                                        // Update mutation
+                                      }}
+                                    />
+                                  </td>
+                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(f.dateadded)}</td>
+                                  <td className="px-6 py-4">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => deleteFileMutation.mutate(f._id)}
+                                      className="h-8 w-8 rounded-full text-rose-500 hover:bg-rose-50 transition-colors"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+                        <p className="text-xs font-bold text-muted-foreground italic">
+                          Showing 1 to {filteredFiles.length} of {filteredFiles.length} entries
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
+                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "vault" && (
+                    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+                      {/* Header Actions */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-primary/10 rounded-2xl">
+                            <Lock className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight">Vault</h2>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Secure credential storage</p>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => setIsVaultModalOpen(true)}
+                          className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
+                        >
+                          <Plus className="h-4 w-4" />
+                          New Vault Entry
+                        </Button>
+                      </div>
+
+                      {/* Table Controls */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+                        <div className="flex items-center gap-3">
+                          <Select value={vaultItemsPerPage} onValueChange={setVaultItemsPerPage}>
+                            <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["10", "25", "50", "100", "All"].map(v => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm">
+                                <Download className="h-3.5 w-3.5 text-primary" />
+                                Export
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-rose-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">PDF</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">CSV</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="relative w-full md:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Search vault..."
+                            className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+                            value={vaultSearch}
+                            onChange={(e) => setVaultSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Vault Table */}
+                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
+                            <tr>
+                              {["#", "Server Address", "Port", "Username", "Password", "Options"].map(h => (
+                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/50">
+                            {isLoadingVault ? (
+                              Array(3).fill(0).map((_, i) => (
+                                <tr key={i}><td colSpan={6} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                              ))
+                            ) : filteredVault.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground italic">
+                                  No vault entries found for this customer.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredVault.map((v: any, idx: number) => (
+                                <tr key={v._id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
+                                  <td className="px-6 py-4 font-bold text-slate-700">{v.server}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{v.port || "-"}</td>
+                                  <td className="px-6 py-4 text-slate-700 font-medium">{v.username}</td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <span className={cn(
+                                        "font-mono transition-all duration-300",
+                                        visibleVaultPasswords[v._id] ? "text-slate-700 font-bold" : "text-muted-foreground tracking-tighter"
+                                      )}>
+                                        {visibleVaultPasswords[v._id] ? v.password : "••••••••"}
+                                      </span>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setVisibleVaultPasswords(p => ({ ...p, [v._id]: !p[v._id] }))}
+                                        className={cn(
+                                          "h-7 w-7 rounded-lg transition-colors",
+                                          visibleVaultPasswords[v._id] ? "bg-primary/10 text-primary" : "hover:bg-primary/10 hover:text-primary"
+                                        )}
+                                      >
+                                        {visibleVaultPasswords[v._id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                      </Button>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 rounded-full text-blue-500 hover:bg-blue-50"
+                                      >
+                                        <Edit2 className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => deleteVaultMutation.mutate(v._id)}
+                                        className="h-8 w-8 rounded-full text-rose-500 hover:bg-rose-50"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+                        <p className="text-xs font-bold text-muted-foreground italic">
+                          Showing 1 to {filteredVault.length} of {filteredVault.length} entries
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
+                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "reminders" && (
+                    <div className="p-8 space-y-8 animate-in fade-in duration-500">
+                      {/* Header Actions */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div className="flex items-center gap-4">
+                          <div className="p-3 bg-primary/10 rounded-2xl">
+                            <Bell className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <h2 className="text-xl font-black text-slate-900 tracking-tight">Reminders</h2>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Manage notifications</p>
+                          </div>
+                        </div>
+                        <Button
+                          onClick={() => setIsReminderModalOpen(true)}
+                          className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Set Reminder
+                        </Button>
+                      </div>
+
+                      {/* Table Controls */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+                        <div className="flex items-center gap-3">
+                          <Select value={reminderItemsPerPage} onValueChange={setReminderItemsPerPage}>
+                            <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {["10", "25", "50", "100", "All"].map(v => (
+                                <SelectItem key={v} value={v}>{v}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm">
+                                <Download className="h-3.5 w-3.5 text-primary" />
+                                Export
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-rose-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">PDF</span>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                                <span className="text-xs font-bold">CSV</span>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        <div className="relative w-full md:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Search reminders..."
+                            className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+                            value={reminderSearch}
+                            onChange={(e) => setReminderSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Reminders Table */}
+                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+                        <table className="w-full text-sm text-left">
+                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
+                            <tr>
+                              {["#", "Date", "Description", "Reminder set to", "Email sent?", "Options"].map(h => (
+                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border/50">
+                            {isLoadingReminders ? (
+                              Array(3).fill(0).map((_, i) => (
+                                <tr key={i}><td colSpan={6} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                              ))
+                            ) : filteredReminders.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground italic">
+                                  No reminders found for this customer.
+                                </td>
+                              </tr>
+                            ) : (
+                              filteredReminders.map((r: any, idx: number) => (
+                                <tr key={r._id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
+                                  <td className="px-6 py-4 font-bold text-slate-700">{formatDate(r.date)}</td>
+                                  <td className="px-6 py-4 text-muted-foreground max-w-xs truncate">{r.description}</td>
+                                  <td className="px-6 py-4 text-slate-700 font-medium">{r.staff?.firstname} {r.staff?.lastname}</td>
+                                  <td className="px-6 py-4">
+                                    <Badge variant={r.notify_by_email ? "success" : "secondary"} className="rounded-lg font-bold text-[10px] uppercase tracking-wider">
+                                      {r.notify_by_email ? "Yes" : "No"}
+                                    </Badge>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => deleteReminderMutation.mutate(r._id)}
+                                        className="h-8 w-8 rounded-full text-rose-500 hover:bg-rose-50"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Pagination Footer */}
+                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+                        <p className="text-xs font-bold text-muted-foreground italic">
+                          Showing 1 to {filteredReminders.length} of {filteredReminders.length} entries
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
+                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
+                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab === "map" && (
+                    <div className="p-8 space-y-8 animate-in fade-in duration-500 max-w-4xl">
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-primary/10 rounded-2xl">
+                          <MapPin className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl font-black text-slate-900 tracking-tight">Customer Map</h2>
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Geolocation coordinates</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-8 rounded-3xl border border-border/50 shadow-sm space-y-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          <div className="space-y-3">
+                            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+                              Latitude (Google Maps)
+                            </Label>
+                            <Input
+                              placeholder="e.g. 23.0225"
+                              value={mapForm.latitude}
+                              onChange={(e) => setMapForm(p => ({ ...p, latitude: e.target.value }))}
+                              className="h-12 rounded-xl border-slate-200 bg-slate-50/50 px-4 font-bold text-slate-700"
+                            />
+                          </div>
+                          <div className="space-y-3">
+                            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+                              Longitude (Google Maps)
+                            </Label>
+                            <Input
+                              placeholder="e.g. 72.5714"
+                              value={mapForm.longitude}
+                              onChange={(e) => setMapForm(p => ({ ...p, longitude: e.target.value }))}
+                              className="h-12 rounded-xl border-slate-200 bg-slate-50/50 px-4 font-bold text-slate-700"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-100 flex items-start gap-3">
+                          <Info className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                          <p className="text-sm font-medium text-amber-700">
+                            Setup google api key in order to view to customer map
+                          </p>
+                        </div>
+
+                        <div className="pt-4 flex justify-end">
+                          <Button
+                            onClick={() => updateMapMutation.mutate(mapForm)}
+                            disabled={updateMapMutation.isPending}
+                            className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-10 h-12 uppercase text-xs tracking-widest"
+                          >
+                            {updateMapMutation.isPending ? "Saving..." : "Save Coordinates"}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTab !== "profile" && activeTab !== "contacts" && activeTab !== "notes" && activeTab !== "statement" && activeTab !== "invoices" && activeTab !== "payments" && activeTab !== "proposals" && activeTab !== "credit-notes" && activeTab !== "estimates" && activeTab !== "subscriptions" && activeTab !== "expenses" && activeTab !== "contracts" && activeTab !== "projects" && activeTab !== "tasks" && activeTab !== "tickets" && activeTab !== "files" && activeTab !== "vault" && activeTab !== "reminders" && activeTab !== "map" && (
                     <div className="px-6 py-12">
                       <div className="flex flex-col items-center justify-center min-h-[400px] text-muted-foreground bg-muted/10 rounded-3xl border-2 border-dashed border-border/50 animate-in fade-in zoom-in duration-500">
                         <div className="relative mb-6">
-                           <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full scale-150 animate-pulse" />
-                           <div className="relative p-6 rounded-full bg-background border-2 border-primary/20 shadow-xl transition-transform hover:rotate-12 duration-500">
+                          <div className="absolute inset-0 bg-primary/20 blur-2xl rounded-full scale-150 animate-pulse" />
+                          <div className="relative p-6 rounded-full bg-background border-2 border-primary/20 shadow-xl transition-transform hover:rotate-12 duration-500">
                             {(() => {
                               const Icon = sidebarItems.find(i => i.id === activeTab)?.icon || User;
                               return <Icon className="h-12 w-12 text-primary/60" />;
@@ -3021,8 +4814,8 @@ export default function CustomerView() {
         </div>
       </div>
       <Dialog open={isMailModalOpen} onOpenChange={setIsMailModalOpen}>
-        <DialogContent className="max-w-[750px] w-[95vw] p-0 overflow-hidden rounded-xl shadow-2xl">
-          <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between">
+        <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
+          <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4 flex items-center justify-between">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold text-foreground">Account Summary</DialogTitle>
             </DialogHeader>
@@ -3062,7 +4855,7 @@ export default function CustomerView() {
                         {["admin@gmail.com", "admin1@gmail.com", "tirth@gmail.com"].map((email) => {
                           const emails = mailForm.email ? mailForm.email.split(',').map(e => e.trim()) : [];
                           const isSelected = emails.includes(email);
-                          
+
                           return (
                             <CommandItem
                               key={email}
@@ -3090,7 +4883,7 @@ export default function CustomerView() {
                         {contacts.map((contact: any) => {
                           const emails = mailForm.email ? mailForm.email.split(',').map(e => e.trim()) : [];
                           const isSelected = emails.includes(contact.email);
-                          
+
                           return (
                             <CommandItem
                               key={contact._id}
@@ -3204,8 +4997,8 @@ export default function CustomerView() {
                                           "w-5 h-5 border-[0.5px] border-border/10 cursor-pointer transition-colors duration-75",
                                           sel ? "bg-blue-100 border-blue-400" : "bg-white hover:bg-blue-50"
                                         )}
-                                        onMouseEnter={() => setHoveredTableSize({ rows: r+1, cols: c+1 })}
-                                        onClick={() => setInsertedTable({ rows: r+1, cols: c+1 })}
+                                        onMouseEnter={() => setHoveredTableSize({ rows: r + 1, cols: c + 1 })}
+                                        onClick={() => setInsertedTable({ rows: r + 1, cols: c + 1 })}
                                       />
                                     );
                                   })}
@@ -3235,7 +5028,7 @@ export default function CustomerView() {
                     <DropdownMenuItem className="flex items-center gap-2 h-8"><Subscript className="h-4 w-4" /><span>Subscript</span></DropdownMenuItem>
                     <DropdownMenuItem className="flex items-center gap-2 h-8"><Code className="h-4 w-4" /><span>Code</span></DropdownMenuItem>
                     <div className="h-px bg-border/50 my-1" />
-                    {["Formats","Blocks","Fonts","Font sizes"].map(item => (
+                    {["Formats", "Blocks", "Fonts", "Font sizes"].map(item => (
                       <DropdownMenuItem key={item} className="flex justify-between items-center h-8"><span className="pl-6">{item}</span><ChevronDown className="h-3 w-3 -rotate-90 opacity-50" /></DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
@@ -3271,14 +5064,14 @@ export default function CustomerView() {
                                   {Array.from({ length: 10 }).map((_, c) => {
                                     const sel = c < hoveredTableSize.cols && r < hoveredTableSize.rows;
                                     return (
-                                      <div 
-                                        key={`${r}-${c}`} 
+                                      <div
+                                        key={`${r}-${c}`}
                                         className={cn(
-                                          "w-5 h-5 border-[0.5px] border-border/10 cursor-pointer transition-colors duration-75", 
+                                          "w-5 h-5 border-[0.5px] border-border/10 cursor-pointer transition-colors duration-75",
                                           sel ? "bg-blue-100 border-blue-400" : "bg-white hover:bg-blue-50"
-                                        )} 
-                                        onMouseEnter={() => setHoveredTableSize({ rows: r+1, cols: c+1 })} 
-                                        onClick={() => setInsertedTable({ rows: r+1, cols: c+1 })} 
+                                        )}
+                                        onMouseEnter={() => setHoveredTableSize({ rows: r + 1, cols: c + 1 })}
+                                        onClick={() => setInsertedTable({ rows: r + 1, cols: c + 1 })}
                                       />
                                     );
                                   })}
@@ -3349,8 +5142,8 @@ export default function CustomerView() {
                       <TableIcon className="h-3.5 w-3.5" />
                       <span className="font-medium">Table properties</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      className="flex items-center gap-2 h-8 px-2 text-[13px] text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md cursor-pointer" 
+                    <DropdownMenuItem
+                      className="flex items-center gap-2 h-8 px-2 text-[13px] text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md cursor-pointer"
                       onClick={() => setInsertedTable(null)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -3365,12 +5158,12 @@ export default function CustomerView() {
               <div className="flex items-center gap-1 p-2 overflow-x-auto no-scrollbar border-b border-border/50">
                 <div className="flex items-center gap-1 px-2">
                   <Select value={editorFont === "inherit" ? "System Font" : editorFont.split(",")[0]} onValueChange={(val) => {
-                    const map: Record<string, string> = {"System Font":"inherit","Andale Mono":"Andale Mono,monospace","Arial":"Arial,sans-serif","Arial Black":"Arial Black,sans-serif","Book Antiqua":"Book Antiqua,serif","Comic Sans MS":"Comic Sans MS,cursive","Courier New":"Courier New,monospace","Georgia":"Georgia,serif","Helvetica":"Helvetica,sans-serif","Impact":"Impact,sans-serif","Tahoma":"Tahoma,sans-serif","Times New Roman":"Times New Roman,serif","Trebuchet MS":"Trebuchet MS,sans-serif","Verdana":"Verdana,sans-serif"};
+                    const map: Record<string, string> = { "System Font": "inherit", "Andale Mono": "Andale Mono,monospace", "Arial": "Arial,sans-serif", "Arial Black": "Arial Black,sans-serif", "Book Antiqua": "Book Antiqua,serif", "Comic Sans MS": "Comic Sans MS,cursive", "Courier New": "Courier New,monospace", "Georgia": "Georgia,serif", "Helvetica": "Helvetica,sans-serif", "Impact": "Impact,sans-serif", "Tahoma": "Tahoma,sans-serif", "Times New Roman": "Times New Roman,serif", "Trebuchet MS": "Trebuchet MS,sans-serif", "Verdana": "Verdana,sans-serif" };
                     setEditorFont(map[val] || "inherit");
                   }}>
                     <SelectTrigger className="h-8 w-[120px] text-xs border-none bg-transparent hover:bg-muted"><SelectValue /></SelectTrigger>
                     <SelectContent className="max-h-[300px]">
-                      {[["System Font","inherit"],["Andale Mono","Andale Mono,monospace"],["Arial","Arial,sans-serif"],["Arial Black","Arial Black,sans-serif"],["Book Antiqua","Book Antiqua,serif"],["Comic Sans MS","Comic Sans MS,cursive"],["Courier New","Courier New,monospace"],["Georgia","Georgia,serif"],["Helvetica","Helvetica,sans-serif"],["Impact","Impact,sans-serif"],["Tahoma","Tahoma,sans-serif"],["Times New Roman","Times New Roman,serif"],["Trebuchet MS","Trebuchet MS,sans-serif"],["Verdana","Verdana,sans-serif"]].map(([name, family]) => (
+                      {[["System Font", "inherit"], ["Andale Mono", "Andale Mono,monospace"], ["Arial", "Arial,sans-serif"], ["Arial Black", "Arial Black,sans-serif"], ["Book Antiqua", "Book Antiqua,serif"], ["Comic Sans MS", "Comic Sans MS,cursive"], ["Courier New", "Courier New,monospace"], ["Georgia", "Georgia,serif"], ["Helvetica", "Helvetica,sans-serif"], ["Impact", "Impact,sans-serif"], ["Tahoma", "Tahoma,sans-serif"], ["Times New Roman", "Times New Roman,serif"], ["Trebuchet MS", "Trebuchet MS,sans-serif"], ["Verdana", "Verdana,sans-serif"]].map(([name, family]) => (
                         <SelectItem key={name} value={name} style={{ fontFamily: family }}>{name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -3378,7 +5171,7 @@ export default function CustomerView() {
                   <Select value={`${editorFontSize}pt`} onValueChange={(val) => setEditorFontSize(val.replace("pt", ""))}>
                     <SelectTrigger className="h-8 w-[70px] text-xs border-none bg-transparent hover:bg-muted"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {[8,9,10,11,12,14,18,24,30,36,48,60,72,96].map(s => <SelectItem key={s} value={`${s}pt`}>{s}pt</SelectItem>)}
+                      {[8, 9, 10, 11, 12, 14, 18, 24, 30, 36, 48, 60, 72, 96].map(s => <SelectItem key={s} value={`${s}pt`}>{s}pt</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -3391,7 +5184,7 @@ export default function CustomerView() {
                     </div>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="p-2 grid grid-cols-8 gap-1 w-auto">
-                    {["#000000","#434343","#666666","#999999","#b7b7b7","#cccccc","#d9d9d9","#ffffff","#980000","#ff0000","#ff9900","#ffff00","#00ff00","#00ffff","#4a86e8","#0000ff","#9900ff","#ff00ff"].map(c => (
+                    {["#000000", "#434343", "#666666", "#999999", "#b7b7b7", "#cccccc", "#d9d9d9", "#ffffff", "#980000", "#ff0000", "#ff9900", "#ffff00", "#00ff00", "#00ffff", "#4a86e8", "#0000ff", "#9900ff", "#ff00ff"].map(c => (
                       <div key={c} className="w-5 h-5 rounded-sm border border-border/50 cursor-pointer hover:scale-110 transition-transform" style={{ backgroundColor: c }} />
                     ))}
                   </DropdownMenuContent>
@@ -3404,7 +5197,7 @@ export default function CustomerView() {
                     </div>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent className="p-2 grid grid-cols-8 gap-1 w-auto">
-                    {["#ffff00","#00ff00","#00ffff","#ff00ff","#ff0000","#0000ff","#00008b","#006400","#8b0000","#ffffff"].map(c => (
+                    {["#ffff00", "#00ff00", "#00ffff", "#ff00ff", "#ff0000", "#0000ff", "#00008b", "#006400", "#8b0000", "#ffffff"].map(c => (
                       <div key={c} className="w-5 h-5 rounded-sm border border-border/50 cursor-pointer hover:scale-110 transition-transform" style={{ backgroundColor: c }} />
                     ))}
                   </DropdownMenuContent>
@@ -3433,14 +5226,14 @@ export default function CustomerView() {
                                   {Array.from({ length: 10 }).map((_, c) => {
                                     const sel = c < hoveredTableSize.cols && r < hoveredTableSize.rows;
                                     return (
-                                      <div 
-                                        key={`${r}-${c}`} 
+                                      <div
+                                        key={`${r}-${c}`}
                                         className={cn(
-                                          "w-5 h-5 border-[0.5px] border-border/10 cursor-pointer transition-colors duration-75", 
+                                          "w-5 h-5 border-[0.5px] border-border/10 cursor-pointer transition-colors duration-75",
                                           sel ? "bg-blue-100 border-blue-400" : "bg-white hover:bg-blue-50"
-                                        )} 
-                                        onMouseEnter={() => setHoveredTableSize({ rows: r+1, cols: c+1 })} 
-                                        onClick={() => setInsertedTable({ rows: r+1, cols: c+1 })} 
+                                        )}
+                                        onMouseEnter={() => setHoveredTableSize({ rows: r + 1, cols: c + 1 })}
+                                        onClick={() => setInsertedTable({ rows: r + 1, cols: c + 1 })}
                                       />
                                     );
                                   })}
@@ -3511,8 +5304,8 @@ export default function CustomerView() {
                       <TableIcon className="h-3.5 w-3.5" />
                       <span className="font-medium">Table properties</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      className="flex items-center gap-2 h-8 px-2 text-[13px] text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md cursor-pointer" 
+                    <DropdownMenuItem
+                      className="flex items-center gap-2 h-8 px-2 text-[13px] text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md cursor-pointer"
                       onClick={() => setInsertedTable(null)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -3557,9 +5350,9 @@ export default function CustomerView() {
                           <Button variant="ghost" size="icon" className="h-9 w-9 hover:bg-muted/80 rounded-lg" onClick={() => setIsLinkDialogOpen(true)}><Link2 className="h-4 w-4 text-foreground/70" /></Button>
                         </div>
                       </div>
-                      
+
                       <div className="h-px bg-border/10 w-full" />
-                      
+
                       {/* Bottom Row: Lists and History */}
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
@@ -3609,118 +5402,118 @@ export default function CustomerView() {
                       </tbody>
                     </table>
                     <div className="absolute -bottom-14 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-white shadow-xl border border-border/40 p-1.5 rounded-xl z-20 whitespace-nowrap">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 gap-2 px-2 hover:bg-blue-50 hover:text-blue-600 transition-colors rounded-md group">
-                          <TableIcon className="h-3.5 w-3.5 opacity-70" />
-                          <span className="text-xs font-medium">Table</span>
-                          <ChevronDown className="h-3 w-3 opacity-40" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start" side="top" className="w-52 p-1 bg-white shadow-xl rounded-xl border border-border/40">
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group data-[state=open]:bg-blue-50 data-[state=open]:text-blue-600">
-                            <div className="flex items-center gap-2">
-                              <TableIcon className="h-3.5 w-3.5 opacity-70" />
-                              <span className="text-[13px] font-medium">Table</span>
-                            </div>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuPortal>
-                            <DropdownMenuSubContent side="right" sideOffset={12} alignOffset={-4} className="p-1 w-[222px] bg-white shadow-2xl rounded-xl border border-border/20 animate-in slide-in-from-left-2 duration-200">
-                              <div className="p-2 flex flex-col items-center">
-                                <div className="grid grid-cols-10 border-[0.5px] border-border/30 w-[202px] h-[202px]" onMouseLeave={() => setHoveredTableSize({ rows: 0, cols: 0 })}>
-                                  {Array.from({ length: 10 }).map((_, r) => (
-                                    <Fragment key={r}>
-                                      {Array.from({ length: 10 }).map((_, c) => {
-                                        const sel = c < hoveredTableSize.cols && r < hoveredTableSize.rows;
-                                        return (
-                                          <div 
-                                            key={`${r}-${c}`} 
-                                            className={cn(
-                                              "w-5 h-5 border-[0.5px] border-border/10 cursor-pointer transition-colors duration-75", 
-                                              sel ? "bg-blue-100 border-blue-400" : "bg-white hover:bg-blue-50"
-                                            )} 
-                                            onMouseEnter={() => setHoveredTableSize({ rows: r+1, cols: c+1 })} 
-                                            onClick={() => setInsertedTable({ rows: r+1, cols: c+1 })} 
-                                          />
-                                        );
-                                      })}
-                                    </Fragment>
-                                  ))}
-                                </div>
-                                <div className="text-center text-[11px] text-blue-600/60 mt-2 font-bold tracking-widest">
-                                  {hoveredTableSize.cols} x {hoveredTableSize.rows}
-                                </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" className="h-8 gap-2 px-2 hover:bg-blue-50 hover:text-blue-600 transition-colors rounded-md group">
+                            <TableIcon className="h-3.5 w-3.5 opacity-70" />
+                            <span className="text-xs font-medium">Table</span>
+                            <ChevronDown className="h-3 w-3 opacity-40" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" side="top" className="w-52 p-1 bg-white shadow-xl rounded-xl border border-border/40">
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group data-[state=open]:bg-blue-50 data-[state=open]:text-blue-600">
+                              <div className="flex items-center gap-2">
+                                <TableIcon className="h-3.5 w-3.5 opacity-70" />
+                                <span className="text-[13px] font-medium">Table</span>
                               </div>
-                            </DropdownMenuSubContent>
-                          </DropdownMenuPortal>
-                        </DropdownMenuSub>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                              <DropdownMenuSubContent side="right" sideOffset={12} alignOffset={-4} className="p-1 w-[222px] bg-white shadow-2xl rounded-xl border border-border/20 animate-in slide-in-from-left-2 duration-200">
+                                <div className="p-2 flex flex-col items-center">
+                                  <div className="grid grid-cols-10 border-[0.5px] border-border/30 w-[202px] h-[202px]" onMouseLeave={() => setHoveredTableSize({ rows: 0, cols: 0 })}>
+                                    {Array.from({ length: 10 }).map((_, r) => (
+                                      <Fragment key={r}>
+                                        {Array.from({ length: 10 }).map((_, c) => {
+                                          const sel = c < hoveredTableSize.cols && r < hoveredTableSize.rows;
+                                          return (
+                                            <div
+                                              key={`${r}-${c}`}
+                                              className={cn(
+                                                "w-5 h-5 border-[0.5px] border-border/10 cursor-pointer transition-colors duration-75",
+                                                sel ? "bg-blue-100 border-blue-400" : "bg-white hover:bg-blue-50"
+                                              )}
+                                              onMouseEnter={() => setHoveredTableSize({ rows: r + 1, cols: c + 1 })}
+                                              onClick={() => setInsertedTable({ rows: r + 1, cols: c + 1 })}
+                                            />
+                                          );
+                                        })}
+                                      </Fragment>
+                                    ))}
+                                  </div>
+                                  <div className="text-center text-[11px] text-blue-600/60 mt-2 font-bold tracking-widest">
+                                    {hoveredTableSize.cols} x {hoveredTableSize.rows}
+                                  </div>
+                                </div>
+                              </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                          </DropdownMenuSub>
 
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
-                            <div className="flex items-center gap-2">
-                              <MousePointer2 className="h-3.5 w-3.5 opacity-70" />
-                              <span className="text-[13px] font-medium">Cell</span>
-                            </div>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuPortal>
-                            <DropdownMenuSubContent side="right" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
-                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert cell before</DropdownMenuItem>
-                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert cell after</DropdownMenuItem>
-                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete cell</DropdownMenuItem>
-                              <DropdownMenuSeparator className="my-1" />
-                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Merge cells</DropdownMenuItem>
-                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Split cell</DropdownMenuItem>
-                            </DropdownMenuSubContent>
-                          </DropdownMenuPortal>
-                        </DropdownMenuSub>
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
+                              <div className="flex items-center gap-2">
+                                <MousePointer2 className="h-3.5 w-3.5 opacity-70" />
+                                <span className="text-[13px] font-medium">Cell</span>
+                              </div>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                              <DropdownMenuSubContent side="right" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
+                                <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert cell before</DropdownMenuItem>
+                                <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert cell after</DropdownMenuItem>
+                                <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete cell</DropdownMenuItem>
+                                <DropdownMenuSeparator className="my-1" />
+                                <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Merge cells</DropdownMenuItem>
+                                <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Split cell</DropdownMenuItem>
+                              </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                          </DropdownMenuSub>
 
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
-                            <div className="flex items-center gap-2">
-                              <Rows className="h-3.5 w-3.5 opacity-70" />
-                              <span className="text-[13px] font-medium">Row</span>
-                            </div>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuPortal>
-                            <DropdownMenuSubContent side="right" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
-                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert row before</DropdownMenuItem>
-                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert row after</DropdownMenuItem>
-                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete row</DropdownMenuItem>
-                            </DropdownMenuSubContent>
-                          </DropdownMenuPortal>
-                        </DropdownMenuSub>
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
+                              <div className="flex items-center gap-2">
+                                <Rows className="h-3.5 w-3.5 opacity-70" />
+                                <span className="text-[13px] font-medium">Row</span>
+                              </div>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                              <DropdownMenuSubContent side="right" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
+                                <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert row before</DropdownMenuItem>
+                                <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert row after</DropdownMenuItem>
+                                <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete row</DropdownMenuItem>
+                              </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                          </DropdownMenuSub>
 
-                        <DropdownMenuSub>
-                          <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
-                            <div className="flex items-center gap-2">
-                              <Columns className="h-3.5 w-3.5 opacity-70" />
-                              <span className="text-[13px] font-medium">Column</span>
-                            </div>
-                          </DropdownMenuSubTrigger>
-                          <DropdownMenuPortal>
-                            <DropdownMenuSubContent side="right" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
-                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert column before</DropdownMenuItem>
-                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert column after</DropdownMenuItem>
-                              <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete column</DropdownMenuItem>
-                            </DropdownMenuSubContent>
-                          </DropdownMenuPortal>
-                        </DropdownMenuSub>
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger className="flex justify-between items-center h-8 px-2 hover:bg-blue-50 hover:text-blue-600 text-foreground/80 cursor-pointer rounded-md group">
+                              <div className="flex items-center gap-2">
+                                <Columns className="h-3.5 w-3.5 opacity-70" />
+                                <span className="text-[13px] font-medium">Column</span>
+                              </div>
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                              <DropdownMenuSubContent side="right" sideOffset={8} className="w-44 bg-white shadow-2xl rounded-xl border border-border/20 p-1">
+                                <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert column before</DropdownMenuItem>
+                                <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md">Insert column after</DropdownMenuItem>
+                                <DropdownMenuItem className="h-8 px-2 text-[13px] rounded-md text-red-500 hover:bg-red-50 hover:text-red-600">Delete column</DropdownMenuItem>
+                              </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                          </DropdownMenuSub>
 
-                        <DropdownMenuSeparator className="my-1" />
-                        <DropdownMenuItem className="flex items-center gap-2 h-8 px-2 text-[13px] opacity-40 cursor-not-allowed">
-                          <TableIcon className="h-3.5 w-3.5" />
-                          <span className="font-medium">Table properties</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="flex items-center gap-2 h-8 px-2 text-[13px] text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md cursor-pointer" 
-                          onClick={() => setInsertedTable(null)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          <span className="font-medium">Delete table</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <DropdownMenuSeparator className="my-1" />
+                          <DropdownMenuItem className="flex items-center gap-2 h-8 px-2 text-[13px] opacity-40 cursor-not-allowed">
+                            <TableIcon className="h-3.5 w-3.5" />
+                            <span className="font-medium">Table properties</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="flex items-center gap-2 h-8 px-2 text-[13px] text-red-500 hover:bg-red-50 hover:text-red-600 rounded-md cursor-pointer"
+                            onClick={() => setInsertedTable(null)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span className="font-medium">Delete table</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       <Button variant="ghost" size="icon" className="h-8 w-8 text-red-500" title="Delete" onClick={() => setInsertedTable(null)}><Plus className="h-4 w-4 rotate-45" /></Button>
                       <div className="w-px h-5 bg-border/50 mx-1" />
                       <Button variant="ghost" size="icon" className="h-8 w-8" title="Remove row" onClick={() => setInsertedTable(t => t && t.rows > 1 ? { ...t, rows: t.rows - 1 } : t)}><Rows className="h-4 w-4 rotate-180" /></Button>
@@ -3820,10 +5613,10 @@ export default function CustomerView() {
             <h2 className="text-xl font-bold text-foreground">Source Code</h2>
           </div>
           <div className="relative">
-            <Textarea 
-              className="min-h-[450px] font-mono text-sm p-6 bg-slate-50 border-blue-200 focus-visible:ring-blue-500 rounded-xl resize-none" 
-              value={mailForm.body} 
-              onChange={e => setMailForm(p => ({ ...p, body: e.target.value }))} 
+            <Textarea
+              className="min-h-[450px] font-mono text-sm p-6 bg-slate-50 border-blue-200 focus-visible:ring-blue-500 rounded-xl resize-none"
+              value={mailForm.body}
+              onChange={e => setMailForm(p => ({ ...p, body: e.target.value }))}
             />
           </div>
           <div className="flex justify-end gap-3 mt-6">
@@ -3837,20 +5630,20 @@ export default function CustomerView() {
           <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between bg-white shrink-0">
             <h2 className="text-xl font-bold text-foreground">ZIP Invoices</h2>
           </div>
-          
+
           <div className="p-8 space-y-8 bg-white flex-1 overflow-y-auto no-scrollbar">
             <div className="space-y-4">
               <Label className="text-sm font-bold text-foreground">Status</Label>
-              <RadioGroup 
-                value={zipForm.status} 
+              <RadioGroup
+                value={zipForm.status}
                 onValueChange={(v) => setZipForm(p => ({ ...p, status: v }))}
                 className="space-y-3"
               >
                 {["All", "Unpaid", "Paid", "Partially Paid", "Overdue", "Cancelled", "Draft"].map((status) => (
                   <div key={status} className="flex items-center space-x-3 group cursor-pointer">
                     <RadioGroupItem value={status} id={`status-${status}`} className="h-4 w-4 border-2 border-muted-foreground/30 text-primary focus:ring-primary" />
-                    <Label 
-                      htmlFor={`status-${status}`} 
+                    <Label
+                      htmlFor={`status-${status}`}
                       className={cn(
                         "text-sm font-medium transition-colors cursor-pointer",
                         zipForm.status === status ? "text-primary" : "text-foreground/70 group-hover:text-foreground"
@@ -3867,7 +5660,7 @@ export default function CustomerView() {
               <div className="space-y-2">
                 <Label className="text-sm font-bold text-foreground">From Date:</Label>
                 <div className="relative group">
-                  <Input 
+                  <Input
                     type="date"
                     className="h-10 px-4 rounded-lg border-border/50 bg-muted/5 text-sm focus:bg-background transition-all"
                     value={zipForm.fromDate}
@@ -3879,7 +5672,7 @@ export default function CustomerView() {
               <div className="space-y-2">
                 <Label className="text-sm font-bold text-foreground">To Date:</Label>
                 <div className="relative group">
-                  <Input 
+                  <Input
                     type="date"
                     className="h-10 px-4 rounded-lg border-border/50 bg-muted/5 text-sm focus:bg-background transition-all"
                     value={zipForm.toDate}
@@ -3891,14 +5684,14 @@ export default function CustomerView() {
           </div>
 
           <div className="px-6 py-4 bg-muted/10 border-t border-border/50 flex items-center justify-end gap-3">
-            <Button 
-              variant="outline" 
-              onClick={() => setIsZipModalOpen(false)} 
+            <Button
+              variant="outline"
+              onClick={() => setIsZipModalOpen(false)}
               className="rounded-lg h-9 px-4 font-bold text-xs"
             >
               Close
             </Button>
-            <Button 
+            <Button
               className="rounded-lg h-9 px-6 bg-[#1E293B] hover:bg-[#0F172A] text-white font-bold text-xs shadow-lg"
               onClick={() => {
                 console.log("Saving ZIP Request:", zipForm);
@@ -3910,6 +5703,691 @@ export default function CustomerView() {
           </div>
         </DialogContent>
       </Dialog>
+      <ZipPaymentsModal
+        open={isZipPaymentsModalOpen}
+        onOpenChange={setIsZipPaymentsModalOpen}
+        formData={zipPaymentsForm}
+        setFormData={setZipPaymentsForm}
+      />
+      <ZipCreditNotesModal
+        open={isZipCreditNotesModalOpen}
+        onOpenChange={setIsZipCreditNotesModalOpen}
+        formData={zipCreditNotesForm}
+        setFormData={setZipCreditNotesForm}
+      />
+      <VaultEntryModal
+        open={isVaultModalOpen}
+        onOpenChange={setIsVaultModalOpen}
+        formData={vaultFormData}
+        setFormData={setVaultFormData}
+        onSave={() => createVaultMutation.mutate(vaultFormData)}
+        isPending={createVaultMutation.isPending}
+      />
+      <ReminderModal
+        open={isReminderModalOpen}
+        onOpenChange={setIsReminderModalOpen}
+        formData={reminderFormData}
+        setFormData={setReminderFormData}
+        staff={staff}
+        onSave={() => createReminderMutation.mutate(reminderFormData)}
+        isPending={createReminderMutation.isPending}
+      />
+      <ContactModal
+        open={isContactModalOpen}
+        onOpenChange={setIsContactModalOpen}
+        formData={contactForm}
+        setFormData={setContactForm}
+        onSave={() => isEditingContact ? updateContactMutation.mutate(contactForm) : createContactMutation.mutate(contactForm)}
+        isPending={isEditingContact ? updateContactMutation.isPending : createContactMutation.isPending}
+        isEditing={isEditingContact}
+      />
+
     </DashboardLayout>
+  );
+}
+
+function ZipCreditNotesModal({ open, onOpenChange, formData, setFormData }: any) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden rounded-[2rem] border-none shadow-2xl bg-white">
+        <div className="bg-zinc-950 px-6 py-5 flex items-center justify-between border-b border-white/5">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-white flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-xl">
+                <Receipt className="h-5 w-5 text-primary" />
+              </div>
+              ZIP Credit Notes
+            </DialogTitle>
+          </DialogHeader>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-1 gap-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">From Date</Label>
+              <Input
+                type="date"
+                value={formData.from_date}
+                onChange={(e) => setFormData((p: any) => ({ ...p, from_date: e.target.value }))}
+                className="h-11 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">To Date</Label>
+              <Input
+                type="date"
+                value={formData.to_date}
+                onChange={(e) => setFormData((p: any) => ({ ...p, to_date: e.target.value }))}
+                className="h-11 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 bg-muted/20 border-t border-border/50 flex items-center justify-end gap-3">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="rounded-xl font-bold h-10 px-6 hover:bg-background transition-all"
+          >
+            Cancel
+          </Button>
+          <Button
+            className="rounded-xl px-8 h-10 shadow-lg shadow-primary/20 font-bold uppercase text-[11px] tracking-wider"
+            onClick={() => {
+              console.log("Saving Zip Credit Notes:", formData);
+              onOpenChange(false);
+            }}
+          >
+            Save
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ZipPaymentsModal({ open, onOpenChange, formData, setFormData }: any) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden rounded-[2rem] border-none shadow-2xl bg-white">
+        <div className="bg-zinc-950 px-6 py-5 flex items-center justify-between border-b border-white/5">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-white flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-xl">
+                <CreditCard className="h-5 w-5 text-primary" />
+              </div>
+              ZIP Payments
+            </DialogTitle>
+          </DialogHeader>
+        </div>
+
+        <div className="p-6 space-y-6">
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Payment made by</Label>
+            <Select
+              value={formData.payment_made_by}
+              onValueChange={(v) => setFormData((p: any) => ({ ...p, payment_made_by: v }))}
+            >
+              <SelectTrigger className="h-11 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold">
+                <SelectValue placeholder="Select payment mode" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-border/50 shadow-2xl">
+                <SelectItem value="all" className="rounded-lg py-2.5">All Payment Modes</SelectItem>
+                <SelectItem value="bank" className="rounded-lg py-2.5">Bank Transfer</SelectItem>
+                <SelectItem value="cash" className="rounded-lg py-2.5">Cash</SelectItem>
+                <SelectItem value="cheque" className="rounded-lg py-2.5">Cheque</SelectItem>
+                <SelectItem value="online" className="rounded-lg py-2.5">Online Payment</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">From Date</Label>
+              <Input
+                type="date"
+                value={formData.from_date}
+                onChange={(e) => setFormData((p: any) => ({ ...p, from_date: e.target.value }))}
+                className="h-11 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">To Date</Label>
+              <Input
+                type="date"
+                value={formData.to_date}
+                onChange={(e) => setFormData((p: any) => ({ ...p, to_date: e.target.value }))}
+                className="h-11 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 bg-muted/20 border-t border-border/50 flex items-center justify-end gap-3">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="rounded-xl font-bold h-10 px-6 hover:bg-background transition-all"
+          >
+            Cancel
+          </Button>
+          <Button
+            className="rounded-xl px-8 h-10 shadow-lg shadow-primary/20 font-bold uppercase text-[11px] tracking-wider"
+            onClick={() => {
+              console.log("Saving Zip Payments:", formData);
+              onOpenChange(false);
+            }}
+          >
+            Save
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ReminderModal({ open, onOpenChange, formData, setFormData, staff, onSave, isPending }: any) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl bg-white">
+        <div className="bg-primary/5 px-8 py-6 border-b border-primary/10">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-xl">
+                <Bell className="h-5 w-5 text-primary" />
+              </div>
+              Set Reminder
+            </DialogTitle>
+          </DialogHeader>
+        </div>
+
+        <div className="p-8 space-y-6">
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+              Date to be notified <span className="text-rose-500">*</span>
+            </Label>
+            <Input
+              type="datetime-local"
+              value={formData.date}
+              onChange={(e) => setFormData((p: any) => ({ ...p, date: e.target.value }))}
+              className="h-11 rounded-xl border-slate-200 bg-slate-50/50 px-4 font-bold"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+              Set reminder to <span className="text-rose-500">*</span>
+            </Label>
+            <Select
+              value={formData.staff}
+              onValueChange={(val) => setFormData((p: any) => ({ ...p, staff: val }))}
+            >
+              <SelectTrigger className="h-11 rounded-xl border-slate-200 bg-slate-50/50 px-4 font-bold">
+                <SelectValue placeholder="Select staff member" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl border-slate-100 shadow-xl">
+                {staff.map((s: any) => (
+                  <SelectItem key={s._id} value={s._id} className="rounded-lg py-2">
+                    {s.firstname} {s.lastname}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+              Description <span className="text-rose-500">*</span>
+            </Label>
+            <Textarea
+              placeholder="Enter reminder details..."
+              value={formData.description}
+              onChange={(e) => setFormData((p: any) => ({ ...p, description: e.target.value }))}
+              className="min-h-[120px] rounded-xl border-slate-200 bg-slate-50/50 p-4 font-medium"
+            />
+          </div>
+
+          <div className="flex items-center gap-3 p-4 rounded-2xl bg-primary/5 border border-primary/10">
+            <Checkbox
+              id="notify_by_email"
+              checked={formData.notify_by_email}
+              onCheckedChange={(val) => setFormData((p: any) => ({ ...p, notify_by_email: !!val }))}
+              className="rounded-md border-primary/30"
+            />
+            <Label htmlFor="notify_by_email" className="text-xs font-black text-slate-700 cursor-pointer">
+              Send also an email for this reminder
+            </Label>
+          </div>
+        </div>
+
+        <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="rounded-xl font-bold h-10 px-6 hover:bg-white transition-all"
+          >
+            Close
+          </Button>
+          <Button
+            className="rounded-xl px-8 h-10 shadow-lg shadow-primary/20 font-black uppercase text-[10px] tracking-widest"
+            onClick={onSave}
+            disabled={isPending || !formData.date || !formData.staff || !formData.description}
+          >
+            {isPending ? "Saving..." : "Save Reminder"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function VaultEntryModal({ open, onOpenChange, formData, setFormData, onSave, isPending }: any) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl bg-white">
+        <div className="bg-primary/5 px-8 py-6 border-b border-primary/10">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-xl">
+                <Lock className="h-5 w-5 text-primary" />
+              </div>
+              New Vault Entry
+            </DialogTitle>
+          </DialogHeader>
+        </div>
+
+        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto no-scrollbar">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+                Server Address <span className="text-rose-500">*</span>
+              </Label>
+              <Input
+                placeholder="e.g. 192.168.1.1 or example.com"
+                value={formData.server}
+                onChange={(e) => setFormData((p: any) => ({ ...p, server: e.target.value }))}
+                className="h-10 rounded-xl border-slate-200 bg-slate-50/50 px-4 font-bold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Port</Label>
+              <Input
+                placeholder="e.g. 22 or 80"
+                value={formData.port}
+                onChange={(e) => setFormData((p: any) => ({ ...p, port: e.target.value }))}
+                className="h-10 rounded-xl border-slate-200 bg-slate-50/50 px-4 font-bold"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+                Username <span className="text-rose-500">*</span>
+              </Label>
+              <Input
+                placeholder="Username"
+                value={formData.username}
+                onChange={(e) => setFormData((p: any) => ({ ...p, username: e.target.value }))}
+                className="h-10 rounded-xl border-slate-200 bg-slate-50/50 px-4 font-bold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+                Password <span className="text-rose-500">*</span>
+              </Label>
+              <div className="relative">
+                <Input
+                  type={formData.showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  value={formData.password}
+                  onChange={(e) => setFormData((p: any) => ({ ...p, password: e.target.value }))}
+                  className="h-10 rounded-xl border-slate-200 bg-slate-50/50 px-4 font-bold"
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setFormData((p: any) => ({ ...p, showPassword: !p.showPassword }))}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 rounded-lg"
+                >
+                  {formData.showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Short Description</Label>
+            <Textarea
+              placeholder="Enter additional details..."
+              value={formData.description}
+              onChange={(e) => setFormData((p: any) => ({ ...p, description: e.target.value }))}
+              className="min-h-[100px] rounded-xl border-slate-200 bg-slate-50/50 p-4 font-medium"
+            />
+          </div>
+
+          <div className="space-y-4 pt-2">
+            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Visibility Settings</Label>
+            <div className="space-y-3 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+              {[
+                { id: "all_staff", label: "Visible to all staff member who have access to this customer" },
+                { id: "admins", label: "Visible only to administrators" },
+                { id: "self", label: "Visible only to me (administrators are not excluded)" }
+              ].map((opt) => (
+                <div key={opt.id} className="flex items-center gap-3">
+                  <Checkbox
+                    id={opt.id}
+                    checked={formData.visibility === opt.id}
+                    onCheckedChange={() => setFormData((p: any) => ({ ...p, visibility: opt.id }))}
+                    className="rounded-md border-slate-300"
+                  />
+                  <Label htmlFor={opt.id} className="text-xs font-bold text-slate-600 cursor-pointer">{opt.label}</Label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 p-4 rounded-2xl bg-blue-50/50 border border-blue-100/50">
+            <Checkbox
+              id="share_in_projects"
+              checked={formData.share_in_projects}
+              onCheckedChange={(val) => setFormData((p: any) => ({ ...p, share_in_projects: !!val }))}
+              className="rounded-md border-blue-300"
+            />
+            <Label htmlFor="share_in_projects" className="text-xs font-black text-blue-700 cursor-pointer">
+              Share this vault entry in projects with project members
+            </Label>
+          </div>
+        </div>
+
+        <div className="p-8 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="rounded-xl font-bold h-10 px-6 hover:bg-white transition-all"
+          >
+            Close
+          </Button>
+          <Button
+            className="rounded-xl px-8 h-10 shadow-lg shadow-primary/20 font-black uppercase text-[10px] tracking-widest"
+            onClick={onSave}
+            disabled={isPending || !formData.server || !formData.username || !formData.password}
+          >
+            {isPending ? "Saving..." : "Save Entry"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPending, isEditing }: any) {
+  const permissions = [
+    { id: "invoices", label: "Invoices" },
+    { id: "estimates", label: "Estimates" },
+    { id: "contracts", label: "Contracts" },
+    { id: "proposals", label: "Proposals" },
+    { id: "support", label: "Support" },
+    { id: "projects", label: "Projects" },
+  ];
+
+  const emailNotifications = [
+    { id: "invoice", label: "Invoices" },
+    { id: "credit_note", label: "Credit Notes" },
+    { id: "project", label: "Projects" },
+    { id: "ticket", label: "Tickets" },
+    { id: "task", label: "Tasks" },
+  ];
+
+  const handlePermissionChange = (permId: string, type: "permissions" | "email_notifications") => {
+    const current = formData[type] || [];
+    const updated = current.includes(permId)
+      ? current.filter((p: string) => p !== permId)
+      : [...current, permId];
+    setFormData((p: any) => ({ ...p, [type]: updated }));
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white">
+        <div className="bg-white px-10 py-8 flex items-center justify-between border-b border-slate-100">
+          <DialogTitle className="text-2xl font-black text-slate-900 flex items-center gap-4 leading-normal">
+            <div className="p-3 bg-blue-50 rounded-2xl shrink-0">
+              <Users className="h-6 w-6 text-blue-600" />
+            </div>
+            <div className="flex flex-col">
+              <span className="leading-tight">{isEditing ? "Edit Contact" : "Add New Contact"}</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Contact Management</span>
+            </div>
+          </DialogTitle>
+        </div>
+
+        <div className="max-h-[70vh] overflow-y-auto px-10 py-8 no-scrollbar space-y-12">
+          {/* General Information Section */}
+          <div className="space-y-8">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-1.5 bg-blue-600 rounded-full" />
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">General Information</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-2.5">
+                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+                  First Name <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  placeholder="e.g. John"
+                  value={formData.firstname || ""}
+                  onChange={(e) => setFormData((p: any) => ({ ...p, firstname: e.target.value }))}
+                  className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
+                />
+              </div>
+              <div className="space-y-2.5">
+                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+                  Last Name <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  placeholder="e.g. Doe"
+                  value={formData.lastname || ""}
+                  onChange={(e) => setFormData((p: any) => ({ ...p, lastname: e.target.value }))}
+                  className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-2.5">
+                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+                  Email Address <span className="text-rose-500">*</span>
+                </Label>
+                <Input
+                  type="email"
+                  placeholder="john.doe@example.com"
+                  value={formData.email || ""}
+                  onChange={(e) => setFormData((p: any) => ({ ...p, email: e.target.value }))}
+                  className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
+                />
+              </div>
+              <div className="space-y-2.5">
+                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Phone Number</Label>
+                <Input
+                  placeholder="+1 (555) 000-0000"
+                  value={formData.phonenumber || ""}
+                  onChange={(e) => setFormData((p: any) => ({ ...p, phonenumber: e.target.value }))}
+                  className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-2.5">
+                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Position / Title</Label>
+                <Input
+                  placeholder="e.g. Project Manager"
+                  value={formData.title || ""}
+                  onChange={(e) => setFormData((p: any) => ({ ...p, title: e.target.value }))}
+                  className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
+                />
+              </div>
+              <div className="space-y-2.5 relative">
+                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+                  Account Password {isEditing && <span className="text-slate-400 lowercase font-medium italic ml-1">(Leave blank to keep current)</span>}
+                </Label>
+                <div className="relative">
+                  <Input
+                    type={formData.showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={formData.password || ""}
+                    onChange={(e) => setFormData((p: any) => ({ ...p, password: e.target.value }))}
+                    className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 pr-12 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setFormData((p: any) => ({ ...p, showPassword: !p.showPassword }))}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 text-slate-400 hover:text-blue-600 rounded-xl"
+                  >
+                    {formData.showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div 
+                className={cn(
+                  "flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer",
+                  formData.is_primary ? "bg-blue-50/50 border-blue-600 shadow-sm" : "bg-white border-slate-100 hover:border-slate-200"
+                )}
+                onClick={() => setFormData((p: any) => ({ ...p, is_primary: !p.is_primary }))}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={cn("p-2 rounded-xl", formData.is_primary ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-400")}>
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <Label className="text-xs font-black text-slate-900 cursor-pointer">Primary Contact</Label>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Main point of contact</span>
+                  </div>
+                </div>
+                <Checkbox
+                  checked={formData.is_primary}
+                  className="rounded-full border-2"
+                />
+              </div>
+
+              <div 
+                className={cn(
+                  "flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer",
+                  formData.active !== false ? "bg-emerald-50/50 border-emerald-600 shadow-sm" : "bg-white border-slate-100 hover:border-slate-200"
+                )}
+                onClick={() => setFormData((p: any) => ({ ...p, active: !p.active }))}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={cn("p-2 rounded-xl", formData.active !== false ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-400")}>
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <div className="flex flex-col">
+                    <Label className="text-xs font-black text-slate-900 cursor-pointer">Active Status</Label>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Login access enabled</span>
+                  </div>
+                </div>
+                <Checkbox
+                  checked={formData.active !== false}
+                  className="rounded-full border-2"
+                />
+              </div>
+            </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Permissions Section */}
+          <div className="space-y-8">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-1.5 bg-indigo-600 rounded-full" />
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">Permissions & Notifications</h3>
+            </div>
+
+            <div className="space-y-6">
+              <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-[0.2em] flex items-center gap-2">
+                <ShieldCheck className="h-3 w-3" />
+                Module Access
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {permissions.map((perm) => (
+                  <div 
+                    key={perm.id} 
+                    className={cn(
+                      "flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer group",
+                      formData.permissions?.includes(perm.id) 
+                        ? "bg-indigo-50/50 border-indigo-600" 
+                        : "bg-white border-slate-100 hover:border-slate-200"
+                    )}
+                    onClick={() => handlePermissionChange(perm.id, "permissions")}
+                  >
+                    <Checkbox
+                      id={`perm-${perm.id}`}
+                      checked={formData.permissions?.includes(perm.id)}
+                      onCheckedChange={() => handlePermissionChange(perm.id, "permissions")}
+                      className="rounded-md border-2 border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+                    />
+                    <Label htmlFor={`perm-${perm.id}`} className="text-[11px] font-black text-slate-600 cursor-pointer group-hover:text-slate-900 uppercase tracking-tight">{perm.label}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <h4 className="text-[10px] font-black uppercase text-rose-600 tracking-[0.2em] flex items-center gap-2">
+                <Mail className="h-3 w-3" />
+                Email Notifications
+              </h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {emailNotifications.map((notif) => (
+                  <div 
+                    key={notif.id} 
+                    className={cn(
+                      "flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer group",
+                      formData.email_notifications?.includes(notif.id) 
+                        ? "bg-rose-50/50 border-rose-600" 
+                        : "bg-white border-slate-100 hover:border-slate-200"
+                    )}
+                    onClick={() => handlePermissionChange(notif.id, "email_notifications")}
+                  >
+                    <Checkbox
+                      id={`notif-${notif.id}`}
+                      checked={formData.email_notifications?.includes(notif.id)}
+                      onCheckedChange={() => handlePermissionChange(notif.id, "email_notifications")}
+                      className="rounded-md border-2 border-slate-300 data-[state=checked]:bg-rose-600 data-[state=checked]:border-rose-600"
+                    />
+                    <Label htmlFor={`notif-${notif.id}`} className="text-[11px] font-black text-slate-600 cursor-pointer group-hover:text-slate-900 uppercase tracking-tight">{notif.label}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-8 bg-slate-50/50 border-t border-slate-100 flex items-center justify-end gap-4">
+          <Button
+            variant="ghost"
+            onClick={() => onOpenChange(false)}
+            className="rounded-2xl font-black h-12 px-8 hover:bg-white transition-all text-slate-400 uppercase text-[10px] tracking-widest"
+          >
+            Cancel
+          </Button>
+          <Button
+            className="rounded-2xl px-12 h-12 shadow-2xl shadow-blue-600/20 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] tracking-widest transition-all active:scale-95"
+            onClick={onSave}
+            disabled={isPending || !formData.firstname || !formData.lastname || !formData.email}
+          >
+            {isPending ? "Processing..." : isEditing ? "Save Changes" : "Create Contact"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

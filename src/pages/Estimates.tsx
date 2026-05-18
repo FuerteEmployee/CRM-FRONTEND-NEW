@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileText, Eye, AlertCircle, RefreshCw, Plus } from "lucide-react";
 import { estimateService } from "@/api/services/estimate.service";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -127,25 +129,61 @@ export default function Estimates() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-8 animate-in fade-in duration-700">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+            <h1 className="text-2xl font-black text-foreground flex items-center gap-2 tracking-tight">
               <FileText className="h-6 w-6 text-primary" />
               Estimates
             </h1>
-            <p className="text-muted-foreground text-sm">
-              Manage your professional financial estimate documents.
+            <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mt-1">
+              Professional financial estimate documents
             </p>
           </div>
-          <Button className="  flex items-center gap-2 h-10 px-5 rounded-lg shadow-sm">
+          <Button 
+            onClick={() => navigate("/admin/estimates/create")}
+            className="flex items-center gap-2 h-10 px-6 rounded-xl shadow-lg shadow-primary/20 font-black tracking-widest uppercase text-xs"
+          >
             <Plus className="h-4 w-4" />
-            <span className="font-semibold text-sm">New Estimate</span>
+            New Estimate
           </Button>
         </div>
 
-        {/* Clean DataTable without Tabs */}
+        {/* Status Summary Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+          {[
+            { label: "Draft", color: "text-slate-500", bg: "bg-slate-50", border: "border-slate-200" },
+            { label: "Sent", color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-200" },
+            { label: "Expired", color: "text-amber-600", bg: "bg-amber-50", border: "border-amber-200" },
+            { label: "Declined", color: "text-red-600", bg: "bg-red-50", border: "border-red-200" },
+            { label: "Accepted", color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-200" },
+          ].map((status) => {
+            const count = estimates.filter(e => e.status?.toLowerCase() === status.label.toLowerCase()).length;
+            const total = estimates
+              .filter(e => e.status?.toLowerCase() === status.label.toLowerCase())
+              .reduce((sum, e) => sum + (e.total || 0), 0);
+              
+            return (
+              <Card key={status.label} className={cn("border shadow-sm rounded-2xl overflow-hidden", status.bg, status.border)}>
+                <CardContent className="p-6">
+                  <div className="flex flex-col gap-1">
+                    <span className={cn("text-[10px] font-black uppercase tracking-[0.2em]", status.color)}>
+                      {status.label}
+                    </span>
+                    <div className="flex items-baseline justify-between mt-2">
+                      <span className="text-2xl font-black text-slate-900">{count}</span>
+                      <span className="text-xs font-bold text-slate-500">
+                        ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
         <DataTable
           columns={estimateColumns}
           data={estimates}

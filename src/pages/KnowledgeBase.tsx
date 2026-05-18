@@ -26,14 +26,46 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, BookOpen, Eye, ThumbsUp } from "lucide-react";
+import { Plus, Search, BookOpen, Eye, ThumbsUp, Download, ChevronDown, FileSpreadsheet, FileJson, FileType, Printer, Undo, Redo, Bold, Italic, Underline, AlignLeft, List } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supportService } from "@/api/services/support.service";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { formatDate } from "@/lib/dateFormat";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 const KnowledgeBase = () => {
   const [search, setSearch] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState("all");
+  const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isAddGroupModalOpen, setIsAddGroupModalOpen] = useState(false);
+  const [isNewArticleModalOpen, setIsNewArticleModalOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  const [newArticleData, setNewArticleData] = useState({
+    subject: "",
+    group: "",
+    internal: false,
+    disabled: false,
+    description: ""
+  });
+
+  const [newGroupData, setNewGroupData] = useState({
+    name: "",
+    color: "#000000",
+    description: "",
+    order: 1,
+    disabled: false
+  });
 
   const { data: groups = [], isLoading: isLoadingGroups } = useQuery({
     queryKey: ["kb-groups"],
@@ -49,170 +81,430 @@ const KnowledgeBase = () => {
   });
 
   const filtered = articles.filter((a: any) =>
-    (a.title || "").toLowerCase().includes(search.toLowerCase())
+    (a.title || a.subject || "").toLowerCase().includes(search.toLowerCase())
+  );
+
+  const totalEntries = filtered.length;
+  const pageSize = itemsPerPage === "All" ? totalEntries : parseInt(itemsPerPage);
+  const totalPages = Math.ceil(totalEntries / pageSize) || 1;
+  const paginatedArticles = filtered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  const startEntry = totalEntries === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endEntry = Math.min(currentPage * pageSize, totalEntries);
+
+  const createGroupMutation = useMutation({
+    mutationFn: (data: any) => supportService.createKBGroup(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kb-groups"] });
+      setIsAddGroupModalOpen(false);
+      setNewGroupData({ name: "", color: "#000000", description: "", order: 1, disabled: false });
+      toast.success("Group created successfully");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to create group")
+  });
+
+  const createArticleMutation = useMutation({
+    mutationFn: (data: any) => supportService.createKBArticle(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kb-articles"] });
+      setIsNewArticleModalOpen(false);
+      setNewArticleData({ subject: "", group: "", internal: false, disabled: false, description: "" });
+      toast.success("Article created successfully");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to create article")
+  });
+
+  const RichToolbar = ({ onAction }: { onAction?: (action: string) => void }) => (
+    <div className="bg-slate-50 border-b border-slate-200 flex flex-col">
+      <div className="flex items-center gap-4 px-4 h-8 text-[11px] font-medium text-slate-500 border-b border-slate-100">
+        {["File", "Edit", "View", "Insert", "Format", "Tools"].map(m => (
+          <span key={m} className="cursor-pointer hover:bg-slate-100 px-2 py-0.5 rounded transition-colors">{m}</span>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-1 p-2">
+        <div className="flex items-center gap-0.5 pr-2 border-r border-slate-200">
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Undo className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Redo className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Printer className="h-3.5 w-3.5" /></Button>
+        </div>
+        <div className="flex items-center gap-0.5 px-2 border-r border-slate-200">
+          <Select defaultValue="100%">
+            <SelectTrigger className="h-8 w-20 bg-transparent border-none text-[11px] font-bold shadow-none focus:ring-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent><SelectItem value="50%">50%</SelectItem><SelectItem value="100%">100%</SelectItem></SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-0.5 px-2 border-r border-slate-200">
+          <Select defaultValue="Normal">
+            <SelectTrigger className="h-8 w-28 bg-transparent border-none text-[11px] font-bold shadow-none focus:ring-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent><SelectItem value="Normal">Normal text</SelectItem><SelectItem value="H1">Heading 1</SelectItem></SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-0.5 px-2 border-r border-slate-200">
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Bold className="h-3.5 w-3.5 text-slate-900" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Italic className="h-3.5 w-3.5 text-slate-900" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Underline className="h-3.5 w-3.5 text-slate-900" /></Button>
+        </div>
+        <div className="flex items-center gap-0.5 pl-2">
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><AlignLeft className="h-3.5 w-3.5" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><List className="h-3.5 w-3.5" /></Button>
+        </div>
+      </div>
+    </div>
   );
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Knowledge Base</h1>
-            <p className="text-muted-foreground">
-              Articles, guides, and documentation
-            </p>
-          </div>
-          <Dialog>
+      <div className="space-y-6 pb-20">
+        <div className="flex items-center justify-between pt-4">
+          <h1 className="text-2xl font-bold text-slate-900">Knowledge Base</h1>
+          <Dialog open={isNewArticleModalOpen} onOpenChange={setIsNewArticleModalOpen}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
+              <Button className="h-10 rounded-xl px-6 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 transition-all hover:scale-105">
+                <Plus className="mr-2 h-4 w-4 stroke-[3]" />
                 New Article
               </Button>
             </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Article</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div className="space-y-2">
-                  <Label>Subject</Label>
-                  <Input placeholder="Article subject" />
+            <DialogContent className="max-w-3xl p-0 overflow-hidden border-none rounded-[2rem] shadow-2xl">
+              <div className="bg-white px-8 py-6 text-slate-900 flex items-center justify-between border-b border-slate-100">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Article Management</p>
+                  <h2 className="text-2xl font-black tracking-tight">Create New Article</h2>
                 </div>
+                <BookOpen className="h-8 w-8 text-primary" />
+              </div>
+              <div className="p-8 space-y-6 max-h-[75vh] overflow-y-auto no-scrollbar bg-white">
                 <div className="space-y-2">
-                  <Label>Group</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select group" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {groups.map((g: any) => (
-                        <SelectItem key={g._id} value={g._id}>
-                          {g.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Checkbox id="internal-article" />
-                    <Label htmlFor="internal-article" className="font-normal">
-                      Internal Article
-                    </Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox id="disabled-article" />
-                    <Label htmlFor="disabled-article" className="font-normal">
-                      Disabled
-                    </Label>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Article Description</Label>
-                  <Textarea
-                    placeholder="Write article content..."
-                    className="min-h-[150px]"
+                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Subject *</Label>
+                  <Input 
+                    placeholder="Enter article subject..." 
+                    className="h-11 rounded-xl border-slate-200 bg-slate-50/50 font-bold focus:bg-white transition-all"
+                    value={newArticleData.subject}
+                    onChange={(e) => setNewArticleData({...newArticleData, subject: e.target.value})}
                   />
                 </div>
-                <Button className="w-full">Save</Button>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Group *</Label>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <SearchableSelect
+                        options={groups.map((g: any) => ({ label: g.name, value: g._id }))}
+                        value={newArticleData.group}
+                        onValueChange={(val) => setNewArticleData({...newArticleData, group: val})}
+                        placeholder="Select or search group..."
+                        className="h-11 rounded-xl border-slate-200 bg-slate-50/50 font-bold"
+                      />
+                    </div>
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => setIsAddGroupModalOpen(true)}
+                      className="h-11 w-11 rounded-xl border-slate-200 bg-slate-50/50 hover:bg-primary/5 hover:text-primary transition-all border-dashed"
+                    >
+                      <Plus className="h-5 w-5" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-6 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <Checkbox 
+                      id="internal" 
+                      className="rounded-md border-slate-300" 
+                      checked={newArticleData.internal}
+                      onCheckedChange={(val) => setNewArticleData({...newArticleData, internal: !!val})}
+                    />
+                    <Label htmlFor="internal" className="text-[10px] font-black uppercase text-slate-600 tracking-widest cursor-pointer">Internal Article</Label>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Checkbox 
+                      id="disabled" 
+                      className="rounded-md border-slate-300" 
+                      checked={newArticleData.disabled}
+                      onCheckedChange={(val) => setNewArticleData({...newArticleData, disabled: !!val})}
+                    />
+                    <Label htmlFor="disabled" className="text-[10px] font-black uppercase text-slate-600 tracking-widest cursor-pointer">Disabled</Label>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Article Description</Label>
+                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
+                    <RichToolbar />
+                    <Textarea
+                      placeholder="Write article content..."
+                      className="min-h-[250px] border-none focus-visible:ring-0 text-sm leading-relaxed p-6 font-medium"
+                      value={newArticleData.description}
+                      onChange={(e) => setNewArticleData({...newArticleData, description: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                <Button 
+                  onClick={() => createArticleMutation.mutate(newArticleData)}
+                  disabled={!newArticleData.subject || !newArticleData.group || createArticleMutation.isPending}
+                  className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 shadow-lg shadow-primary/20"
+                >
+                  {createArticleMutation.isPending ? "Saving..." : "Save Article"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Add Group Modal */}
+          <Dialog open={isAddGroupModalOpen} onOpenChange={setIsAddGroupModalOpen}>
+            <DialogContent className="max-w-2xl p-0 overflow-hidden border-none rounded-[2rem] shadow-2xl">
+              <div className="bg-white px-8 py-6 text-slate-900 flex items-center justify-between border-b border-slate-100">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Configuration</p>
+                  <h2 className="text-2xl font-black tracking-tight">Add New Group</h2>
+                </div>
+                <div className="h-10 w-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                  <Plus className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+              <div className="p-8 space-y-5 bg-white">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Group Name *</Label>
+                    <Input 
+                      placeholder="e.g. Technical Support" 
+                      className="h-11 rounded-xl border-slate-200 font-bold"
+                      value={newGroupData.name}
+                      onChange={(e) => setNewGroupData({...newGroupData, name: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Color</Label>
+                    <div className="flex gap-2">
+                      <Input 
+                        type="color" 
+                        className="h-11 w-12 p-1 rounded-xl border-slate-200 cursor-pointer"
+                        value={newGroupData.color}
+                        onChange={(e) => setNewGroupData({...newGroupData, color: e.target.value})}
+                      />
+                      <Input 
+                        placeholder="#000000" 
+                        className="h-11 flex-1 rounded-xl border-slate-200 font-mono text-sm"
+                        value={newGroupData.color}
+                        onChange={(e) => setNewGroupData({...newGroupData, color: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Short Description</Label>
+                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
+                    <RichToolbar />
+                    <Textarea 
+                      placeholder="Brief description of this group..." 
+                      className="min-h-[120px] border-none focus-visible:ring-0 text-sm p-4 font-medium"
+                      value={newGroupData.description}
+                      onChange={(e) => setNewGroupData({...newGroupData, description: e.target.value})}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Order</Label>
+                    <Input 
+                      type="number" 
+                      className="h-11 rounded-xl border-slate-200 font-bold"
+                      value={newGroupData.order}
+                      onChange={(e) => setNewGroupData({...newGroupData, order: parseInt(e.target.value)})}
+                    />
+                  </div>
+                  <div className="flex flex-col justify-end gap-2 pb-1">
+                    <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <Checkbox 
+                        id="group-disabled" 
+                        className="rounded-md border-slate-300"
+                        checked={newGroupData.disabled}
+                        onCheckedChange={(val) => setNewGroupData({...newGroupData, disabled: !!val})}
+                      />
+                      <Label htmlFor="group-disabled" className="text-[10px] font-black uppercase text-slate-600 tracking-widest cursor-pointer">Disabled</Label>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 font-bold uppercase italic">* All articles in this group will be hidden if disabled is checked</p>
+              </div>
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                <Button variant="outline" onClick={() => setIsAddGroupModalOpen(false)} className="rounded-xl font-black uppercase text-[10px] tracking-widest h-10 px-6">Close</Button>
+                <Button 
+                  onClick={() => createGroupMutation.mutate(newGroupData)}
+                  disabled={!newGroupData.name || createGroupMutation.isPending}
+                  className="rounded-xl font-black uppercase text-[10px] tracking-widest h-10 px-8 shadow-lg shadow-primary/20"
+                >
+                  {createGroupMutation.isPending ? "Saving..." : "Save Group"}
+                </Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search articles..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              size="sm"
-              variant={selectedGroupId === "all" ? "default" : "outline"}
-              onClick={() => setSelectedGroupId("all")}
-            >
-              All
-            </Button>
-            {groups.map((group: any) => (
-              <Button
-                key={group._id}
-                size="sm"
-                variant={selectedGroupId === group._id ? "default" : "outline"}
-                onClick={() => setSelectedGroupId(group._id)}
-                className="capitalize"
-              >
-                {group.name}
-              </Button>
-            ))}
-          </div>
-        </div>
+        <Card>
+          <CardContent className="p-0">
+            {/* Control Bar */}
+            <div className="flex items-center justify-between p-3 border-b">
+              <div className="flex items-center gap-2">
+                <Select value={itemsPerPage} onValueChange={(val) => {
+                  setItemsPerPage(val);
+                  setCurrentPage(1);
+                }}>
+                  <SelectTrigger className="w-[70px] h-8 text-[11px] font-bold">
+                    <SelectValue placeholder="10" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="All">All</SelectItem>
+                  </SelectContent>
+                </Select>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {isLoadingArticles || isLoadingGroups
-            ? Array.from({ length: 6 }).map((_, i) => (
-                <Card key={i}>
-                  <CardHeader className="pb-3">
-                    <Skeleton className="h-4 w-3/4 mb-2" />
-                    <Skeleton className="h-4 w-1/4" />
-                  </CardHeader>
-                  <CardContent>
-                    <Skeleton className="h-4 w-full mb-1" />
-                    <Skeleton className="h-4 w-full mb-1" />
-                    <Skeleton className="h-4 w-2/3" />
-                  </CardContent>
-                </Card>
-              ))
-            : filtered.length === 0 ? (
-                <div className="col-span-full py-12 text-center text-muted-foreground">
-                   No articles found.
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-2 text-xs font-bold uppercase tracking-wider hover:bg-transparent">
+                      <Download className="h-3.5 w-3.5" />
+                      Export
+                      <ChevronDown className="h-3 w-3 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-40">
+                    <DropdownMenuItem className="gap-3 cursor-pointer text-xs font-bold">
+                      <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                      <span>Excel</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 cursor-pointer text-xs font-bold">
+                      <FileJson className="h-4 w-4 text-blue-600" />
+                      <span>CSV</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 cursor-pointer text-xs font-bold">
+                      <FileType className="h-4 w-4 text-red-600" />
+                      <span>PDF</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 cursor-pointer text-xs font-bold">
+                      <Printer className="h-4 w-4 text-gray-600" />
+                      <span>Print</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div className="relative group">
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search..."
+                  className="pl-8 h-8 w-[200px] text-xs"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[800px]">
+                <thead>
+                  <tr className="border-b text-left text-[11px] text-muted-foreground uppercase tracking-wider bg-zinc-50/50">
+                    <th className="p-3 font-semibold w-8">
+                      <input type="checkbox" className="rounded border-zinc-300" />
+                    </th>
+                    <th className="p-3 font-semibold w-10">#</th>
+                    <th className="p-3 font-semibold">Article Name ↕</th>
+                    <th className="p-3 font-semibold">Group</th>
+                    <th className="p-3 font-semibold">Date Published</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {isLoadingArticles || isLoadingGroups ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i} className="border-b">
+                        <td colSpan={5} className="p-8">
+                          <Skeleton className="h-8 w-full" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : paginatedArticles.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-10 text-center text-muted-foreground text-sm">
+                        No articles found.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedArticles.map((article: any, index) => (
+                      <tr key={article._id} className="border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer">
+                        <td className="p-3">
+                          <input type="checkbox" className="rounded border-zinc-300" />
+                        </td>
+                        <td className="p-3 text-xs text-muted-foreground">
+                          {(currentPage - 1) * pageSize + index + 1}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-semibold text-primary hover:underline">
+                              {article.title || article.subject}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <Badge variant="secondary" className="text-[10px] px-1.5 h-5 font-bold uppercase tracking-wider">
+                            {article.group_name || "General"}
+                          </Badge>
+                        </td>
+                        <td className="p-3 text-xs text-zinc-600">
+                          {formatDate(article.datecreated || article.createdAt)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            
+            <div className="p-3 border-t border-slate-100 flex items-center justify-between bg-white">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                Showing {startEntry} to {endEntry} of {totalEntries} entries
+              </span>
+              <div className="flex items-center gap-4">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 px-2 font-bold text-xs hover:bg-slate-50 text-slate-400 hover:text-slate-900 transition-colors"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary text-white font-black text-xs shadow-sm shadow-primary/20">
+                  {currentPage}
                 </div>
-            ) : (
-                filtered.map((article: any) => (
-                  <Card
-                    key={article._id}
-                    className="hover:shadow-md transition-shadow cursor-pointer"
-                  >
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-2">
-                          <BookOpen className="h-4 w-4 text-primary" />
-                          <CardTitle className="text-base">
-                            {article.title || article.subject}
-                          </CardTitle>
-                        </div>
-                      </div>
-                      <Badge variant="outline" className="w-fit text-xs">
-                        {article.group_name || "General"}
-                      </Badge>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground line-clamp-3 mb-3">
-                        {article.description || "No excerpt available."}
-                      </p>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>By {article.author || "Admin"}</span>
-                        <div className="flex items-center gap-3">
-                          <span className="flex items-center gap-1">
-                            <Eye className="h-3 w-3" />
-                            {article.views || 0}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <ThumbsUp className="h-3 w-3" />
-                            {article.likes || 0}
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-            )
-          }
-        </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 px-2 font-bold text-xs hover:bg-slate-50 text-slate-400 hover:text-slate-900 transition-colors"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

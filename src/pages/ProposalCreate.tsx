@@ -16,6 +16,14 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { 
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
@@ -35,7 +43,8 @@ import {
   Phone,
   MapPin,
   Calendar as CalendarIcon,
-  DollarSign
+  DollarSign,
+  Settings
 } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { customerService } from "@/api/services/customer.service";
@@ -86,13 +95,16 @@ export default function ProposalCreate() {
   });
 
   const [items, setItems] = useState<any[]>([]);
+  const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
   const [newItem, setNewItem] = useState({
     description: "",
     long_description: "",
     qty: 1,
     rate: 0,
     tax: "",
-    unit: ""
+    tax2: "",
+    unit: "",
+    item_group: ""
   });
   const [discountValue, setDiscountValue] = useState(0);
   const [discountType, setDiscountType] = useState("percent");
@@ -232,8 +244,11 @@ export default function ProposalCreate() {
       qty: 1,
       rate: 0,
       tax: "",
-      unit: ""
+      tax2: "",
+      unit: "",
+      item_group: ""
     });
+    setIsAddItemModalOpen(false);
   };
 
   const removeItem = (id: string) => {
@@ -611,25 +626,25 @@ export default function ProposalCreate() {
                           qty: 1,
                           rate: item.rate,
                           tax: item.tax?._id || "",
-                          unit: item.unit || ""
+                          tax2: "",
+                          unit: item.unit || "",
+                          item_group: item.group || ""
                         });
+                        setIsAddItemModalOpen(true);
                       }
                     }}
                   />
                 </div>
-                <Button size="icon" variant="outline" className="rounded-xl h-10 w-10 border-border/50 shadow-sm" onClick={addItem}>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  className="rounded-xl h-10 gap-2 border-border/50 shadow-sm font-bold" 
+                  onClick={() => setIsAddItemModalOpen(true)}
+                >
                   <Plus className="h-4 w-4" />
+                  New Item
                 </Button>
-                <div className="w-48">
-                  <Select>
-                    <SelectTrigger className="h-10 rounded-xl bg-background border-border/50 shadow-sm text-xs font-bold">
-                      <SelectValue placeholder="Bill Tasks" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-border/50">
-                      <SelectItem value="none">No Tasks</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+
               </div>
               
               <div className="flex items-center gap-6 bg-muted/20 px-6 py-2 rounded-2xl border border-border/50">
@@ -668,7 +683,10 @@ export default function ProposalCreate() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-primary text-white">
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Item</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      Item
+                    </th>
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Description</th>
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-24">
                       {showQtyAs === "hours" ? "Hours" : "Qty"}
@@ -676,29 +694,56 @@ export default function ProposalCreate() {
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-32">Rate</th>
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-40">Tax</th>
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-32">Amount</th>
-                    <th className="p-4 text-right w-16"></th>
+                    <th className="p-4 text-right">
+                      <Settings className="h-4 w-4 ml-auto opacity-50" />
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-background/40">
-                  <tr className="border-b border-border/30 bg-primary/5">
-                    <td className="p-4 align-top">
-                      <Textarea placeholder="Description" className="min-h-[80px] rounded-xl text-xs resize-none" value={newItem.description} onChange={(e) => setNewItem(p => ({ ...p, description: e.target.value }))} />
+                  {/* New Item Input Row */}
+                  <tr className="border-b border-border/30 bg-primary/5 group">
+                    <td className="p-4 align-top w-[250px]">
+                      <Textarea 
+                        placeholder="Description" 
+                        className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
+                        value={newItem.description}
+                        onChange={(e) => setNewItem(p => ({ ...p, description: e.target.value }))}
+                      />
                     </td>
                     <td className="p-4 align-top">
-                      <Textarea placeholder="Long description" className="min-h-[80px] rounded-xl text-xs resize-none" value={newItem.long_description} onChange={(e) => setNewItem(p => ({ ...p, long_description: e.target.value }))} />
+                      <Textarea 
+                        placeholder="Long description" 
+                        className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
+                        value={newItem.long_description}
+                        onChange={(e) => setNewItem(p => ({ ...p, long_description: e.target.value }))}
+                      />
                     </td>
-                    <td className="p-4 align-top">
-                      <Input type="number" value={newItem.qty} onChange={(e) => setNewItem(p => ({ ...p, qty: Number(e.target.value) }))} className="h-10 rounded-xl text-xs font-bold" />
+                    <td className="p-4 align-top w-[120px]">
+                      <div className="space-y-1">
+                        <Input 
+                          type="number" 
+                          value={newItem.qty} 
+                          onChange={(e) => setNewItem(p => ({ ...p, qty: Number(e.target.value) }))}
+                          className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        />
+                        <span className="text-[10px] font-black text-muted-foreground/50 uppercase tracking-tighter block text-center">Unit</span>
+                      </div>
                     </td>
-                    <td className="p-4 align-top">
-                      <Input type="number" value={newItem.rate} onChange={(e) => setNewItem(p => ({ ...p, rate: Number(e.target.value) }))} className="h-10 rounded-xl text-xs font-bold" />
+                    <td className="p-4 align-top w-[150px]">
+                      <Input 
+                        placeholder="Rate" 
+                        type="number"
+                        value={newItem.rate}
+                        onChange={(e) => setNewItem(p => ({ ...p, rate: Number(e.target.value) }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                      />
                     </td>
-                    <td className="p-4 align-top">
+                    <td className="p-4 align-top w-[180px]">
                       <Select value={newItem.tax} onValueChange={(v) => setNewItem(p => ({ ...p, tax: v }))}>
-                        <SelectTrigger className="h-10 rounded-xl text-xs font-bold">
+                        <SelectTrigger className="h-10 rounded-xl bg-background border-border/50 shadow-sm text-xs font-bold">
                           <SelectValue placeholder="No Tax" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className="rounded-xl border-border/50">
                           <SelectItem value="none">No Tax</SelectItem>
                           {taxes.map((t: any) => (
                             <SelectItem key={t._id} value={t._id}>{t.name} ({t.taxrate}%)</SelectItem>
@@ -706,11 +751,11 @@ export default function ProposalCreate() {
                         </SelectContent>
                       </Select>
                     </td>
-                    <td className="p-4 align-top font-black text-foreground pt-7">
+                    <td className="p-4 align-top text-sm font-black text-foreground">
                       ${(newItem.qty * newItem.rate).toFixed(2)}
                     </td>
-                    <td className="p-4 align-top pt-6">
-                      <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900" onClick={addItem}>
+                    <td className="p-4 align-top text-right">
+                      <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
                         <Check className="h-4 w-4" />
                       </Button>
                     </td>
@@ -797,6 +842,149 @@ export default function ProposalCreate() {
           </Button>
         </div>
       </div>
+      <AddItemModal 
+        open={isAddItemModalOpen}
+        onOpenChange={setIsAddItemModalOpen}
+        newItem={newItem}
+        setNewItem={setNewItem}
+        onAdd={addItem}
+        taxes={taxes}
+      />
     </DashboardLayout>
+  );
+}
+
+function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }: any) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white">
+        <div className="bg-zinc-950 px-8 py-6 flex items-center justify-between border-b border-white/5">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black text-white flex items-center gap-4 tracking-tight">
+              <div className="p-2.5 bg-primary/10 rounded-2xl">
+                <Plus className="h-6 w-6 text-primary" />
+              </div>
+              Add New Item
+            </DialogTitle>
+          </DialogHeader>
+        </div>
+
+        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+          {/* Description */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Description</Label>
+              <span className="text-destructive text-xs font-bold">*</span>
+            </div>
+            <Input 
+              placeholder="Item name or main description" 
+              value={newItem.description}
+              onChange={(e) => setNewItem((p: any) => ({ ...p, description: e.target.value }))}
+              className="h-12 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-2xl font-bold"
+            />
+          </div>
+
+          {/* Long Description */}
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Long Description</Label>
+            <Textarea 
+              placeholder="Additional details about the item..." 
+              value={newItem.long_description}
+              onChange={(e) => setNewItem((p: any) => ({ ...p, long_description: e.target.value }))}
+              className="min-h-[100px] bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-2xl font-medium resize-none p-4"
+            />
+          </div>
+
+          {/* Rate */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Rate - USD (Base Currency)</Label>
+              <span className="text-destructive text-xs font-bold">*</span>
+            </div>
+            <div className="relative">
+              <Input 
+                type="number" 
+                placeholder="0.00" 
+                value={newItem.rate}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, rate: Number(e.target.value) }))}
+                className="h-12 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-2xl font-bold pl-10"
+              />
+              <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/60" />
+            </div>
+          </div>
+
+          {/* Taxes */}
+          <div className="grid grid-cols-1 gap-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Tax 1</Label>
+              <Select value={newItem.tax} onValueChange={(v) => setNewItem((p: any) => ({ ...p, tax: v }))}>
+                <SelectTrigger className="h-12 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-2xl font-bold">
+                  <SelectValue placeholder="Select Tax 1" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-none shadow-xl">
+                  <SelectItem value="none">No Tax</SelectItem>
+                  {taxes.map((t: any) => (
+                    <SelectItem key={t._id} value={t._id}>{t.name} ({t.taxrate}%)</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Tax 2</Label>
+              <Select value={newItem.tax2} onValueChange={(v) => setNewItem((p: any) => ({ ...p, tax2: v }))}>
+                <SelectTrigger className="h-12 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-2xl font-bold">
+                  <SelectValue placeholder="Select Tax 2" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-none shadow-xl">
+                  <SelectItem value="none">No Tax</SelectItem>
+                  {taxes.map((t: any) => (
+                    <SelectItem key={t._id} value={t._id}>{t.name} ({t.taxrate}%)</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Unit & Group */}
+          <div className="grid grid-cols-1 gap-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Unit</Label>
+              <Input 
+                placeholder="Unit (e.g. qty, hour)" 
+                value={newItem.unit}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, unit: e.target.value }))}
+                className="h-12 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-2xl font-bold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Item Group</Label>
+              <Input 
+                placeholder="Item Group" 
+                value={newItem.item_group}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, item_group: e.target.value }))}
+                className="h-12 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-2xl font-bold"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-8 bg-muted/20 border-t border-border/50 flex items-center justify-end gap-4">
+          <Button 
+            variant="ghost" 
+            onClick={() => onOpenChange(false)}
+            className="rounded-2xl font-bold h-12 px-8 hover:bg-background transition-all"
+          >
+            Cancel
+          </Button>
+          <Button 
+            className="rounded-2xl px-12 h-12 shadow-lg shadow-primary/20 font-black tracking-widest uppercase text-xs"
+            onClick={onAdd}
+            disabled={!newItem.description || newItem.rate === undefined}
+          >
+            Save
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -18,10 +18,12 @@ import {
 
 interface SearchableSelectProps {
   options: { label: string; value: string }[]
-  value?: string
-  onValueChange?: (value: string) => void
+  value?: string | string[]
+  onValueChange?: (value: any) => void
   placeholder?: string
   disabled?: boolean
+  multiple?: boolean
+  className?: string
 }
 
 export function SearchableSelect({
@@ -30,18 +32,35 @@ export function SearchableSelect({
   onValueChange,
   placeholder = "Select option...",
   disabled,
+  multiple = false,
+  className,
 }: SearchableSelectProps) {
   const [open, setOpen] = React.useState(false)
-  const [internalValue, setInternalValue] = React.useState("")
+  const [internalValue, setInternalValue] = React.useState<any>(multiple ? [] : "")
 
   const value = externalValue !== undefined ? externalValue : internalValue
 
   const handleValueChange = (newValue: string) => {
-    if (externalValue === undefined) {
-      setInternalValue(newValue)
-    }
-    if (onValueChange) {
-      onValueChange(newValue)
+    if (multiple) {
+      const currentValues = Array.isArray(value) ? value : []
+      const updatedValues = currentValues.includes(newValue)
+        ? currentValues.filter((v) => v !== newValue)
+        : [...currentValues, newValue]
+      
+      if (externalValue === undefined) {
+        setInternalValue(updatedValues)
+      }
+      if (onValueChange) {
+        onValueChange(updatedValues)
+      }
+    } else {
+      if (externalValue === undefined) {
+        setInternalValue(newValue)
+      }
+      if (onValueChange) {
+        onValueChange(newValue)
+      }
+      setOpen(false)
     }
   }
 
@@ -55,6 +74,18 @@ export function SearchableSelect({
     }
   }, [open])
 
+  const displayLabel = React.useMemo(() => {
+    if (multiple) {
+      const selectedOptions = options.filter((opt) => Array.isArray(value) && value.includes(opt.value))
+      return selectedOptions.length > 0
+        ? selectedOptions.map((opt) => opt.label).join(", ")
+        : placeholder
+    }
+    return value
+      ? options.find((option) => option.value === value)?.label || placeholder
+      : placeholder
+  }, [value, options, multiple, placeholder])
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -64,11 +95,9 @@ export function SearchableSelect({
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className="w-full justify-between font-normal hover:bg-background"
+          className={cn("w-full justify-between font-normal hover:bg-background", className)}
         >
-          {value
-            ? options.find((option) => option.value === value)?.label || placeholder
-            : placeholder}
+          <span className="truncate">{displayLabel}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -85,20 +114,16 @@ export function SearchableSelect({
                 <CommandItem
                   key={option.value}
                   value={option.label}
-                  onSelect={(currentValue) => {
-                    const selected = options.find(
-                      (opt) =>
-                        opt.label.toLowerCase() === currentValue.toLowerCase() ||
-                        opt.value.toLowerCase() === currentValue.toLowerCase()
-                    )
-                    handleValueChange(selected?.value || "")
-                    setOpen(false)
+                  onSelect={() => {
+                    handleValueChange(option.value)
                   }}
                 >
                   <Check
                     className={cn(
                       "mr-2 h-4 w-4",
-                      value === option.value ? "opacity-100" : "opacity-0"
+                      multiple 
+                        ? (Array.isArray(value) && value.includes(option.value) ? "opacity-100" : "opacity-0")
+                        : (value === option.value ? "opacity-100" : "opacity-0")
                     )}
                   />
                   {option.label}

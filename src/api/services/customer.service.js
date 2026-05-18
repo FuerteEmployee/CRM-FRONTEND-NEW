@@ -16,6 +16,8 @@ export const customerService = {
   // Contacts
   getContacts: (clientId) => apiClient.get(`/clients/${clientId}/contacts`),
 
+  getAllContacts: () => apiClient.get("/clients/contacts/all"),
+
   createContact: (clientId, data) =>
     apiClient.post(`/clients/${clientId}/contacts`, data),
 
@@ -34,4 +36,15 @@ export const customerService = {
   createGroup: (data) => apiClient.post("/client-groups", data),
   updateGroup: (id, data) => apiClient.put(`/client-groups/${id}`, data),
   deleteGroup: (id) => apiClient.delete(`/client-groups/${id}`),
+
+  // Files
+  getFiles: (clientId) => apiClient.get(`/clients/${clientId}/files`),
+  uploadFile: (clientId, data) => apiClient.post(`/clients/${clientId}/files`, data, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }),
+  deleteFile: (clientId, fileId) => apiClient.delete(`/clients/${clientId}/files/${fileId}`),
+  
+  // Reminders
+  getReminders: (clientId) => apiClient.get(`/clients/${clientId}/reminders`),
+  createReminder: (clientId, data) => apiClient.post(`/clients/${clientId}/reminders`, data),
 };

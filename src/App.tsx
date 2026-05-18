@@ -35,10 +35,14 @@ import ProposalCreate from "./pages/ProposalCreate";
 import Estimates from "./pages/Estimates";
 import Payments from "./pages/Payments";
 import CreditNotes from "./pages/CreditNotes";
+import CreditNoteCreate from "./pages/CreditNoteCreate";
 import Items from "./pages/Items";
 import Media from "./pages/Media";
 import BulkExport from "./pages/BulkExport";
+import Announcements from "./pages/Announcements";
+import AnnouncementCreate from "./pages/AnnouncementCreate";
 import Goals from "./pages/Goals";
+import GoalCreate from "./pages/GoalCreate";
 import { ReportSales, ReportExpenses, ReportExpensesVsIncome, ReportLeads, ReportTimesheets, ReportKBArticles } from "./pages/ReportPages";
 import CustomerView from "./pages/CustomerView";
 import InvoiceCreate from "./pages/InvoiceCreate";
@@ -221,7 +225,6 @@ const MainApp = () => {
           {/* Public-only: redirects to dashboard if already logged in */}
           <Route path="login" element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="forgot-password" element={<ForgotPassword />} />
-
           {/* Protected: redirects to login if not authenticated */}
           <Route path="dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
@@ -253,17 +256,23 @@ const MainApp = () => {
           <Route path="estimates" element={<ProtectedRoute><Estimates /></ProtectedRoute>} />
           <Route path="payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
           <Route path="credit-notes" element={<ProtectedRoute><CreditNotes /></ProtectedRoute>} />
+          <Route path="credit-notes/create/:clientId?" element={<ProtectedRoute><CreditNoteCreate /></ProtectedRoute>} />
+          <Route path="credit-notes/edit/:id" element={<ProtectedRoute><CreditNoteCreate /></ProtectedRoute>} />
           <Route path="items" element={<ProtectedRoute><Items /></ProtectedRoute>} />
           <Route path="media" element={<ProtectedRoute><Media /></ProtectedRoute>} />
           <Route path="bulk-export" element={<ProtectedRoute><BulkExport /></ProtectedRoute>} />
+          <Route path="announcements" element={<ProtectedRoute><Announcements /></ProtectedRoute>} />
+          <Route path="announcements/new" element={<ProtectedRoute><AnnouncementCreate /></ProtectedRoute>} />
+          <Route path="announcements/edit/:id" element={<ProtectedRoute><AnnouncementCreate /></ProtectedRoute>} />
           <Route path="goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
+          <Route path="goals/new" element={<ProtectedRoute><GoalCreate /></ProtectedRoute>} />
           <Route path="reports/sales" element={<ProtectedRoute><ReportSales /></ProtectedRoute>} />
           <Route path="reports/expenses" element={<ProtectedRoute><ReportExpenses /></ProtectedRoute>} />
           <Route path="reports/expenses-vs-income" element={<ProtectedRoute><ReportExpensesVsIncome /></ProtectedRoute>} />
           <Route path="reports/leads" element={<ProtectedRoute><ReportLeads /></ProtectedRoute>} />
           <Route path="reports/timesheets" element={<ProtectedRoute><ReportTimesheets /></ProtectedRoute>} />
           <Route path="reports/kb-articles" element={<ProtectedRoute><ReportKBArticles /></ProtectedRoute>} />
-
+          
           {/* Setup sub-routes */}
           <Route path="setup/staff" element={<ProtectedRoute><SetupStaff /></ProtectedRoute>} />
           <Route path="setup/staff/new" element={<ProtectedRoute><SetupStaffForm /></ProtectedRoute>} />

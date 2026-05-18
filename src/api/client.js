@@ -4,10 +4,16 @@ const BASE_URL = "http://localhost:5000/api";
 
 class ApiClient {
   async request(endpoint, options = {}) {
+    const isFormData = options.body && typeof options.body.append === 'function';
     const headers = {
-      "Content-Type": "application/json",
+      ...(!isFormData && { "Content-Type": "application/json" }),
       ...options.headers,
     };
+    
+    if (isFormData && (headers["Content-Type"] || headers["content-type"])) {
+        delete headers["Content-Type"];
+        delete headers["content-type"];
+    }
 
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
@@ -17,9 +23,9 @@ class ApiClient {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        errorData.message || `Request failed with status ${response.status}`,
-      );
+      const error = new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      error.response = { ...response, data: errorData };
+      throw error;
     }
 
     return response.json();
@@ -33,7 +39,7 @@ class ApiClient {
     return this.request(endpoint, {
       ...options,
       method: "POST",
-      body: JSON.stringify(data),
+      body: data instanceof FormData ? data : JSON.stringify(data),
     });
   }
 
@@ -41,7 +47,7 @@ class ApiClient {
     return this.request(endpoint, {
       ...options,
       method: "PUT",
-      body: JSON.stringify(data),
+      body: data instanceof FormData ? data : JSON.stringify(data),
     });
   }
 
@@ -49,7 +55,7 @@ class ApiClient {
     return this.request(endpoint, {
       ...options,
       method: "PATCH",
-      body: JSON.stringify(data),
+      body: data instanceof FormData ? data : JSON.stringify(data),
     });
   }
 

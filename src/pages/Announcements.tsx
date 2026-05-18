@@ -15,61 +15,58 @@ import {
 import { 
   Plus, 
   Search, 
-  FileDown,
-  Target,
+  Megaphone, 
   Calendar,
-  User,
-  Activity,
-  MoreHorizontal,
+  FileDown,
   Eye,
   Edit2,
-  Trash2
+  Trash2,
+  X
 } from "lucide-react";
 import { 
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator
-} from "@/components/ui/dropdown-menu";
-import { Progress } from "@/components/ui/progress";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { goalService } from "@/services/goal.service";
+import { announcementService } from "@/services/announcement.service";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
-const Goals = () => {
+const Announcements = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [pageSize, setPageSize] = useState("25");
   const [searchTerm, setSearchTerm] = useState("");
+  const [viewAnnouncement, setViewAnnouncement] = useState<any>(null);
 
-  const { data: goals = [], isLoading } = useQuery({
-    queryKey: ["goals"],
-    queryFn: goalService.getGoals,
+  const { data: announcements = [], isLoading } = useQuery({
+    queryKey: ["announcements"],
+    queryFn: announcementService.getAnnouncements,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: goalService.deleteGoal,
+    mutationFn: announcementService.deleteAnnouncement,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["goals"] });
-      toast.success("Goal deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["announcements"] });
+      toast.success("Announcement deleted successfully");
     },
     onError: (error: any) => {
-      toast.error(error.message || "Failed to delete goal");
+      toast.error(error.message || "Failed to delete announcement");
     }
   });
 
   const handleDelete = (id: string) => {
-    if (confirm("Are you sure you want to delete this goal?")) {
+    if (confirm("Are you sure you want to delete this announcement?")) {
       deleteMutation.mutate(id);
     }
   };
 
-  const filteredData = goals.filter((item: any) => 
-    item.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.goal_type?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredData = announcements.filter((item: any) => 
+    item.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.message?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const displayData = pageSize === "All" ? filteredData : filteredData.slice(0, parseInt(pageSize));
@@ -80,15 +77,15 @@ const Goals = () => {
         {/* Header Section */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Goals</h1>
-            <p className="text-muted-foreground text-sm font-medium">Set and track organizational achievements</p>
+            <h1 className="text-2xl font-bold tracking-tight">Announcements</h1>
+            <p className="text-muted-foreground text-sm font-medium">Create and manage system-wide announcements</p>
           </div>
           <Button 
+            onClick={() => navigate("/admin/announcements/new")}
             className="gap-2 rounded-xl h-11 px-6 shadow-lg shadow-primary/20"
-            onClick={() => navigate("/admin/goals/new")}
           >
             <Plus className="h-4 w-4" />
-            New Goal
+            New Announcement
           </Button>
         </div>
 
@@ -127,7 +124,7 @@ const Goals = () => {
               <div className="flex-1 max-w-sm relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                 <Input 
-                  placeholder="Search goals..." 
+                  placeholder="Search announcements..." 
                   className="pl-10 h-9 rounded-lg border-border/40 bg-background focus-visible:ring-primary/20"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -140,13 +137,8 @@ const Goals = () => {
               <Table>
                 <TableHeader className="bg-accent/10">
                   <TableRow className="hover:bg-transparent border-border/40">
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Subject</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Staff Member</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Achievement</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Start Date</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">End Date</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Goal Type</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Progress</TableHead>
+                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Name</TableHead>
+                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Date</TableHead>
                     <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 text-right pr-6">Options</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -154,71 +146,54 @@ const Goals = () => {
                   {isLoading ? (
                     Array.from({ length: 3 }).map((_, i) => (
                       <TableRow key={i} className="animate-pulse border-border/40">
-                        <TableCell colSpan={8} className="py-8">
-                           <div className="h-4 bg-muted rounded w-full" />
-                        </TableCell>
+                        <TableCell className="py-4"><div className="h-4 w-48 bg-muted rounded" /></TableCell>
+                        <TableCell className="py-4"><div className="h-4 w-24 bg-muted rounded" /></TableCell>
+                        <TableCell className="py-4 text-right pr-6"><div className="h-8 w-8 bg-muted rounded ml-auto" /></TableCell>
                       </TableRow>
                     ))
                   ) : displayData.length > 0 ? (
-                    displayData.map((goal: any) => (
-                      <TableRow key={goal._id} className="hover:bg-accent/5 transition-colors border-border/40 group">
+                    displayData.map((announcement: any) => (
+                      <TableRow key={announcement._id} className="hover:bg-accent/5 transition-colors border-border/40 group">
                         <TableCell className="py-4 font-bold text-gray-900 group-hover:text-primary transition-colors">
                           <div className="flex items-center gap-3">
                             <div className="p-2 rounded-lg bg-primary/5 text-primary">
-                              <Target className="h-4 w-4" />
+                              <Megaphone className="h-4 w-4" />
                             </div>
-                            {goal.subject}
+                            {announcement.name}
                           </div>
                         </TableCell>
                         <TableCell className="py-4 text-muted-foreground font-medium">
                           <div className="flex items-center gap-2">
-                            <User className="h-3.5 w-3.5 text-primary/60" />
-                            {goal.staff_member?.firstname} {goal.staff_member?.lastname}
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-4 text-muted-foreground font-bold">
-                           {goal.achievement}
-                        </TableCell>
-                        <TableCell className="py-4 text-muted-foreground font-medium">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-3.5 w-3.5 opacity-40" />
-                            {format(new Date(goal.start_date), "MMM dd, yyyy")}
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-4 text-muted-foreground font-medium">
-                          <div className="flex items-center gap-2 text-destructive/80">
                             <Calendar className="h-3.5 w-3.5" />
-                            {format(new Date(goal.end_date), "MMM dd, yyyy")}
-                          </div>
-                        </TableCell>
-                        <TableCell className="py-4">
-                           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-border/40 w-fit">
-                             <Activity className="h-3 w-3 text-primary" />
-                             <span className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">{goal.goal_type}</span>
-                           </div>
-                        </TableCell>
-                        <TableCell className="py-4">
-                          <div className="w-full max-w-[120px] space-y-1.5">
-                            <div className="flex justify-between text-[10px] font-bold">
-                               <span className="text-muted-foreground">Progress</span>
-                               <span className="text-primary">{goal.progress}%</span>
-                            </div>
-                            <Progress value={goal.progress} className="h-1.5 bg-accent/20" />
+                            {format(new Date(announcement.dateadded), "MMM dd, yyyy")}
                           </div>
                         </TableCell>
                         <TableCell className="py-4 text-right pr-6">
                           <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => setViewAnnouncement(announcement)}
+                              className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                              title="View"
+                            >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-amber-50 hover:text-amber-600 transition-colors">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => navigate(`/admin/announcements/edit/${announcement._id}`)}
+                              className="h-8 w-8 rounded-lg hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                              title="Edit"
+                            >
                               <Edit2 className="h-4 w-4" />
                             </Button>
                             <Button 
                               variant="ghost" 
                               size="icon" 
+                              onClick={() => handleDelete(announcement._id)}
                               className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
-                              onClick={() => handleDelete(goal._id)}
+                              title="Delete"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
@@ -228,10 +203,10 @@ const Goals = () => {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-64 text-center">
+                      <TableCell colSpan={3} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-3">
                           <div className="p-4 rounded-full bg-accent/10 text-muted-foreground/40">
-                            <Target className="h-8 w-8" />
+                            <Megaphone className="h-8 w-8" />
                           </div>
                           <p className="text-sm font-bold text-muted-foreground italic tracking-wide">No entries found</p>
                         </div>
@@ -243,9 +218,46 @@ const Goals = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* View Announcement Modal */}
+        <Dialog open={!!viewAnnouncement} onOpenChange={() => setViewAnnouncement(null)}>
+          <DialogContent className="max-w-2xl rounded-2xl overflow-hidden p-0 gap-0 border-none shadow-2xl">
+            <DialogHeader className="bg-primary p-6 text-primary-foreground relative">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-white/20 backdrop-blur-sm">
+                  <Megaphone className="h-5 w-5 text-white" />
+                </div>
+                <DialogTitle className="text-xl font-bold leading-tight pr-8">
+                  {viewAnnouncement?.name}
+                </DialogTitle>
+              </div>
+              <button 
+                onClick={() => setViewAnnouncement(null)}
+                className="absolute right-4 top-4 p-2 rounded-full hover:bg-white/10 transition-colors"
+              >
+                <X className="h-5 w-5 text-white" />
+              </button>
+              <div className="flex items-center gap-2 mt-4 text-[11px] font-bold uppercase tracking-widest text-white/70">
+                <Calendar className="h-3.5 w-3.5" />
+                {viewAnnouncement && format(new Date(viewAnnouncement.dateadded), "MMMM dd, yyyy")}
+              </div>
+            </DialogHeader>
+            <div className="p-8 bg-background max-h-[60vh] overflow-y-auto custom-scrollbar">
+              <div 
+                className="prose prose-sm max-w-none text-gray-700 leading-relaxed font-medium"
+                dangerouslySetInnerHTML={{ __html: viewAnnouncement?.message }}
+              />
+            </div>
+            <div className="bg-accent/5 p-4 border-t flex justify-end">
+              <Button onClick={() => setViewAnnouncement(null)} className="rounded-xl px-8 h-10 font-bold shadow-lg shadow-primary/10">
+                Close
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
 };
 
-export default Goals;
+export default Announcements;

@@ -1,21 +1,27 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+  Plus,
+  Search,
+  ChevronRight,
+  ChevronDown,
+  Download,
+  FileSpreadsheet,
+  FileJson,
+  FileType,
+  Printer,
+  ExternalLink,
+  Edit,
+  Trash2,
+  Users,
+  Filter,
+  LayoutGrid
+} from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -23,253 +29,280 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Filter } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { projectService } from "@/api/services/project.service";
+import { useNavigate } from "react-router-dom";
+import { formatDate } from "@/lib/dateFormat";
+import { TableActions } from "@/components/TableActions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
 
-const statusMap: Record<number, { label: string; color: string }> = {
-  1: { label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
-  2: { label: "In Progress", color: "bg-primary/10 text-primary border-primary/20" },
-  3: { label: "On Hold", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
-  4: { label: "Finished", color: "bg-green-50 text-green-700 border-green-200" },
-  5: { label: "Cancelled", color: "bg-red-50 text-red-700 border-red-200" },
-};
+const statusConfig = [
+  { id: 1, label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
+  { id: 2, label: "In Progress", color: "bg-primary/10 text-primary border-primary/20" },
+  { id: 3, label: "On Hold", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+  { id: 5, label: "Cancelled", color: "bg-red-50 text-red-700 border-red-200" },
+  { id: 4, label: "Finished", color: "bg-green-50 text-green-700 border-green-200" },
+];
 
 const Projects = () => {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [activeStatus, setActiveStatus] = useState<number | "all">("all");
+  const [itemsPerPage, setItemsPerPage] = useState(25);
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const navigate = useNavigate();
 
   const { data: projects = [], isLoading } = useQuery<any[]>({
     queryKey: ["projects"],
     queryFn: projectService.getAll,
   });
 
-  const createMutation = useMutation({
-    mutationFn: projectService.create,
+  const deleteMutation = useMutation({
+    mutationFn: projectService.delete,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast.success("Project created successfully");
+      toast.success("Project deleted successfully");
     },
     onError: (err: any) => {
-      toast.error(err.message || "Failed to create project");
+      toast.error(err.message || "Failed to delete project");
     },
   });
 
-  const filtered = projects.filter((p: any) => {
-    const matchesSearch = (p.name || "").toLowerCase().includes(search.toLowerCase());
-    const statusLabel = statusMap[p.status]?.label || "";
-    const matchesStatus = statusFilter === "all" || statusLabel === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredProjects = useMemo(() => {
+    return projects.filter((p: any) => {
+      const matchesSearch = 
+        (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
+        (p.clientid?.company || "").toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = activeStatus === "all" || p.status === activeStatus;
+      return matchesSearch && matchesStatus;
+    });
+  }, [projects, search, activeStatus]);
+
+  const stats = useMemo(() => {
+    return statusConfig.map(status => ({
+      ...status,
+      count: projects.filter(p => p.status === status.id).length
+    }));
+  }, [projects]);
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Projects</h1>
-            <p className="text-muted-foreground">
-              Manage and track all your projects
-            </p>
-          </div>
-          {can("Projects", "Create") && (
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Project
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add Project</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
-                  <div className="space-y-2">
-                    <Label>Project Name</Label>
-                    <Input placeholder="Enter project name" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Customer</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select customer" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="acme">Acme Corp</SelectItem>
-                        <SelectItem value="techco">TechCo</SelectItem>
-                        <SelectItem value="globex">Globex Inc</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox id="calc-progress" />
-                    <Label htmlFor="calc-progress" className="font-normal">
-                      Calculate progress through tasks
-                    </Label>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Progress %</Label>
-                    <Input type="number" placeholder="0" min={0} max={100} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Billing Type</Label>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="fixed">Fixed Rate</SelectItem>
-                          <SelectItem value="hourly">Project Hours</SelectItem>
-                          <SelectItem value="task">Task Hours</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Status</Label>
-                      <Select defaultValue="2">
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">Not Started</SelectItem>
-                          <SelectItem value="2">In Progress</SelectItem>
-                          <SelectItem value="3">On Hold</SelectItem>
-                          <SelectItem value="4">Finished</SelectItem>
-                          <SelectItem value="5">Cancelled</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Estimated Hours</Label>
-                    <Input type="number" placeholder="0" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Start Date</Label>
-                      <Input type="date" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Deadline</Label>
-                      <Input type="date" />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Description</Label>
-                    <Textarea placeholder="Project description..." rows={4} />
-                  </div>
-                  <Button className="w-full">Save</Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          )}
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Projects</h1>
+          <Button onClick={() => navigate("/admin/projects/create")}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Project
+          </Button>
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search projects..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[150px]">
-              <Filter className="mr-2 h-4 w-4" />
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Not Started">Not Started</SelectItem>
-              <SelectItem value="In Progress">In Progress</SelectItem>
-              <SelectItem value="On Hold">On Hold</SelectItem>
-              <SelectItem value="Finished">Finished</SelectItem>
-              <SelectItem value="Cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
+        {/* Live Status Filters */}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant={activeStatus === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setActiveStatus("all")}
+            className="h-8 text-xs font-medium"
+          >
+            All
+            <span className="ml-1.5 opacity-60">({projects.length})</span>
+          </Button>
+          {stats.map((status) => (
+            <Button
+              key={status.id}
+              variant={activeStatus === status.id ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveStatus(status.id)}
+              className="h-8 text-xs font-medium"
+            >
+              {status.label}
+              <span className="ml-1.5 opacity-60">({status.count})</span>
+            </Button>
+          ))}
         </div>
 
-        {/* Project Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {isLoading ? (
-            Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i} className="p-6 space-y-4">
-                <div className="flex justify-between items-start">
-                  <Skeleton className="h-5 w-1/2" />
-                  <Skeleton className="h-5 w-20" />
-                </div>
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4" />
-                <div className="space-y-2 pt-2">
-                  <div className="flex justify-between">
-                    <Skeleton className="h-3 w-16" />
-                    <Skeleton className="h-3 w-8" />
-                  </div>
-                  <Skeleton className="h-2 w-full" />
-                </div>
-              </Card>
-            ))
-          ) : filtered.length === 0 ? (
-            <div className="col-span-full py-20 text-center text-muted-foreground">
-              No projects found.
+        <Card>
+          <CardContent className="p-0">
+            {/* Control Bar */}
+            <div className="flex items-center justify-between p-3 border-b">
+              <div className="flex items-center gap-2">
+                <Select 
+                  value={itemsPerPage.toString()} 
+                  onValueChange={(val) => setItemsPerPage(val === "All" ? 999999 : Number(val))}
+                >
+                  <SelectTrigger className="w-[70px] h-8 text-[11px] font-bold">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="All">All</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-2 text-xs font-bold uppercase tracking-wider hover:bg-transparent">
+                      <Download className="h-3.5 w-3.5" />
+                      Export
+                      <ChevronDown className="h-3 w-3 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-40">
+                    <DropdownMenuItem className="gap-3 cursor-pointer text-xs font-bold">
+                      <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                      <span>Excel</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 cursor-pointer text-xs font-bold">
+                      <FileJson className="h-4 w-4 text-blue-600" />
+                      <span>CSV</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 cursor-pointer text-xs font-bold">
+                      <FileType className="h-4 w-4 text-red-600" />
+                      <span>PDF</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 cursor-pointer text-xs font-bold">
+                      <Printer className="h-4 w-4 text-gray-600" />
+                      <span>Print</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search projects..."
+                  className="pl-8 h-8 w-[200px] text-xs"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
             </div>
-          ) : (
-            filtered.map((p: any) => {
-              const status = statusMap[p.status] || statusMap[1];
-              return (
-                <Card key={p._id} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-base">{p.name}</CardTitle>
-                      <Badge variant="outline" className={status.color}>
-                        {status.label}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {p.description}
-                    </p>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <div className="flex items-center justify-between text-sm mb-1.5">
-                        <span className="text-muted-foreground">Progress</span>
-                        <span className="font-medium">{p.progress}%</span>
-                      </div>
-                      <Progress value={p.progress} className="h-2" />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex -space-x-2">
-                        {p.team?.map((m: any) => (
-                          <Avatar
-                            key={m.name}
-                            className="h-7 w-7 border-2 border-background"
+
+            {/* Old Table Style */}
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px]">
+                <thead>
+                  <tr className="border-b text-left text-[11px] text-muted-foreground uppercase tracking-wider bg-zinc-50/50">
+                    <th className="p-3 font-semibold w-8">
+                      <input type="checkbox" className="rounded border-zinc-300" />
+                    </th>
+                    <th className="p-3 font-semibold">#</th>
+                    <th className="p-3 font-semibold">Project Name ↕</th>
+                    <th className="p-3 font-semibold">Customer</th>
+                    <th className="p-3 font-semibold">Tags</th>
+                    <th className="p-3 font-semibold text-center">Start Date</th>
+                    <th className="p-3 font-semibold text-center">Deadline</th>
+                    <th className="p-3 font-semibold text-center">Members</th>
+                    <th className="p-3 font-semibold text-center">Status</th>
+                    <th className="p-3 font-semibold text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i} className="border-b">
+                        <td colSpan={10} className="p-8">
+                          <Skeleton className="h-8 w-full" />
+                        </td>
+                      </tr>
+                    ))
+                  ) : filteredProjects.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="p-10 text-center text-muted-foreground text-sm">
+                        No projects found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredProjects.map((project, index) => (
+                      <tr key={project._id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
+                        <td className="p-3">
+                          <input type="checkbox" className="rounded border-zinc-300" />
+                        </td>
+                        <td className="p-3 text-xs text-muted-foreground">{index + 1}</td>
+                        <td className="p-3">
+                          <div className="flex flex-col">
+                            <span 
+                              onClick={() => navigate(`/admin/projects/edit/${project._id}`)}
+                              className="text-sm font-semibold text-primary hover:underline cursor-pointer"
+                            >
+                              {project.name}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground line-clamp-1">{project.description}</span>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <span 
+                            onClick={() => navigate(`/admin/customers/${project.clientid?._id}`)}
+                            className="text-xs font-medium text-zinc-700 hover:text-primary cursor-pointer transition-colors"
                           >
-                            <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
-                              {m.name.charAt(0)}
-                            </AvatarFallback>
-                          </Avatar>
-                        ))}
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {p.deadline ? `Deadline: ${new Date(p.deadline).toLocaleDateString()}` : "No deadline"}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
-        </div>
+                            {project.clientid?.company || "Unknown"}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-wrap gap-1">
+                            {project.tags && project.tags.length > 0 ? (
+                              project.tags.map((tag: string) => (
+                                <Badge key={tag} variant="secondary" className="text-[9px] px-1 h-4 font-bold uppercase">
+                                  {tag.trim()}
+                                </Badge>
+                              ))
+                            ) : (
+                              <span className="text-[10px] text-zinc-300">No tags</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3 text-center text-xs text-zinc-600">
+                          {project.start_date ? formatDate(project.start_date) : "-"}
+                        </td>
+                        <td className="p-3 text-center text-xs text-zinc-600">
+                          {project.deadline ? formatDate(project.deadline) : "-"}
+                        </td>
+                        <td className="p-3 text-center">
+                          <div className="flex -space-x-2 justify-center">
+                            <Avatar className="h-6 w-6 border border-white shadow-sm">
+                              <AvatarFallback className="bg-primary/5 text-primary text-[8px] font-bold">TM</AvatarFallback>
+                            </Avatar>
+                            <div className="h-6 w-6 border border-white shadow-sm bg-zinc-50 flex items-center justify-center rounded-full text-[8px] font-bold text-zinc-400">
+                              +2
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3 text-center">
+                          <Badge className={`rounded-md px-1.5 py-0.5 font-bold text-[9px] uppercase tracking-tighter ${statusConfig.find(s => s.id === project.status)?.color || statusConfig[0].color}`}>
+                            {statusConfig.find(s => s.id === project.status)?.label || "Not Started"}
+                          </Badge>
+                        </td>
+                        <td className="p-3 text-right">
+                          <TableActions
+                            onView={() => navigate(`/admin/projects/edit/${project._id}`)}
+                            onEdit={() => navigate(`/admin/projects/edit/${project._id}`)}
+                            onDelete={() => {
+                              if (confirm("Are you sure you want to delete this project?")) {
+                                deleteMutation.mutate(project._id);
+                              }
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

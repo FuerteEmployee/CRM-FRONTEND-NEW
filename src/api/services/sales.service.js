@@ -26,14 +26,17 @@ export const salesService = {
   // ─────────────────────────────────────────────
   // Expenses
   // ─────────────────────────────────────────────
-  getExpenses: () => apiClient.get("/expenses"),
+  getExpenses: (params) => apiClient.get("/expenses", { params }),
   createExpense: (data) => apiClient.post("/expenses", data),
+  updateExpense: (id, data) => apiClient.put(`/expenses/${id}`, data),
+  getExpenseById: (id) => apiClient.get(`/expenses/${id}`),
 
   // ─────────────────────────────────────────────
   // Subscriptions
   // ─────────────────────────────────────────────
   getSubscriptions: () => apiClient.get("/subscriptions"),
   createSubscription: (data) => apiClient.post("/subscriptions", data),
+  updateSubscription: (id, data) => apiClient.put(`/subscriptions/${id}`, data),
 
   // ─────────────────────────────────────────────
   // Proposals

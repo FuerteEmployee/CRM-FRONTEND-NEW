@@ -1,216 +1,248 @@
 import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { calendarEvents } from "@/data/mockData";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  Calendar as CalendarIcon, 
+  Clock, 
+  Bell, 
+  Globe,
+  Palette
+} from "lucide-react";
+import { 
+  format, 
+  startOfMonth, 
+  endOfMonth, 
+  startOfWeek, 
+  endOfWeek, 
+  eachDayOfInterval, 
+  isSameMonth, 
+  isSameDay, 
+  addMonths, 
+  subMonths, 
+  addWeeks, 
+  subWeeks, 
+  addDays, 
+  subDays,
+  startOfDay,
+  endOfDay,
+  eachHourOfInterval,
+  isWithinInterval
+} from "date-fns";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const COLORS = [
+  { name: "Blue", value: "#3b82f6" },
+  { name: "Green", value: "#10b981" },
+  { name: "Red", value: "#ef4444" },
+  { name: "Purple", value: "#8b5cf6" },
+  { name: "Orange", value: "#f59e0b" },
+  { name: "Slate", value: "#64748b" },
+];
 
 type ViewMode = "month" | "week" | "day";
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
 const Calendar = () => {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 2, 7)); // March 7, 2026
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [events, setEvents] = useState<any[]>(() => {
+    const saved = localStorage.getItem("crm_calendar_events");
+    return saved ? JSON.parse(saved) : [];
+  });
 
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth();
+  // Modal Form State
+  const [eventTitle, setEventTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [notifValue, setNotifValue] = useState("30");
+  const [notifUnit, setNotifUnit] = useState("minutes");
+  const [eventColor, setEventColor] = useState("#3b82f6");
+  const [isPublic, setIsPublic] = useState(false);
 
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const today = new Date(2026, 2, 7);
+  // Month View Helpers
+  const monthStart = startOfMonth(currentDate);
+  const monthEnd = endOfMonth(monthStart);
+  const monthDays = eachDayOfInterval({
+    start: startOfWeek(monthStart),
+    end: endOfWeek(monthEnd),
+  });
 
-  const calendarDays = useMemo(() => {
-    const days: (number | null)[] = [];
-    for (let i = 0; i < firstDay; i++) days.push(null);
-    for (let i = 1; i <= daysInMonth; i++) days.push(i);
-    // Fill remaining cells
-    while (days.length % 7 !== 0) days.push(null);
-    return days;
-  }, [firstDay, daysInMonth]);
+  // Week View Helpers
+  const weekStart = startOfWeek(currentDate);
+  const weekEnd = endOfWeek(currentDate);
+  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
-  const getEventsForDay = (day: number) => {
-    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    return calendarEvents.filter(e => e.date === dateStr);
-  };
+  // Day View Helpers
+  const dayHours = eachHourOfInterval({
+    start: startOfDay(currentDate),
+    end: endOfDay(currentDate),
+  });
 
-  const navigate = (dir: number) => {
+  const handleNavigate = (direction: "prev" | "next") => {
     if (viewMode === "month") {
-      setCurrentDate(new Date(year, month + dir, 1));
+      setCurrentDate(direction === "prev" ? subMonths(currentDate, 1) : addMonths(currentDate, 1));
     } else if (viewMode === "week") {
-      setCurrentDate(new Date(currentDate.getTime() + dir * 7 * 86400000));
+      setCurrentDate(direction === "prev" ? subWeeks(currentDate, 1) : addWeeks(currentDate, 1));
     } else {
-      setCurrentDate(new Date(currentDate.getTime() + dir * 86400000));
+      setCurrentDate(direction === "prev" ? subDays(currentDate, 1) : addDays(currentDate, 1));
     }
   };
 
-  const goToday = () => setCurrentDate(new Date(2026, 2, 7));
+  const handleDateClick = (date: Date) => {
+    setStartDate(format(date, "yyyy-MM-dd'T'HH:mm"));
+    setIsModalOpen(true);
+  };
 
-  const monthName = currentDate.toLocaleString("default", { month: "long", year: "numeric" });
+  const resetForm = () => {
+    setEventTitle("");
+    setDescription("");
+    setStartDate("");
+    setEndDate("");
+    setNotifValue("30");
+    setNotifUnit("minutes");
+    setEventColor("#3b82f6");
+    setIsPublic(false);
+  };
 
-  // Week view helpers
-  const getWeekDays = () => {
-    const startOfWeek = new Date(currentDate);
-    startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(startOfWeek);
-      d.setDate(startOfWeek.getDate() + i);
-      return d;
+  const saveEvent = () => {
+    if (!eventTitle || !startDate) {
+      toast.error("Please fill in required fields");
+      return;
+    }
+    const newEvent = {
+      id: Date.now(),
+      title: eventTitle,
+      description,
+      start: startDate,
+      end: endDate || startDate,
+      color: eventColor,
+      isPublic,
+      notification: `${notifValue} ${notifUnit}`
+    };
+    const updatedEvents = [...events, newEvent];
+    setEvents(updatedEvents);
+    localStorage.setItem("crm_calendar_events", JSON.stringify(updatedEvents));
+    toast.success("Event added");
+    setIsModalOpen(false);
+    resetForm();
+  };
+
+  const getEventsForDay = (date: Date) => {
+    return events.filter(e => isSameDay(new Date(e.start), date));
+  };
+
+  const getEventsForHour = (date: Date, hour: number) => {
+    return events.filter(e => {
+      const start = new Date(e.start);
+      return isSameDay(start, date) && start.getHours() === hour;
     });
   };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Calendar</h1>
-          <p className="text-muted-foreground">Manage your schedule and events</p>
+      <div className="space-y-6 animate-fade-in pb-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Calendar</h1>
+            <p className="text-muted-foreground text-sm font-medium">Plan and manage your schedule</p>
+          </div>
         </div>
 
-        <Card>
-          <CardContent className="p-4">
-            {/* Controls */}
-            <div className="flex items-center justify-between mb-4">
+        <Card className="border-gray-400 dark:border-gray-700 shadow-sm rounded-2xl overflow-hidden">
+          <CardHeader className="bg-accent/5 border-b border-gray-400 dark:border-gray-700 p-4">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="flex rounded-md border overflow-hidden">
-                  <Button variant="ghost" size="icon" className="rounded-none h-9 w-9" onClick={() => navigate(-1)}>
+                <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())} className="rounded-lg font-bold border-gray-400 dark:border-gray-700">
+                  Today
+                </Button>
+                <div className="flex items-center gap-1 ml-2">
+                  <Button variant="ghost" size="icon" onClick={() => handleNavigate("prev")} className="h-8 w-8 rounded-full">
                     <ChevronLeft className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="rounded-none h-9 w-9" onClick={() => navigate(1)}>
+                  <Button variant="ghost" size="icon" onClick={() => handleNavigate("next")} className="h-8 w-8 rounded-full">
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="flex rounded-md border overflow-hidden">
-                  <Button variant={viewMode === "month" ? "default" : "ghost"} size="sm" className="rounded-none text-xs h-9" onClick={goToday}>
-                    Today
-                  </Button>
-                  <Button variant="ghost" size="sm" className="rounded-none text-xs h-9 border-l">
-                    Expand
-                  </Button>
-                </div>
               </div>
-
-              <h2 className="text-xl font-semibold">{monthName}</h2>
-
-              <div className="flex rounded-md border overflow-hidden">
-                {(["month", "week", "day"] as ViewMode[]).map(v => (
+              <h2 className="text-lg font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                {viewMode === "day" ? format(currentDate, "MMMM d, yyyy") : format(currentDate, "MMMM yyyy")}
+              </h2>
+              <div className="flex items-center gap-2 bg-accent/20 p-1 rounded-lg border border-gray-400 dark:border-gray-700">
+                {(["month", "week", "day"] as ViewMode[]).map(mode => (
                   <Button
-                    key={v}
-                    variant={viewMode === v ? "default" : "ghost"}
+                    key={mode}
+                    variant={viewMode === mode ? "secondary" : "ghost"}
                     size="sm"
-                    className="rounded-none text-xs h-9 capitalize"
-                    onClick={() => setViewMode(v)}
+                    onClick={() => setViewMode(mode)}
+                    className={cn("h-7 text-xs font-bold rounded-md capitalize", viewMode !== mode && "text-muted-foreground")}
                   >
-                    {v}
+                    {mode}
                   </Button>
                 ))}
               </div>
             </div>
-
-            {/* Month View */}
+          </CardHeader>
+          <CardContent className="p-0">
+            {/* --- MONTH VIEW --- */}
             {viewMode === "month" && (
-              <div className="border rounded-lg overflow-hidden">
-                <div className="grid grid-cols-7">
-                  {DAYS.map(d => (
-                    <div key={d} className="border-b border-r last:border-r-0 p-2 text-center text-sm font-medium bg-muted/30">
-                      {d}
+              <>
+                <div className="grid grid-cols-7 border-b border-gray-400 dark:border-gray-700 bg-accent/10">
+                  {DAYS.map(day => (
+                    <div key={day} className="p-3 text-center text-[11px] font-black uppercase tracking-[0.2em] text-gray-700 dark:text-gray-300 border-r border-gray-400 dark:border-gray-700 last:border-r-0">
+                      {day}
                     </div>
                   ))}
                 </div>
                 <div className="grid grid-cols-7">
-                  {calendarDays.map((day, i) => {
-                    const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-                    const events = day ? getEventsForDay(day) : [];
-                    const isCurrentMonth = day !== null;
-
+                  {monthDays.map((day, i) => {
+                    const dayEvents = getEventsForDay(day);
+                    const isToday = isSameDay(day, new Date());
+                    const isCurrentMonth = isSameMonth(day, monthStart);
                     return (
                       <div
                         key={i}
-                        className={`border-b border-r last:border-r-0 min-h-[100px] p-1.5 ${!isCurrentMonth ? "bg-muted/10" : "bg-background"}`}
-                      >
-                        {day && (
-                          <>
-                            <div className={`text-sm mb-1 ${isToday ? "flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground font-bold" : "text-right text-muted-foreground"}`}>
-                              {day}
-                            </div>
-                            <div className="space-y-0.5">
-                              {events.map(ev => (
-                                <div
-                                  key={ev.id}
-                                  className="text-[10px] px-1 py-0.5 rounded truncate text-white"
-                                  style={{ backgroundColor: ev.color }}
-                                >
-                                  {ev.time !== "00:00" && <span className="font-medium">{ev.time} </span>}
-                                  {ev.title}
-                                </div>
-                              ))}
-                            </div>
-                          </>
+                        onClick={() => handleDateClick(day)}
+                        className={cn(
+                          "min-h-[140px] border-b border-r border-gray-400 dark:border-gray-700 p-2 transition-all duration-200 cursor-pointer last:border-r-0",
+                          !isCurrentMonth ? "bg-accent/5 opacity-40" : "bg-background hover:bg-accent/10"
                         )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Week View */}
-            {viewMode === "week" && (
-              <div className="border rounded-lg overflow-hidden">
-                <div className="grid grid-cols-7">
-                  {getWeekDays().map((d, i) => {
-                    const isToday = d.getDate() === today.getDate() && d.getMonth() === today.getMonth();
-                    return (
-                      <div key={i} className="border-b border-r last:border-r-0 p-2 text-center bg-muted/30">
-                        <div className="text-xs text-muted-foreground">{DAYS[i]}</div>
-                        <div className={`text-sm font-medium ${isToday ? "flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground mx-auto" : ""}`}>
-                          {d.getDate()}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <span className={cn(
+                            "text-sm font-bold flex items-center justify-center w-8 h-8 rounded-full",
+                            isToday ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30" : "text-muted-foreground"
+                          )}>
+                            {format(day, "d")}
+                          </span>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="grid grid-cols-7">
-                  {getWeekDays().map((d, i) => {
-                    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-                    const events = calendarEvents.filter(e => e.date === dateStr);
-                    return (
-                      <div key={i} className="border-r last:border-r-0 min-h-[300px] p-1.5">
-                        {events.map(ev => (
-                          <div key={ev.id} className="text-xs px-1.5 py-1 rounded mb-1 text-white" style={{ backgroundColor: ev.color }}>
-                            <div className="font-medium">{ev.time}</div>
-                            <div className="truncate">{ev.title}</div>
-                          </div>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Day View */}
-            {viewMode === "day" && (
-              <div className="border rounded-lg overflow-hidden">
-                <div className="p-3 bg-muted/30 border-b text-center">
-                  <div className="text-sm text-muted-foreground">{DAYS[currentDate.getDay()]}</div>
-                  <div className="text-2xl font-bold">{currentDate.getDate()}</div>
-                </div>
-                <div className="divide-y">
-                  {Array.from({ length: 12 }, (_, i) => i + 8).map(hour => {
-                    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(currentDate.getDate()).padStart(2, "0")}`;
-                    const hourStr = String(hour).padStart(2, "0") + ":00";
-                    const events = calendarEvents.filter(e => e.date === dateStr && e.time === hourStr);
-                    return (
-                      <div key={hour} className="flex min-h-[60px]">
-                        <div className="w-20 p-2 text-xs text-muted-foreground border-r flex-shrink-0">
-                          {hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? "12:00 PM" : `${hour}:00 AM`}
-                        </div>
-                        <div className="flex-1 p-1.5">
-                          {events.map(ev => (
-                            <div key={ev.id} className="text-xs px-2 py-1.5 rounded text-white" style={{ backgroundColor: ev.color }}>
-                              <span className="font-medium">{ev.title}</span>
+                        <div className="space-y-1">
+                          {dayEvents.map(event => (
+                            <div key={event.id} className="text-[10px] px-2 py-1 rounded-lg border font-bold text-white truncate shadow-sm" style={{ backgroundColor: event.color, borderColor: `${event.color}aa` }}>
+                              {event.title}
                             </div>
                           ))}
                         </div>
@@ -218,10 +250,112 @@ const Calendar = () => {
                     );
                   })}
                 </div>
+              </>
+            )}
+
+            {/* --- WEEK VIEW --- */}
+            {viewMode === "week" && (
+              <>
+                <div className="grid grid-cols-8 border-b border-gray-400 dark:border-gray-700 bg-accent/10">
+                  <div className="p-3 border-r border-gray-400 dark:border-gray-700" />
+                  {weekDays.map(day => (
+                    <div key={day.toString()} className="p-3 text-center border-r border-gray-400 dark:border-gray-700 last:border-r-0">
+                      <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{format(day, "EEE")}</div>
+                      <div className={cn("text-sm font-bold", isSameDay(day, new Date()) && "text-primary")}>{format(day, "d")}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="max-h-[600px] overflow-y-auto">
+                  {Array.from({ length: 24 }).map((_, hour) => (
+                    <div key={hour} className="grid grid-cols-8 border-b border-gray-400 dark:border-gray-700 last:border-b-0 min-h-[60px]">
+                      <div className="p-2 text-[10px] font-bold text-muted-foreground border-r border-gray-400 dark:border-gray-700 text-right pr-4 bg-accent/5">
+                        {hour === 0 ? "12 AM" : hour < 12 ? `${hour} AM` : hour === 12 ? "12 PM" : `${hour - 12} PM`}
+                      </div>
+                      {weekDays.map(day => {
+                        const hourlyEvents = getEventsForHour(day, hour);
+                        return (
+                          <div key={day.toString()} onClick={() => handleDateClick(day)} className="p-1 border-r border-gray-400 dark:border-gray-700 last:border-r-0 hover:bg-accent/5 cursor-pointer">
+                            {hourlyEvents.map(event => (
+                              <div key={event.id} className="text-[9px] px-1.5 py-0.5 rounded border font-bold text-white truncate mb-0.5" style={{ backgroundColor: event.color }}>
+                                {event.title}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* --- DAY VIEW --- */}
+            {viewMode === "day" && (
+              <div className="max-h-[700px] overflow-y-auto">
+                {Array.from({ length: 24 }).map((_, hour) => {
+                  const hourlyEvents = getEventsForHour(currentDate, hour);
+                  return (
+                    <div key={hour} className="flex border-b border-gray-400 dark:border-gray-700 last:border-b-0 min-h-[80px]">
+                      <div className="w-24 p-4 text-xs font-bold text-muted-foreground border-r border-gray-400 dark:border-gray-700 text-right bg-accent/5">
+                        {hour === 0 ? "12:00 AM" : hour < 12 ? `${hour}:00 AM` : hour === 12 ? "12:00 PM" : `${hour - 12}:00 PM`}
+                      </div>
+                      <div onClick={() => handleDateClick(currentDate)} className="flex-1 p-2 hover:bg-accent/5 cursor-pointer space-y-2">
+                        {hourlyEvents.map(event => (
+                          <div key={event.id} className="p-3 rounded-xl border-l-4 shadow-sm text-sm" style={{ backgroundColor: `${event.color}15`, borderLeftColor: event.color }}>
+                             <div className="font-bold flex items-center gap-2" style={{ color: event.color }}>
+                               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: event.color }} />
+                               {event.title}
+                             </div>
+                             <p className="text-xs text-muted-foreground mt-1 ml-4">{event.description || "No description provided"}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
+
+        {/* Modal remains same as before... */}
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogContent className="max-w-md rounded-3xl p-0 border-none shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <DialogHeader className="bg-primary p-6 text-primary-foreground shrink-0">
+              <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                <CalendarIcon className="h-5 w-5" />
+                Add New Event
+              </DialogTitle>
+              <p className="text-primary-foreground/70 text-xs font-medium">Create a new entry in your schedule</p>
+            </DialogHeader>
+            <div className="p-6 space-y-6 bg-background overflow-y-auto flex-1 custom-scrollbar">
+              <div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Event Title *</Label><Input placeholder="What is happening?" className="rounded-xl border-border/50 h-12" value={eventTitle} onChange={(e) => setEventTitle(e.target.value)}/></div>
+              <div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</Label><Textarea placeholder="Optional details..." className="rounded-xl border-border/50 min-h-[100px] resize-none" value={description} onChange={(e) => setDescription(e.target.value)}/></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"><Clock className="h-3 w-3" /> Start Date *</Label><Input type="datetime-local" className="rounded-xl border-border/50 h-11 text-xs cursor-pointer" value={startDate} onChange={(e) => setStartDate(e.target.value)} onClick={(e) => (e.target as any).showPicker?.()}/></div>
+                <div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"><Clock className="h-3 w-3" /> End Date</Label><Input type="datetime-local" className="rounded-xl border-border/50 h-11 text-xs cursor-pointer" value={endDate} onChange={(e) => setEndDate(e.target.value)} onClick={(e) => (e.target as any).showPicker?.()}/></div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"><Bell className="h-3 w-3" /> Notification</Label>
+                <div className="flex gap-2"><Input type="number" className="w-24 rounded-xl border-border/50 h-11" value={notifValue} onChange={(e) => setNotifValue(e.target.value)}/><Select value={notifUnit} onValueChange={setNotifUnit}><SelectTrigger className="flex-1 rounded-xl border-border/50 h-11"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="minutes">Minutes</SelectItem><SelectItem value="hours">Hours</SelectItem><SelectItem value="days">Days</SelectItem><SelectItem value="weeks">Weeks</SelectItem></SelectContent></Select></div>
+              </div>
+              <div className="space-y-3 pt-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5"><Palette className="h-3 w-3" /> Event Color</Label>
+                <div className="flex flex-wrap gap-3">
+                  {COLORS.map(c => (
+                    <button key={c.value} onClick={() => setEventColor(c.value)} className={cn("w-9 h-9 rounded-full transition-all border-2 flex items-center justify-center", eventColor === c.value ? "border-primary scale-110 shadow-lg" : "border-transparent")} style={{ backgroundColor: c.value }}>
+                      {eventColor === c.value && <div className="w-2 h-2 rounded-full bg-white shadow-sm" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center gap-3 p-5 rounded-2xl bg-accent/5 border border-border/40">
+                <Checkbox id="public" checked={isPublic} onCheckedChange={(val) => setIsPublic(val as boolean)} className="rounded-md h-5 w-5 data-[state=checked]:bg-primary"/><div className="flex flex-col gap-0.5"><Label htmlFor="public" className="text-sm font-bold cursor-pointer">Public Event</Label><p className="text-[10px] text-muted-foreground">Visible to everyone in the system</p></div><Globe className="ml-auto h-5 w-5 text-primary opacity-30" />
+              </div>
+            </div>
+            <DialogFooter className="p-6 bg-accent/5 border-t border-border/40 gap-3 shrink-0"><Button variant="outline" onClick={() => setIsModalOpen(false)} className="rounded-xl flex-1 h-12 font-bold">Close</Button><Button onClick={saveEvent} className="rounded-xl flex-1 h-12 font-bold shadow-xl shadow-primary/20">Save Event</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

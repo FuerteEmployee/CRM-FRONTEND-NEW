@@ -13,6 +13,8 @@ export const utilityService = {
   createTodo: (data) => apiClient.post('/todos', data),
   
   updateTodo: (id, data) => apiClient.put(`/todos/${id}`, data),
+  
+  deleteTodo: (id) => apiClient.delete(`/todos/${id}`),
 
   // Settings
   getSettings: () => apiClient.get(`/settings?cb=${new Date().getTime()}`),

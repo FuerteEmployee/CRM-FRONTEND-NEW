@@ -2,17 +2,21 @@ import { apiClient } from "../client";
 
 export const supportService = {
   // Tickets
-  getTickets: () => apiClient.get("/tickets"),
+  getTickets: (params) => apiClient.get("/tickets", { params }),
   getTicketById: (id) => apiClient.get(`/tickets/${id}`),
   createTicket: (data) => apiClient.post("/tickets", data),
+  updateTicket: (id, data) => apiClient.put(`/tickets/${id}`, data),
+  deleteTicket: (id) => apiClient.delete(`/tickets/${id}`),
 
   // Knowledge Base
-  getKBGroups: () => apiClient.get("/knowledge-base/groups"),
+  getKBGroups: () => apiClient.get("/kb/groups"),
 
   getKBArticles: (groupId) => {
     const query = groupId ? `?group=${groupId}` : "";
-    return apiClient.get(`/knowledge-base/articles${query}`);
+    return apiClient.get(`/kb/articles${query}`);
   },
+  createKBGroup: (data) => apiClient.post("/kb/groups", data),
+  createKBArticle: (data) => apiClient.post("/kb/articles", data),
 
   // Departments
   getDepartments: () => apiClient.get("/departments"),
@@ -32,4 +36,8 @@ export const supportService = {
   updateTicketStatus: (id, data) =>
     apiClient.put(`/ticket-statuses/${id}`, data),
   deleteTicketStatus: (id) => apiClient.delete(`/ticket-statuses/${id}`),
+
+  // Services
+  getServices: () => apiClient.get("/services"),
+  createService: (data) => apiClient.post("/services", data),
 };

@@ -243,7 +243,6 @@ export default function EstimateRequestFormBuilder() {
       return;
     }
 
-    // Sanitize payload for backend: ensure ObjectId fields are either valid or null
     const payload = {
       ...formData,
       status:
@@ -252,7 +251,6 @@ export default function EstimateRequestFormBuilder() {
         formData.responsible && formData.responsible !== ""
           ? formData.responsible
           : null,
-      // Ensure arrays are sent correctly
       notifications: {
         ...formData.notifications,
         staff_to_notify: formData.notifications.staff_to_notify || [],
@@ -294,7 +292,6 @@ export default function EstimateRequestFormBuilder() {
 
   const updateField = (index: number, updates: any) => {
     const newFields = [...formData.fields];
-    // Force email to stay required
     if (newFields[index].type === "email" && updates.required !== undefined) {
       updates.required = true;
     }
@@ -328,7 +325,6 @@ export default function EstimateRequestFormBuilder() {
           onValueChange={setActiveMainTab}
           className="w-full space-y-8"
         >
-          {/* Professional Navigation Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6 mb-8">
             <div className="flex items-center gap-4">
               <button
@@ -377,7 +373,6 @@ export default function EstimateRequestFormBuilder() {
 
           <TabsContent value="builder" className="mt-0 outline-none">
             <div className="grid grid-cols-12 gap-8">
-              {/* Field Types Column */}
               <div className="col-span-12 lg:col-span-3 space-y-4">
                 <div className="border border-slate-200 rounded-xl bg-white overflow-hidden">
                   <div className="p-3 bg-slate-50 border-b border-slate-200">
@@ -416,7 +411,6 @@ export default function EstimateRequestFormBuilder() {
                 </div>
               </div>
 
-              {/* Form Layout Column */}
               <div className="col-span-12 lg:col-span-9">
                 <Card className="p-8 rounded-2xl border-slate-200 min-h-[600px] bg-slate-50/30 border-dashed border-2">
                   {formData.fields.length === 0 ? (
@@ -449,7 +443,6 @@ export default function EstimateRequestFormBuilder() {
                                 : "hover:border-slate-300",
                             )}
                           >
-                            {/* Card Header */}
                             <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100 bg-white">
                               <span className="text-sm font-medium text-foreground">
                                 {fieldType.label}
@@ -498,7 +491,6 @@ export default function EstimateRequestFormBuilder() {
                             </div>
 
                             <div className="p-4">
-                              {/* Preview Mode */}
                               {!isEditing ? (
                                 <div
                                   className="space-y-1 cursor-pointer group"
@@ -531,12 +523,9 @@ export default function EstimateRequestFormBuilder() {
                                   )}
                                 </div>
                               ) : (
-                                /* Settings Pane - Matching Image UI */
                                 <div className="bg-[#f8f9fa] border border-slate-200 rounded p-6 space-y-4 animate-in fade-in duration-200">
                                   <div className="space-y-4 max-w-3xl">
-                                    {/* Common Settings Grid */}
                                     <div className="grid grid-cols-[140px_1fr] items-baseline gap-y-4">
-                                      {/* Required Switch - Top (only for input types) */}
                                       {!["header", "paragraph"].includes(
                                         field.type,
                                       ) && (
@@ -564,7 +553,6 @@ export default function EstimateRequestFormBuilder() {
                                         </>
                                       )}
 
-                                      {/* Label / Content */}
                                       <Label className="text-sm text-muted-foreground text-right pr-6 self-center">
                                         {field.type === "paragraph"
                                           ? "Content"
@@ -592,7 +580,6 @@ export default function EstimateRequestFormBuilder() {
                                         />
                                       )}
 
-                                      {/* Help Text */}
                                       {!["header", "paragraph"].includes(
                                         field.type,
                                       ) && (
@@ -612,7 +599,6 @@ export default function EstimateRequestFormBuilder() {
                                         </>
                                       )}
 
-                                      {/* Placeholder */}
                                       {![
                                         "header",
                                         "paragraph",
@@ -636,7 +622,6 @@ export default function EstimateRequestFormBuilder() {
                                         </>
                                       )}
 
-                                      {/* Class */}
                                       <Label className="text-sm text-muted-foreground text-right pr-6 self-center">
                                         Class
                                       </Label>
@@ -653,7 +638,6 @@ export default function EstimateRequestFormBuilder() {
                                         placeholder="space separated classes"
                                       />
 
-                                      {/* Name (ID) */}
                                       {!["header", "paragraph"].includes(
                                         field.type,
                                       ) && (
@@ -669,7 +653,6 @@ export default function EstimateRequestFormBuilder() {
                                         </>
                                       )}
 
-                                      {/* Value */}
                                       {![
                                         "header",
                                         "paragraph",
@@ -695,7 +678,6 @@ export default function EstimateRequestFormBuilder() {
                                         </>
                                       )}
 
-                                      {/* Options List for Choice Types */}
                                       {["select", "radio", "checkbox"].includes(
                                         field.type,
                                       ) && (
@@ -787,7 +769,7 @@ export default function EstimateRequestFormBuilder() {
                                                           options: newOpts,
                                                         });
                                                       }}
-                                                      className="h-9 flex items-center justify-center bg-red-500 rounded hover:bg-red-600 transition-colors"
+                                                      className="h-9 flex items-center justify-center bg-red-500 rounded hover:bg-red-600 transition-colors text-white"
                                                     >
                                                       <X className="h-4 w-4" />
                                                     </button>
@@ -815,7 +797,6 @@ export default function EstimateRequestFormBuilder() {
                                         </>
                                       )}
 
-                                      {/* Max Length */}
                                       {["text", "email", "textarea"].includes(
                                         field.type,
                                       ) && (
@@ -867,7 +848,6 @@ export default function EstimateRequestFormBuilder() {
             </div>
           </TabsContent>
 
-          {/* Setup Tab */}
           <TabsContent value="setup" className="mt-0 outline-none max-w-4xl">
             <div className="space-y-6">
               {!isEdit && (
@@ -929,7 +909,6 @@ export default function EstimateRequestFormBuilder() {
                             setFormData({ ...formData, name: e.target.value })
                           }
                           className="h-10 border-slate-200 rounded-lg shadow-sm"
-                          placeholder=""
                         />
                       </div>
 
@@ -968,7 +947,7 @@ export default function EstimateRequestFormBuilder() {
                             <SelectValue placeholder="Select Status" />
                           </SelectTrigger>
                           <SelectContent>
-                            {statuses.map((s) => (
+                            {statuses.map((s: any) => (
                               <SelectItem key={s._id} value={s._id}>
                                 {s.name}
                               </SelectItem>
@@ -994,7 +973,7 @@ export default function EstimateRequestFormBuilder() {
                             <SelectItem value="none">
                               Nothing selected
                             </SelectItem>
-                            {staffList.map((s) => (
+                            {staffList.map((s: any) => (
                               <SelectItem key={s._id} value={s._id}>
                                 {s.firstname} {s.lastname}
                               </SelectItem>
@@ -1044,7 +1023,7 @@ export default function EstimateRequestFormBuilder() {
                               }
                               className="h-10 border-slate-200 font-mono rounded-lg shadow-sm"
                             />
-                            <div className="relative w-10 h-10 rounded-lg border border-slate-200 grow-0 shrink-0 overflow-hidden shadow-sm hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer">
+                            <div className="relative w-10 h-10 rounded-lg border border-slate-200 grow-0 shrink-0 overflow-hidden shadow-sm">
                               <input
                                 type="color"
                                 value={formData.branding.submit_btn_bg_color}
@@ -1087,7 +1066,7 @@ export default function EstimateRequestFormBuilder() {
                               }
                               className="h-10 border-slate-200 font-mono rounded-lg shadow-sm"
                             />
-                            <div className="relative w-10 h-10 rounded-lg border border-slate-200 grow-0 shrink-0 overflow-hidden shadow-sm hover:ring-2 hover:ring-primary/20 transition-all cursor-pointer">
+                            <div className="relative w-10 h-10 rounded-lg border border-slate-200 grow-0 shrink-0 overflow-hidden shadow-sm">
                               <input
                                 type="color"
                                 value={formData.branding.submit_btn_text_color}
@@ -1116,55 +1095,29 @@ export default function EstimateRequestFormBuilder() {
                     </TabsContent>
 
                     <TabsContent value="submission" className="mt-0 space-y-6">
-                      <div className="space-y-3">
-                        <Label className="text-[13px] font-medium text-muted-foreground">
-                          What should happen after a visitor submits this form?
-                        </Label>
-                        <RadioGroup
-                          value={formData.submission.type}
-                          onValueChange={(v) =>
-                            setFormData({
-                              ...formData,
-                              submission: { ...formData.submission, type: v },
-                            })
-                          }
-                          className="space-y-2"
-                        >
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem
-                              value="message"
-                              id="msg"
-                              className="bg-white border-slate-300"
-                            />
-                            <Label
-                              htmlFor="msg"
-                              className="font-medium text-slate-700 text-sm cursor-pointer"
-                            >
-                              Display thank you message
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem
-                              value="redirect"
-                              id="redir"
-                              className="bg-white border-slate-300"
-                            />
-                            <Label
-                              htmlFor="redir"
-                              className="font-medium text-slate-700 text-sm cursor-pointer"
-                            >
-                              Redirect to another website
-                            </Label>
-                          </div>
-                        </RadioGroup>
-                      </div>
+                      <RadioGroup
+                        value={formData.submission.type}
+                        onValueChange={(v) =>
+                          setFormData({
+                            ...formData,
+                            submission: { ...formData.submission, type: v },
+                          })
+                        }
+                        className="space-y-2"
+                      >
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="message" id="msg" />
+                          <Label htmlFor="msg">Display thank you message</Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="redirect" id="redir" />
+                          <Label htmlFor="redir">Redirect to another website</Label>
+                        </div>
+                      </RadioGroup>
 
                       {formData.submission.type === "message" ? (
                         <div className="space-y-2">
-                          <Label className="text-sm font-semibold text-slate-700 flex items-center gap-1">
-                            <span className="text-red-500">*</span> Message to
-                            show after form is succcesfully submitted
-                          </Label>
+                          <Label className="text-sm font-semibold">Message</Label>
                           <Textarea
                             value={formData.submission.message}
                             onChange={(e) =>
@@ -1176,15 +1129,11 @@ export default function EstimateRequestFormBuilder() {
                                 },
                               })
                             }
-                            className="min-h-[140px] border-slate-200 rounded-lg bg-white"
                           />
                         </div>
                       ) : (
                         <div className="space-y-2">
-                          <Label className="text-sm font-semibold text-slate-700 flex items-center gap-1">
-                            <span className="text-red-500">*</span> Redirect
-                            Link
-                          </Label>
+                          <Label className="text-sm font-semibold">Redirect Link</Label>
                           <Input
                             value={formData.submission.redirect_url}
                             onChange={(e) =>
@@ -1196,26 +1145,16 @@ export default function EstimateRequestFormBuilder() {
                                 },
                               })
                             }
-                            placeholder="https://yourwebsite.com/thank-you"
-                            className="h-10 border-slate-200 rounded-lg bg-white"
                           />
                         </div>
                       )}
                     </TabsContent>
 
-                    <TabsContent
-                      value="notifications"
-                      className="mt-0 space-y-6"
-                    >
-                      <div className="space-y-3">
-                        <Label className="text-sm font-bold text-slate-800">
-                          Notification settings
-                        </Label>
-                        <div className="flex items-center space-x-2">
+                    <TabsContent value="notifications" className="mt-0 space-y-6">
+                       <div className="flex items-center space-x-2">
                           <Checkbox
                             id="enable-notify"
                             checked={formData.notifications.enable}
-                            className="w-4 h-4 rounded-sm border-slate-300"
                             onCheckedChange={(v) =>
                               setFormData({
                                 ...formData,
@@ -1226,276 +1165,15 @@ export default function EstimateRequestFormBuilder() {
                               })
                             }
                           />
-                          <Label
-                            htmlFor="enable-notify"
-                            className="text-sm font-medium text-slate-700 cursor-pointer"
-                          >
-                            Notify when estimate request submitted
-                          </Label>
+                          <Label htmlFor="enable-notify">Notify when estimate request submitted</Label>
                         </div>
-                      </div>
-
-                      {formData.notifications.enable && (
-                        <div className="space-y-6 pt-2">
-                          <div className="space-y-3">
-                            <RadioGroup
-                              value={formData.notifications.type}
-                              onValueChange={(v) =>
-                                setFormData({
-                                  ...formData,
-                                  notifications: {
-                                    ...formData.notifications,
-                                    type: v,
-                                  },
-                                })
-                              }
-                              className="flex items-center gap-6"
-                            >
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem
-                                  value="specific_staff"
-                                  id="staff"
-                                  className="bg-white border-slate-300"
-                                />
-                                <Label
-                                  htmlFor="staff"
-                                  className="text-sm font-medium text-slate-700 cursor-pointer text-[13px]"
-                                >
-                                  Specific Staff Members
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem
-                                  value="roles"
-                                  id="roles"
-                                  className="bg-white border-slate-300"
-                                />
-                                <Label
-                                  htmlFor="roles"
-                                  className="text-sm font-medium text-slate-700 cursor-pointer text-[13px]"
-                                >
-                                  Staff members with roles
-                                </Label>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem
-                                  value="responsible"
-                                  id="resp"
-                                  className="bg-white border-slate-300"
-                                />
-                                <Label
-                                  htmlFor="resp"
-                                  className="text-sm font-medium text-slate-700 cursor-pointer text-[13px]"
-                                >
-                                  Responsible person
-                                </Label>
-                              </div>
-                            </RadioGroup>
-                          </div>
-
-                          {(formData.notifications.type === "specific_staff" ||
-                            formData.notifications.type === "roles") && (
-                            <div className="space-y-2">
-                              <Label className="text-[13px] font-bold text-muted-foreground">
-                                {formData.notifications.type ===
-                                "specific_staff"
-                                  ? "Staff Members to Notify"
-                                  : "Roles to Notify"}
-                              </Label>
-                              <Select
-                                value="none"
-                                onValueChange={(v) => {
-                                  if (v === "none") return;
-                                  const listKey =
-                                    formData.notifications.type ===
-                                    "specific_staff"
-                                      ? "staff_to_notify"
-                                      : "roles_to_notify";
-                                  const current = [
-                                    ...formData.notifications[listKey],
-                                  ];
-                                  if (!current.includes(v)) {
-                                    current.push(v);
-                                    setFormData({
-                                      ...formData,
-                                      notifications: {
-                                        ...formData.notifications,
-                                        [listKey]: current,
-                                      },
-                                    });
-                                  }
-                                }}
-                              >
-                                <SelectTrigger className="h-10 border-slate-200 rounded-lg bg-white text-slate-400">
-                                  <SelectValue placeholder="Nothing selected" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="none">
-                                    Nothing selected
-                                  </SelectItem>
-                                  {formData.notifications.type ===
-                                  "specific_staff"
-                                    ? staffList.map((s) => (
-                                        <SelectItem key={s._id} value={s._id}>
-                                          {s.firstname} {s.lastname}
-                                        </SelectItem>
-                                      ))
-                                    : roles.map((r) => (
-                                        <SelectItem key={r._id} value={r._id}>
-                                          {r.name}
-                                        </SelectItem>
-                                      ))}
-                                </SelectContent>
-                              </Select>
-
-                              <div className="flex flex-wrap gap-2 pt-2">
-                                {(formData.notifications.type ===
-                                "specific_staff"
-                                  ? formData.notifications.staff_to_notify
-                                  : formData.notifications.roles_to_notify
-                                ).map((id: string) => {
-                                  const item =
-                                    formData.notifications.type ===
-                                    "specific_staff"
-                                      ? staffList.find((s) => s._id === id)
-                                      : roles.find((r) => r._id === id);
-                                  if (!item) return null;
-                                  return (
-                                    <div
-                                      key={id}
-                                      className="flex items-center gap-1.5 bg-slate-100 px-3 py-1 rounded-full border border-slate-200"
-                                    >
-                                      <span className="text-[11px] font-semibold text-slate-700">
-                                        {formData.notifications.type ===
-                                        "specific_staff"
-                                          ? `${(item as any).firstname} ${(item as any).lastname}`
-                                          : (item as any).name}
-                                      </span>
-                                      <button
-                                        onClick={() => {
-                                          const listKey =
-                                            formData.notifications.type ===
-                                            "specific_staff"
-                                              ? "staff_to_notify"
-                                              : "roles_to_notify";
-                                          setFormData({
-                                            ...formData,
-                                            notifications: {
-                                              ...formData.notifications,
-                                              [listKey]: formData.notifications[
-                                                listKey
-                                              ].filter((i: string) => i !== id),
-                                            },
-                                          });
-                                        }}
-                                        className="hover:text-red-500 transition-colors"
-                                      >
-                                        <X className="h-3 w-3" />
-                                      </button>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
                     </TabsContent>
                   </div>
 
                   <div className="absolute bottom-6 right-8">
-                    <Button
-                      onClick={handleSave}
-                      disabled={mutation.isPending}
-                      className="  px-8 h-10 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2"
-                    >
-                      {mutation.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        "Save"
-                      )}
-                    </Button>
+                    <Button onClick={handleSave}>Save</Button>
                   </div>
                 </Tabs>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* Integration Tab */}
-          <TabsContent value="integration" className="mt-0 outline-none">
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 space-y-8 max-w-5xl">
-              <div className="space-y-4">
-                <p className="text-sm text-foreground font-medium">
-                  Copy & Paste the code anywhere in your site to show the form,
-                  additionally you can adjust the width and height px to fit for
-                  your website.
-                </p>
-                <div className="relative group/code">
-                  <Textarea
-                    readOnly
-                    value={iframeCode}
-                    className="min-h-[120px] p-4 bg-white rounded-xl border border-slate-200 text-[13px] text-foreground font-mono leading-relaxed resize-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                  />
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(iframeCode);
-                      toast.success("Embed code copied!");
-                    }}
-                    className="absolute top-2 right-2 bg-white border border-slate-200 rounded-md text-muted-foreground hover:text-slate-900 opacity-0 group-hover/code:opacity-100 transition-opacity shadow-sm h-8 px-3 text-xs font-semibold"
-                  >
-                    <Copy className="h-3.5 w-3.5 mr-2" />
-                    Copy
-                  </Button>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <h3 className="text-lg font-bold text-slate-800">
-                  Share direct link
-                </h3>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 group">
-                    <div
-                      className="px-4 py-2 bg-[#f0f7ff] border border-[#dbeafe] rounded-full text-[13px] text-[#2563eb] font-medium transition-all hover:bg-[#e0f0ff] cursor-pointer"
-                      onClick={() => copyToClipboard(`${publicUrl}?styled=1`)}
-                    >
-                      {publicUrl}?styled=1
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 group">
-                    <div
-                      className="px-4 py-2 bg-[#f0f7ff] border border-[#dbeafe] rounded-full text-[13px] text-[#2563eb] font-medium transition-all hover:bg-[#e0f0ff] cursor-pointer"
-                      onClick={() =>
-                        copyToClipboard(`${publicUrl}?styled=1&with_logo=1`)
-                      }
-                    >
-                      {publicUrl}?styled=1&with_logo=1
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-8 border-t border-slate-100 space-y-4">
-                <p className="text-[14px] font-semibold text-slate-800">
-                  When placing the iframe snippet code consider the following:
-                </p>
-                <ul className="space-y-3">
-                  <li className="text-[13px] text-foreground font-medium">
-                    1. If the protocol of your installation is http use a http
-                    page inside the iframe.
-                  </li>
-                  <li className="text-[13px] text-[#22c55e] font-bold">
-                    2. If the protocol of your installation is https use a https
-                    page inside the iframe.
-                  </li>
-                  <li className="text-[13px] text-foreground font-medium pt-2">
-                    None SSL installation will need to place the link in non ssl
-                    eq. landing page and backwards.
-                  </li>
-                </ul>
               </div>
             </div>
           </TabsContent>

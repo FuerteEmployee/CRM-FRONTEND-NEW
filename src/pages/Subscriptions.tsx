@@ -1,18 +1,9 @@
+import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -20,301 +11,226 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Search, Download, FileText, FileSpreadsheet, Printer, ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { formatDate } from "@/lib/dateFormat";
-import { TableActions } from "@/components/TableActions";
-import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const statusColors: Record<string, string> = {
-  Active:
-    "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400",
-  Cancelled:
-    "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400",
-  Expired: "bg-muted text-muted-foreground border-border",
-};
+import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 const Subscriptions = () => {
   const [search, setSearch] = useState("");
-  const [viewItem, setViewItem] = useState<any>(null);
-  const [editItem, setEditItem] = useState<any>(null);
-  const { toast } = useToast();
+  const [itemsPerPage, setItemsPerPage] = useState("25");
+  const navigate = useNavigate();
 
-  const { data: subscriptions = [], isLoading } = useQuery({
+  const { data: subscriptions = [], isLoading } = useQuery<any[]>({
     queryKey: ["subscriptions"],
     queryFn: salesService.getSubscriptions,
   });
 
   const filtered = subscriptions.filter((s: any) =>
-    (s.customer || s.name || "")
-      .toLowerCase()
-      .includes(search.toLowerCase())
+    (s.name || "").toLowerCase().includes(search.toLowerCase()) ||
+    (s.client?.company || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  const statusMap: Record<string, { label: string; color: string }> = {
+    active: { label: "Active", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    future: { label: "Future", color: "bg-blue-50 text-blue-700 border-blue-200" },
+    in_trial: { label: "In Trial", color: "bg-amber-50 text-amber-700 border-amber-200" },
+    past_due: { label: "Past Due", color: "bg-orange-50 text-orange-700 border-orange-200" },
+    canceled: { label: "Canceled", color: "bg-red-50 text-red-700 border-red-200" },
+    unpaid: { label: "Unpaid", color: "bg-slate-50 text-slate-700 border-slate-200" },
+  };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
+      <div className="space-y-8 animate-in fade-in duration-700">
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Subscriptions</h1>
-            <p className="text-muted-foreground">
-              Manage recurring customer subscriptions
+            <h1 className="text-2xl font-black text-foreground flex items-center gap-2 tracking-tight">
+              Subscriptions
+            </h1>
+            <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest mt-1">
+              Manage recurring customer billing
             </p>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Subscription
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Subscription</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
-                <div className="space-y-2">
-                  <Label>Billing Plan</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select plan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Basic">Basic</SelectItem>
-                      <SelectItem value="Pro">Pro</SelectItem>
-                      <SelectItem value="Enterprise">Enterprise</SelectItem>
-                      <SelectItem value="Custom">Custom</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Quantity</Label>
-                    <Input type="number" placeholder="1" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>First Billing Date</Label>
-                    <Input type="date" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Subscription Name</Label>
-                  <Input placeholder="Subscription name" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea placeholder="Subscription description" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox id="include-desc" />
-                  <Label htmlFor="include-desc" className="font-normal">
-                    Include description in invoice item
-                  </Label>
-                </div>
-                <div className="space-y-2">
-                  <Label>Customer</Label>
-                  <Input placeholder="Search customer..." />
-                </div>
-                <div className="space-y-2">
-                  <Label>Currency</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select currency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="USD">USD</SelectItem>
-                      <SelectItem value="EUR">EUR</SelectItem>
-                      <SelectItem value="GBP">GBP</SelectItem>
-                      <SelectItem value="INR">INR</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Tax 1 (Stripe)</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select tax" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No Tax</SelectItem>
-                        <SelectItem value="gst">GST</SelectItem>
-                        <SelectItem value="vat">VAT</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Tax 2 (Stripe)</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select tax" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No Tax</SelectItem>
-                        <SelectItem value="gst">GST</SelectItem>
-                        <SelectItem value="vat">VAT</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Terms & Conditions</Label>
-                  <Textarea placeholder="Enter terms & conditions" rows={3} />
-                </div>
-                <Button className="w-full">Save</Button>
+          <Button 
+            className="flex items-center gap-2 h-10 px-6 rounded-xl shadow-lg shadow-primary/20 font-black tracking-widest uppercase text-xs"
+            onClick={() => navigate("/admin/subscriptions/create")}
+          >
+            <Plus className="h-4 w-4" />
+            New Subscription
+          </Button>
+        </div>
+
+        <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
+          <CardContent className="p-8 space-y-6">
+            {/* Table Controls */}
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+                  <SelectTrigger className="h-10 w-[80px] rounded-xl bg-white border-slate-200 shadow-sm font-bold text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="All">All</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="h-10 px-4 rounded-xl font-black uppercase tracking-widest text-[10px] gap-2 border-slate-200 bg-white shadow-sm hover:bg-slate-50 transition-all">
+                      <Download className="h-3.5 w-3.5 text-primary" />
+                      Export
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-48 rounded-2xl border-slate-200 shadow-2xl p-2">
+                    <DropdownMenuItem className="gap-3 py-2.5 px-3 cursor-pointer rounded-xl hover:bg-primary/5 transition-colors group">
+                      <FileText className="h-4 w-4 text-red-500 group-hover:scale-110 transition-transform" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Export PDF</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="gap-3 py-2.5 px-3 cursor-pointer rounded-xl hover:bg-primary/5 transition-colors group">
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-500 group-hover:scale-110 transition-transform" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Export CSV</span>
+                    </DropdownMenuItem>
+                    <div className="h-px bg-slate-100 my-1 mx-1" />
+                    <DropdownMenuItem className="gap-3 py-2.5 px-3 cursor-pointer rounded-xl hover:bg-primary/5 transition-colors group">
+                      <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Print List</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
-            </DialogContent>
-          </Dialog>
-        </div>
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search subscriptions..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-        </div>
+              <div className="relative w-full md:w-72 group">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary transition-colors" />
+                <Input
+                  placeholder="Search subscriptions..."
+                  className="pl-10 h-10 rounded-xl bg-white border-slate-200 shadow-sm focus-visible:ring-primary/20 transition-all text-sm font-medium"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+            </div>
 
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px]">
+            {/* Subscriptions Table */}
+            <div className="rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm bg-white/50">
+              <table className="w-full text-sm text-left border-collapse">
                 <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="p-3 font-medium">Customer</th>
-                    <th className="p-3 font-medium">Plan</th>
-                    <th className="p-3 font-medium">Amount</th>
-                    <th className="p-3 font-medium">Status</th>
-                    <th className="p-3 font-medium">Start Date</th>
-                    <th className="p-3 font-medium">Next Billing</th>
-                    <th className="p-3 font-medium">Actions</th>
+                  <tr className="bg-slate-50/50 border-b border-slate-100">
+                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500 w-16">#</th>
+                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Subscription Name</th>
+                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Project</th>
+                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Status</th>
+                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Next Billing Cycle</th>
+                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Date Subscribed</th>
+                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Last Sent</th>
+                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-50">
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="border-b last:border-0">
-                        <td className="p-3"><Skeleton className="h-4 w-32" /></td>
-                        <td className="p-3"><Skeleton className="h-4 w-24" /></td>
-                        <td className="p-3"><Skeleton className="h-4 w-20" /></td>
-                        <td className="p-3"><Skeleton className="h-6 w-16" /></td>
-                        <td className="p-3"><Skeleton className="h-4 w-24" /></td>
-                        <td className="p-3"><Skeleton className="h-4 w-24" /></td>
-                        <td className="p-3"><Skeleton className="h-8 w-16" /></td>
+                      <tr key={i} className="animate-pulse">
+                        <td className="px-6 py-4"><Skeleton className="h-4 w-4 rounded" /></td>
+                        <td className="px-6 py-4"><Skeleton className="h-4 w-40 rounded" /></td>
+                        <td className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
+                        <td className="px-6 py-4"><Skeleton className="h-6 w-16 rounded-full" /></td>
+                        <td className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
+                        <td className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
+                        <td className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
+                        <td className="px-6 py-4"><Skeleton className="h-8 w-8 rounded-full ml-auto" /></td>
                       </tr>
                     ))
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                        No subscriptions found.
+                      <td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-bold italic bg-slate-50/20">
+                        No entries found
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((s: any) => (
-                      <tr
-                        key={s._id}
-                        className="border-b last:border-0 hover:bg-muted/50"
-                      >
-                        <td className="p-3 text-sm font-medium">
-                          {s.customer || s.name || "Untitled"}
-                        </td>
-                        <td className="p-3 text-sm">{s.plan || s.billing_plan}</td>
-                        <td className="p-3 text-sm">
-                          ${(s.amount || s.total || 0).toLocaleString()}/mo
-                        </td>
-                        <td className="p-3">
-                          <Badge
-                            variant="outline"
-                            className={statusColors[s.status] || statusColors["Expired"]}
-                          >
-                            {s.status}
-                          </Badge>
-                        </td>
-                        <td className="p-3 text-sm text-muted-foreground">
-                          {s.startDate || s.date ? formatDate(s.startDate || s.date) : "-"}
-                        </td>
-                        <td className="p-3 text-sm text-muted-foreground">
-                          {s.next_billing_cycle ? formatDate(s.next_billing_cycle) : "-"}
-                        </td>
-                        <td className="p-3">
-                          <TableActions
-                            onView={() => setViewItem(s)}
-                            onEdit={() => setEditItem(s)}
-                            onDelete={() =>
-                              toast({
-                                title: "Info",
-                                description: `Delete triggered for ${s._id}`,
-                              })
-                            }
-                          />
-                        </td>
-                      </tr>
-                    ))
+                    filtered.map((s: any, index: number) => {
+                      const status = statusMap[s.status] || statusMap.active;
+                      return (
+                        <tr
+                          key={s._id}
+                          className="hover:bg-primary/[0.02] transition-colors group border-b border-slate-50 last:border-0"
+                        >
+                          <td className="px-6 py-5 text-xs font-black text-slate-400">
+                            {index + 1}
+                          </td>
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-black text-slate-900 group-hover:text-primary transition-colors cursor-pointer">
+                                {s.name}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter italic">
+                                {s.client?.company || "No Client"}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5 text-xs font-bold text-slate-600 italic">
+                            {s.project?.name || "N/A"}
+                          </td>
+                          <td className="px-6 py-5">
+                            <Badge variant="outline" className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border-none shadow-sm", status.color)}>
+                              {status.label}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-5 text-xs font-bold text-slate-600 uppercase">
+                            {s.next_billing_cycle ? formatDate(s.next_billing_cycle) : "N/A"}
+                          </td>
+                          <td className="px-6 py-5 text-xs font-bold text-slate-400 tracking-tight">
+                            {s.date_subscribed ? formatDate(s.date_subscribed) : "-"}
+                          </td>
+                          <td className="px-6 py-5 text-xs font-bold text-slate-400 tracking-tight italic">
+                            {s.last_sent ? formatDate(s.last_sent) : "Never"}
+                          </td>
+                          <td className="px-6 py-5 text-right">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-primary/10 hover:text-primary transition-all">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Footer */}
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4">
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest italic">
+                Showing 1 to {filtered.length} of {filtered.length} entries
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="h-9 px-4 rounded-xl font-bold text-xs border-slate-200 hover:bg-slate-50 group disabled:opacity-50" disabled>
+                  <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-0.5 transition-transform" />
+                  Previous
+                </Button>
+                <div className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary text-white font-black text-xs shadow-lg shadow-primary/20 scale-110">1</div>
+                <Button variant="outline" size="sm" className="h-9 px-4 rounded-xl font-bold text-xs border-slate-200 hover:bg-slate-50 group disabled:opacity-50" disabled>
+                  Next
+                  <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
+                </Button>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
-
-      <Dialog open={!!viewItem} onOpenChange={() => setViewItem(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Subscription Details</DialogTitle>
-          </DialogHeader>
-          {viewItem && (
-            <div className="space-y-3 pt-2">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-muted-foreground">Customer</p>
-                  <p className="text-sm font-medium">{viewItem.customer || viewItem.name}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Plan</p>
-                  <p className="text-sm">{viewItem.plan || viewItem.billing_plan}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Amount</p>
-                  <p className="text-sm">
-                    ${(viewItem.amount || viewItem.total || 0).toLocaleString()}/mo
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <Badge
-                    variant="outline"
-                    className={
-                      statusColors[viewItem.status] || statusColors["Expired"]
-                    }
-                  >
-                    {viewItem.status}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Start Date</p>
-                  <p className="text-sm">
-                    {viewItem.startDate || viewItem.date ? formatDate(viewItem.startDate || viewItem.date) : "-"}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Next Billing</p>
-                  <p className="text-sm">
-                    {viewItem.next_billing_cycle ? formatDate(viewItem.next_billing_cycle) : "-"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   );
 };
