@@ -167,37 +167,22 @@ const Goals = () => {
                     displayData.map((goal: any) => (
                       <TableRow key={goal._id} className="hover:bg-accent/5 transition-colors border-border/40 group">
                         <TableCell className="py-4 font-bold text-gray-900 group-hover:text-primary transition-colors">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-primary/5 text-primary">
-                              <Target className="h-4 w-4" />
-                            </div>
-                            {goal.subject}
-                          </div>
+                          {goal.subject}
                         </TableCell>
                         <TableCell className="py-4 text-muted-foreground font-medium">
-                          <div className="flex items-center gap-2">
-                            <User className="h-3.5 w-3.5 text-primary/60" />
-                            {goal.staff_member?.firstname} {goal.staff_member?.lastname}
-                          </div>
+                          {goal.staff_member?.firstname} {goal.staff_member?.lastname}
                         </TableCell>
                         <TableCell className="py-4 text-muted-foreground font-bold">
                            {goal.achievement}
                         </TableCell>
                         <TableCell className="py-4 text-muted-foreground font-medium">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-3.5 w-3.5 opacity-40" />
-                            {format(new Date(goal.start_date), "MMM dd, yyyy")}
-                          </div>
+                          {format(new Date(goal.start_date), "MMM dd, yyyy")}
                         </TableCell>
-                        <TableCell className="py-4 text-muted-foreground font-medium">
-                          <div className="flex items-center gap-2 text-destructive/80">
-                            <Calendar className="h-3.5 w-3.5" />
-                            {format(new Date(goal.end_date), "MMM dd, yyyy")}
-                          </div>
+                        <TableCell className="py-4 text-muted-foreground font-medium text-destructive/80">
+                          {format(new Date(goal.end_date), "MMM dd, yyyy")}
                         </TableCell>
                         <TableCell className="py-4">
-                           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-border/40 w-fit">
-                             <Activity className="h-3 w-3 text-primary" />
+                           <div className="flex items-center px-3 py-1 rounded-full bg-accent/10 border border-border/40 w-fit">
                              <span className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">{goal.goal_type}</span>
                            </div>
                         </TableCell>
