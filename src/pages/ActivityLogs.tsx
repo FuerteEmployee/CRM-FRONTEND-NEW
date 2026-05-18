@@ -1,50 +1,393 @@
+import { useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
-import { Card, CardContent } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
-import { recentActivities } from "@/data/mockData";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table";
+import { 
+  Search, 
+  FileDown,
+  Calendar,
+  User,
+  Loader2,
+  X
+} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { utilityService } from "@/api/services/utility.service";
+import { format } from "date-fns";
+import { toast } from "sonner";
 
-const allActivities = [
-  ...recentActivities,
-  { id: 7, user: "John Doe", action: "logged in", target: "", time: "5 hours ago", avatar: "JD" },
-  { id: 8, user: "Sarah Chen", action: "deleted task", target: "Old Migration Script", time: "6 hours ago", avatar: "SC" },
-  { id: 9, user: "Mike Johnson", action: "changed role of", target: "Lisa Park to Manager", time: "1 day ago", avatar: "MJ" },
-  { id: 10, user: "Emily Davis", action: "exported report", target: "Q1 Revenue Summary", time: "1 day ago", avatar: "ED" },
-  { id: 11, user: "Alex Turner", action: "deployed", target: "v2.3.1 to production", time: "2 days ago", avatar: "AT" },
-  { id: 12, user: "Tom Wilson", action: "archived project", target: "Legacy CRM", time: "2 days ago", avatar: "TW" },
-];
+const ActivityLogs = () => {
+  const [pageSize, setPageSize] = useState("10");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
-const ActivityLogs = () => (
-  <DashboardLayout>
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Activity Log</h1>
-        <p className="text-muted-foreground">Complete history of system actions</p>
-      </div>
+  // Fetch Activity Logs from Backend
+  const { data: logs = [], isLoading } = useQuery({
+    queryKey: ["activityLogs"],
+    queryFn: utilityService.getActivityLogs,
+  });
 
-      <Card>
-        <CardContent className="p-0">
-          <div className="divide-y">
-            {allActivities.map((a) => (
-              <div key={a.id} className="flex items-center gap-3 p-4 hover:bg-muted/50 transition-colors">
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xs">{a.avatar}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm">
-                    <span className="font-medium">{a.user}</span>{" "}
-                    <span className="text-muted-foreground">{a.action}</span>{" "}
-                    {a.target && <span className="font-medium">{a.target}</span>}
-                  </p>
-                </div>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">{a.time}</span>
-              </div>
-            ))}
+  // Filter logs by search and dates
+  const filteredData = logs.filter((log: any) => {
+    // Search description or staff name
+    const staffName = log.staffid ? `${log.staffid.firstname || ""} ${log.staffid.lastname || ""}` : "System";
+    const matchesSearch = 
+      log.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      staffName.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Date filters
+    let matchesDate = true;
+    if (startDate) {
+      const logDate = new Date(log.date);
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      matchesDate = matchesDate && logDate >= start;
+    }
+    if (endDate) {
+      const logDate = new Date(log.date);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      matchesDate = matchesDate && logDate <= end;
+    }
+
+    return matchesSearch && matchesDate;
+  });
+
+  // Pagination calculation
+  const totalEntries = filteredData.length;
+  const sizeVal = pageSize === "All" ? totalEntries : parseInt(pageSize);
+  const totalPages = Math.ceil(totalEntries / (sizeVal || 1));
+  
+  // Adjust current page if filters shrink total items
+  const activePage = Math.min(currentPage, totalPages || 1);
+  
+  const startIndex = totalEntries === 0 ? 0 : (activePage - 1) * sizeVal + 1;
+  const endIndex = Math.min(activePage * sizeVal, totalEntries);
+
+  const displayData = pageSize === "All" 
+    ? filteredData 
+    : filteredData.slice((activePage - 1) * sizeVal, activePage * sizeVal);
+
+  // Pagination page list helper
+  const getPaginationRange = () => {
+    const delta = 2;
+    const range = [];
+    const rangeWithDots = [];
+    let l;
+
+    for (let i = 1; i <= totalPages; i++) {
+      if (i === 1 || i === totalPages || (i >= activePage - delta && i <= activePage + delta)) {
+        range.push(i);
+      }
+    }
+
+    for (let i of range) {
+      if (l) {
+        if (i - l === 2) {
+          rangeWithDots.push(l + 1);
+        } else if (i - l > 2) {
+          rangeWithDots.push("...");
+        }
+      }
+      rangeWithDots.push(i);
+      l = i;
+    }
+
+    return rangeWithDots;
+  };
+
+  // Export handlers
+  const handleExport = (type: string) => {
+    if (filteredData.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    if (type === "csv" || type === "xlsx") {
+      const headers = ["Description", "Date", "Staff Member"];
+      const rows = filteredData.map((log: any) => [
+        log.description,
+        format(new Date(log.date), "yyyy-MM-dd HH:mm:ss"),
+        log.staffid ? `${log.staffid.firstname} ${log.staffid.lastname}` : "System"
+      ]);
+
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `activity_logs_${new Date().toISOString().split('T')[0]}.${type === "xlsx" ? "xlsx" : "csv"}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Exported successfully as ${type.toUpperCase()}`);
+    } else if (type === "print") {
+      window.print();
+    } else if (type === "pdf") {
+      toast.success("Ready to save - choose Save as PDF in print options");
+      window.print();
+    }
+  };
+
+  const clearDates = () => {
+    setStartDate("");
+    setEndDate("");
+    setCurrentPage(1);
+    toast.success("Date filters cleared");
+  };
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6 animate-fade-in pb-10">
+        
+        {/* Header Title Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Activity Log</h1>
+            <p className="text-muted-foreground text-sm font-medium">Complete history of system actions</p>
           </div>
-        </CardContent>
-      </Card>
-    </div>
-  </DashboardLayout>
-);
+        </div>
+
+        {/* Filters Card */}
+        <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden">
+          <CardHeader className="bg-accent/5 border-b border-border/40 p-5 space-y-4">
+            
+            {/* Filter by Date controls */}
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">Filter by date:</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground opacity-60" />
+                  <Input 
+                    type="date" 
+                    className="h-9 rounded-lg border-border/45 bg-background pl-9 text-xs focus-visible:ring-primary/20"
+                    value={startDate}
+                    onChange={(e) => {
+                      setStartDate(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
+                
+                <span className="text-xs font-semibold text-muted-foreground">to</span>
+
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground opacity-60" />
+                  <Input 
+                    type="date" 
+                    className="h-9 rounded-lg border-border/45 bg-background pl-9 text-xs focus-visible:ring-primary/20"
+                    value={endDate}
+                    onChange={(e) => {
+                      setEndDate(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
+
+                {(startDate || endDate) && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={clearDates}
+                    className="h-9 gap-1 text-xs text-destructive hover:bg-destructive/10 rounded-lg"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Pagination Size, Search, and Export controls */}
+            <div className="flex flex-wrap items-center justify-between gap-4 pt-1 border-t border-border/20">
+              <div className="flex items-center gap-3">
+                
+                {/* Page Size Dropdown */}
+                <Select value={pageSize} onValueChange={(val) => {
+                  setPageSize(val);
+                  setCurrentPage(1);
+                }}>
+                  <SelectTrigger className="w-[80px] h-9 rounded-lg border-border/40 bg-background text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["10", "25", "50", "100", "All"].map((size) => (
+                      <SelectItem key={size} value={size}>{size}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Export Dropdown */}
+                <Select onValueChange={handleExport}>
+                  <SelectTrigger className="w-[125px] h-9 rounded-lg border-border/40 bg-background font-bold text-xs uppercase tracking-wider">
+                    <div className="flex items-center gap-2">
+                      <FileDown className="h-3.5 w-3.5 text-primary" />
+                      <span>Export</span>
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="csv">CSV</SelectItem>
+                    <SelectItem value="xlsx">Excel</SelectItem>
+                    <SelectItem value="pdf">PDF</SelectItem>
+                    <SelectItem value="print">Print</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Dynamic search log */}
+              <div className="flex-1 max-w-sm relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                <Input 
+                  placeholder="Search logs..." 
+                  className="pl-10 h-9 rounded-lg border-border/40 bg-background text-xs focus-visible:ring-primary/20"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                />
+              </div>
+            </div>
+          </CardHeader>
+
+          {/* Table content */}
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-accent/10">
+                  <TableRow className="hover:bg-transparent border-border/40">
+                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 pl-6">Description</TableHead>
+                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Date</TableHead>
+                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Staff</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    Array.from({ length: 4 }).map((_, i) => (
+                      <TableRow key={i} className="animate-pulse border-border/40">
+                        <TableCell colSpan={3} className="py-7 pl-6">
+                          <div className="h-4 bg-muted rounded w-full" />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : displayData.length > 0 ? (
+                    displayData.map((log: any) => (
+                      <TableRow key={log._id} className="hover:bg-accent/5 transition-colors border-border/40 group">
+                        <TableCell className="py-4 pl-6 text-sm font-semibold text-gray-800 leading-relaxed">
+                          {log.description}
+                        </TableCell>
+                        <TableCell className="py-4 text-xs font-semibold text-muted-foreground whitespace-nowrap">
+                          {format(new Date(log.date), "yyyy-MM-dd HH:mm:ss")}
+                        </TableCell>
+                        <TableCell className="py-4 text-sm font-medium text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <User className="h-3.5 w-3.5 text-primary/70 opacity-80" />
+                            <span>
+                              {log.staffid ? `${log.staffid.firstname} ${log.staffid.lastname}` : "System"}
+                            </span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="h-64 text-center">
+                        <div className="flex flex-col items-center justify-center gap-3">
+                          <div className="p-4 rounded-full bg-accent/10 text-muted-foreground/40">
+                            <Calendar className="h-8 w-8" />
+                          </div>
+                          <p className="text-sm font-bold text-muted-foreground italic tracking-wide">No activity logs found</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Custom Pagination Footer */}
+            {!isLoading && totalEntries > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 border-t border-border/40 bg-accent/5">
+                <div className="text-xs font-bold text-muted-foreground">
+                  Showing {startIndex} to {endIndex} of {totalEntries} entries
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  {/* Previous Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs font-semibold rounded-lg"
+                    disabled={activePage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  >
+                    Previous
+                  </Button>
+
+                  {/* Dynamic page numbers */}
+                  {getPaginationRange().map((page, index) => {
+                    if (page === "...") {
+                      return (
+                        <span key={`dots-${index}`} className="px-2.5 text-xs text-muted-foreground select-none">
+                          ...
+                        </span>
+                      );
+                    }
+                    return (
+                      <Button
+                        key={`page-${page}`}
+                        variant={activePage === page ? "default" : "outline"}
+                        size="sm"
+                        className={`h-8 w-8 text-xs font-bold rounded-lg ${
+                          activePage === page 
+                            ? "shadow-md shadow-primary/10" 
+                            : "hover:bg-accent/20"
+                        }`}
+                        onClick={() => setCurrentPage(Number(page))}
+                      >
+                        {page}
+                      </Button>
+                    );
+                  })}
+
+                  {/* Next Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 text-xs font-semibold rounded-lg"
+                    disabled={activePage === totalPages}
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
+  );
+};
 
 export default ActivityLogs;
