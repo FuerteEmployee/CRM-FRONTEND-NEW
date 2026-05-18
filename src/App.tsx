@@ -266,6 +266,7 @@ const MainApp = () => {
           <Route path="announcements/edit/:id" element={<ProtectedRoute><AnnouncementCreate /></ProtectedRoute>} />
           <Route path="goals" element={<ProtectedRoute><Goals /></ProtectedRoute>} />
           <Route path="goals/new" element={<ProtectedRoute><GoalCreate /></ProtectedRoute>} />
+          <Route path="goals/edit/:id" element={<ProtectedRoute><GoalCreate /></ProtectedRoute>} />
           <Route path="reports/sales" element={<ProtectedRoute><ReportSales /></ProtectedRoute>} />
           <Route path="reports/expenses" element={<ProtectedRoute><ReportExpenses /></ProtectedRoute>} />
           <Route path="reports/expenses-vs-income" element={<ProtectedRoute><ReportExpensesVsIncome /></ProtectedRoute>} />

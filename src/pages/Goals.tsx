@@ -23,7 +23,8 @@ import {
   MoreHorizontal,
   Eye,
   Edit2,
-  Trash2
+  Trash2,
+  Bell
 } from "lucide-react";
 import { 
   DropdownMenu,
@@ -38,12 +39,15 @@ import { goalService } from "@/services/goal.service";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 const Goals = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [pageSize, setPageSize] = useState("25");
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedGoal, setSelectedGoal] = useState<any | null>(null);
+  const [isViewOpen, setIsViewOpen] = useState(false);
 
   const { data: goals = [], isLoading } = useQuery({
     queryKey: ["goals"],
@@ -208,10 +212,23 @@ const Goals = () => {
                         </TableCell>
                         <TableCell className="py-4 text-right pr-6">
                           <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                              onClick={() => {
+                                setSelectedGoal(goal);
+                                setIsViewOpen(true);
+                              }}
+                            >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-amber-50 hover:text-amber-600 transition-colors">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-8 w-8 rounded-lg hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                              onClick={() => navigate(`/admin/goals/edit/${goal._id}`)}
+                            >
                               <Edit2 className="h-4 w-4" />
                             </Button>
                             <Button 
@@ -244,6 +261,101 @@ const Goals = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* View Goal Modal */}
+      <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
+        <DialogContent className="max-w-md rounded-2xl border-border/50 p-6">
+          <DialogHeader className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-primary/10 text-primary">
+                <Target className="h-6 w-6 animate-pulse" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-bold tracking-tight">{selectedGoal?.subject}</DialogTitle>
+                <DialogDescription className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-0.5">
+                  Goal Details & Status
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {selectedGoal && (
+            <div className="space-y-6 mt-4">
+              {/* Progress Panel */}
+              <div className="p-4 rounded-xl bg-accent/5 border border-border/30 space-y-3">
+                <div className="flex justify-between items-center text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  <span>Current Progress</span>
+                  <span className="text-primary text-sm font-black">{selectedGoal.progress}%</span>
+                </div>
+                <Progress value={selectedGoal.progress} className="h-2 bg-accent/25" />
+                <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
+                  <span>Target Achievement</span>
+                  <span className="font-bold text-gray-900">{selectedGoal.achievement}</span>
+                </div>
+              </div>
+
+              {/* Goal Metadata */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Staff Member</span>
+                  <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                    <User className="h-4 w-4 text-primary" />
+                    <span>
+                      {selectedGoal.staff_member?.firstname} {selectedGoal.staff_member?.lastname}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Goal Type</span>
+                  <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                    <Activity className="h-4 w-4 text-primary" />
+                    <span className="capitalize">{selectedGoal.goal_type?.replace(/_/g, " ")}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-4 border-t border-b border-border/40 py-4">
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Start Date</span>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                    <Calendar className="h-3.5 w-3.5 opacity-50" />
+                    <span>{format(new Date(selectedGoal.start_date), "MMMM dd, yyyy")}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">End Date</span>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-destructive/80">
+                    <Calendar className="h-3.5 w-3.5" />
+                    <span>{format(new Date(selectedGoal.end_date), "MMMM dd, yyyy")}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              {selectedGoal.description && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Goal Description</span>
+                  <p className="text-xs font-medium text-muted-foreground bg-accent/5 p-3 rounded-lg border border-border/20 leading-relaxed italic">
+                    "{selectedGoal.description}"
+                  </p>
+                </div>
+              )}
+
+              {/* Notifications Setting */}
+              <div className="flex items-center gap-2.5 text-[10px] font-bold text-muted-foreground border-t border-border/20 pt-4">
+                <Bell className="h-4 w-4 text-primary/70" />
+                <div className="flex flex-col gap-0.5">
+                  <span>Notify on Achievement: {selectedGoal.notify_on_achieve ? "Yes" : "No"}</span>
+                  <span>Notify on Failure: {selectedGoal.notify_on_fail ? "Yes" : "No"}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,9 +20,10 @@ import {
   User,
   Calendar,
   Info,
-  Bell
+  Bell,
+  Loader2
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { goalService } from "@/services/goal.service";
@@ -41,7 +42,9 @@ const GOAL_TYPES = [
 
 const GoalCreate = () => {
   const navigate = useNavigate();
+  const { id } = useParams();
   const queryClient = useQueryClient();
+  const isEdit = !!id;
   
   const [formData, setFormData] = useState({
     subject: "",
@@ -60,11 +63,39 @@ const GoalCreate = () => {
     queryFn: () => apiClient.get("/staff")
   });
 
+  const { data: goalData, isLoading: isLoadingGoal } = useQuery({
+    queryKey: ["goal", id],
+    queryFn: () => goalService.getGoalById(id!),
+    enabled: isEdit,
+  });
+
+  useEffect(() => {
+    if (goalData) {
+      setFormData({
+        subject: goalData.subject || "",
+        goal_type: goalData.goal_type || "",
+        staff_member: typeof goalData.staff_member === "object" ? goalData.staff_member?._id : goalData.staff_member || "",
+        achievement: goalData.achievement?.toString() || "",
+        start_date: goalData.start_date ? new Date(goalData.start_date).toISOString().split('T')[0] : "",
+        end_date: goalData.end_date ? new Date(goalData.end_date).toISOString().split('T')[0] : "",
+        description: goalData.description || "",
+        notify_on_achieve: goalData.notify_on_achieve ?? true,
+        notify_on_fail: goalData.notify_on_fail ?? true
+      });
+    }
+  }, [goalData]);
+
   const mutation = useMutation({
-    mutationFn: (data: any) => goalService.createGoal(data),
+    mutationFn: (data: any) => {
+      if (isEdit) {
+        return goalService.updateGoal(id!, data);
+      } else {
+        return goalService.createGoal(data);
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["goals"] });
-      toast.success("Goal created successfully");
+      toast.success(isEdit ? "Goal updated successfully" : "Goal created successfully");
       navigate("/admin/goals");
     },
     onError: (error: any) => {
@@ -79,6 +110,16 @@ const GoalCreate = () => {
     }
     mutation.mutate(formData);
   };
+
+  if (isEdit && isLoadingGoal) {
+    return (
+      <DashboardLayout>
+        <div className="h-96 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -95,8 +136,8 @@ const GoalCreate = () => {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight">New Goal</h1>
-              <p className="text-muted-foreground text-sm font-medium">Define a new achievement target</p>
+              <h1 className="text-2xl font-bold tracking-tight">{isEdit ? "Edit Goal" : "New Goal"}</h1>
+              <p className="text-muted-foreground text-sm font-medium">{isEdit ? "Update target achievement details" : "Define a new achievement target"}</p>
             </div>
           </div>
         </div>
@@ -247,7 +288,7 @@ const GoalCreate = () => {
                 className="rounded-lg px-8 h-10 font-bold shadow-lg shadow-primary/10 transition-all hover:scale-[1.02]"
               >
                 <Save className="h-4 w-4 mr-2" />
-                {mutation.isPending ? "Saving..." : "Save Goal"}
+                {mutation.isPending ? "Saving..." : isEdit ? "Update Goal" : "Save Goal"}
               </Button>
             </div>
           </CardContent>
