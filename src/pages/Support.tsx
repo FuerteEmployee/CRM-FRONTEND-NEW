@@ -75,6 +75,54 @@ const Support = () => {
       (t.client?.company || "").toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print" | "json") => {
+    if (filtered.length === 0) {
+      toast({ title: "Error", description: "No data to export", variant: "destructive" });
+      return;
+    }
+
+    if (type === "csv" || type === "xlsx") {
+      const headers = ["Subject", "Tags", "Department", "Service", "Contact", "Status", "Priority", "Last Reply", "Created"];
+      const rows = filtered.map((t: any) => [
+        t.subject || "",
+        t.tags ? t.tags.join(", ") : "",
+        typeof t.department === 'object' ? t.department?.name : t.department || "-",
+        t.service || "-",
+        t.contact_name || t.name || "-",
+        typeof t.status === 'object' ? t.status?.name : t.status || "Open",
+        typeof t.priority === 'object' ? t.priority?.name : t.priority || "Medium",
+        t.last_reply ? formatDate(t.last_reply) : "No reply yet",
+        t.createdAt ? formatDate(t.createdAt) : "-"
+      ]);
+
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `tickets_export_${new Date().toISOString().split('T')[0]}.${type}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast({ title: "Success", description: `Exported successfully as ${type.toUpperCase()}` });
+    } else if (type === "json") {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(filtered, null, 2));
+      const link = document.createElement("a");
+      link.setAttribute("href", dataStr);
+      link.setAttribute("download", `tickets_export_${new Date().toISOString().split('T')[0]}.json`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast({ title: "Success", description: "Exported successfully as JSON" });
+    } else if (type === "print") {
+      window.print();
+    } else if (type === "pdf") {
+      toast({ title: "Print Mode", description: "Ready to save - choose Save as PDF in print options" });
+      window.print();
+    }
+  };
+
   const totalItems = filtered.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const paginated = filtered.slice(
@@ -120,10 +168,10 @@ const Support = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-40">
-                    <DropdownMenuItem className="text-xs font-medium cursor-pointer"><FileSpreadsheet className="mr-2 h-3.5 w-3.5 text-green-600" /> Excel</DropdownMenuItem>
-                    <DropdownMenuItem className="text-xs font-medium cursor-pointer"><FileType className="mr-2 h-3.5 w-3.5 text-red-600" /> PDF</DropdownMenuItem>
-                    <DropdownMenuItem className="text-xs font-medium cursor-pointer"><FileJson className="mr-2 h-3.5 w-3.5 text-blue-600" /> JSON</DropdownMenuItem>
-                    <DropdownMenuItem className="text-xs font-medium cursor-pointer"><Printer className="mr-2 h-3.5 w-3.5 text-slate-600" /> Print</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport("xlsx")} className="text-xs font-medium cursor-pointer"><FileSpreadsheet className="mr-2 h-3.5 w-3.5 text-green-600" /> Excel</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport("pdf")} className="text-xs font-medium cursor-pointer"><FileType className="mr-2 h-3.5 w-3.5 text-red-600" /> PDF</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport("json")} className="text-xs font-medium cursor-pointer"><FileJson className="mr-2 h-3.5 w-3.5 text-blue-600" /> JSON</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport("print")} className="text-xs font-medium cursor-pointer"><Printer className="mr-2 h-3.5 w-3.5 text-slate-600" /> Print</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
 

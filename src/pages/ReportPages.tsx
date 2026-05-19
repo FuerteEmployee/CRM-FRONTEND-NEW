@@ -149,6 +149,106 @@ export const ReportSales = () => {
   const [selectedSubReport, setSelectedSubReport] = useState("invoices");
   const [selectedChartType, setSelectedChartType] = useState("all");
 
+  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
+    if (type === "print") {
+      window.print();
+      return;
+    }
+    if (type === "pdf") {
+      toast.success("Ready to save - choose Save as PDF in print options");
+      window.print();
+      return;
+    }
+
+    // Export based on active selected report
+    let headers: string[] = [];
+    let rows: any[] = [];
+    let filename = `sales_report_${selectedSubReport}_${new Date().toISOString().split('T')[0]}.${type}`;
+
+    if (selectedSubReport === "invoices") {
+      headers = ["Invoice Number", "Customer", "Date", "Due Date", "Amount", "Tax", "Status"];
+      rows = invoicesReport.map((inv: any) => [
+        inv.number || inv.invoice_number,
+        inv.customer_name || inv.customer?.company || "-",
+        formatRepDate(inv.date),
+        formatRepDate(inv.due_date),
+        inv.total,
+        inv.total_tax,
+        inv.status
+      ]);
+    } else if (selectedSubReport === "items") {
+      headers = ["Item Name", "Quantity Sold", "Total Revenue"];
+      rows = itemsReport.map((item: any) => [
+        item.name,
+        item.qtySold,
+        item.totalRevenue
+      ]);
+    } else if (selectedSubReport === "payments") {
+      headers = ["Payment ID", "Invoice Number", "Payment Mode", "Transaction ID", "Amount", "Date"];
+      rows = paymentsReport.map((p: any) => [
+        p._id || p.id,
+        p.invoice_number,
+        p.payment_mode,
+        p.transaction_id || "-",
+        p.amount,
+        formatRepDate(p.date)
+      ]);
+    } else if (selectedSubReport === "credit_notes") {
+      headers = ["Credit Note Number", "Customer", "Date", "Amount", "Status"];
+      rows = creditNotesReport.map((cn: any) => [
+        cn.number || cn.credit_note_number,
+        cn.customer_name || cn.customer?.company || "-",
+        formatRepDate(cn.date),
+        cn.total,
+        cn.status
+      ]);
+    } else if (selectedSubReport === "proposals") {
+      headers = ["Proposal Number", "Customer", "Subject", "Date", "Open Till", "Amount", "Status"];
+      rows = proposalsReport.map((prop: any) => [
+        prop.number || prop.proposal_number,
+        prop.customer_name || prop.customer?.company || "-",
+        prop.subject,
+        formatRepDate(prop.date),
+        formatRepDate(prop.open_till),
+        prop.total,
+        prop.status
+      ]);
+    } else if (selectedSubReport === "estimates") {
+      headers = ["Estimate Number", "Customer", "Subject", "Date", "Expiry Date", "Amount", "Status"];
+      rows = estimatesReport.map((est: any) => [
+        est.number || est.estimate_number,
+        est.customer_name || est.customer?.company || "-",
+        est.subject,
+        formatRepDate(est.date),
+        formatRepDate(est.expiry_date),
+        est.total,
+        est.status
+      ]);
+    } else if (selectedSubReport === "customers") {
+      headers = ["Customer Name", "Total Invoiced", "Total Paid"];
+      rows = customersReport.map((cust: any) => [
+        cust.company || cust.name,
+        cust.totalInvoiced,
+        cust.totalPaid
+      ]);
+    }
+
+    if (rows.length === 0) {
+      toast.error("No data available to export");
+      return;
+    }
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Exported successfully as ${type.toUpperCase()}`);
+  };
+
   // Fetch active currencies
   const { data: currenciesList = [] } = useQuery({
     queryKey: ["currencies"],
@@ -322,12 +422,35 @@ export const ReportSales = () => {
               </div>
             )}
 
-            {/* Print Button */}
+            {/* Print & Export Button */}
             <div className="flex items-end self-end">
-              <Button variant="outline" onClick={triggerPrint} className="h-9 gap-1.5 text-xs font-semibold rounded-lg border-border/45 bg-background hover:bg-accent/40 shadow-none">
-                <Printer className="h-4 w-4 text-muted-foreground" />
-                Print Report
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-9 gap-2 text-xs font-bold border-border/50 rounded-lg">
+                    <Download className="h-4 w-4" />
+                    Export
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40 bg-white">
+                  <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
+                    <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                    <span>Excel</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
+                    <FileJson className="h-4 w-4 text-blue-600" />
+                    <span>CSV</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
+                    <FileType className="h-4 w-4 text-red-600" />
+                    <span>PDF</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
+                    <Printer className="h-4 w-4 text-gray-600" />
+                    <span>Print</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
@@ -1275,14 +1398,68 @@ export const ReportExpensesVsIncome = () => {
     { month: "December", income: 29500.00, expenses: 2500.00 }
   ];
 
+  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
+    if (type === "csv" || type === "xlsx") {
+      const csvRows = ["Month,Income,Expenses"];
+      performanceData.forEach(item => {
+        csvRows.push(`"${item.month}",${item.income},${item.expenses}`);
+      });
+      const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `expenses_vs_income_report_${new Date().getFullYear()}.${type}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Exported successfully as ${type.toUpperCase()}`);
+    } else if (type === "print") {
+      window.print();
+    } else if (type === "pdf") {
+      toast.success("Ready to save - choose Save as PDF in print options");
+      window.print();
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in pb-12">
         
         {/* Header segment with clean professional text */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Expenses vs Income</h1>
-          <p className="text-muted-foreground text-sm font-medium">Monthly operational overhead vs incoming organization revenue streams</p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Expenses vs Income</h1>
+            <p className="text-muted-foreground text-sm font-medium">Monthly operational overhead vs incoming organization revenue streams</p>
+          </div>
+          <div className="flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Export
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40 bg-white">
+                <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
+                  <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                  <span>Excel</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
+                  <FileJson className="h-4 w-4 text-blue-600" />
+                  <span>CSV</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
+                  <FileType className="h-4 w-4 text-red-600" />
+                  <span>PDF</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
+                  <Printer className="h-4 w-4 text-gray-600" />
+                  <span>Print</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         {/* Warning Notice Block as requested */}
@@ -1409,6 +1586,40 @@ export const ReportLeads = () => {
   const [fromDate, setFromDate] = useState("2026-05-01");
   const [toDate, setToDate] = useState("2026-05-31");
 
+  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
+    if (type === "csv" || type === "xlsx") {
+      const csvRows = [];
+      if (reportType === "staff") {
+        csvRows.push("Staff Name,Created Leads,Lost Leads,Converted Leads");
+        staffData.forEach(item => {
+          csvRows.push(`"${item.name}",${item.created},${item.lost},${item.converted}`);
+        });
+      } else {
+        csvRows.push("--- WEEKLY LEADS ---");
+        csvRows.push("Day,Leads");
+        weeklyData.forEach(item => csvRows.push(`"${item.name}",${item.value}`));
+        csvRows.push("");
+        csvRows.push("--- LEAD SOURCES ---");
+        csvRows.push("Source,Value");
+        sourcesData.forEach(item => csvRows.push(`"${item.name}",${item.value}`));
+      }
+      const csvContent = "data:text/csv;charset=utf-8," + csvRows.join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `leads_report_${reportType}_${new Date().toISOString().split('T')[0]}.${type}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Exported successfully as ${type.toUpperCase()}`);
+    } else if (type === "print") {
+      window.print();
+    } else if (type === "pdf") {
+      toast.success("Ready to save - choose Save as PDF in print options");
+      window.print();
+    }
+  };
+
   const monthsList = [
     { label: "January", value: "January", days: 31, code: "01" },
     { label: "February", value: "February", days: 28, code: "02" },
@@ -1493,6 +1704,33 @@ export const ReportLeads = () => {
                 <TrendingUp className="h-3.5 w-3.5" />
                 Switch to General Report
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-9 gap-2 text-xs font-bold border-border/50 rounded-lg">
+                    <Download className="h-4 w-4" />
+                    Export
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40 bg-white">
+                  <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
+                    <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                    <span>Excel</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
+                    <FileJson className="h-4 w-4 text-blue-600" />
+                    <span>CSV</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
+                    <FileType className="h-4 w-4 text-red-600" />
+                    <span>PDF</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
+                    <Printer className="h-4 w-4 text-gray-600" />
+                    <span>Print</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -1658,6 +1896,34 @@ export const ReportLeads = () => {
                 </TooltipContent>
               </ShadcnTooltip>
             </TooltipProvider>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-9 gap-2 text-xs font-bold border-border/50 rounded-lg">
+                  <Download className="h-4 w-4" />
+                  Export
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40 bg-white">
+                <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
+                  <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                  <span>Excel</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
+                  <FileJson className="h-4 w-4 text-blue-600" />
+                  <span>CSV</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
+                  <FileType className="h-4 w-4 text-red-600" />
+                  <span>PDF</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
+                  <Printer className="h-4 w-4 text-gray-600" />
+                  <span>Print</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -1884,6 +2150,41 @@ export const ReportTimesheets = () => {
 
   const [filteredTimesheets, setFilteredTimesheets] = useState(initialTimesheets);
 
+  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
+    if (filteredTimesheets.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    if (type === "csv" || type === "xlsx") {
+      const headers = ["Staff Member", "Customer", "Project", "Date", "Start Time", "End Time", "Duration (Hours)", "Status"];
+      const rows = filteredTimesheets.map(t => [
+        t.staff,
+        t.customer,
+        t.project,
+        t.date,
+        t.startTime,
+        t.endTime,
+        t.durationStr,
+        t.status
+      ]);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `timesheets_report_${viewMode}_${new Date().toISOString().split('T')[0]}.${type}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Exported successfully as ${type.toUpperCase()}`);
+    } else if (type === "print") {
+      window.print();
+    } else if (type === "pdf") {
+      toast.success("Ready to save - choose Save as PDF in print options");
+      window.print();
+    }
+  };
+
   // Apply filters on click
   const handleApplyFilters = () => {
     let result = [...initialTimesheets];
@@ -1985,6 +2286,34 @@ export const ReportTimesheets = () => {
                 <Clock className="h-3.5 w-3.5" />
                 View All Timesheets
               </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-9 gap-2 text-xs font-bold border-border/50 rounded-lg">
+                    <Download className="h-4 w-4" />
+                    Export
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-40 bg-white">
+                  <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
+                    <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                    <span>Excel</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
+                    <FileJson className="h-4 w-4 text-blue-600" />
+                    <span>CSV</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
+                    <FileType className="h-4 w-4 text-red-600" />
+                    <span>PDF</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
+                    <Printer className="h-4 w-4 text-gray-600" />
+                    <span>Print</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -2210,6 +2539,34 @@ export const ReportTimesheets = () => {
               <User className="h-3.5 w-3.5" />
               My Timesheets
             </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-9 gap-2 text-xs font-bold border-border/50 rounded-lg">
+                  <Download className="h-4 w-4" />
+                  Export
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40 bg-white">
+                <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
+                  <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                  <span>Excel</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
+                  <FileJson className="h-4 w-4 text-blue-600" />
+                  <span>CSV</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
+                  <FileType className="h-4 w-4 text-red-600" />
+                  <span>PDF</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
+                  <Printer className="h-4 w-4 text-gray-600" />
+                  <span>Print</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -2410,6 +2767,39 @@ export const ReportKBArticles = () => {
   const [selectedGroup, setSelectedGroup] = useState("All Groups");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
+    if (filteredArticles.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    if (type === "csv" || type === "xlsx") {
+      const headers = ["Article Title", "Group Category", "Views", "Author", "Date Created", "Status"];
+      const rows = filteredArticles.map(art => [
+        art.title,
+        art.group,
+        art.views,
+        art.author,
+        art.date,
+        art.status
+      ]);
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `kb_articles_report_${new Date().toISOString().split('T')[0]}.${type}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Exported successfully as ${type.toUpperCase()}`);
+    } else if (type === "print") {
+      window.print();
+    } else if (type === "pdf") {
+      toast.success("Ready to save - choose Save as PDF in print options");
+      window.print();
+    }
+  };
+
   // Robust knowledge base dataset
   const kbArticles = [
     { id: 1, title: "How to setup auto-billing", group: "Billing & Invoices", views: 1250, status: "Published", author: "Tirth Aghara", date: "2026-04-12" },
@@ -2453,6 +2843,35 @@ export const ReportKBArticles = () => {
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900">KB Articles Report</h1>
             <p className="text-muted-foreground text-sm font-medium">Analyze article readership views, popularity trends, and document categories across your Knowledge Base</p>
+          </div>
+          <div className="flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-9 gap-2 text-xs font-bold border-border/50 rounded-lg">
+                  <Download className="h-4 w-4" />
+                  Export
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40 bg-white">
+                <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
+                  <FileSpreadsheet className="h-4 w-4 text-green-600" />
+                  <span>Excel</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
+                  <FileJson className="h-4 w-4 text-blue-600" />
+                  <span>CSV</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
+                  <FileType className="h-4 w-4 text-red-600" />
+                  <span>PDF</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
+                  <Printer className="h-4 w-4 text-gray-600" />
+                  <span>Print</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

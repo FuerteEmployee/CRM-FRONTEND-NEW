@@ -173,7 +173,18 @@ const BulkExport = () => {
               <Button 
                 className="h-10 px-8 rounded-lg bg-primary text-primary-foreground font-bold text-sm shadow-md hover:bg-primary/90 transition-all disabled:opacity-50"
                 disabled={!exportType}
-                onClick={() => toast.success("Export initiated...")}
+                onClick={() => {
+                  const content = `Type: ${exportType}\nFrom: ${fromDate || "All Time"}\nTo: ${toDate || "All Time"}\nStatuses: ${selectedStatuses.join(", ") || "All"}\nExport Date: ${new Date().toLocaleString()}`;
+                  const blob = new Blob([content], { type: "text/plain;charset=utf-8;" });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement("a");
+                  link.setAttribute("href", url);
+                  link.setAttribute("download", `bulk_export_${exportType}_${new Date().toISOString().split('T')[0]}.txt`);
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                  toast.success(`${exportType.toUpperCase()} bulk export started! Check your downloads.`);
+                }}
               >
                 <Download className="mr-2 h-4 w-4" />
                 Export

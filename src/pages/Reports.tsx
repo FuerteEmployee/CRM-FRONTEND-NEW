@@ -11,6 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
 
 const revenueByMonth = [
   { month: "Jan", revenue: 12400 }, { month: "Feb", revenue: 15800 }, { month: "Mar", revenue: 18200 },
@@ -30,6 +31,42 @@ const teamPerformance = [
 ];
 
 const Reports = () => {
+  const { toast } = useToast();
+
+  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
+    if (type === "csv" || type === "xlsx") {
+      const csvRows = [];
+      csvRows.push("--- REVENUE OVERVIEW ---");
+      csvRows.push("Month,Revenue");
+      revenueByMonth.forEach(item => csvRows.push(`${item.month},${item.revenue}`));
+      
+      csvRows.push("");
+      csvRows.push("--- PROJECTS BY STATUS ---");
+      csvRows.push("Status,Count");
+      projectsByStatus.forEach(item => csvRows.push(`${item.name},${item.value}`));
+
+      csvRows.push("");
+      csvRows.push("--- TEAM PERFORMANCE ---");
+      csvRows.push("Name,Tasks Completed,Hours Logged");
+      teamPerformance.forEach(item => csvRows.push(`${item.name},${item.tasks},${item.hours}`));
+
+      const csvContent = "data:text/csv;charset=utf-8," + csvRows.map(row => row.startsWith("---") ? row : row.split(",").map(val => `"${val}"`).join(",")).join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `analytics_reports_export_${new Date().toISOString().split('T')[0]}.${type}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast({ title: "Success", description: `Exported successfully as ${type.toUpperCase()}` });
+    } else if (type === "print") {
+      window.print();
+    } else if (type === "pdf") {
+      toast({ title: "Print Mode", description: "Ready to save - choose Save as PDF in print options" });
+      window.print();
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -57,19 +94,19 @@ const Reports = () => {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-40">
-                <DropdownMenuItem className="gap-3 cursor-pointer">
+                <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
                   <FileSpreadsheet className="h-4 w-4 text-green-600" />
                   <span>Excel</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-3 cursor-pointer">
+                <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
                   <FileJson className="h-4 w-4 text-blue-600" />
                   <span>CSV</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-3 cursor-pointer">
+                <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
                   <FileType className="h-4 w-4 text-red-600" />
                   <span>PDF</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="gap-3 cursor-pointer">
+                <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
                   <Printer className="h-4 w-4 text-gray-600" />
                   <span>Print</span>
                 </DropdownMenuItem>

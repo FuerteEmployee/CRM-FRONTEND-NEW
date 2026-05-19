@@ -86,6 +86,42 @@ const Projects = () => {
     });
   }, [projects, search, activeStatus]);
 
+  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
+    if (filteredProjects.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    if (type === "csv" || type === "xlsx") {
+      const headers = ["Project Name", "Customer", "Tags", "Start Date", "Deadline", "Status"];
+      const rows = filteredProjects.map((p: any) => [
+        p.name || "",
+        p.clientid?.company || "Unknown",
+        p.tags ? p.tags.join(", ") : "",
+        p.start_date ? formatDate(p.start_date) : "-",
+        p.deadline ? formatDate(p.deadline) : "-",
+        statusConfig.find(s => s.id === p.status)?.label || "Not Started"
+      ]);
+
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `projects_export_${new Date().toISOString().split('T')[0]}.${type}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`Exported successfully as ${type.toUpperCase()}`);
+    } else if (type === "print") {
+      window.print();
+    } else if (type === "pdf") {
+      toast.success("Ready to save - choose Save as PDF in print options");
+      window.print();
+    }
+  };
+
   const stats = useMemo(() => {
     return statusConfig.map(status => ({
       ...status,
@@ -149,7 +185,7 @@ const Projects = () => {
                     <SelectItem value="All">All</SelectItem>
                   </SelectContent>
                 </Select>
-
+ 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="h-8 gap-2 text-xs font-bold uppercase tracking-wider hover:bg-transparent">
@@ -159,19 +195,19 @@ const Projects = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-40">
-                    <DropdownMenuItem className="gap-3 cursor-pointer text-xs font-bold">
+                    <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer text-xs font-bold">
                       <FileSpreadsheet className="h-4 w-4 text-green-600" />
                       <span>Excel</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-3 cursor-pointer text-xs font-bold">
+                    <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer text-xs font-bold">
                       <FileJson className="h-4 w-4 text-blue-600" />
                       <span>CSV</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-3 cursor-pointer text-xs font-bold">
+                    <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer text-xs font-bold">
                       <FileType className="h-4 w-4 text-red-600" />
                       <span>PDF</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-3 cursor-pointer text-xs font-bold">
+                    <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer text-xs font-bold">
                       <Printer className="h-4 w-4 text-gray-600" />
                       <span>Print</span>
                     </DropdownMenuItem>

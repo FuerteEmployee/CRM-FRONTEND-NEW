@@ -24,11 +24,13 @@ import { formatDate } from "@/lib/dateFormat";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 
 const Subscriptions = () => {
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState("25");
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const { data: subscriptions = [], isLoading } = useQuery<any[]>({
     queryKey: ["subscriptions"],
@@ -39,6 +41,41 @@ const Subscriptions = () => {
     (s.name || "").toLowerCase().includes(search.toLowerCase()) ||
     (s.client?.company || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleExport = (type: "csv" | "pdf" | "print") => {
+    if (filtered.length === 0) {
+      toast({ title: "Error", description: "No data to export", variant: "destructive" });
+      return;
+    }
+
+    if (type === "csv") {
+      const headers = ["Subscription Name", "Client", "Amount", "Status", "Date Created"];
+      const rows = filtered.map((s: any) => [
+        s.name || "",
+        s.client?.company || "-",
+        s.amount || "0.00",
+        s.status || "active",
+        s.datecreated ? formatDate(s.datecreated) : "-"
+      ]);
+
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `subscriptions_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast({ title: "Success", description: "Exported successfully as CSV" });
+    } else if (type === "print") {
+      window.print();
+    } else if (type === "pdf") {
+      toast({ title: "Print Mode", description: "Ready to save - choose Save as PDF in print options" });
+      window.print();
+    }
+  };
 
   const statusMap: Record<string, { label: string; color: string }> = {
     active: { label: "Active", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -97,16 +134,16 @@ const Subscriptions = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-48 rounded-2xl border-slate-200 shadow-2xl p-2">
-                    <DropdownMenuItem className="gap-3 py-2.5 px-3 cursor-pointer rounded-xl hover:bg-primary/5 transition-colors group">
+                    <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 py-2.5 px-3 cursor-pointer rounded-xl hover:bg-primary/5 transition-colors group">
                       <FileText className="h-4 w-4 text-red-500 group-hover:scale-110 transition-transform" />
                       <span className="text-xs font-bold uppercase tracking-wider">Export PDF</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-3 py-2.5 px-3 cursor-pointer rounded-xl hover:bg-primary/5 transition-colors group">
+                    <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 py-2.5 px-3 cursor-pointer rounded-xl hover:bg-primary/5 transition-colors group">
                       <FileSpreadsheet className="h-4 w-4 text-emerald-500 group-hover:scale-110 transition-transform" />
                       <span className="text-xs font-bold uppercase tracking-wider">Export CSV</span>
                     </DropdownMenuItem>
                     <div className="h-px bg-slate-100 my-1 mx-1" />
-                    <DropdownMenuItem className="gap-3 py-2.5 px-3 cursor-pointer rounded-xl hover:bg-primary/5 transition-colors group">
+                    <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 py-2.5 px-3 cursor-pointer rounded-xl hover:bg-primary/5 transition-colors group">
                       <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
                       <span className="text-xs font-bold uppercase tracking-wider">Print List</span>
                     </DropdownMenuItem>

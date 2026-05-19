@@ -137,6 +137,43 @@ const Contacts = () => {
     return nameA.localeCompare(nameB);
   });
 
+  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
+    if (filtered.length === 0) {
+      toast({ title: "Error", description: "No data to export", variant: "destructive" });
+      return;
+    }
+
+    if (type === "csv" || type === "xlsx") {
+      const headers = ["Full Name", "Customer/Company", "Email", "Position", "Phone", "Active", "Last Login"];
+      const rows = filtered.map((contact: any) => [
+        `${contact.firstname || ""} ${contact.lastname || ""}`.trim(),
+        contact.userid?.company || "-",
+        contact.email || "",
+        contact.title || "developer",
+        contact.phonenumber || "-",
+        contact.active ? "Yes" : "No",
+        contact.last_login ? formatDate(contact.last_login) : "Never"
+      ]);
+
+      const csvContent = "data:text/csv;charset=utf-8," 
+        + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+      
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `contacts_export_${new Date().toISOString().split('T')[0]}.${type}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast({ title: "Success", description: `Exported successfully as ${type.toUpperCase()}` });
+    } else if (type === "print") {
+      window.print();
+    } else if (type === "pdf") {
+      toast({ title: "Print Mode", description: "Ready to save - choose Save as PDF in print options" });
+      window.print();
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -167,19 +204,19 @@ const Contacts = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-40">
-                    <DropdownMenuItem className="gap-3 cursor-pointer">
+                    <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer">
                       <FileSpreadsheet className="h-4 w-4 text-green-600" />
                       <span>Excel</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-3 cursor-pointer">
+                    <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer">
                       <FileJson className="h-4 w-4 text-blue-600" />
                       <span>CSV</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-3 cursor-pointer">
+                    <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer">
                       <FileType className="h-4 w-4 text-red-600" />
                       <span>PDF</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="gap-3 cursor-pointer">
+                    <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer">
                       <Printer className="h-4 w-4 text-gray-600" />
                       <span>Print</span>
                     </DropdownMenuItem>

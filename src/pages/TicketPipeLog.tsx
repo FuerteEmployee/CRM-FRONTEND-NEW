@@ -109,6 +109,7 @@ const TicketPipeLog = () => {
     return matchesSearch && matchesDate;
   });
 
+
   // Pagination calculation
   const totalEntries = filteredData.length;
   const sizeVal = pageSize === "All" ? totalEntries : parseInt(pageSize);
