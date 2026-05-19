@@ -206,8 +206,13 @@
   }
 
   /* Theme Table Variable Applications */
+  table thead {
+    background-color: hsl(var(--items-table-heading-bg)) !important;
+  }
+
   table th {
-    color: hsl(var(--table-headings-color)) !important;
+    color: hsl(var(--items-table-heading-text)) !important;
+    background-color: hsl(var(--items-table-heading-bg)) !important;
   }
   
   table a:not(.btn) {
@@ -217,12 +222,6 @@
   table a:not(.btn):hover,
   table a:not(.btn):focus {
     color: hsl(var(--table-links-hover-color)) !important;
-  }
-
-  /* Items Table Specific Overrides */
-  .items-table th {
-    background-color: hsl(var(--items-table-heading-bg)) !important;
-    color: hsl(var(--items-table-heading-text)) !important;
   }
 
   /* Global Modal/Dialog Styles */
