@@ -197,13 +197,13 @@ const Items = () => {
     <DashboardLayout>
       <div className="p-6 space-y-8 animate-in fade-in duration-500">
         {/* Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-primary/10 rounded-2xl">
               <Layers className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">Items Library</h1>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Items Library</h2>
               <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                 Manage global products, inventory items, and services
               </p>

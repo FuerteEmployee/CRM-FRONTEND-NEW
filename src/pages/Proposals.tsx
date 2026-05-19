@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { FilePlus, Search, Download, FileText } from "lucide-react";
+import { FilePlus, Search, Download, FileText, Plus } from "lucide-react";
 import { useState } from "react";
 import { formatDate } from "@/lib/dateFormat";
 import { useQuery } from "@tanstack/react-query";
@@ -34,7 +34,7 @@ const Proposals = () => {
     mutationFn: (id: string) => salesService.deleteProposal(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["proposals"] });
-      toast({ title: "Deleted", description: "Proposal deleted successfully.", className: "bg-green-600 text-white" });
+      toast({ title: "Deleted", description: "Proposal deleted successfully.", className: "bg-green-600 text-white font-bold rounded-2xl" });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to delete proposal.", variant: "destructive" });
@@ -49,20 +49,25 @@ const Proposals = () => {
     <DashboardLayout>
       <div className="p-6 space-y-8 animate-in fade-in duration-500">
         {/* Header Actions */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold flex items-center gap-2">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-primary/10 rounded-2xl">
               <FileText className="h-6 w-6 text-primary" />
-              Proposals
-            </h1>
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Proposals</h2>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                Manage commercial proposals and quotes
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {can("Proposals", "Create") && (
               <Button
-                className="rounded-xl font-bold gap-2 shadow-lg shadow-primary/20"
+                className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
                 onClick={() => navigate(`/admin/proposals/create`)}
               >
-                <FilePlus className="h-4 w-4" />
+                <Plus className="h-4 w-4" />
                 New Proposal
               </Button>
             )}
