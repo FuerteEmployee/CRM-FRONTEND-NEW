@@ -19,6 +19,7 @@ import Expenses from "./pages/Expenses";
 
 import Profile from "./pages/Profile";
 import ActivityLogs from "./pages/ActivityLogs";
+import TicketPipeLog from "./pages/TicketPipeLog";
 import Calendar from "./pages/Calendar";
 import Leads from "./pages/Leads";
 import Subscriptions from "./pages/Subscriptions";
@@ -33,6 +34,7 @@ import Reports from "./pages/Reports";
 import Proposals from "./pages/Proposals";
 import ProposalCreate from "./pages/ProposalCreate";
 import Estimates from "./pages/Estimates";
+import EstimateCreate from "./pages/EstimateCreate";
 import Payments from "./pages/Payments";
 import CreditNotes from "./pages/CreditNotes";
 import CreditNoteCreate from "./pages/CreditNoteCreate";
@@ -238,6 +240,7 @@ const MainApp = () => {
           <Route path="expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
           <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="activity" element={<ProtectedRoute><ActivityLogs /></ProtectedRoute>} />
+          <Route path="ticket-pipe-log" element={<ProtectedRoute><TicketPipeLog /></ProtectedRoute>} />
           <Route path="calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
           <Route path="leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
           <Route path="subscriptions" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} />
@@ -254,6 +257,8 @@ const MainApp = () => {
           <Route path="proposals/create/:clientId?" element={<ProtectedRoute><ProposalCreate /></ProtectedRoute>} />
           <Route path="proposals/edit/:id" element={<ProtectedRoute><ProposalCreate /></ProtectedRoute>} />
           <Route path="estimates" element={<ProtectedRoute><Estimates /></ProtectedRoute>} />
+          <Route path="estimates/create/:clientId?" element={<ProtectedRoute><EstimateCreate /></ProtectedRoute>} />
+          <Route path="estimates/edit/:id" element={<ProtectedRoute><EstimateCreate /></ProtectedRoute>} />
           <Route path="payments" element={<ProtectedRoute><Payments /></ProtectedRoute>} />
           <Route path="credit-notes" element={<ProtectedRoute><CreditNotes /></ProtectedRoute>} />
           <Route path="credit-notes/create/:clientId?" element={<ProtectedRoute><CreditNoteCreate /></ProtectedRoute>} />

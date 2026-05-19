@@ -13,6 +13,7 @@ export const salesService = {
   getInvoiceById: (id) => apiClient.get(`/invoices/${id}`),
   createInvoice: (data) => apiClient.post("/invoices", data),
   updateInvoice: (id, data) => apiClient.put(`/invoices/${id}`, data),
+  deleteInvoice: (id) => apiClient.delete(`/invoices/${id}`),
   createProposal: (data) => apiClient.post("/proposals", data),
   updateProposal: (id, data) => apiClient.put(`/proposals/${id}`, data),
 
@@ -41,7 +42,7 @@ export const salesService = {
   // ─────────────────────────────────────────────
   // Proposals
   // ─────────────────────────────────────────────
-  getProposals: () => apiClient.get("/proposals"),
+
 
   // ─────────────────────────────────────────────
   // Credit Notes

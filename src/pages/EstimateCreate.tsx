@@ -93,6 +93,9 @@ export default function EstimateCreate() {
     unit: "",
     item_group: ""
   });
+  const [discountValue, setDiscountValue] = useState(0);
+  const [discountType, setDiscountType] = useState("percent");
+  const [adjustmentValue, setAdjustmentValue] = useState(0);
 
   // Queries
   const { data: customers = [] } = useQuery({
@@ -126,6 +129,7 @@ export default function EstimateCreate() {
         ...estimate,
         date: estimate.date ? new Date(estimate.date).toISOString().split('T')[0] : formData.date,
         expirydate: estimate.expirydate ? new Date(estimate.expirydate).toISOString().split('T')[0] : formData.expirydate,
+        discount_type: estimate.discount_percent > 0 ? "percent" : "no_discount"
       });
       
       if (estimate.items) {
@@ -135,19 +139,23 @@ export default function EstimateCreate() {
           tax: taxes.find(t => t.taxrate === item.tax)?._id || ""
         })));
       }
+      setDiscountValue(estimate.discount_percent || 0);
+      setAdjustmentValue(estimate.adjustment || 0);
     }
   }, [estimate, taxes]);
 
   const calculations = useMemo(() => {
     const subTotal = items.reduce((acc, item) => acc + (item.qty * item.rate), 0);
+    const discountAmount = formData.discount_type === "no_discount" ? 0 : 
+      (discountType === "percent" ? (subTotal * (discountValue / 100)) : discountValue);
     const totalTax = items.reduce((acc, item) => {
       const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || 0;
       return acc + ((item.qty * item.rate) * (taxRate / 100));
     }, 0);
-    const total = subTotal + totalTax;
+    const total = subTotal - discountAmount + totalTax + Number(adjustmentValue);
     
-    return { subTotal, totalTax, total };
-  }, [items, taxes]);
+    return { subTotal, discountAmount, totalTax, total };
+  }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, taxes]);
 
   const addItem = () => {
     if (!newItem.description) return;
@@ -192,29 +200,32 @@ export default function EstimateCreate() {
       return;
     }
 
-    const payload = {
+    const payload: any = { 
       ...formData,
       items: items.map(item => ({
         description: item.description,
         long_description: item.long_description,
-        qty: Number(item.qty),
-        rate: Number(item.rate),
+        qty: Number(item.qty) || 0,
+        rate: Number(item.rate) || 0,
         tax: Number(taxes.find((t: any) => t._id === item.tax)?.taxrate) || 0,
         tax_name: taxes.find((t: any) => t._id === item.tax)?.name || ""
       })),
-      subtotal: calculations.subTotal,
-      total_tax: calculations.totalTax,
-      total: calculations.total,
-      show_quantity_as: showQtyAs,
-      save_action: action
+      discount_percent: Number(discountType === "percent" ? discountValue : 0) || 0,
+      adjustment: Number(adjustmentValue) || 0,
+      subtotal: Number(calculations.subTotal) || 0,
+      total_tax: Number(calculations.totalTax) || 0,
+      total: Number(calculations.total) || 0 
     };
+
+    // Clean up
+    if (action === "save_and_send") payload.send_to_client = true;
 
     mutation.mutate(payload);
   };
 
   return (
     <DashboardLayout>
-      <div className="max-w-[1400px] mx-auto space-y-6 pb-20 animate-in fade-in duration-700">
+      <div className="max-w-[1200px] mx-auto space-y-6 pb-20 animate-in fade-in duration-700">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -228,209 +239,205 @@ export default function EstimateCreate() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-6 bg-white p-10 rounded-[2.5rem] border border-slate-200/60 shadow-sm">
-          {/* Left Column */}
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <div className="flex items-center gap-1">
-                <span className="text-destructive font-bold">*</span>
-                <Label className="text-[13px] font-bold text-slate-700">Customer</Label>
-              </div>
-              <SearchableSelect
-                placeholder="Select Customer"
-                options={customers.map((c: any) => ({ value: c._id, label: c.company }))}
-                value={formData.client}
-                onChange={(val) => {
-                  const client = customers.find((c: any) => c._id === val);
-                  setFormData(p => ({ 
-                    ...p, 
-                    client: val,
-                    billing_street: client?.address || "",
-                    billing_city: client?.city || "",
-                    billing_state: client?.state || "",
-                    billing_zip: client?.zip || "",
-                    billing_country: client?.country || "",
-                    shipping_street: client?.shipping_street || client?.address || "",
-                    shipping_city: client?.shipping_city || client?.city || "",
-                    shipping_state: client?.shipping_state || client?.state || "",
-                    shipping_zip: client?.shipping_zip || client?.zip || "",
-                    shipping_country: client?.shipping_country || client?.country || ""
-                  }));
-                }}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-8 pt-4">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 group cursor-pointer">
-                  <Receipt className="h-3.5 w-3.5 text-primary" />
-                  <span className="text-[13px] font-black text-slate-900 border-b-2 border-primary/20 pb-0.5">Bill To</span>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Left Column: Core Details */}
+          <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
+            <CardContent className="p-8 space-y-8">
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Customer</Label>
+                  <span className="text-destructive text-lg leading-none">*</span>
                 </div>
-                <div className="text-[12px] text-slate-500 font-medium space-y-1 pl-1">
-                  <p className="tracking-wide">{formData.billing_street || "--"}</p>
-                  <p className="tracking-wide">{formData.billing_city || "--"}, {formData.billing_state || "--"}</p>
-                  <p className="tracking-wide">{formData.billing_country || "--"}, {formData.billing_zip || "--"}</p>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <span className="text-[13px] font-black text-slate-900 border-b-2 border-transparent pb-0.5">Ship to</span>
-                <div className="text-[12px] text-slate-500 font-medium space-y-1 pl-1">
-                  <p className="tracking-wide">{formData.shipping_street || "--"}</p>
-                  <p className="tracking-wide">{formData.shipping_city || "--"}, {formData.shipping_state || "--"}</p>
-                  <p className="tracking-wide">{formData.shipping_country || "--"}, {formData.shipping_zip || "--"}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-2 pt-4">
-              <div className="flex items-center gap-1">
-                <span className="text-destructive font-bold">*</span>
-                <Label className="text-[13px] font-bold text-slate-700">Estimate Number</Label>
-              </div>
-              <div className="flex bg-white rounded-xl border border-slate-200 overflow-hidden shadow-none">
-                <div className="px-4 flex items-center bg-slate-50/50 border-r border-slate-200 text-xs font-bold text-slate-500">
-                  EST-
-                </div>
-                <Input 
-                  placeholder="000002"
-                  className="h-11 border-none shadow-none focus-visible:ring-0 font-medium"
-                  value={formData.number}
-                  onChange={(e) => setFormData(p => ({ ...p, number: e.target.value }))}
+                <SearchableSelect
+                  placeholder="Select Customer"
+                  options={customers.map((c: any) => ({ value: c._id, label: c.company }))}
+                  value={formData.client}
+                  onChange={(val) => {
+                    const client = customers.find((c: any) => c._id === val);
+                    setFormData(p => ({ 
+                      ...p, 
+                      client: val,
+                      billing_street: client?.address || "",
+                      billing_city: client?.city || "",
+                      billing_state: client?.state || "",
+                      billing_zip: client?.zip || "",
+                      billing_country: client?.country || "",
+                      shipping_street: client?.shipping_street || client?.address || "",
+                      shipping_city: client?.shipping_city || client?.city || "",
+                      shipping_state: client?.shipping_state || client?.state || "",
+                      shipping_zip: client?.shipping_zip || client?.zip || "",
+                      shipping_country: client?.shipping_country || client?.country || ""
+                    }));
+                  }}
                 />
               </div>
-            </div>
 
-            <div className="grid grid-cols-2 gap-6 pt-4">
-              <div className="space-y-2">
-                <div className="flex items-center gap-1">
-                  <span className="text-destructive font-bold">*</span>
-                  <Label className="text-[13px] font-bold text-slate-700">Estimate Date</Label>
+              <div className="grid grid-cols-2 gap-8 py-4 border-y border-border/30 border-dashed">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-primary">
+                    <Receipt className="h-3.5 w-3.5" />
+                    <span className="text-[11px] font-black uppercase tracking-widest">Bill To</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground leading-relaxed space-y-0.5 italic">
+                    <p className="tracking-wide">{formData.billing_street || "--"}</p>
+                    <p className="tracking-wide">{formData.billing_city || "--"}, {formData.billing_state || "--"}</p>
+                    <p className="tracking-wide">{formData.billing_country || "--"}, {formData.billing_zip || "--"}</p>
+                  </div>
                 </div>
-                <div className="flex bg-white rounded-xl border border-slate-200 overflow-hidden shadow-none focus-within:ring-1 ring-primary/20 transition-all">
+                <div className="space-y-3 border-l border-border/30 pl-8">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <span className="text-[11px] font-black uppercase tracking-widest">Ship to</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground leading-relaxed space-y-0.5 italic">
+                    <p className="tracking-wide">{formData.shipping_street || "--"}</p>
+                    <p className="tracking-wide">{formData.shipping_city || "--"}, {formData.shipping_state || "--"}</p>
+                    <p className="tracking-wide">{formData.shipping_country || "--"}, {formData.shipping_zip || "--"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Estimate Number</Label>
+                  <span className="text-destructive text-lg leading-none">*</span>
+                </div>
+                <div className="flex">
+                  <div className="h-12 px-4 flex items-center bg-muted/50 border border-r-0 border-border/50 rounded-l-2xl text-xs font-black text-muted-foreground uppercase tracking-widest">
+                    EST-
+                  </div>
+                  <Input 
+                    className="h-12 rounded-l-none rounded-r-2xl border-border/50 bg-background shadow-sm font-mono font-bold text-lg tracking-wider"
+                    value={formData.number.replace('EST-', '')}
+                    onChange={(e) => setFormData(p => ({ ...p, number: `EST-${e.target.value}` }))}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Estimate Date</Label>
+                    <span className="text-destructive text-lg leading-none">*</span>
+                  </div>
                   <Input 
                     type="date" 
-                    className="h-11 border-none shadow-none focus-visible:ring-0 font-medium"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
                     value={formData.date}
                     onChange={(e) => setFormData(p => ({ ...p, date: e.target.value }))}
                   />
-                  <div className="px-3 flex items-center border-l border-slate-200 bg-slate-50/50">
-                    <CalendarIcon className="h-4 w-4 text-slate-400" />
-                  </div>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-[13px] font-bold text-slate-700">Expiry Date</Label>
-                <div className="flex bg-white rounded-xl border border-slate-200 overflow-hidden shadow-none focus-within:ring-1 ring-primary/20 transition-all">
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Expiry Date</Label>
+                  </div>
                   <Input 
                     type="date" 
-                    className="h-11 border-none shadow-none focus-visible:ring-0 font-medium"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
                     value={formData.expirydate}
                     onChange={(e) => setFormData(p => ({ ...p, expirydate: e.target.value }))}
                   />
-                  <div className="px-3 flex items-center border-l border-slate-200 bg-slate-50/50">
-                    <CalendarIcon className="h-4 w-4 text-slate-400" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Right Column: Settings */}
+          <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
+            <CardContent className="p-8 space-y-6">
+              <div className="space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <TagIcon className="h-3.5 w-3.5 text-primary" />
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Tags</Label>
+                </div>
+                <Input 
+                  placeholder="Tag" 
+                  className="h-12 rounded-2xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                  onChange={(e) => setFormData(p => ({ ...p, tags: e.target.value.split(',').map(t => t.trim()) }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Currency</Label>
+                    <span className="text-destructive text-lg leading-none">*</span>
                   </div>
+                  <Select value={formData.currency || currencies.find((c: any) => c.isdefault)?._id} onValueChange={(v) => setFormData(p => ({ ...p, currency: v }))}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="USD $" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      {currencies.map((c: any) => (
+                        <SelectItem key={c._id} value={c._id}>{c.name} ({c.symbol})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Status</Label>
+                  <Select value={formData.status} onValueChange={(v) => setFormData(p => ({ ...p, status: v }))}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="Draft" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="sent">Sent</SelectItem>
+                      <SelectItem value="accepted">Accepted</SelectItem>
+                      <SelectItem value="declined">Declined</SelectItem>
+                      <SelectItem value="expired">Expired</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Right Column */}
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <Label className="text-[13px] font-bold text-slate-700 flex items-center gap-2">
-                <TagIcon className="h-3.5 w-3.5" />
-                Tags
-              </Label>
-              <Input 
-                placeholder="Tag"
-                className="h-11 rounded-xl border-slate-200 shadow-none"
-                // Simple tag implementation for now
-                onChange={(e) => setFormData(p => ({ ...p, tags: e.target.value.split(',').map(t => t.trim()) }))}
-              />
-            </div>
+              <div className="space-y-2.5">
+                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Reference #</Label>
+                <Input 
+                  className="h-12 rounded-2xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                  value={formData.reference}
+                  onChange={(e) => setFormData(p => ({ ...p, reference: e.target.value }))}
+                />
+              </div>
 
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <div className="flex items-center gap-1">
-                  <span className="text-destructive font-bold">*</span>
-                  <Label className="text-[13px] font-bold text-slate-700">Currency</Label>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Sale Agent</Label>
+                  <Select value={formData.sale_agent} onValueChange={(v) => setFormData(p => ({ ...p, sale_agent: v }))}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="Select Agent" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      {staff.map((s: any) => (
+                        <SelectItem key={s._id} value={s._id}>{s.firstname} {s.lastname}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <Select value={formData.currency || currencies.find((c: any) => c.isdefault)?._id} onValueChange={(v) => setFormData(p => ({ ...p, currency: v }))}>
-                  <SelectTrigger className="h-11 rounded-xl bg-white border-slate-200 shadow-none">
-                    <SelectValue placeholder="USD $" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    {currencies.map((c: any) => (
-                      <SelectItem key={c._id} value={c._id}>{c.name} ({c.symbol})</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Discount Type</Label>
+                  <Select value={formData.discount_type} onValueChange={(v) => setFormData(p => ({ ...p, discount_type: v }))}>
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="No discount" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      <SelectItem value="no_discount">No discount</SelectItem>
+                      <SelectItem value="before_tax">Before Tax</SelectItem>
+                      <SelectItem value="after_tax">After Tax</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label className="text-[13px] font-bold text-slate-700">Status</Label>
-                <Select value={formData.status} onValueChange={(v) => setFormData(p => ({ ...p, status: v }))}>
-                  <SelectTrigger className="h-11 rounded-xl bg-white border-slate-200 shadow-none">
-                    <SelectValue placeholder="Draft" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="sent">Sent</SelectItem>
-                    <SelectItem value="accepted">Accepted</SelectItem>
-                    <SelectItem value="declined">Declined</SelectItem>
-                    <SelectItem value="expired">Expired</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label className="text-[13px] font-bold text-slate-700">Reference #</Label>
-              <Input 
-                className="h-11 rounded-xl border-slate-200 shadow-none"
-                value={formData.reference}
-                onChange={(e) => setFormData(p => ({ ...p, reference: e.target.value }))}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <Label className="text-[13px] font-bold text-slate-700">Sale Agent</Label>
-                <Select value={formData.sale_agent} onValueChange={(v) => setFormData(p => ({ ...p, sale_agent: v }))}>
-                  <SelectTrigger className="h-11 rounded-xl bg-white border-slate-200 shadow-none">
-                    <SelectValue placeholder="Select Agent" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    {staff.map((s: any) => (
-                      <SelectItem key={s._id} value={s._id}>{s.firstname} {s.lastname}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-2.5 pt-4">
+                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Admin Note</Label>
+                <Textarea 
+                  className="min-h-[120px] rounded-[2rem] border-border/50 bg-background/50 shadow-sm p-6 text-xs font-medium resize-none focus:ring-primary/20"
+                  value={formData.adminnote}
+                  onChange={(e) => setFormData(p => ({ ...p, adminnote: e.target.value }))}
+                />
               </div>
-              <div className="space-y-2">
-                <Label className="text-[13px] font-bold text-slate-700">Discount Type</Label>
-                <Select value={formData.discount_type} onValueChange={(v) => setFormData(p => ({ ...p, discount_type: v }))}>
-                  <SelectTrigger className="h-11 rounded-xl bg-white border-slate-200 shadow-none">
-                    <SelectValue placeholder="No discount" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="no_discount">No discount</SelectItem>
-                    <SelectItem value="before_tax">Before Tax</SelectItem>
-                    <SelectItem value="after_tax">After Tax</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-[13px] font-bold text-slate-700">Admin Note</Label>
-              <Textarea 
-                className="min-h-[100px] rounded-xl border-slate-200 bg-white p-4 text-xs font-medium resize-none shadow-none"
-                value={formData.adminnote}
-                onChange={(e) => setFormData(p => ({ ...p, adminnote: e.target.value }))}
-              />
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Items Section */}
@@ -605,20 +612,20 @@ export default function EstimateCreate() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 pt-12">
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <Label className="text-[13px] font-bold text-slate-700">Client Note</Label>
+              <div className="space-y-8">
+                <div className="space-y-3">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Client Note</Label>
                   <Textarea 
-                    className="min-h-[120px] rounded-xl border-slate-200 bg-white p-4 text-xs font-medium resize-none shadow-none focus:ring-1 ring-primary/20"
+                    className="min-h-[120px] rounded-[2rem] border-border/50 bg-background/50 shadow-sm p-6 text-xs font-medium resize-none focus:ring-primary/20"
                     placeholder="Visible to client..."
                     value={formData.notes}
                     onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-[13px] font-bold text-slate-700">Terms & Conditions</Label>
+                <div className="space-y-3">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Terms & Conditions</Label>
                   <Textarea 
-                    className="min-h-[120px] rounded-xl border-slate-200 bg-white p-4 text-xs font-medium resize-none shadow-none focus:ring-1 ring-primary/20"
+                    className="min-h-[120px] rounded-[2rem] border-border/50 bg-background/50 shadow-sm p-6 text-xs font-medium resize-none focus:ring-primary/20"
                     placeholder="Terms and conditions..."
                     value={formData.terms}
                     onChange={(e) => setFormData(p => ({ ...p, terms: e.target.value }))}
@@ -626,15 +633,58 @@ export default function EstimateCreate() {
                 </div>
               </div>
 
-              <div className="w-full max-w-md ml-auto space-y-4 bg-muted/10 p-8 rounded-[2.5rem] border border-border/50 shadow-inner h-fit self-end">
+              <div className="space-y-4 bg-muted/10 p-8 rounded-[2.5rem] border border-border/50 h-fit self-end">
                 <div className="flex justify-between items-center text-sm font-bold text-muted-foreground border-b border-border/30 pb-4">
                   <span>Sub Total :</span>
                   <span className="text-foreground">${calculations.subTotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between items-center py-2 border-t border-border/30">
-                  <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
-                  <span className="text-sm font-bold text-foreground">${calculations.totalTax.toFixed(2)}</span>
+                
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-sm font-bold text-muted-foreground">Discount</span>
+                  <div className="flex items-center gap-3">
+                    <Input 
+                      type="number" 
+                      className="h-9 w-20 rounded-lg border-border/50 bg-background shadow-sm text-xs font-bold text-center"
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(Number(e.target.value))}
+                    />
+                    <Select value={discountType} onValueChange={setDiscountType}>
+                      <SelectTrigger className="h-9 w-28 rounded-lg bg-background border-border/50 shadow-sm text-[10px] font-black uppercase tracking-widest">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl border-border/50">
+                        <SelectItem value="percent">% (Percentage)</SelectItem>
+                        <SelectItem value="fixed">Fixed Rate</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <span className="text-sm font-bold text-destructive min-w-[60px] text-right">
+                      -${calculations.discountAmount.toFixed(2)}
+                    </span>
+                  </div>
                 </div>
+
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
+                  <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                    ${calculations.totalTax.toFixed(2)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-sm font-bold text-muted-foreground">Adjustment</span>
+                  <div className="flex items-center gap-3">
+                    <Input 
+                      type="number" 
+                      className="h-9 w-32 rounded-lg border-border/50 bg-background shadow-sm text-xs font-bold text-center"
+                      value={adjustmentValue}
+                      onChange={(e) => setAdjustmentValue(Number(e.target.value))}
+                    />
+                    <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                      ${Number(adjustmentValue).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
                 <div className="flex justify-between items-center pt-6 border-t-2 border-primary/20">
                   <span className="text-lg font-black uppercase tracking-widest text-primary">Total :</span>
                   <span className="text-2xl font-black text-primary">${calculations.total.toFixed(2)}</span>

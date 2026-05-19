@@ -1,6 +1,6 @@
+import { useState, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,9 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -19,315 +17,346 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Search,
-  DollarSign,
-  CheckCircle,
-  Clock,
-  AlertCircle,
-  Plus,
+  Download,
+  FileText,
+  Printer,
+  Eye,
+  CreditCard,
 } from "lucide-react";
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const statusMap: Record<number, { label: string; color: string }> = {
-  1: { label: "Pending", color: "bg-info/10 text-info border-info/20" },
-  2: { label: "Completed", color: "bg-success/10 text-success border-success/20" },
-  3: { label: "Partial", color: "bg-warning/10 text-warning border-warning/20" },
-  4: { label: "Failed", color: "bg-destructive/10 text-destructive border-destructive/20" },
-};
+import { usePermissions } from "@/hooks/usePermissions";
 
 const Payments = () => {
   const [search, setSearch] = useState("");
+  const [itemsPerPage, setItemsPerPage] = useState("10");
   const [viewItem, setViewItem] = useState<any>(null);
-  const [editItem, setEditItem] = useState<any>(null);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
+  const { can } = usePermissions();
 
-  const { data: payments = [], isLoading } = useQuery({
+  const { data: payments = [], isLoading } = useQuery<any[]>({
     queryKey: ["payments"],
-    queryFn: salesService.getPayments,
+    queryFn: async () => {
+      const response = await salesService.getPayments();
+      return Array.isArray(response) ? response : response?.data || [];
+    },
   });
 
-  const filtered = payments.filter(
-    (p: any) =>
-      (p.invoiceid || "").toLowerCase().includes(search.toLowerCase()) ||
-      (p._id || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = useMemo(() => {
+    return payments.filter((p: any) => {
+      const matchSearch =
+        (p._id || "").toLowerCase().includes(search.toLowerCase()) ||
+        (p.invoice?.number || "").toLowerCase().includes(search.toLowerCase()) ||
+        (p.invoice?.client?.company || "").toLowerCase().includes(search.toLowerCase()) ||
+        (p.transactionid || "").toLowerCase().includes(search.toLowerCase()) ||
+        (p.paymentmode || "").toLowerCase().includes(search.toLowerCase());
+      
+      return matchSearch;
+    });
+  }, [payments, search]);
 
-  const totalReceived = payments
-    .filter((p: any) => p.status === 2)
-    .reduce((s: number, p: any) => s + (p.amount || 0), 0);
-  const totalPending = payments
-    .filter((p: any) => p.status === 1)
-    .reduce((s: number, p: any) => s + (p.amount || 0), 0);
+  const totalReceived = useMemo(() => {
+    return payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+  }, [payments]);
+
+  const handleExport = (type: "pdf" | "csv" | "print") => {
+    if (filtered.length === 0) {
+      toast({
+        title: "No data",
+        description: "There are no payments to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (type === "csv") {
+      const headers = ["Payment #", "Invoice #", "Customer", "Payment Mode", "Transaction ID", "Amount", "Date"];
+      const rows = filtered.map((p: any) => [
+        p._id?.substring(0, 8) || "",
+        p.invoice?.number || "N/A",
+        p.invoice?.client?.company || "N/A",
+        p.paymentmode || "Bank Transfer",
+        p.transactionid || "-",
+        `INR ${p.amount || 0}`,
+        p.date ? formatDate(p.date) : "-",
+      ]);
+
+      const csvContent =
+        "data:text/csv;charset=utf-8," +
+        [headers.join(","), ...rows.map((e) => e.map((val) => `"${val}"`).join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `payments_export_${new Date().toISOString().split("T")[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast({ title: "Exported", description: "CSV exported successfully." });
+    } else {
+      window.print();
+    }
+  };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Payments</h1>
-            <p className="text-muted-foreground">Track all payment transactions</p>
+      <div className="p-6 space-y-8 animate-in fade-in duration-500">
+        {/* Header Actions */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-primary/10 rounded-2xl">
+              <CreditCard className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Payments</h2>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                Track all incoming client payments
+              </p>
+            </div>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                New Payment
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Record Payment</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Payment ID</Label>
-                    <Input placeholder="PAY-000" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Invoice</Label>
-                    <Input placeholder="INV-0000" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Customer</Label>
-                  <Input placeholder="Customer name" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Amount</Label>
-                    <Input type="number" placeholder="0.00" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Method</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                        <SelectItem value="Credit Card">Credit Card</SelectItem>
-                        <SelectItem value="PayPal">PayPal</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Select defaultValue="1">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">Pending</SelectItem>
-                        <SelectItem value="2">Completed</SelectItem>
-                        <SelectItem value="3">Partial</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Date</Label>
-                    <Input type="date" />
-                  </div>
-                </div>
-                <Button className="w-full">Record Payment</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-stagger">
-          <Card className="hover-lift">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-success/10">
-                <DollarSign className="h-5 w-5 text-success" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  ${totalReceived.toLocaleString()}
-                </p>
-                <p className="text-xs text-muted-foreground">Received</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="hover-lift">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-warning/10">
-                <Clock className="h-5 w-5 text-warning" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  ${totalPending.toLocaleString()}
-                </p>
-                <p className="text-xs text-muted-foreground">Pending</p>
+        {/* Dynamic Status Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="border border-emerald-100 bg-emerald-50/30 rounded-2xl overflow-hidden shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-600">
+                  Total Received
+                </span>
+                <div className="flex items-baseline justify-between mt-2">
+                  <span className="text-2xl font-black text-slate-900">
+                    ₹{totalReceived.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
               </div>
             </CardContent>
           </Card>
-          <Card className="hover-lift">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <CheckCircle className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {payments.filter((p: any) => p.status === 2).length}
-                </p>
-                <p className="text-xs text-muted-foreground">Completed</p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="hover-lift">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-info/10">
-                <AlertCircle className="h-5 w-5 text-info" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{payments.length}</p>
-                <p className="text-xs text-muted-foreground">Total</p>
+          <Card className="border border-blue-100 bg-blue-50/30 rounded-2xl overflow-hidden shadow-sm">
+            <CardContent className="p-5">
+              <div className="flex flex-col gap-1">
+                <span className="text-[9px] font-black uppercase tracking-[0.2em] text-blue-600">
+                  Total Transactions
+                </span>
+                <div className="flex items-baseline justify-between mt-2">
+                  <span className="text-2xl font-black text-slate-900">
+                    {payments.length}
+                  </span>
+                </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <div className="relative max-w-sm">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search payments..."
-            className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        {/* Table Controls */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+          <div className="flex items-center gap-3">
+            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+              <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["10", "25", "50", "100", "All"].map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {v}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm"
+                >
+                  <Download className="h-3.5 w-3.5 text-primary" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                <DropdownMenuItem
+                  onClick={() => handleExport("pdf")}
+                  className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
+                >
+                  <FileText className="h-4 w-4 text-red-500 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold">PDF</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleExport("csv")}
+                  className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
+                >
+                  <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold">CSV</span>
+                </DropdownMenuItem>
+                <div className="h-px bg-border/50 my-1 mx-1" />
+                <DropdownMenuItem
+                  onClick={() => handleExport("print")}
+                  className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
+                >
+                  <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold">Print</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search payments..."
+              className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px]">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="p-3 font-medium">ID</th>
-                    <th className="p-3 font-medium">Invoice</th>
-                    <th className="p-3 font-medium">Amount</th>
-                    <th className="p-3 font-medium">Method</th>
-                    <th className="p-3 font-medium">Status</th>
-                    <th className="p-3 font-medium">Date</th>
-                    <th className="p-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {isLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="border-b last:border-0">
-                        <td className="p-3"><Skeleton className="h-4 w-20" /></td>
-                        <td className="p-3"><Skeleton className="h-4 w-20" /></td>
-                        <td className="p-3"><Skeleton className="h-4 w-20" /></td>
-                        <td className="p-3"><Skeleton className="h-4 w-24" /></td>
-                        <td className="p-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
-                        <td className="p-3"><Skeleton className="h-4 w-24" /></td>
-                        <td className="p-3"><Skeleton className="h-8 w-16" /></td>
-                      </tr>
-                    ))
-                  ) : filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                        No payments found.
+        {/* Payments Table */}
+        <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
+              <tr>
+                {["Payment #", "Invoice #", "Customer", "Payment Mode", "Transaction ID", "Amount", "Date", "Actions"].map((h) => (
+                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {isLoading ? (
+                Array(3)
+                  .fill(0)
+                  .map((_, i) => (
+                    <tr key={i}>
+                      <td colSpan={8} className="p-4">
+                        <Skeleton className="h-10 w-full" />
                       </td>
                     </tr>
-                  ) : (
-                    filtered.map((p: any) => {
-                      const status = statusMap[p.status] || statusMap[1];
-                      return (
-                        <tr
-                          key={p._id}
-                          className="border-b last:border-0 hover:bg-muted/50 transition-colors"
-                        >
-                          <td className="p-3 text-sm font-mono">{p._id.substring(0, 8)}</td>
-                          <td className="p-3 text-sm">{p.invoiceid || "N/A"}</td>
-                          <td className="p-3 text-sm font-medium">
-                            ${(p.amount || 0).toLocaleString()}
-                          </td>
-                          <td className="p-3 text-sm text-muted-foreground">
-                            {p.paymentmode || "Bank Transfer"}
-                          </td>
-                          <td className="p-3">
-                            <Badge variant="outline" className={`text-xs ${status.color}`}>
-                              {status.label}
-                            </Badge>
-                          </td>
-                          <td className="p-3 text-sm text-muted-foreground">
-                            {p.date ? formatDate(p.date) : "-"}
-                          </td>
-                          <td className="p-3">
-                            <TableActions
-                              onView={() => setViewItem(p)}
-                              onEdit={() => setEditItem(p)}
-                              onDelete={() =>
-                                toast({
-                                  title: "Info",
-                                  description: `Delete triggered for ${p._id}`,
-                                })
-                              }
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                  ))
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
+                    No payments found.
+                  </td>
+                </tr>
+              ) : (
+                filtered
+                  .slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage))
+                  .map((p: any) => (
+                    <tr key={p._id} className="hover:bg-muted/30 transition-colors">
+                      <td
+                        className="px-6 py-4 font-bold text-primary cursor-pointer hover:underline"
+                        onClick={() => setViewItem(p)}
+                      >
+                        {p._id?.substring(0, 8).toUpperCase()}
+                      </td>
+                      <td className="px-6 py-4 font-medium text-foreground">
+                        {p.invoice?.number || "N/A"}
+                      </td>
+                      <td className="px-6 py-4 font-medium text-foreground">
+                        {p.invoice?.client?.company || "N/A"}
+                      </td>
+                      <td className="px-6 py-4 uppercase text-[10px] font-black tracking-widest text-muted-foreground">
+                        {p.paymentmode || "Bank Transfer"}
+                      </td>
+                      <td className="px-6 py-4 font-mono text-[11px] text-foreground">
+                        {p.transactionid || "-"}
+                      </td>
+                      <td className="px-6 py-4 font-black text-emerald-600">
+                        ₹{(p.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground">
+                        {p.date ? formatDate(p.date) : "-"}
+                      </td>
+                      <td className="px-6 py-4">
+                        <TableActions
+                          onView={() => setViewItem(p)}
+                        />
+                      </td>
+                    </tr>
+                  ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Footer */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+          <p className="text-xs font-bold text-muted-foreground italic">
+            Showing 1 to {filtered.length} of {filtered.length} entries
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+              Previous
+            </Button>
+            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
+              1
             </div>
-          </CardContent>
-        </Card>
+            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+              Next
+            </Button>
+          </div>
+        </div>
       </div>
 
+      {/* View Dialog */}
       <Dialog open={!!viewItem} onOpenChange={() => setViewItem(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Payment Details</DialogTitle>
+        <DialogContent className="max-w-md rounded-3xl p-6 border-none shadow-2xl bg-white/95 backdrop-blur-md">
+          <DialogHeader className="border-b border-border/50 pb-4 mb-4">
+            <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <CreditCard className="h-5 w-5 text-primary" />
+              Payment Details
+            </DialogTitle>
           </DialogHeader>
           {viewItem && (
-            <div className="space-y-3 pt-2">
-              <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <p className="text-xs text-muted-foreground">ID</p>
-                  <p className="text-sm font-medium">{viewItem._id}</p>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Payment ID</p>
+                  <p className="text-sm font-bold text-slate-800">{viewItem._id}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Invoice</p>
-                  <p className="text-sm">{viewItem.invoiceid}</p>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Invoice #</p>
+                  <p className="text-sm font-bold text-slate-800">{viewItem.invoice?.number || "N/A"}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Amount</p>
-                  <p className="text-sm font-medium">
-                    ${(viewItem.amount || 0).toLocaleString()}
-                  </p>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Customer</p>
+                  <p className="text-sm font-medium text-slate-700">{viewItem.invoice?.client?.company || "N/A"}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Method</p>
-                  <p className="text-sm">{viewItem.paymentmode}</p>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Payment Mode</p>
+                  <p className="text-sm font-bold text-slate-700 uppercase tracking-widest text-[10px]">{viewItem.paymentmode || "Bank Transfer"}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Status</p>
-                  <Badge
-                    variant="outline"
-                    className={`text-xs ${statusMap[viewItem.status]?.color || ""}`}
-                  >
-                    {statusMap[viewItem.status]?.label || "Unknown"}
-                  </Badge>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Transaction ID</p>
+                  <p className="text-sm font-mono text-slate-700">{viewItem.transactionid || "-"}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Date</p>
-                  <p className="text-sm">{viewItem.date ? formatDate(viewItem.date) : "-"}</p>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Amount</p>
+                  <p className="text-sm font-black text-emerald-600">₹{(viewItem.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Payment Date</p>
+                  <p className="text-sm font-medium text-slate-700">{viewItem.date ? formatDate(viewItem.date) : "-"}</p>
                 </div>
               </div>
+              {viewItem.note && (
+                <div className="border-t border-border/50 pt-4">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Payment Note</p>
+                  <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">{viewItem.note}</p>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

@@ -34,9 +34,19 @@ import { toast } from "sonner";
 const ActivityLogs = () => {
   const [pageSize, setPageSize] = useState("10");
   const [searchTerm, setSearchTerm] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [filterDate, setFilterDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+
+  const formatLogDate = (dateStr: any) => {
+    if (!dateStr) return "-";
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return "-";
+      return format(date, "yyyy-MM-dd HH:mm:ss");
+    } catch {
+      return "-";
+    }
+  };
 
   // Fetch Activity Logs from Backend
   const { data: logs = [], isLoading } = useQuery({
@@ -44,7 +54,7 @@ const ActivityLogs = () => {
     queryFn: utilityService.getActivityLogs,
   });
 
-  // Filter logs by search and dates
+  // Filter logs by search and date
   const filteredData = logs.filter((log: any) => {
     // Search description or staff name
     const staffName = log.staffid ? `${log.staffid.firstname || ""} ${log.staffid.lastname || ""}` : "System";
@@ -52,19 +62,18 @@ const ActivityLogs = () => {
       log.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       staffName.toLowerCase().includes(searchTerm.toLowerCase());
 
-    // Date filters
+    // Date filter (Timezone-Safe Exact Day Matching)
     let matchesDate = true;
-    if (startDate) {
+    if (filterDate) {
+      if (!log.date) return false;
       const logDate = new Date(log.date);
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      matchesDate = matchesDate && logDate >= start;
-    }
-    if (endDate) {
-      const logDate = new Date(log.date);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      matchesDate = matchesDate && logDate <= end;
+      if (isNaN(logDate.getTime())) return false;
+      const [year, month, day] = filterDate.split("-").map(Number);
+      
+      matchesDate = 
+        logDate.getFullYear() === year &&
+        logDate.getMonth() === (month - 1) &&
+        logDate.getDate() === day;
     }
 
     return matchesSearch && matchesDate;
@@ -124,7 +133,7 @@ const ActivityLogs = () => {
       const headers = ["Description", "Date", "Staff Member"];
       const rows = filteredData.map((log: any) => [
         log.description,
-        format(new Date(log.date), "yyyy-MM-dd HH:mm:ss"),
+        formatLogDate(log.date),
         log.staffid ? `${log.staffid.firstname} ${log.staffid.lastname}` : "System"
       ]);
 
@@ -147,11 +156,10 @@ const ActivityLogs = () => {
     }
   };
 
-  const clearDates = () => {
-    setStartDate("");
-    setEndDate("");
+  const clearDate = () => {
+    setFilterDate("");
     setCurrentPage(1);
-    toast.success("Date filters cleared");
+    toast.success("Date filter cleared");
   };
 
   return (
@@ -181,34 +189,19 @@ const ActivityLogs = () => {
                   <Input 
                     type="date" 
                     className="h-9 rounded-lg border-border/45 bg-background pl-9 text-xs focus-visible:ring-primary/20"
-                    value={startDate}
+                    value={filterDate}
                     onChange={(e) => {
-                      setStartDate(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                  />
-                </div>
-                
-                <span className="text-xs font-semibold text-muted-foreground">to</span>
-
-                <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground opacity-60" />
-                  <Input 
-                    type="date" 
-                    className="h-9 rounded-lg border-border/45 bg-background pl-9 text-xs focus-visible:ring-primary/20"
-                    value={endDate}
-                    onChange={(e) => {
-                      setEndDate(e.target.value);
+                      setFilterDate(e.target.value);
                       setCurrentPage(1);
                     }}
                   />
                 </div>
 
-                {(startDate || endDate) && (
+                {filterDate && (
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    onClick={clearDates}
+                    onClick={clearDate}
                     className="h-9 gap-1 text-xs text-destructive hover:bg-destructive/10 rounded-lg"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -297,7 +290,7 @@ const ActivityLogs = () => {
                           {log.description}
                         </TableCell>
                         <TableCell className="py-4 text-xs font-semibold text-muted-foreground whitespace-nowrap">
-                          {format(new Date(log.date), "yyyy-MM-dd HH:mm:ss")}
+                          {formatLogDate(log.date)}
                         </TableCell>
                         <TableCell className="py-4 text-sm font-medium text-muted-foreground">
                           <div className="flex items-center gap-2">

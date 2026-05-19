@@ -55,7 +55,7 @@ export default function CreditNoteCreate() {
   });
 
   const [formData, setFormData] = useState({
-    number: "",
+    number: `CN-${Math.floor(100000 + Math.random() * 900000)}`,
     rel_id: clientId || "",
     project: "",
     date: new Date().toISOString().split('T')[0],
@@ -122,9 +122,10 @@ export default function CreditNoteCreate() {
 
   useEffect(() => {
     if (creditNote && taxes.length > 0) {
+      const clientVal = typeof creditNote.client === 'object' ? creditNote.client?._id : creditNote.client;
       setFormData({
         number: creditNote.number || "",
-        rel_id: creditNote.rel_id || "",
+        rel_id: clientVal || creditNote.rel_id || "",
         project: creditNote.project || "",
         date: creditNote.date ? new Date(creditNote.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         currency: creditNote.currency || "",
@@ -155,6 +156,27 @@ export default function CreditNoteCreate() {
       }
     }
   }, [creditNote, taxes]);
+
+  useEffect(() => {
+    if (formData.rel_id && customers.length > 0 && !isEdit) {
+      const client = customers.find((c: any) => c._id === formData.rel_id);
+      if (client) {
+        setFormData(p => ({ 
+          ...p, 
+          billing_street: p.billing_street || client.address || "",
+          billing_city: p.billing_city || client.city || "",
+          billing_state: p.billing_state || client.state || "",
+          billing_zip: p.billing_zip || client.zip || "",
+          billing_country: p.billing_country || client.country || "",
+          shipping_street: p.shipping_street || client.shipping_street || client.address || "",
+          shipping_city: p.shipping_city || client.shipping_city || client.city || "",
+          shipping_state: p.shipping_state || client.shipping_state || client.state || "",
+          shipping_zip: p.shipping_zip || client.shipping_zip || client.zip || "",
+          shipping_country: p.shipping_country || client.shipping_country || client.country || ""
+        }));
+      }
+    }
+  }, [formData.rel_id, customers, isEdit]);
 
   const calculations = useMemo(() => {
     const subTotal = items.reduce((acc, item) => acc + (item.qty * item.rate), 0);
@@ -217,6 +239,7 @@ export default function CreditNoteCreate() {
 
     const payload = {
       ...formData,
+      status: formData.status === "open" ? 1 : formData.status === "closed" ? 2 : formData.status === "void" ? 3 : Number(formData.status) || 1,
       items: items.map(item => ({
         description: item.description,
         long_description: item.long_description,
@@ -262,7 +285,7 @@ export default function CreditNoteCreate() {
                 placeholder="Select Customer"
                 options={customers.map((c: any) => ({ value: c._id, label: c.company }))}
                 value={formData.rel_id}
-                onChange={(val) => {
+                onValueChange={(val) => {
                   const client = customers.find((c: any) => c._id === val);
                   setFormData(p => ({ 
                     ...p, 
@@ -349,8 +372,8 @@ export default function CreditNoteCreate() {
                   <Input 
                     placeholder="000001"
                     className="h-11 border-none shadow-none focus-visible:ring-0 font-medium"
-                    value={formData.number}
-                    onChange={(e) => setFormData(p => ({ ...p, number: e.target.value }))}
+                    value={formData.number.replace('CN-', '')}
+                    onChange={(e) => setFormData(p => ({ ...p, number: `CN-${e.target.value}` }))}
                   />
                 </div>
               </div>
@@ -422,7 +445,7 @@ export default function CreditNoteCreate() {
                 placeholder="Add Item"
                 options={availableItems.map((i: any) => ({ value: i._id, label: i.description }))}
                 value=""
-                onChange={(val) => {
+                onValueChange={(val) => {
                   const item = availableItems.find((i: any) => i._id === val);
                   if (item) {
                     setNewItem({

@@ -2865,25 +2865,25 @@ export default function CustomerView() {
                                 </td>
                               </tr>
                             ) : (
-                              creditNotes.map((cn: any) => (
-                                <tr key={cn._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-primary">{cn.number || (cn._id.slice(-6).toUpperCase())}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(cn.date)}</td>
+                              creditNotes.map((note: any) => (
+                                <tr key={note._id} className="hover:bg-muted/30 transition-colors">
+                                  <td className="px-6 py-4 font-bold text-primary">{note.number || (note._id.slice(-6).toUpperCase())}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(note.date)}</td>
                                   <td className="px-6 py-4">
                                     <Badge className={cn(
                                       "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
-                                      cn.status === 1 ? "bg-green-500/10 text-green-500" :
-                                        cn.status === 2 ? "bg-blue-500/10 text-blue-500" :
-                                          cn.status === 3 ? "bg-muted text-muted-foreground" :
+                                      note.status === 1 ? "bg-green-500/10 text-green-500" :
+                                        note.status === 2 ? "bg-blue-500/10 text-blue-500" :
+                                          note.status === 3 ? "bg-muted text-muted-foreground" :
                                             "bg-muted text-muted-foreground"
                                     )}>
-                                      {cn.status === 1 ? "Open" : cn.status === 2 ? "Closed" : cn.status === 3 ? "Void" : "Unknown"}
+                                      {note.status === 1 ? "Open" : note.status === 2 ? "Closed" : note.status === 3 ? "Void" : "Unknown"}
                                     </Badge>
                                   </td>
-                                  <td className="px-6 py-4 text-muted-foreground">{cn.project?.name || "-"}</td>
-                                  <td className="px-6 py-4 font-mono text-[11px]">{cn.reference || "-"}</td>
-                                  <td className="px-6 py-4 font-black text-foreground">${cn.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                  <td className="px-6 py-4 font-black text-primary">${(cn.remaining_amount ?? cn.total)?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{note.project?.name || "-"}</td>
+                                  <td className="px-6 py-4 font-mono text-[11px]">{note.reference || "-"}</td>
+                                  <td className="px-6 py-4 font-black text-foreground">₹{note.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 font-black text-primary">₹{(note.remaining_amount ?? note.total)?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                                 </tr>
                               ))
                             )}

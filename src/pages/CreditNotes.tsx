@@ -1,104 +1,397 @@
+import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search } from "lucide-react";
-import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Plus,
+  Search,
+  Download,
+  FileText,
+  Printer,
+  Receipt,
+  Eye,
+  Trash2,
+} from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { creditNoteService } from "@/api/services/credit_note.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
+import { usePermissions } from "@/hooks/usePermissions";
+import { cn } from "@/lib/utils";
 
-type CreditNote = { id: string; invoice: string; customer: string; amount: number; reason: string; status: string; date: string };
-
-const creditNotes: CreditNote[] = [
-  { id: "CN-001", invoice: "INV-0041", customer: "Stark Industries", amount: 1200, reason: "Overcharge on consulting hours", status: "Applied", date: "2026-03-04" },
-  { id: "CN-002", invoice: "INV-0038", customer: "Acme Corp", amount: 500, reason: "Discount adjustment", status: "Pending", date: "2026-03-06" },
-];
-
-const statusColors: Record<string, string> = { Applied: "bg-success/10 text-success border-success/20", Pending: "bg-warning/10 text-warning border-warning/20", Void: "bg-muted text-muted-foreground" };
+const statusMap: Record<number, { label: string; color: string }> = {
+  1: { label: "Open", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+  2: { label: "Closed", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  3: { label: "Void", color: "bg-slate-50 text-slate-700 border-slate-200" },
+};
 
 const CreditNotes = () => {
   const [search, setSearch] = useState("");
-  const [viewItem, setViewItem] = useState<CreditNote | null>(null);
-  const [editItem, setEditItem] = useState<CreditNote | null>(null);
+  const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [viewItem, setViewItem] = useState<any>(null);
+  const navigate = useNavigate();
   const { toast } = useToast();
-  const filtered = creditNotes.filter((c) => c.customer.toLowerCase().includes(search.toLowerCase()));
+  const queryClient = useQueryClient();
+  const { can } = usePermissions();
+
+  const { data: creditNotes = [], isLoading } = useQuery<any[]>({
+    queryKey: ["creditNotes"],
+    queryFn: async () => {
+      const response = await creditNoteService.getAll();
+      return Array.isArray(response) ? response : response?.data || [];
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => creditNoteService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["creditNotes"] });
+      toast({
+        title: "Deleted",
+        description: "Credit Note deleted successfully.",
+        className: "bg-emerald-600 text-white border-none",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete credit note.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const filtered = useMemo(() => {
+    return creditNotes.filter((cn: any) => {
+      const matchSearch =
+        (cn.number || "").toLowerCase().includes(search.toLowerCase()) ||
+        (cn.client?.company || "").toLowerCase().includes(search.toLowerCase()) ||
+        (cn._id || "").toLowerCase().includes(search.toLowerCase()) ||
+        (cn.reference || "").toLowerCase().includes(search.toLowerCase());
+      
+      return matchSearch;
+    });
+  }, [creditNotes, search]);
+
+  const totalCreditsAvailable = useMemo(() => {
+    return creditNotes
+      .filter((cn: any) => cn.status === 1)
+      .reduce((acc: number, cn: any) => acc + (cn.remaining_amount ?? cn.total), 0);
+  }, [creditNotes]);
+
+  const handleExport = (type: "pdf" | "csv" | "print") => {
+    if (filtered.length === 0) {
+      toast({
+        title: "No data",
+        description: "There are no credit notes to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (type === "csv") {
+      const headers = ["Credit Note #", "Customer", "Date", "Status", "Reference", "Amount", "Remaining Amount"];
+      const rows = filtered.map((cn: any) => [
+        cn.number || `CN-${cn._id?.substring(0, 6)}`,
+        cn.client?.company || "N/A",
+        cn.date ? formatDate(cn.date) : "-",
+        statusMap[cn.status]?.label || "Open",
+        cn.reference || "-",
+        `INR ${cn.total || 0}`,
+        `INR ${cn.remaining_amount ?? cn.total ?? 0}`,
+      ]);
+
+      const csvContent =
+        "data:text/csv;charset=utf-8," +
+        [headers.join(","), ...rows.map((e) => e.map((val) => `"${val}"`).join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `credit_notes_export_${new Date().toISOString().split("T")[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast({ title: "Exported", description: "CSV exported successfully." });
+    } else {
+      window.print();
+    }
+  };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div><h1 className="text-2xl font-bold">Credit Notes</h1><p className="text-muted-foreground">Manage credit notes and adjustments</p></div>
-          <Dialog><DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />New Credit Note</Button></DialogTrigger>
-            <DialogContent><DialogHeader><DialogTitle>Create Credit Note</DialogTitle></DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label>Invoice</Label><Input placeholder="Invoice number" /></div>
-                  <div className="space-y-2"><Label>Customer</Label><Input placeholder="Customer" /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label>Amount</Label><Input type="number" placeholder="0.00" /></div>
-                  <div className="space-y-2"><Label>Status</Label>
-                    <Select><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent><SelectItem value="Applied">Applied</SelectItem><SelectItem value="Pending">Pending</SelectItem><SelectItem value="Void">Void</SelectItem></SelectContent></Select>
-                  </div>
-                </div>
-                <div className="space-y-2"><Label>Reason</Label><Textarea placeholder="Reason for credit note" /></div>
-                <div className="space-y-2"><Label>Date</Label><Input type="date" /></div>
-                <Button className="w-full">Create</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-        <div className="relative max-w-sm"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input placeholder="Search..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-        <Card><CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[800px]">
-              <thead><tr className="border-b text-left text-xs text-muted-foreground"><th className="p-3 font-medium">ID</th><th className="p-3 font-medium">Invoice</th><th className="p-3 font-medium">Customer</th><th className="p-3 font-medium">Amount</th><th className="p-3 font-medium">Reason</th><th className="p-3 font-medium">Status</th><th className="p-3 font-medium">Date</th><th className="p-3 font-medium">Actions</th></tr></thead>
-              <tbody>{filtered.map((c) => (
-                <tr key={c.id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                  <td className="p-3 text-sm font-mono">{c.id}</td><td className="p-3 text-sm">{c.invoice}</td><td className="p-3 text-sm text-muted-foreground">{c.customer}</td><td className="p-3 text-sm font-medium">${c.amount.toLocaleString()}</td><td className="p-3 text-sm text-muted-foreground truncate max-w-[200px]">{c.reason}</td><td className="p-3"><Badge variant="outline" className={`text-xs ${statusColors[c.status]}`}>{c.status}</Badge></td><td className="p-3 text-sm text-muted-foreground">{formatDate(c.date)}</td>
-                  <td className="p-3"><TableActions onView={() => setViewItem(c)} onEdit={() => setEditItem(c)} onDelete={() => toast({ title: "Deleted", description: `Credit note ${c.id} deleted.` })} /></td>
-                </tr>
-              ))}</tbody>
-            </table>
+      <div className="p-6 space-y-8 animate-in fade-in duration-500">
+        {/* Header Actions */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-primary/10 rounded-2xl">
+              <Receipt className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Credit Notes</h2>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                Manage customer credit balances & void adjustments
+              </p>
+            </div>
           </div>
-        </CardContent></Card>
+          {can("Invoices", "Create") && (
+            <Button
+              className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
+              onClick={() => navigate("/admin/credit-notes/create")}
+            >
+              <Plus className="h-4 w-4" />
+              New Credit Note
+            </Button>
+          )}
+        </div>
+
+        {/* Credits Available Banner */}
+        <div className="bg-primary/5 border border-primary/10 rounded-[2rem] p-6 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white rounded-xl shadow-sm border border-primary/10">
+              <Receipt className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <p className="text-xl font-black text-foreground">
+                ₹{totalCreditsAvailable.toLocaleString(undefined, { minimumFractionDigits: 2 })} credits available.
+              </p>
+              <p className="text-[10px] font-bold text-primary uppercase tracking-widest mt-1">
+                Available balance to apply to invoices
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Table Controls */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+          <div className="flex items-center gap-3">
+            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+              <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["10", "25", "50", "100", "All"].map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {v}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm"
+                >
+                  <Download className="h-3.5 w-3.5 text-primary" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
+                <DropdownMenuItem
+                  onClick={() => handleExport("pdf")}
+                  className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
+                >
+                  <FileText className="h-4 w-4 text-red-500 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold">PDF</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleExport("csv")}
+                  className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
+                >
+                  <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold">CSV</span>
+                </DropdownMenuItem>
+                <div className="h-px bg-border/50 my-1 mx-1" />
+                <DropdownMenuItem
+                  onClick={() => handleExport("print")}
+                  className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
+                >
+                  <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                  <span className="text-xs font-bold">Print</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search credit notes..."
+              className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
+
+        {/* Credit Notes Table */}
+        <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
+              <tr>
+                {["Credit Note #", "Customer", "Date", "Status", "Reference#", "Amount", "Remaining Amount", "Actions"].map((h) => (
+                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {isLoading ? (
+                Array(3)
+                  .fill(0)
+                  .map((_, i) => (
+                    <tr key={i}>
+                      <td colSpan={8} className="p-4">
+                        <Skeleton className="h-10 w-full" />
+                      </td>
+                    </tr>
+                  ))
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
+                    No credit notes found.
+                  </td>
+                </tr>
+              ) : (
+                filtered
+                  .slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage))
+                  .map((note: any) => {
+                    const status = statusMap[note.status] || statusMap[1];
+                    return (
+                      <tr key={note._id} className="hover:bg-muted/30 transition-colors">
+                        <td
+                          className="px-6 py-4 font-bold text-primary cursor-pointer hover:underline"
+                          onClick={() => setViewItem(note)}
+                        >
+                          {note.number || `CN-${note._id?.substring(0, 6)}`}
+                        </td>
+                        <td className="px-6 py-4 font-medium text-foreground">
+                          {note.client?.company || "N/A"}
+                        </td>
+                        <td className="px-6 py-4 text-muted-foreground">
+                          {note.date ? formatDate(note.date) : "-"}
+                        </td>
+                        <td className="px-6 py-4">
+                          <Badge variant="outline" className={cn("text-[10px] font-black uppercase tracking-widest px-3 py-1", status.color)}>
+                            {status.label}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 font-mono text-[11px] text-foreground">
+                          {note.reference || "-"}
+                        </td>
+                        <td className="px-6 py-4 font-black text-foreground">
+                          ₹{(note.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-6 py-4 font-black text-primary">
+                          ₹{(note.remaining_amount ?? note.total ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-6 py-4">
+                          <TableActions
+                            onView={() => setViewItem(note)}
+                            onEdit={can("Invoices", "Edit") ? () => navigate(`/admin/credit-notes/edit/${note._id}`) : undefined}
+                            onDelete={can("Invoices", "Delete") ? () => deleteMutation.mutate(note._id) : undefined}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination Footer */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+          <p className="text-xs font-bold text-muted-foreground italic">
+            Showing 1 to {filtered.length} of {filtered.length} entries
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+              Previous
+            </Button>
+            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
+              1
+            </div>
+            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+              Next
+            </Button>
+          </div>
+        </div>
       </div>
 
+      {/* View Dialog */}
       <Dialog open={!!viewItem} onOpenChange={() => setViewItem(null)}>
-        <DialogContent><DialogHeader><DialogTitle>Credit Note Details</DialogTitle></DialogHeader>
-          {viewItem && (<div className="space-y-3 pt-2"><div className="grid grid-cols-2 gap-4">
-            <div><p className="text-xs text-muted-foreground">ID</p><p className="text-sm font-medium">{viewItem.id}</p></div>
-            <div><p className="text-xs text-muted-foreground">Invoice</p><p className="text-sm">{viewItem.invoice}</p></div>
-            <div><p className="text-xs text-muted-foreground">Customer</p><p className="text-sm">{viewItem.customer}</p></div>
-            <div><p className="text-xs text-muted-foreground">Amount</p><p className="text-sm font-medium">${viewItem.amount.toLocaleString()}</p></div>
-            <div className="col-span-2"><p className="text-xs text-muted-foreground">Reason</p><p className="text-sm">{viewItem.reason}</p></div>
-            <div><p className="text-xs text-muted-foreground">Status</p><Badge variant="outline" className={`text-xs ${statusColors[viewItem.status]}`}>{viewItem.status}</Badge></div>
-            <div><p className="text-xs text-muted-foreground">Date</p><p className="text-sm">{formatDate(viewItem.date)}</p></div>
-          </div></div>)}
-        </DialogContent>
-      </Dialog>
+        <DialogContent className="max-w-2xl rounded-3xl p-6 border-none shadow-2xl bg-white/95 backdrop-blur-md">
+          <DialogHeader className="border-b border-border/50 pb-4 mb-4">
+            <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-primary" />
+              Credit Note #{viewItem?.number || viewItem?._id?.substring(0, 8)}
+            </DialogTitle>
+          </DialogHeader>
+          {viewItem && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Customer</p>
+                  <p className="text-sm font-bold text-slate-800">{viewItem.client?.company || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Status</p>
+                  <Badge variant="outline" className={cn("text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5", statusMap[viewItem.status]?.color)}>
+                    {statusMap[viewItem.status]?.label || "Open"}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Issue Date</p>
+                  <p className="text-sm font-medium text-slate-700">{viewItem.date ? formatDate(viewItem.date) : "-"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Reference</p>
+                  <p className="text-sm font-medium text-slate-700">{viewItem.reference || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Total Amount</p>
+                  <p className="text-sm font-extrabold text-slate-900">₹{(viewItem.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Remaining Credits</p>
+                  <p className="text-sm font-extrabold text-primary">₹{(viewItem.remaining_amount ?? viewItem.total ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                </div>
+              </div>
 
-      <Dialog open={!!editItem} onOpenChange={() => setEditItem(null)}>
-        <DialogContent><DialogHeader><DialogTitle>Edit Credit Note</DialogTitle></DialogHeader>
-          {editItem && (<div className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Invoice</Label><Input defaultValue={editItem.invoice} /></div>
-              <div className="space-y-2"><Label>Customer</Label><Input defaultValue={editItem.customer} /></div>
+              {viewItem.client_note && (
+                <div className="border-t border-border/50 pt-4">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Client Note</p>
+                  <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">{viewItem.client_note}</p>
+                </div>
+              )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Amount</Label><Input type="number" defaultValue={editItem.amount} /></div>
-              <div className="space-y-2"><Label>Status</Label><Select defaultValue={editItem.status}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Applied">Applied</SelectItem><SelectItem value="Pending">Pending</SelectItem><SelectItem value="Void">Void</SelectItem></SelectContent></Select></div>
-            </div>
-            <div className="space-y-2"><Label>Reason</Label><Textarea defaultValue={editItem.reason} /></div>
-            <div className="space-y-2"><Label>Date</Label><Input type="date" defaultValue={editItem.date} /></div>
-            <Button className="w-full" onClick={() => { setEditItem(null); toast({ title: "Updated", description: "Credit note updated." }); }}>Save Changes</Button>
-          </div>)}
+          )}
         </DialogContent>
       </Dialog>
     </DashboardLayout>

@@ -106,6 +106,12 @@ const salesNav = [
     icon: Wallet,
     permission: "Payments",
   },
+  {
+    title: "Credit Notes",
+    url: "/admin/credit-notes",
+    icon: Receipt,
+    permission: "Credit Notes",
+  },
   { title: "Items", url: "/admin/items", icon: Package, permission: "Items" },
 ];
 
