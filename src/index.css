@@ -421,3 +421,152 @@
     color: hsl(var(--info)) !important;
   }
 }
+
+@media print {
+  /* Hide sidebar, top bar, headers, notifications, etc. */
+  aside,
+  [data-sidebar],
+  header,
+  .sticky,
+  .top-navbar,
+  .no-print,
+  iframe,
+  footer {
+    display: none !important;
+  }
+
+  /* Hide control panels, buttons, inputs, dropdowns, popovers, dialogs, filters, tooltips, pagination */
+  button,
+  .btn,
+  input,
+  select,
+  [role="combobox"],
+  [role="menu"],
+  [role="dialog"],
+  .dialog,
+  .DialogContent,
+  .DropdownMenuContent,
+  .toast,
+  .toaster,
+  [class*="Tooltip"],
+  [class*="tooltip"],
+  [class*="Dialog"],
+  [class*="Popover"],
+  .shadow-md,
+  div.grid.grid-cols-2.md\:grid-cols-5,
+  div.grid.grid-cols-2.sm\:grid-cols-3,
+  div.grid.grid-cols-2.sm\:grid-cols-3.lg\:grid-cols-6,
+  div.flex.flex-wrap.gap-2,
+  div.flex.flex-col.sm\:flex-row.sm\:items-center.sm\:justify-between.gap-3,
+  div.flex.flex-col.sm\:flex-row.items-start.sm\:items-center.justify-between.p-4.border-b,
+  div.flex.items-center.justify-between.p-3.border-b,
+  div.flex.items-center.justify-between.p-4.border-t.bg-slate-50\/50,
+  div.flex.items-center.justify-between.p-4.border-t,
+  .pagination {
+    display: none !important;
+  }
+
+  /* Hide table checkboxes (first column) and actions (last column) */
+  table th:first-child,
+  table td:first-child,
+  table th:last-child,
+  table td:last-child {
+    display: none !important;
+  }
+
+  /* Adjust page layout for print */
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt !important;
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  main,
+  .main-content,
+  .flex-1.flex.flex-col.min-w-0 {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: visible !important;
+  }
+
+  .card,
+  [class*="Card"] {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Table styles for print */
+  table {
+    width: 100% !important;
+    max-width: 100% !important;
+    border-collapse: collapse !important;
+    margin-top: 15px !important;
+    page-break-inside: auto !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  table th,
+  table td {
+    border: 1px solid #aaa !important;
+    padding: 8px 10px !important;
+    text-align: left !important;
+    color: #000 !important;
+    font-size: 9pt !important;
+    background: transparent !important;
+  }
+
+  table th {
+    font-weight: bold !important;
+    text-transform: uppercase !important;
+    background-color: #f5f5f5 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Clean up links and inline widgets in the table */
+  a {
+    color: #000 !important;
+    text-decoration: none !important;
+  }
+
+  table td select,
+  table td [role="combobox"],
+  table td [class*="SelectTrigger"] {
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  table td [class*="Badge"],
+  table td .badge {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    color: #000 !important;
+    font-weight: bold !important;
+  }
+}

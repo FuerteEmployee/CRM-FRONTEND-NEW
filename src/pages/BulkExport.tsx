@@ -9,6 +9,8 @@ import { FileDown, Calendar, Tag, Download, Info } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { salesService } from "@/api/services/sales.service";
+import { estimateService } from "@/api/services/estimate.service";
 
 const EXPORT_TYPES = [
   { id: "invoices", label: "Invoices" },
@@ -37,6 +39,7 @@ const BulkExport = () => {
   const [tag, setTag] = useState<string>("");
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [paymentMode, setPaymentMode] = useState<string>("");
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
   const handleTypeChange = (value: string) => {
     setExportType(value);
@@ -47,6 +50,129 @@ const BulkExport = () => {
     setSelectedStatuses(prev => 
       prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
     );
+  };
+
+  const handleBulkExport = async () => {
+    if (!exportType) return;
+    setIsExporting(true);
+    try {
+      let data = [];
+      let headers: string[] = [];
+      let rows: any[][] = [];
+
+      if (exportType === "invoices") {
+        const response = await salesService.getInvoices();
+        data = response || [];
+        headers = ["Invoice Number", "Customer Name", "Date", "Due Date", "Total", "Tax", "Status"];
+        rows = data.map((inv: any) => [
+          inv.number || inv.invoice_number || "-",
+          inv.customer_name || inv.customer?.company || "-",
+          inv.date ? inv.date.split("T")[0] : "-",
+          inv.due_date ? inv.due_date.split("T")[0] : "-",
+          inv.total || 0,
+          inv.total_tax || 0,
+          inv.status || "Draft"
+        ]);
+      } else if (exportType === "estimates") {
+        const response = await estimateService.getEstimates();
+        data = response || [];
+        headers = ["Estimate Number", "Customer Name", "Date", "Expiry Date", "Total", "Status"];
+        rows = data.map((est: any) => [
+          est.number || est.estimate_number || "-",
+          est.customer_name || est.customer?.company || "-",
+          est.date ? est.date.split("T")[0] : "-",
+          est.expiry_date ? est.expiry_date.split("T")[0] : "-",
+          est.total || 0,
+          est.status || "Draft"
+        ]);
+      } else if (exportType === "payments") {
+        const response = await salesService.getPayments();
+        data = response || [];
+        headers = ["Payment ID", "Invoice Number", "Payment Mode", "Transaction ID", "Amount", "Date"];
+        rows = data.map((p: any) => [
+          p._id || p.id || "-",
+          p.invoice_number || "-",
+          p.payment_mode || "-",
+          p.transaction_id || "-",
+          p.amount || 0,
+          p.date ? p.date.split("T")[0] : "-"
+        ]);
+      } else if (exportType === "credit_notes") {
+        const response = await salesService.getCreditNotes();
+        data = response || [];
+        headers = ["Credit Note Number", "Customer Name", "Date", "Total", "Status"];
+        rows = data.map((cn: any) => [
+          cn.number || cn.credit_note_number || "-",
+          cn.customer_name || cn.customer?.company || "-",
+          cn.date ? cn.date.split("T")[0] : "-",
+          cn.total || 0,
+          cn.status || "Open"
+        ]);
+      } else if (exportType === "proposals") {
+        const response = await salesService.getProposals();
+        data = response || [];
+        headers = ["Proposal Number", "Customer Name", "Subject", "Date", "Open Till", "Total", "Status"];
+        rows = data.map((prop: any) => [
+          prop.number || prop.proposal_number || "-",
+          prop.customer_name || prop.customer?.company || "-",
+          prop.subject || "-",
+          prop.date ? prop.date.split("T")[0] : "-",
+          prop.open_till ? prop.open_till.split("T")[0] : "-",
+          prop.total || 0,
+          prop.status || "Open"
+        ]);
+      } else if (exportType === "expenses") {
+        const response = await salesService.getExpenses();
+        data = response || [];
+        headers = ["Category", "Customer Name", "Date", "Amount", "Tax", "Note", "Billable", "Status"];
+        rows = data.map((exp: any) => [
+          exp.category?.name || exp.category || "-",
+          exp.client?.company || exp.customer_name || "-",
+          exp.date ? exp.date.split("T")[0] : "-",
+          exp.amount || 0,
+          exp.tax || 0,
+          exp.note || "-",
+          exp.billable ? "Yes" : "No",
+          exp.status || "Unbilled"
+        ]);
+      }
+
+      // Filter rows based on fromDate, toDate, selectedStatuses
+      let filteredRows = rows;
+      if (fromDate) {
+        filteredRows = filteredRows.filter(r => r[2] >= fromDate);
+      }
+      if (toDate) {
+        filteredRows = filteredRows.filter(r => r[2] <= toDate);
+      }
+      if (selectedStatuses.length > 0) {
+        const statusIdx = exportType === "expenses" ? 7 : (exportType === "payments" ? 2 : (exportType === "proposals" ? 6 : (exportType === "estimates" ? 5 : (exportType === "invoices" ? 6 : 4))));
+        filteredRows = filteredRows.filter(r => {
+          const rowStatus = String(r[statusIdx]).toLowerCase();
+          return selectedStatuses.some(s => s.toLowerCase() === rowStatus);
+        });
+      }
+
+      if (filteredRows.length === 0) {
+        toast.error("No matching records found for export");
+        return;
+      }
+
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...filteredRows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `bulk_export_${exportType}_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`${filteredRows.length} ${exportType} records exported successfully!`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to export bulk data from API");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const currentStatuses = exportType ? STATUS_CONFIG[exportType] : [];
@@ -172,22 +298,11 @@ const BulkExport = () => {
             <div className="pt-6 flex justify-start">
               <Button 
                 className="h-10 px-8 rounded-lg bg-primary text-primary-foreground font-bold text-sm shadow-md hover:bg-primary/90 transition-all disabled:opacity-50"
-                disabled={!exportType}
-                onClick={() => {
-                  const content = `Type: ${exportType}\nFrom: ${fromDate || "All Time"}\nTo: ${toDate || "All Time"}\nStatuses: ${selectedStatuses.join(", ") || "All"}\nExport Date: ${new Date().toLocaleString()}`;
-                  const blob = new Blob([content], { type: "text/plain;charset=utf-8;" });
-                  const url = URL.createObjectURL(blob);
-                  const link = document.createElement("a");
-                  link.setAttribute("href", url);
-                  link.setAttribute("download", `bulk_export_${exportType}_${new Date().toISOString().split('T')[0]}.txt`);
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                  toast.success(`${exportType.toUpperCase()} bulk export started! Check your downloads.`);
-                }}
+                disabled={!exportType || isExporting}
+                onClick={handleBulkExport}
               >
                 <Download className="mr-2 h-4 w-4" />
-                Export
+                {isExporting ? "Exporting..." : "Export"}
               </Button>
             </div>
 
