@@ -1,8 +1,8 @@
 // const BASE_URL = "http://localhost:5000/api";
 
-// const BASE_URL = "https://crm-backend-1-qurl.onrender.com";
+const BASE_URL = "https://crm-backend-1-qurl.onrender.com";
 
-const BASE_URL = "https://crm-pro-he29.onrender.com";
+// const BASE_URL = "https://crm-pro-he29.onrender.com";
 
 
 
@@ -13,10 +13,10 @@ class ApiClient {
       ...(!isFormData && { "Content-Type": "application/json" }),
       ...options.headers,
     };
-    
+
     if (isFormData && (headers["Content-Type"] || headers["content-type"])) {
-        delete headers["Content-Type"];
-        delete headers["content-type"];
+      delete headers["Content-Type"];
+      delete headers["content-type"];
     }
 
     const response = await fetch(`${BASE_URL}${endpoint}`, {
