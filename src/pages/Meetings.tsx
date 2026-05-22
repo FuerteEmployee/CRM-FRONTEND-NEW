@@ -23,6 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/dateFormat";
 import { Badge } from "@/components/ui/badge";
+import { ExportButton } from "@/components/ui/export-button";
 
 export default function Meetings() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -158,13 +159,26 @@ export default function Meetings() {
             <h1 className="text-2xl font-bold">Meetings</h1>
             <p className="text-sm text-muted-foreground">Manage your team and client meetings</p>
           </div>
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setEditingMeeting(null)} className="font-bold uppercase tracking-wider text-xs">
-                <Plus className="mr-2 h-4 w-4" />
-                New Meeting
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-2">
+            <ExportButton 
+              data={filteredMeetings} 
+              filename="meetings"
+              columns={[
+                { header: "Topic", key: "topic" },
+                { header: "Date", key: "date" },
+                { header: "Time", key: "time" },
+                { header: "Members", key: (m) => Array.isArray(m.members) ? m.members.join(", ") : m.members },
+                { header: "Status", key: "status" },
+                { header: "Agenda", key: "agenda" }
+              ]}
+            />
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={() => setEditingMeeting(null)} className="font-bold uppercase tracking-wider text-xs">
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Meeting
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-xl">
               <DialogHeader>
                 <DialogTitle>{editingMeeting ? "Edit Meeting" : "Schedule New Meeting"}</DialogTitle>

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
+import { ExportButton } from "@/components/ui/export-button";
 
 const Estimates = () => {
   const [estimateSearch, setEstimateSearch] = useState("");
@@ -125,29 +126,18 @@ const Estimates = () => {
                 ))}
               </SelectContent>
             </Select>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm">
-                  <Download className="h-3.5 w-3.5 text-primary" />
-                  Export
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
-                <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
-                  <FileText className="h-4 w-4 text-red-500 group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-bold">PDF</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
-                  <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-bold">CSV</span>
-                </DropdownMenuItem>
-                <div className="h-px bg-border/50 my-1 mx-1" />
-                <DropdownMenuItem className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
-                  <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-bold">Print</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <ExportButton 
+              data={filtered} 
+              filename="estimates" 
+              columns={[
+                { header: "Estimate #", key: (e) => e.number || e._id },
+                { header: "Subject", key: "subject" },
+                { header: "To", key: (e) => e.contact_name || e.client_id?.company || e.rel_id || "N/A" },
+                { header: "Total", key: "total" },
+                { header: "Date", key: "date" },
+                { header: "Status", key: "status" }
+              ]} 
+            />
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

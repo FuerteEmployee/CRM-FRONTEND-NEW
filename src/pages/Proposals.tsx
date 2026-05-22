@@ -16,6 +16,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
+import { ExportButton } from "@/components/ui/export-button";
 
 const Proposals = () => {
   const [proposalSearch, setProposalSearch] = useState("");
@@ -87,22 +88,18 @@ const Proposals = () => {
                 ))}
               </SelectContent>
             </Select>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm">
-                  <Download className="h-3.5 w-3.5 text-primary" />
-                  Export
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
-                {["PDF", "CSV", "Excel", "Print"].map(type => (
-                  <DropdownMenuItem key={type} className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
-                    <FileText className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-                    <span className="text-xs font-bold">{type}</span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <ExportButton 
+              data={filtered} 
+              filename="proposals" 
+              columns={[
+                { header: "Proposal #", key: (p) => p.number || p._id },
+                { header: "Subject", key: "subject" },
+                { header: "To", key: (p) => p.rel_id || p.customer || "N/A" },
+                { header: "Total", key: (p) => p.total || p.amount || "0" },
+                { header: "Date", key: "date" },
+                { header: "Status", key: "status" }
+              ]} 
+            />
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
