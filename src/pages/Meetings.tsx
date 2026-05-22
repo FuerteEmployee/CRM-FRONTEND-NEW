@@ -224,8 +224,9 @@ export default function Meetings() {
                 </DialogClose>
                 <Button onClick={handleSave}>{editingMeeting ? "Update" : "Save"}</Button>
               </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         <Card>
