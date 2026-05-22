@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +16,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Calendar, Clock, Users, Trash2, Edit } from "lucide-react";
+import { Plus, Search, Calendar, Clock, Users, Trash2, Edit, Video, Copy } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { meetingService } from "@/api/services/meeting.service";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +30,7 @@ export default function Meetings() {
   const [search, setSearch] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
     topic: "",
@@ -279,10 +281,20 @@ export default function Meetings() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:bg-blue-50" onClick={() => handleEdit(meeting)}>
+                            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-blue-600" onClick={() => navigate(`/admin/meetings/room/${meeting._id}`)}>
+                              <Video className="h-3.5 w-3.5" />
+                              Join
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:bg-slate-100" onClick={() => {
+                              navigator.clipboard.writeText(window.location.origin + `/admin/meetings/room/${meeting._id}`);
+                              toast({ title: "Copied!", description: "Meeting link copied to clipboard." });
+                            }} title="Copy Link">
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-600 hover:bg-slate-100" onClick={() => handleEdit(meeting)} title="Edit">
                               <Edit className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50" onClick={() => handleDelete(meeting._id)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50" onClick={() => handleDelete(meeting._id)} title="Delete">
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>

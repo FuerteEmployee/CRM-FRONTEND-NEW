@@ -7,6 +7,19 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
   Send,
   Search,
   Paperclip,
@@ -18,6 +31,9 @@ import {
   Trash2,
   Check,
   CheckCheck,
+  Plus,
+  Users as UsersIcon,
+  UserPlus
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { chatService } from "@/api/services/chat.service";
@@ -25,6 +41,7 @@ import { usePermissionContext } from "@/context/PermissionContext";
 import { format } from "date-fns";
 import { io, Socket } from "socket.io-client";
 import EmojiPicker from "emoji-picker-react";
+import { JitsiMeeting } from "@jitsi/react-sdk";
 
 interface ChatContact {
   _id: string;
@@ -35,6 +52,9 @@ interface ChatContact {
   lastMessage?: string;
   lastMessageTime?: string;
   unreadCount: number;
+  isGroup?: boolean;
+  groupAdmin?: string;
+  participants?: string[];
 }
 
 interface ChatMessage {
@@ -48,6 +68,8 @@ interface ChatMessage {
   message: string;
   createdAt: string;
   read?: boolean;
+  conversationId?: string;
+  isGroup?: boolean;
 }
 
 const Chat = () => {
@@ -64,6 +86,14 @@ const Chat = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isViewMembersOpen, setIsViewMembersOpen] = useState(false);
+  const [activeCall, setActiveCall] = useState(false);
+  const [callType, setCallType] = useState<"video" | "audio">("video");
+  
   const scrollRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const selectedContactRef = useRef<ChatContact | null>(null);
@@ -85,27 +115,31 @@ const Chat = () => {
     socketRef.current.on("newMessage", (msg: ChatMessage) => {
       // Update contacts unread count / last message
       setContacts((prev) =>
-        prev.map((c) =>
-          c._id === msg.sender._id
-            ? {
+        prev.map((c) => {
+          const isMatch = msg.isGroup ? c._id === msg.conversationId : c._id === msg.sender._id;
+          if (isMatch) {
+            return {
                 ...c,
                 lastMessage: msg.message,
                 unreadCount:
-                  selectedContactRef.current?._id === msg.sender._id
+                  selectedContactRef.current?._id === c._id
                     ? c.unreadCount
                     : c.unreadCount + 1,
-              }
-            : c,
-        ),
+              };
+          }
+          return c;
+        })
       );
 
       // Append message if looking at the correct contact
-      if (selectedContactRef.current?._id === msg.sender._id) {
+      const isLookingAtMatch = msg.isGroup ? selectedContactRef.current?._id === msg.conversationId : selectedContactRef.current?._id === msg.sender._id;
+      
+      if (isLookingAtMatch) {
         setMessages((prev) => {
           if (prev.some((m) => m._id === msg._id)) return prev;
           return [...prev, { ...msg, read: true }];
         });
-        chatService.markAsRead(msg.sender._id).catch(console.error);
+        chatService.markAsRead(msg.isGroup ? msg.conversationId! : msg.sender._id, msg.isGroup).catch(console.error);
         setTimeout(() => {
           if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -161,7 +195,7 @@ const Chat = () => {
     const fetchHistory = async () => {
       try {
         setLoadingHistory(true);
-        const data = await chatService.getHistory(selectedContact._id);
+        const data = await chatService.getHistory(selectedContact._id, undefined, undefined, selectedContact.isGroup);
         if (isMounted) {
           setMessages(data || []);
           setHasMore(data.length === 50); // Initial limit is 50
@@ -182,7 +216,7 @@ const Chat = () => {
     try {
       setLoadingMore(true);
       const before = messages[0]?.createdAt;
-      const data = await chatService.getHistory(selectedContact._id, before);
+      const data = await chatService.getHistory(selectedContact._id, before, undefined, selectedContact.isGroup);
 
       if (data && data.length > 0) {
         const scrollNode = scrollRef.current;
@@ -226,6 +260,7 @@ const Chat = () => {
       const sentMsg = await chatService.sendMessage(
         selectedContact._id,
         msgToSend,
+        selectedContact.isGroup
       );
       setMessages((prev) => [
         ...prev,
@@ -254,6 +289,45 @@ const Chat = () => {
     }
   };
 
+  const handleExitGroup = async () => {
+    if (!selectedContact) return;
+    try {
+      await chatService.exitGroup(selectedContact._id);
+      setSelectedContact(null);
+      const data = await chatService.getContacts();
+      setContacts(data || []);
+    } catch (error) {
+      console.error("Failed to exit group:", error);
+    }
+  };
+
+  const handleDeleteGroup = async () => {
+    if (!selectedContact) return;
+    try {
+      await chatService.deleteGroup(selectedContact._id);
+      setSelectedContact(null);
+      const data = await chatService.getContacts();
+      setContacts(data || []);
+    } catch (error) {
+      console.error("Failed to delete group:", error);
+    }
+  };
+
+  const handleStartCall = async (type: "video" | "audio") => {
+    setCallType(type);
+    setActiveCall(true);
+    if (!selectedContact) return;
+    try {
+      await chatService.sendMessage(
+        selectedContact._id,
+        `📞 Started a ${type === "video" ? "Video" : "Voice"} Call. Click the ${type === "video" ? "Video" : "Phone"} icon at the top to join!`,
+        selectedContact.isGroup
+      );
+    } catch (e) {
+      console.error("Failed to send call start message", e);
+    }
+  };
+
   const onEmojiClick = (emojiObject: any) => {
     setMessage((prev) => prev + emojiObject.emoji);
     setShowEmojiPicker(false);
@@ -269,7 +343,12 @@ const Chat = () => {
           {/* Contacts sidebar */}
           <div className="w-80 border-r flex flex-col bg-card">
             <div className="p-3 border-b">
-              <h2 className="font-semibold mb-2">Messages</h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="font-semibold">Messages</h2>
+                <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => setIsCreateGroupOpen(true)}>
+                  Create Group
+                </Button>
+              </div>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -303,16 +382,15 @@ const Chat = () => {
                     <div className="relative">
                       <Avatar className="h-10 w-10">
                         <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                          {getInitials(contact.firstname, contact.lastname)}
+                          {contact.isGroup ? <UsersIcon className="h-5 w-5" /> : getInitials(contact.firstname, contact.lastname)}
                         </AvatarFallback>
                       </Avatar>
-                      {/* Using active status mock as before if needed, or omit */}
-                      <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-success border-2 border-card" />
+                      {!contact.isGroup && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-success border-2 border-card" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium truncate">
-                          {contact.firstname} {contact.lastname}
+                          {contact.isGroup ? contact.firstname : `${contact.firstname} ${contact.lastname}`}
                         </span>
                         {contact.lastMessageTime && (
                           <span className="text-[10px] text-muted-foreground">
@@ -339,13 +417,45 @@ const Chat = () => {
           {/* Chat area */}
           <div className="flex-1 flex flex-col bg-background">
             {selectedContact ? (
+              activeCall ? (
+                <div className="flex-1 flex flex-col">
+                  <div className="flex items-center justify-between p-3 border-b bg-card">
+                    <div className="flex items-center gap-3">
+                      <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+                      <h3 className="font-semibold text-sm">Ongoing Call: {selectedContact.isGroup ? selectedContact.firstname : `${selectedContact.firstname} ${selectedContact.lastname}`}</h3>
+                    </div>
+                    <Button variant="destructive" size="sm" onClick={() => setActiveCall(false)}>
+                      End / Leave Call
+                    </Button>
+                  </div>
+                  <div className="flex-1 bg-black relative">
+                    <JitsiMeeting
+                      roomName={`CRM_Call_${selectedContact._id}`}
+                      configOverwrite={{
+                        startWithAudioMuted: false,
+                        startWithVideoMuted: callType === "audio",
+                      }}
+                      interfaceConfigOverwrite={{
+                        DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+                      }}
+                      userInfo={{
+                        displayName: `${currentUser?.firstname} ${currentUser?.lastname}`,
+                      }}
+                      getIFrameRef={(iframeRef) => {
+                        iframeRef.style.height = '100%';
+                        iframeRef.style.width = '100%';
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
               <>
                 {/* Chat header */}
                 <div className="flex items-center justify-between p-3 border-b">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-9 w-9">
                       <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                        {getInitials(
+                        {selectedContact.isGroup ? <UsersIcon className="h-5 w-5" /> : getInitials(
                           selectedContact.firstname,
                           selectedContact.lastname,
                         )}
@@ -353,21 +463,50 @@ const Chat = () => {
                     </Avatar>
                     <div>
                       <h3 className="text-sm font-semibold">
-                        {selectedContact.firstname} {selectedContact.lastname}
+                        {selectedContact.isGroup ? selectedContact.firstname : `${selectedContact.firstname} ${selectedContact.lastname}`}
                       </h3>
-                      <p className="text-xs text-muted-foreground">Online</p>
+                      <p className="text-xs text-muted-foreground">{selectedContact.isGroup ? `${selectedContact.participants?.length || 0} members` : "Online"}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                    {selectedContact.isGroup && selectedContact.groupAdmin === currentUser?._id && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setIsAddMemberOpen(true)} title="Add Member">
+                        <UserPlus className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleStartCall("audio")} title="Voice Call">
                       <Phone className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleStartCall("video")} title="Video Call">
                       <Video className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
+                    {selectedContact.isGroup ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setIsViewMembersOpen(true)}>
+                            View Members
+                          </DropdownMenuItem>
+                          {selectedContact.groupAdmin === currentUser?._id ? (
+                            <DropdownMenuItem className="text-destructive" onClick={handleDeleteGroup}>
+                              Delete Group
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem className="text-destructive" onClick={handleExitGroup}>
+                              Exit Group
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -434,6 +573,7 @@ const Chat = () => {
                               className={`max-w-[70%] px-3 py-1.5 ${roundedClass} shadow-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-muted"}`}
                             >
                               <p className="text-sm break-words whitespace-pre-wrap">
+                                {!isMe && selectedContact.isGroup && <span className="text-[10px] font-bold block text-primary mb-0.5">{msg.sender.firstname}</span>}
                                 {msg.message}
                               </p>
                               <p
@@ -494,7 +634,7 @@ const Chat = () => {
                   </div>
                 </div>
               </>
-            ) : (
+            )) : (
               <div className="flex-1 flex items-center justify-center text-muted-foreground p-8 text-center italic">
                 Select a staff member from the list to start chatting.
               </div>
@@ -502,6 +642,137 @@ const Chat = () => {
           </div>
         </div>
       </div>
+      {/* Create Group Modal */}
+      <Dialog open={isCreateGroupOpen} onOpenChange={setIsCreateGroupOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Group</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Group Name</label>
+              <Input value={groupName} onChange={(e) => setGroupName(e.target.value)} placeholder="Enter group name" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Select Participants</label>
+              <ScrollArea className="h-[200px] border rounded-md p-2">
+                {contacts.filter(c => !c.isGroup && c._id !== currentUser?._id).map((contact) => (
+                  <div key={contact._id} className="flex items-center space-x-2 py-2">
+                    <Checkbox
+                      id={`participant-${contact._id}`}
+                      checked={selectedParticipants.includes(contact._id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedParticipants((prev) => [...prev, contact._id]);
+                        } else {
+                          setSelectedParticipants((prev) => prev.filter((id) => id !== contact._id));
+                        }
+                      }}
+                    />
+                    <label htmlFor={`participant-${contact._id}`} className="text-sm cursor-pointer">
+                      {contact.firstname} {contact.lastname}
+                    </label>
+                  </div>
+                ))}
+              </ScrollArea>
+            </div>
+            <Button
+              className="w-full"
+              onClick={async () => {
+                if (!groupName || selectedParticipants.length === 0) return;
+                try {
+                  await chatService.createGroup(groupName, selectedParticipants);
+                  setIsCreateGroupOpen(false);
+                  setGroupName("");
+                  setSelectedParticipants([]);
+                  const data = await chatService.getContacts();
+                  setContacts(data || []);
+                } catch (e) {
+                  console.error(e);
+                }
+              }}
+              disabled={!groupName || selectedParticipants.length === 0}
+            >
+              Create Group
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Member Modal */}
+      <Dialog open={isAddMemberOpen} onOpenChange={setIsAddMemberOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Member</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <ScrollArea className="h-[300px] border rounded-md p-2">
+              {contacts.filter(c => !c.isGroup && c._id !== currentUser?._id && !selectedContact?.participants?.includes(c._id)).map((contact) => (
+                <div key={contact._id} className="flex items-center justify-between py-2 border-b last:border-0">
+                  <span className="text-sm">{contact.firstname} {contact.lastname}</span>
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      if (!selectedContact) return;
+                      try {
+                        await chatService.addGroupMember(selectedContact._id, contact._id);
+                        setIsAddMemberOpen(false);
+                        const data = await chatService.getContacts();
+                        setContacts(data || []);
+                        setSelectedContact((prev) => {
+                          if (prev && prev._id === selectedContact._id) {
+                            return { ...prev, participants: [...(prev.participants || []), contact._id] };
+                          }
+                          return prev;
+                        });
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
+                  >
+                    Add
+                  </Button>
+                </div>
+              ))}
+              {contacts.filter(c => !c.isGroup && c._id !== currentUser?._id && !selectedContact?.participants?.includes(c._id)).length === 0 && (
+                <div className="text-center text-sm text-muted-foreground p-4">All available staff are already in this group.</div>
+              )}
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Members Modal */}
+      <Dialog open={isViewMembersOpen} onOpenChange={setIsViewMembersOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Group Members</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <ScrollArea className="h-[300px] border rounded-md p-2">
+              {[...(contacts.filter(c => !c.isGroup && selectedContact?.participants?.includes(c._id))), 
+                ...(selectedContact?.participants?.includes(currentUser?._id || "") ? [{ _id: currentUser?._id || "", firstname: "You", lastname: "", email: "" }] : [])
+              ].map((contact: any) => {
+                const isAdmin = String(selectedContact?.groupAdmin) === String(contact._id);
+                return (
+                  <div key={contact._id} className="flex items-center justify-between py-2 border-b last:border-0">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                          {getInitials(contact.firstname, contact.lastname)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium">
+                        {contact.firstname} {contact.lastname} {isAdmin && <span className="text-xs text-muted-foreground ml-1">(Admin)</span>}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };
