@@ -127,6 +127,42 @@ export function DataTable<T extends Record<string, any>>({
     );
   };
 
+  const handleExport = () => {
+    if (sortedData.length === 0) return;
+
+    const headers = columns.map((col) => col.label);
+    const rows = sortedData.map((item, index) =>
+      columns.map((col) => {
+        let val = "";
+        if (col.key === idField) {
+          val = String(index + 1);
+        } else {
+          const rawVal =
+            typeof col.key === "string"
+              ? col.key.split(".").reduce((obj: any, k) => (obj || {})[k], item)
+              : item[col.key as keyof T];
+          val = rawVal !== undefined && rawVal !== null ? String(rawVal) : "";
+        }
+        return val.replace(/"/g, '""');
+      })
+    );
+
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((v) => `"${v}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `export_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       {children}
@@ -152,6 +188,7 @@ export function DataTable<T extends Record<string, any>>({
           </Select>
           <Button
             variant="outline"
+            onClick={handleExport}
             className="flex items-center gap-2 h-10 px-4 border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all duration-200 font-medium text-sm"
           >
             <FileDown className="h-4 w-4" />
