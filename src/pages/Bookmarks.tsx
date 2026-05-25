@@ -101,8 +101,10 @@ export default function Bookmarks() {
                             <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100 group-hover:bg-blue-50 transition-colors">
                               {(() => {
                                 try {
-                                  const hostname = new URL(bookmark.url).hostname;
-                                  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                                  const urlObj = new URL(bookmark.url);
+                                  const hostname = urlObj.hostname;
+                                  // Use generic globe icon for local networks, extensions, and special browser pages
+                                  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === 'newtab' || urlObj.protocol === 'chrome:' || urlObj.protocol === 'edge:' || !hostname.includes('.')) {
                                     return <Globe className="h-5 w-5 text-slate-400" />;
                                   }
                                   return <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=64`} alt="" className="h-5 w-5 rounded" onError={(e: any) => { e.target.style.display='none'; }} />;
