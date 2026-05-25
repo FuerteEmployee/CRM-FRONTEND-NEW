@@ -4,7 +4,7 @@ import { bookmarkService } from "@/api/services/bookmark.service";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, ExternalLink, Trash2, Bookmark as BookmarkIcon, Folder as FolderIcon } from "lucide-react";
+import { Search, ExternalLink, Trash2, Bookmark as BookmarkIcon, Folder as FolderIcon, Globe } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -99,7 +99,17 @@ export default function Bookmarks() {
                         <div key={bookmark._id} className="flex items-center justify-between p-3 bg-white border rounded-xl shadow-sm hover:shadow-md transition-all hover:border-primary/20 group">
                           <div className="flex items-start gap-4">
                             <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100 group-hover:bg-blue-50 transition-colors">
-                              <img src={`https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=64`} alt="" className="h-5 w-5 rounded" onError={(e: any) => { e.target.style.display='none'; }} />
+                              {(() => {
+                                try {
+                                  const hostname = new URL(bookmark.url).hostname;
+                                  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                                    return <Globe className="h-5 w-5 text-slate-400" />;
+                                  }
+                                  return <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=64`} alt="" className="h-5 w-5 rounded" onError={(e: any) => { e.target.style.display='none'; }} />;
+                                } catch (e) {
+                                  return <Globe className="h-5 w-5 text-slate-400" />;
+                                }
+                              })()}
                             </div>
                             <div className="flex flex-col min-w-0">
                               <a href={bookmark.url} target="_blank" rel="noopener noreferrer" className="font-bold text-slate-800 hover:text-primary transition-colors truncate max-w-[500px] flex items-center gap-2 text-sm">
