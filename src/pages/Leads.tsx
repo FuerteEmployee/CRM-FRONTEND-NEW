@@ -260,31 +260,32 @@ const Leads = () => {
     const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
     const lStatusName = (typeof l.status === 'object' ? l.status?.name : statuses.find(s => s._id === l.status)?.name) || "";
     
+    const dbName = lStatusName.toLowerCase().replace(" lead", "").replace(" leads", "").trim();
+    const filterVal = statusFilter.toLowerCase();
+    
     const matchStatus = statusFilter === "all" || 
                         lStatusId === statusFilter || 
-                        lStatusName.toLowerCase() === statusFilter.toLowerCase();
+                        dbName === filterVal ||
+                        dbName.includes(filterVal);
     return matchSearch && matchStatus;
   });
 
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
 
-  const getCardStyle = (name: string) => {
-    const n = (name || "").toLowerCase();
-    if (n.includes('pending')) return { icon: Clock, color: "text-amber-500", bg: "bg-amber-50" };
-    if (n.includes('follow')) return { icon: ArrowRight, color: "text-blue-500", bg: "bg-blue-50" };
-    if (n.includes('hot')) return { icon: Flame, color: "text-rose-500", bg: "bg-rose-50" };
-    if (n.includes('cold')) return { icon: Snowflake, color: "text-cyan-500", bg: "bg-cyan-50" };
-    if (n.includes('warm')) return { icon: Sun, color: "text-orange-500", bg: "bg-orange-50" };
-    if (n.includes('dead') || n.includes('junk')) return { icon: Ghost, color: "text-slate-500", bg: "bg-slate-50" };
-    if (n.includes('visit')) return { icon: MapPin, color: "text-indigo-500", bg: "bg-indigo-50" };
-    if (n.includes('require')) return { icon: ClipboardList, color: "text-emerald-500", bg: "bg-emerald-50" };
-    if (n.includes('meet')) return { icon: Users, color: "text-purple-500", bg: "bg-purple-50" };
-    if (n.includes('customer')) return { icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50" };
-    if (n.includes('lost')) return { icon: UserMinus, color: "text-red-500", bg: "bg-red-50" };
-    // fallback
-    return { icon: TagIcon, color: "text-primary", bg: "bg-primary/5" };
-  };
+  const statusCards = [
+    { id: "pending", label: "Pending", icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
+    { id: "followup", label: "Followup", icon: ArrowRight, color: "text-blue-500", bg: "bg-blue-50" },
+    { id: "hot", label: "Hot Lead", icon: Flame, color: "text-rose-500", bg: "bg-rose-50" },
+    { id: "cold", label: "Cold Lead", icon: Snowflake, color: "text-cyan-500", bg: "bg-cyan-50" },
+    { id: "warm", label: "Warm Lead", icon: Sun, color: "text-orange-500", bg: "bg-orange-50" },
+    { id: "dead", label: "Dead Lead", icon: Ghost, color: "text-slate-500", bg: "bg-slate-50" },
+    { id: "visit", label: "Visit", icon: MapPin, color: "text-indigo-500", bg: "bg-indigo-50" },
+    { id: "requirement", label: "Requirement", icon: ClipboardList, color: "text-emerald-500", bg: "bg-emerald-50" },
+    { id: "meeting", label: "Meeting", icon: Users, color: "text-purple-500", bg: "bg-purple-50" },
+    { id: "customer", label: "Customer", icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50" },
+    { id: "lost", label: "Lost Leads", icon: UserMinus, color: "text-red-500", bg: "bg-red-50", percentage: "0.00%" },
+  ];
 
   return (
     <DashboardLayout>
@@ -335,10 +336,12 @@ const Leads = () => {
                             </SelectTrigger>
                             <SelectContent>
                               {/* Standard Statuses from Cards */}
-                              {statuses.map((status: any) => (
-                                <SelectItem key={status._id} value={status._id}>{status.name}</SelectItem>
+                              {statusCards.filter(card => card.id !== "all").map(card => (
+                                <SelectItem key={card.id} value={card.label}>{card.label}</SelectItem>
                               ))}
-
+                              {/* Custom Statuses from DB */}
+                              {statuses.length > 0 && <div className="h-px bg-slate-100 my-1" />}
+                              {statuses.map(s => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         )}
@@ -505,35 +508,35 @@ const Leads = () => {
         </div>
 
         {/* Status Cards - Filters */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 xl:grid-cols-11 gap-2">
-          {statuses.map((status: any) => {
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-11 gap-2">
+          {statusCards.map((card) => {
             const count = leads.filter(l => {
                 const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
-                return lStatusId === status._id;
+                const lStatusName = (typeof l.status === 'object' ? l.status?.name : statuses.find(s => s._id === l.status)?.name) || "";
+                
+                const dbName = lStatusName.toLowerCase().replace(" lead", "").replace(" leads", "").trim();
+                const cId = card.id.toLowerCase();
+                
+                return dbName === cId || dbName.includes(cId) || String(lStatusId).toLowerCase() === cId;
             }).length;
-            const isActive = statusFilter === status._id;
-            const style = getCardStyle(status.name);
-            const Icon = style.icon;
+            const isActive = statusFilter === card.id;
 
             return (
               <button
-                key={status._id}
-                onClick={() => setStatusFilter(isActive ? "all" : status._id)}
+                key={card.id}
+                onClick={() => setStatusFilter(isActive ? "all" : card.id)}
                 className={cn(
-                  "flex flex-col p-2.5 rounded-2xl transition-all duration-300 text-left group border-2 relative overflow-hidden",
+                  "flex flex-col p-2.5 rounded-2xl transition-all duration-300 text-left group border-2",
                   isActive ? "border-primary bg-primary/5 ring-4 ring-primary/5" : "border-transparent bg-white hover:border-slate-100 shadow-sm"
                 )}
               >
-                <div className={cn("absolute -right-4 -top-4 w-12 h-12 rounded-full opacity-10 transition-transform group-hover:scale-150", style.bg)} />
-                <div className="flex flex-col w-full relative z-10">
-                  <div className="flex items-center gap-1.5 mb-1.5">
-                    <div className={cn("p-1 rounded-md", style.bg)}>
-                      <Icon className={cn("h-3 w-3", style.color)} />
-                    </div>
-                    <p className="text-[9px] font-black uppercase tracking-tight text-slate-500 group-hover:text-slate-700 truncate">{status.name}</p>
-                  </div>
+                <div className="flex flex-col">
+                  <p className="text-[9px] font-black uppercase tracking-tight text-slate-400 group-hover:text-slate-600 truncate">{card.label}</p>
                   <div className="flex items-center justify-between mt-0.5">
-                    <p className={cn("text-base font-black leading-none", style.color)}>{count}</p>
+                    <p className={cn("text-sm font-black", card.color)}>{count}</p>
+                    {card.percentage && (
+                      <span className="text-[8px] font-black text-slate-400">{card.percentage}</span>
+                    )}
                   </div>
                 </div>
               </button>
