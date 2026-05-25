@@ -335,13 +335,7 @@ const Leads = () => {
                               <SelectValue placeholder="Select Status" />
                             </SelectTrigger>
                             <SelectContent>
-                              {/* Standard Statuses from Cards */}
-                              {statusCards.filter(card => card.id !== "all").map(card => (
-                                <SelectItem key={card.id} value={card.label}>{card.label}</SelectItem>
-                              ))}
-                              {/* Custom Statuses from DB */}
-                              {statuses.length > 0 && <div className="h-px bg-slate-100 my-1" />}
-                              {statuses.map(s => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
+                              {statuses.map((s: any) => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         )}
@@ -367,7 +361,7 @@ const Leads = () => {
                               <SelectValue placeholder="Select Source" />
                             </SelectTrigger>
                             <SelectContent>
-                              {sources.map(s => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
+                              {sources.map((s: any) => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         )}
