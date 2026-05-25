@@ -24,7 +24,9 @@ export default function MeetingRoom() {
   const [meetingLeft, setMeetingLeft] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [summary, setSummary] = useState("");
+  const summaryRef = useRef("");
   const [isListening, setIsListening] = useState(false);
+  const isListeningRef = useRef(false);
   const { toast } = useToast();
   const recognitionRef = useRef<any>(null);
 
@@ -37,8 +39,17 @@ export default function MeetingRoom() {
   useEffect(() => {
     if (meeting?.data?.summary) {
       setSummary(meeting.data.summary);
+      summaryRef.current = meeting.data.summary;
     }
   }, [meeting]);
+
+  const updateSummary = (newSummary: string | ((prev: string) => string)) => {
+    setSummary((prev) => {
+      const updated = typeof newSummary === 'function' ? newSummary(prev) : newSummary;
+      summaryRef.current = updated;
+      return updated;
+    });
+  };
 
   const updateMutation = useMutation({
     mutationFn: (summaryText: string) => meetingService.updateMeeting(roomId, { summary: summaryText }),
@@ -57,9 +68,10 @@ export default function MeetingRoom() {
 
   const toggleListening = () => {
     if (isListening) {
+      isListeningRef.current = false;
       recognitionRef.current?.stop();
       setIsListening(false);
-      toast({ title: "Voice Typing Stopped", description: "Voice recognition has been stopped." });
+      toast({ title: "Auto-Transcribe Stopped", description: "Background transcription has been stopped." });
       return;
     }
 
@@ -82,7 +94,7 @@ export default function MeetingRoom() {
         }
       }
       if (finalTranscript) {
-        setSummary((prev) => prev + (prev ? '\n' : '') + finalTranscript.trim());
+        updateSummary((prev) => prev + (prev ? '\n' : '') + finalTranscript.trim());
       }
     };
 
@@ -90,27 +102,52 @@ export default function MeetingRoom() {
       console.error(event.error);
       if (event.error !== 'no-speech') {
         setIsListening(false);
-        toast({ title: "Voice Error", description: "An error occurred with voice typing.", variant: "destructive" });
+        isListeningRef.current = false;
+        toast({ title: "Voice Error", description: "An error occurred with transcription.", variant: "destructive" });
       }
     };
 
     recognition.onend = () => {
-      setIsListening(false);
+      // Restart automatically if we are still supposed to be listening (Background mode)
+      if (isListeningRef.current) {
+        try {
+          recognition.start();
+        } catch (e) {
+          console.error("Failed to restart recognition in background", e);
+          setIsListening(false);
+          isListeningRef.current = false;
+        }
+      } else {
+        setIsListening(false);
+      }
     };
 
     try {
       recognition.start();
       recognitionRef.current = recognition;
       setIsListening(true);
-      toast({ title: "Voice Typing Started", description: "Speak now to record notes." });
+      isListeningRef.current = true;
+      toast({ title: "Auto-Transcribe Started", description: "Running in background. It will auto-save when you leave." });
     } catch(e) {
       console.error(e);
-      toast({ title: "Error", description: "Could not start voice recognition.", variant: "destructive" });
+      toast({ title: "Error", description: "Could not start transcription.", variant: "destructive" });
     }
   };
 
   const handleSaveSummary = () => {
-    updateMutation.mutate(summary);
+    updateMutation.mutate(summaryRef.current);
+  };
+
+  const handleLeaveMeeting = () => {
+    if (isListeningRef.current) {
+      isListeningRef.current = false;
+      recognitionRef.current?.stop();
+    }
+    // Auto-save the transcription text when leaving using ref to avoid stale closures
+    if (summaryRef.current.trim()) {
+      updateMutation.mutate(summaryRef.current);
+    }
+    setMeetingLeft(true);
   };
 
   if (meetingLeft) {
@@ -151,7 +188,7 @@ export default function MeetingRoom() {
                 <Copy className="h-3 w-3" />
                 Copy Link
               </Button>
-              <Button variant="destructive" size="sm" onClick={() => setMeetingLeft(true)}>
+              <Button variant="destructive" size="sm" onClick={handleLeaveMeeting}>
                 Leave
               </Button>
             </div>
@@ -172,7 +209,7 @@ export default function MeetingRoom() {
               }}
               onApiReady={(externalApi) => {
                 externalApi.addListener('readyToClose', () => {
-                  setMeetingLeft(true);
+                  handleLeaveMeeting();
                 });
               }}
               getIFrameRef={(iframeRef) => {
@@ -207,7 +244,7 @@ export default function MeetingRoom() {
                   ) : (
                     <>
                       <Mic className="h-3 w-3 text-primary" />
-                      Voice Type
+                      Auto-Transcribe
                     </>
                   )}
                 </Button>
@@ -217,7 +254,7 @@ export default function MeetingRoom() {
                 className="flex-1 resize-none bg-background border-border/50 p-4 text-sm font-medium focus-visible:ring-primary/20 leading-relaxed custom-scrollbar shadow-inner"
                 placeholder="Type or dictate notes here...&#10;&#10;Key points, action items, and decisions will be saved to the meeting record."
                 value={summary}
-                onChange={(e) => setSummary(e.target.value)}
+                onChange={(e) => updateSummary(e.target.value)}
               />
               
               <Button 
