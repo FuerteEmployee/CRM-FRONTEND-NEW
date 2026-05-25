@@ -4,7 +4,7 @@ import { bookmarkService } from "@/api/services/bookmark.service";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, ExternalLink, Trash2, Bookmark as BookmarkIcon } from "lucide-react";
+import { Search, ExternalLink, Trash2, Bookmark as BookmarkIcon, Folder as FolderIcon } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +37,16 @@ export default function Bookmarks() {
       b.url?.toLowerCase().includes(search.toLowerCase())
     );
   }, [bookmarks, search]);
+
+  const groupedBookmarks = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    filteredBookmarks.forEach((b: any) => {
+      const folder = b.folder || "Uncategorized";
+      if (!groups[folder]) groups[folder] = [];
+      groups[folder].push(b);
+    });
+    return groups;
+  }, [filteredBookmarks]);
 
   return (
     <DashboardLayout>
@@ -75,27 +85,37 @@ export default function Bookmarks() {
                   <p className="text-xs text-slate-400 mt-2">Sync them from your Chrome extension.</p>
                 </div>
               ) : (
-                filteredBookmarks.map((bookmark: any) => (
-                  <div key={bookmark._id} className="flex items-center justify-between p-4 bg-white border rounded-xl shadow-sm hover:shadow-md transition-shadow group">
-                    <div className="flex items-start gap-4">
-                      <div className="h-10 w-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                        <img src={`https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=64`} alt="" className="h-5 w-5 rounded" onError={(e: any) => { e.target.style.display='none'; }} />
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        <a href={bookmark.url} target="_blank" rel="noopener noreferrer" className="font-bold text-slate-900 hover:text-primary transition-colors truncate max-w-[600px] flex items-center gap-2">
-                          {bookmark.title}
-                          <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </a>
-                        <span className="text-xs text-slate-400 truncate max-w-[500px]">{bookmark.url}</span>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-300 mt-1">
-                          Added {formatDate(bookmark.createdAt)}
-                        </span>
-                      </div>
+                Object.entries(groupedBookmarks).map(([folderName, items]: [string, any[]]) => (
+                  <div key={folderName} className="mb-6 last:mb-0">
+                    <div className="flex items-center gap-2 mb-3 px-2">
+                      <FolderIcon className="h-4 w-4 text-blue-500" />
+                      <h3 className="font-black uppercase tracking-widest text-xs text-slate-500">{folderName}</h3>
+                      <div className="h-px bg-slate-100 flex-1 ml-2"></div>
+                      <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{items.length}</span>
                     </div>
                     
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50" onClick={() => deleteMutation.mutate(bookmark._id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="grid gap-3">
+                      {items.map((bookmark: any) => (
+                        <div key={bookmark._id} className="flex items-center justify-between p-3 bg-white border rounded-xl shadow-sm hover:shadow-md transition-all hover:border-primary/20 group">
+                          <div className="flex items-start gap-4">
+                            <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100 group-hover:bg-blue-50 transition-colors">
+                              <img src={`https://www.google.com/s2/favicons?domain=${new URL(bookmark.url).hostname}&sz=64`} alt="" className="h-5 w-5 rounded" onError={(e: any) => { e.target.style.display='none'; }} />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <a href={bookmark.url} target="_blank" rel="noopener noreferrer" className="font-bold text-slate-800 hover:text-primary transition-colors truncate max-w-[500px] flex items-center gap-2 text-sm">
+                                {bookmark.title}
+                                <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                              </a>
+                              <span className="text-xs text-slate-400 truncate max-w-[400px] mt-0.5">{bookmark.url}</span>
+                            </div>
+                          </div>
+                          
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteMutation.mutate(bookmark._id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))
               )}
