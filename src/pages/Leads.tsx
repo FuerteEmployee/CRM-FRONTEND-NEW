@@ -269,19 +269,7 @@ const Leads = () => {
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
 
-  const statusCards = [
-    { id: "pending", label: "Pending", icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
-    { id: "followup", label: "Followup", icon: ArrowRight, color: "text-blue-500", bg: "bg-blue-50" },
-    { id: "hot", label: "Hot Lead", icon: Flame, color: "text-rose-500", bg: "bg-rose-50" },
-    { id: "cold", label: "Cold Lead", icon: Snowflake, color: "text-cyan-500", bg: "bg-cyan-50" },
-    { id: "warm", label: "Warm Lead", icon: Sun, color: "text-orange-500", bg: "bg-orange-50" },
-    { id: "dead", label: "Dead Lead", icon: Ghost, color: "text-slate-500", bg: "bg-slate-50" },
-    { id: "visit", label: "Visit", icon: MapPin, color: "text-indigo-500", bg: "bg-indigo-50" },
-    { id: "requirement", label: "Requirement", icon: ClipboardList, color: "text-emerald-500", bg: "bg-emerald-50" },
-    { id: "meeting", label: "Meeting", icon: Users, color: "text-purple-500", bg: "bg-purple-50" },
-    { id: "customer", label: "Customer", icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50" },
-    { id: "lost", label: "Lost Leads", icon: UserMinus, color: "text-red-500", bg: "bg-red-50", percentage: "0.00%" },
-  ];
+  // Dynamic status cards will be generated from `statuses` in the render
 
   return (
     <DashboardLayout>
@@ -332,12 +320,10 @@ const Leads = () => {
                             </SelectTrigger>
                             <SelectContent>
                               {/* Standard Statuses from Cards */}
-                              {statusCards.filter(card => card.id !== "all").map(card => (
-                                <SelectItem key={card.id} value={card.label}>{card.label}</SelectItem>
+                              {statuses.map((status: any) => (
+                                <SelectItem key={status._id} value={status._id}>{status.name}</SelectItem>
                               ))}
-                              {/* Custom Statuses from DB */}
-                              {statuses.length > 0 && <div className="h-px bg-slate-100 my-1" />}
-                              {statuses.map(s => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
+
                             </SelectContent>
                           </Select>
                         )}
@@ -504,31 +490,27 @@ const Leads = () => {
         </div>
 
         {/* Status Cards - Filters */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-11 gap-2">
-          {statusCards.map((card) => {
+        <div className="flex flex-wrap gap-2">
+          {statuses.map((status: any) => {
             const count = leads.filter(l => {
                 const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
-                const lStatusName = (typeof l.status === 'object' ? l.status?.name : statuses.find(s => s._id === l.status)?.name) || "";
-                return lStatusName.toLowerCase() === card.id.toLowerCase() || String(lStatusId).toLowerCase() === card.id.toLowerCase();
+                return lStatusId === status._id;
             }).length;
-            const isActive = statusFilter === card.id;
+            const isActive = statusFilter === status._id;
 
             return (
               <button
-                key={card.id}
-                onClick={() => setStatusFilter(isActive ? "all" : card.id)}
+                key={status._id}
+                onClick={() => setStatusFilter(isActive ? "all" : status._id)}
                 className={cn(
-                  "flex flex-col p-2.5 rounded-2xl transition-all duration-300 text-left group border-2",
+                  "flex flex-col p-2.5 rounded-2xl transition-all duration-300 text-left group border-2 min-w-[100px] flex-1",
                   isActive ? "border-primary bg-primary/5 ring-4 ring-primary/5" : "border-transparent bg-white hover:border-slate-100 shadow-sm"
                 )}
               >
                 <div className="flex flex-col">
-                  <p className="text-[9px] font-black uppercase tracking-tight text-slate-400 group-hover:text-slate-600 truncate">{card.label}</p>
+                  <p className="text-[9px] font-black uppercase tracking-tight text-slate-400 group-hover:text-slate-600 truncate">{status.name}</p>
                   <div className="flex items-center justify-between mt-0.5">
-                    <p className={cn("text-sm font-black", card.color)}>{count}</p>
-                    {card.percentage && (
-                      <span className="text-[8px] font-black text-slate-400">{card.percentage}</span>
-                    )}
+                    <p className="text-sm font-black" style={{ color: status.color || "#3b82f6" }}>{count}</p>
                   </div>
                 </div>
               </button>
