@@ -70,6 +70,7 @@ const mainNav = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Chat", url: "/admin/chat", icon: MessageSquare },
   { title: "Meetings", url: "/admin/meetings", icon: Users },
+  { title: "Bookmarks", url: "/admin/bookmarks", icon: Bookmark },
 ];
 
 const customersNav = [

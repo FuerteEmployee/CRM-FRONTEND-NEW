@@ -52,6 +52,7 @@ import Goals from "./pages/Goals";
 import GoalCreate from "./pages/GoalCreate";
 import Meetings from "./pages/Meetings";
 import MeetingRoom from "./pages/MeetingRoom";
+import Bookmarks from "./pages/Bookmarks";
 import { ReportSales, ReportExpenses, ReportExpensesVsIncome, ReportLeads, ReportTimesheets, ReportKBArticles } from "./pages/ReportPages";
 import CustomerView from "./pages/CustomerView";
 import InvoiceCreate from "./pages/InvoiceCreate";
@@ -289,6 +290,7 @@ const MainApp = () => {
           <Route path="goals/edit/:id" element={<ProtectedRoute><GoalCreate /></ProtectedRoute>} />
           <Route path="meetings" element={<ProtectedRoute><Meetings /></ProtectedRoute>} />
           <Route path="meetings/room/:roomId" element={<ProtectedRoute><MeetingRoom /></ProtectedRoute>} />
+          <Route path="bookmarks" element={<ProtectedRoute><Bookmarks /></ProtectedRoute>} />
           <Route path="reports/sales" element={<ProtectedRoute><ReportSales /></ProtectedRoute>} />
           <Route path="reports/expenses" element={<ProtectedRoute><ReportExpenses /></ProtectedRoute>} />
           <Route path="reports/expenses-vs-income" element={<ProtectedRoute><ReportExpensesVsIncome /></ProtectedRoute>} />
