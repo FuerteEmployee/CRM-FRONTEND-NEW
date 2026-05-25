@@ -103,11 +103,13 @@ export default function Bookmarks() {
                                 try {
                                   const urlObj = new URL(bookmark.url);
                                   const hostname = urlObj.hostname;
-                                  // Use generic globe icon for local networks, extensions, and special browser pages
+                                  
                                   if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === 'newtab' || urlObj.protocol === 'chrome:' || urlObj.protocol === 'edge:' || !hostname.includes('.')) {
                                     return <Globe className="h-5 w-5 text-slate-400" />;
                                   }
-                                  return <img src={`https://www.google.com/s2/favicons?domain=${hostname}&sz=64`} alt="" className="h-5 w-5 rounded" onError={(e: any) => { e.target.style.display='none'; }} />;
+                                  
+                                  // DuckDuckGo's favicon API always returns a default icon (200 OK) instead of a 404 error
+                                  return <img src={`https://icons.duckduckgo.com/ip3/${hostname}.ico`} alt="" className="h-5 w-5 rounded" onError={(e: any) => { e.target.style.display='none'; }} />;
                                 } catch (e) {
                                   return <Globe className="h-5 w-5 text-slate-400" />;
                                 }
