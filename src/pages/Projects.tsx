@@ -5,6 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   Plus,
   Search,
@@ -56,6 +65,10 @@ const Projects = () => {
   const [search, setSearch] = useState("");
   const [activeStatus, setActiveStatus] = useState<number | "all">("all");
   const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({ massDelete: false, status: "" });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
   const queryClient = useQueryClient();
   const { can } = usePermissions();
   const navigate = useNavigate();
@@ -85,6 +98,32 @@ const Projects = () => {
       return matchesSearch && matchesStatus;
     });
   }, [projects, search, activeStatus]);
+
+  const handleBulkAction = async () => {
+    if (selectedProjects.length === 0) {
+      toast.error("No projects selected.");
+      return;
+    }
+    setIsBulkLoading(true);
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedProjects.map(id => projectService.delete(id)));
+        toast.success(`Deleted ${selectedProjects.length} projects.`);
+      } else if (bulkState.status) {
+        const status = parseInt(bulkState.status);
+        await Promise.all(selectedProjects.map(id => projectService.update(id, { status })));
+        toast.success(`Updated ${selectedProjects.length} projects.`);
+      }
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      setSelectedProjects([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false, status: "" });
+    } catch (err: any) {
+      toast.error("Failed to perform bulk action.");
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
 
   const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
     if (filteredProjects.length === 0) {
@@ -134,10 +173,12 @@ const Projects = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Projects</h1>
-          <Button onClick={() => navigate("/admin/projects/create")}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Project
-          </Button>
+          {can("projects", "create") && (
+            <Button onClick={() => navigate("/admin/projects/create")} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
+              <Plus className="mr-2 h-4 w-4" />
+              New Project
+            </Button>
+          )}
         </div>
 
         {/* Live Status Filters */}
@@ -213,6 +254,55 @@ const Projects = () => {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+
+                <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+                  if (open && selectedProjects.length === 0) {
+                    toast.error("Please select at least one project first.");
+                    return;
+                  }
+                  setBulkActionOpen(open);
+                }}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 px-4 rounded-md gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700">
+                      Bulk Actions
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Bulk Actions</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-5 pt-4">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="massDelete" 
+                          className="border-red-500 data-[state=checked]:bg-red-500"
+                          checked={bulkState.massDelete}
+                          onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                        />
+                        <Label htmlFor="massDelete" className="text-red-600 font-bold">Mass Delete</Label>
+                      </div>
+                      <div className="grid grid-cols-1 gap-5 mt-2 pt-5 border-t">
+                        <div className="space-y-2">
+                          <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Status</Label>
+                          <Select value={bulkState.status} onValueChange={(val) => setBulkState({...bulkState, status: val})} disabled={bulkState.massDelete}>
+                            <SelectTrigger className="h-10"><SelectValue placeholder="Select Status" /></SelectTrigger>
+                            <SelectContent>
+                              {statusConfig.map(s => (
+                                <SelectItem key={s.id} value={s.id.toString()}>{s.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+                        <Button variant="outline" onClick={() => setBulkActionOpen(false)}>Cancel</Button>
+                        <Button onClick={handleBulkAction} disabled={isBulkLoading}>
+                          {isBulkLoading ? "Processing..." : "Confirm"}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               <div className="relative">
@@ -232,7 +322,16 @@ const Projects = () => {
                 <thead>
                   <tr className="border-b text-left text-[11px] text-muted-foreground uppercase tracking-wider bg-zinc-50/50">
                     <th className="p-3 font-semibold w-8">
-                      <input type="checkbox" className="rounded border-zinc-300" />
+                      <Checkbox 
+                        checked={selectedProjects.length === filteredProjects.length && filteredProjects.length > 0}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedProjects(filteredProjects.map((p: any) => p._id));
+                          } else {
+                            setSelectedProjects([]);
+                          }
+                        }}
+                      />
                     </th>
                     <th className="p-3 font-semibold">#</th>
                     <th className="p-3 font-semibold">Project Name ↕</th>
@@ -264,7 +363,16 @@ const Projects = () => {
                     filteredProjects.map((project, index) => (
                       <tr key={project._id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
                         <td className="p-3">
-                          <input type="checkbox" className="rounded border-zinc-300" />
+                          <Checkbox 
+                            checked={selectedProjects.includes(project._id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedProjects([...selectedProjects, project._id]);
+                              } else {
+                                setSelectedProjects(selectedProjects.filter(id => id !== project._id));
+                              }
+                            }}
+                          />
                         </td>
                         <td className="p-3 text-xs text-muted-foreground">{index + 1}</td>
                         <td className="p-3">

@@ -115,6 +115,17 @@ const Tasks = () => {
   const [showAttachment, setShowAttachment] = useState(false);
   const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
+  const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({
+    massDelete: false,
+    status: "",
+    priority: "",
+    assignee: "",
+    billable: "",
+    tags: ""
+  });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
@@ -256,6 +267,62 @@ const Tasks = () => {
     }
   });
 
+  const handleBulkAction = async () => {
+    if (selectedTasks.length === 0) {
+      toast({ title: "Error", description: "No tasks selected.", variant: "destructive" });
+      return;
+    }
+    setIsBulkLoading(true);
+
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedTasks.map(id => {
+          const t = allTasks.find(t => t._id === id);
+          return t?.isTodo ? utilityService.deleteTodo(id) : taskService.delete(id);
+        }));
+        toast({ title: "Success", description: `Deleted ${selectedTasks.length} tasks.` });
+      } else {
+        const updates: any = {};
+        if (bulkState.status) updates.status = parseInt(bulkState.status);
+        if (bulkState.priority) updates.priority = parseInt(bulkState.priority);
+        if (bulkState.tags) updates.tags = bulkState.tags.split(",").map(s => s.trim());
+        if (bulkState.billable) updates.billable = bulkState.billable === "yes";
+
+        if (Object.keys(updates).length > 0) {
+          await Promise.all(selectedTasks.map(id => {
+            const t = allTasks.find(t => t._id === id);
+            if (t?.isTodo) {
+              const todoUpdates: any = {};
+              if (bulkState.status === "5") todoUpdates.finished = true;
+              else if (bulkState.status) todoUpdates.finished = false;
+              return utilityService.updateTodo(id, todoUpdates);
+            } else {
+              return taskService.update(id, updates);
+            }
+          }));
+          toast({ title: "Success", description: `Updated ${selectedTasks.length} tasks.` });
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+      setSelectedTasks([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false, status: "", priority: "", assignee: "", billable: "", tags: "" });
+    } catch (err: any) {
+      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedTasks(paginatedTasks.map((t: any) => t._id));
+    } else {
+      setSelectedTasks([]);
+    }
+  };
+
   const handleCloseModal = () => {
     setIsNewTaskModalOpen(false);
     setEditingTask(null);
@@ -347,7 +414,7 @@ const Tasks = () => {
           </div>
           <Dialog open={isNewTaskModalOpen} onOpenChange={setIsNewTaskModalOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => setEditingTask(null)}>
+              <Button onClick={() => setEditingTask(null)} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                 <Plus className="mr-2 h-4 w-4" />
                 New Task
               </Button>
@@ -670,9 +737,15 @@ const Tasks = () => {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                <Dialog>
+                <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+                  if (open && selectedTasks.length === 0) {
+                    toast({ title: "Error", description: "Please select at least one task first.", variant: "destructive" });
+                    return;
+                  }
+                  setBulkActionOpen(open);
+                }}>
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-9 gap-2 text-xs font-bold uppercase tracking-wider bg-slate-50 border-slate-200 text-slate-700">
+                    <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700">
                       Bulk Actions
                     </Button>
                   </DialogTrigger>
@@ -682,13 +755,18 @@ const Tasks = () => {
                     </DialogHeader>
                     <div className="space-y-5 pt-4">
                       <div className="flex items-center space-x-2">
-                        <Checkbox id="massDelete" className="border-red-500 data-[state=checked]:bg-red-500" />
+                        <Checkbox 
+                          id="massDelete" 
+                          className="border-red-500 data-[state=checked]:bg-red-500"
+                          checked={bulkState.massDelete}
+                          onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                        />
                         <Label htmlFor="massDelete" className="text-red-600 font-bold">Mass Delete</Label>
                       </div>
                       <div className="grid grid-cols-1 gap-5 mt-2 pt-5 border-t">
                         <div className="space-y-2">
                           <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Status</Label>
-                          <Select>
+                          <Select value={bulkState.status} onValueChange={(val) => setBulkState({...bulkState, status: val})} disabled={bulkState.massDelete}>
                             <SelectTrigger className="h-10"><SelectValue placeholder="Select Status" /></SelectTrigger>
                             <SelectContent>
                               {taskStatusConfig.map(s => (
@@ -699,7 +777,7 @@ const Tasks = () => {
                         </div>
                         <div className="space-y-2">
                           <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Priority</Label>
-                          <Select>
+                          <Select value={bulkState.priority} onValueChange={(val) => setBulkState({...bulkState, priority: val})} disabled={bulkState.massDelete}>
                             <SelectTrigger className="h-10"><SelectValue placeholder="Select Priority" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="1">Low</SelectItem>
@@ -723,16 +801,16 @@ const Tasks = () => {
                               </Tooltip>
                             </TooltipProvider>
                           </div>
-                          <Select>
+                          <Select value={bulkState.assignee} onValueChange={(val) => setBulkState({...bulkState, assignee: val})} disabled={bulkState.massDelete}>
                             <SelectTrigger className="h-10"><SelectValue placeholder="Select Member" /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="1">Member 1</SelectItem>
+                              {staffOptions.map((s: any) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-2">
                           <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Billable</Label>
-                          <Select>
+                          <Select value={bulkState.billable} onValueChange={(val) => setBulkState({...bulkState, billable: val})} disabled={bulkState.massDelete}>
                             <SelectTrigger className="h-10"><SelectValue placeholder="Select Option" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="yes">Yes</SelectItem>
@@ -742,7 +820,13 @@ const Tasks = () => {
                         </div>
                         <div className="space-y-2">
                           <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tags</Label>
-                          <Input placeholder="Enter tags separated by commas" className="h-10" />
+                          <Input 
+                            placeholder="Enter tags separated by commas" 
+                            className="h-10"
+                            value={bulkState.tags}
+                            onChange={(e) => setBulkState({...bulkState, tags: e.target.value})}
+                            disabled={bulkState.massDelete}
+                          />
                         </div>
                       </div>
                     </div>
@@ -750,7 +834,13 @@ const Tasks = () => {
                       <DialogClose asChild>
                         <Button variant="outline" className="font-bold uppercase tracking-wider text-xs">Close</Button>
                       </DialogClose>
-                      <Button className="font-bold uppercase tracking-wider text-xs bg-slate-900 text-white hover:bg-slate-800">Confirm</Button>
+                      <Button 
+                        className="font-bold uppercase tracking-wider text-xs bg-slate-900 text-white hover:bg-slate-800"
+                        onClick={handleBulkAction}
+                        disabled={isBulkLoading}
+                      >
+                        {isBulkLoading ? "Processing..." : "Confirm"}
+                      </Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
@@ -775,7 +865,11 @@ const Tasks = () => {
                 <thead>
                   <tr className="border-b text-left text-[11px] text-slate-500 uppercase tracking-widest bg-slate-50/80">
                     <th className="p-4 font-bold w-12">
-                      <Checkbox className="border-slate-300" />
+                      <Checkbox 
+                        className="border-slate-300" 
+                        checked={paginatedTasks.length > 0 && selectedTasks.length === paginatedTasks.length}
+                        onCheckedChange={handleSelectAll}
+                      />
                     </th>
                     <th className="p-4 font-bold w-16">#</th>
                     <th className="p-4 font-bold min-w-[200px]">Name</th>
@@ -812,7 +906,14 @@ const Tasks = () => {
                       return (
                         <tr key={task._id} className="border-b last:border-0 hover:bg-slate-50/50 transition-colors group">
                           <td className="p-4">
-                            <Checkbox className="border-slate-300 data-[state=checked]:bg-primary" />
+                            <Checkbox 
+                              className="border-slate-300 data-[state=checked]:bg-primary" 
+                              checked={selectedTasks.includes(task._id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) setSelectedTasks([...selectedTasks, task._id]);
+                                else setSelectedTasks(selectedTasks.filter(id => id !== task._id));
+                              }}
+                            />
                           </td>
                           <td className="p-4 text-xs font-medium text-slate-500">
                             {(currentPage - 1) * itemsPerPage + index + 1}

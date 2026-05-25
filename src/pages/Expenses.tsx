@@ -4,6 +4,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -34,7 +37,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { salesService } from "@/api/services/sales.service";
 import { formatDate } from "@/lib/dateFormat";
@@ -45,6 +48,11 @@ import { usePermissions } from "@/hooks/usePermissions";
 const Expenses = () => {
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [selectedExpenses, setSelectedExpenses] = useState<string[]>([]);
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({ massDelete: false });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { can } = usePermissions();
@@ -62,6 +70,28 @@ const Expenses = () => {
       (e.reference_no || "").toLowerCase().includes(searchStr)
     );
   });
+
+  const handleBulkAction = async () => {
+    if (selectedExpenses.length === 0) {
+      toast({ title: "Error", description: "No expenses selected", variant: "destructive" });
+      return;
+    }
+    setIsBulkLoading(true);
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedExpenses.map(id => salesService.deleteExpense(id)));
+        toast({ title: "Success", description: `Deleted ${selectedExpenses.length} expenses.` });
+      }
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      setSelectedExpenses([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false });
+    } catch (err: any) {
+      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
 
   // Calculate Statistics
   const stats = {
@@ -94,7 +124,7 @@ const Expenses = () => {
           <div className="flex items-center gap-3">
             {can("Expenses", "Create") && (
               <Button 
-                className="rounded-2xl h-12 px-6 shadow-xl shadow-primary/20 font-black uppercase tracking-widest text-xs gap-3"
+                className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
                 onClick={() => navigate("/admin/expenses/create")}
               >
                 <Plus className="h-4 w-4" />
@@ -166,6 +196,42 @@ const Expenses = () => {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+
+                <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+                  if (open && selectedExpenses.length === 0) {
+                    toast({ title: "Error", description: "Please select at least one expense first.", variant: "destructive" });
+                    return;
+                  }
+                  setBulkActionOpen(open);
+                }}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="h-12 rounded-2xl font-black uppercase tracking-widest text-[10px] gap-3 border-none bg-muted/50 px-6">
+                      Bulk Actions
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md rounded-3xl p-6">
+                    <DialogHeader>
+                      <DialogTitle className="font-black text-xl">Bulk Actions</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-5 pt-4">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="massDelete" 
+                          className="border-red-500 data-[state=checked]:bg-red-500"
+                          checked={bulkState.massDelete}
+                          onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                        />
+                        <Label htmlFor="massDelete" className="text-red-600 font-bold uppercase tracking-widest text-[10px]">Mass Delete</Label>
+                      </div>
+                      <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+                        <Button variant="ghost" className="rounded-xl font-bold" onClick={() => setBulkActionOpen(false)}>Cancel</Button>
+                        <Button className="rounded-xl font-bold bg-primary" onClick={handleBulkAction} disabled={!bulkState.massDelete || isBulkLoading}>
+                          {isBulkLoading ? "Processing..." : "Confirm"}
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               <div className="relative w-full md:w-96 group">
@@ -184,6 +250,15 @@ const Expenses = () => {
               <table className="w-full text-left border-separate border-spacing-y-4">
                 <thead>
                   <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
+                    <th className="px-6 pb-2 w-12">
+                      <Checkbox 
+                        checked={selectedExpenses.length === filtered.length && filtered.length > 0}
+                        onCheckedChange={(checked) => {
+                          if (checked) setSelectedExpenses(filtered.map((e: any) => e._id));
+                          else setSelectedExpenses([]);
+                        }}
+                      />
+                    </th>
                     <th className="px-6 pb-2">Category</th>
                     <th className="px-6 pb-2">Amount</th>
                     <th className="px-6 pb-2">Name</th>
@@ -200,14 +275,14 @@ const Expenses = () => {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="bg-muted/5 animate-pulse">
-                        <td colSpan={10} className="p-4 rounded-3xl h-16">
+                        <td colSpan={11} className="p-4 rounded-3xl h-16">
                           <Skeleton className="h-full w-full rounded-2xl" />
                         </td>
                       </tr>
                     ))
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="text-center py-20 bg-muted/5 rounded-[2rem]">
+                      <td colSpan={11} className="text-center py-20 bg-muted/5 rounded-[2rem]">
                         <div className="flex flex-col items-center gap-4">
                           <div className="p-6 bg-background rounded-full shadow-inner">
                             <Receipt className="h-12 w-12 text-muted-foreground/20" />
@@ -220,6 +295,15 @@ const Expenses = () => {
                     filtered.map((e: any) => (
                       <tr key={e._id} className="group bg-muted/5 hover:bg-primary/5 transition-all duration-300 rounded-[1.5rem] relative">
                         <td className="px-6 py-5 first:rounded-l-[1.5rem] last:rounded-r-[1.5rem]">
+                          <Checkbox 
+                            checked={selectedExpenses.includes(e._id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) setSelectedExpenses([...selectedExpenses, e._id]);
+                              else setSelectedExpenses(selectedExpenses.filter(id => id !== e._id));
+                            }}
+                          />
+                        </td>
+                        <td className="px-6 py-5">
                           <Badge variant="outline" className="rounded-lg bg-background border-none shadow-sm text-[10px] font-black uppercase tracking-widest px-3 py-1">
                             {e.category || "General"}
                           </Badge>
@@ -277,13 +361,28 @@ const Expenses = () => {
                                 <span className="text-xs font-bold">View Details</span>
                               </DropdownMenuItem>
                               {can("Expenses", "Edit") && (
-                                <DropdownMenuItem className="gap-3 py-2.5 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group">
+                                <DropdownMenuItem 
+                                  onClick={() => navigate(`/admin/expenses/edit/${e._id}`)}
+                                  className="gap-3 py-2.5 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
+                                >
                                   <Edit className="h-4 w-4 text-slate-400 group-hover:text-amber-500 transition-colors" />
                                   <span className="text-xs font-bold">Edit Expense</span>
                                 </DropdownMenuItem>
                               )}
                               {can("Expenses", "Delete") && (
-                                <DropdownMenuItem className="gap-3 py-2.5 px-3 cursor-pointer rounded-lg hover:bg-rose-50 transition-colors group">
+                                <DropdownMenuItem 
+                                  onClick={() => {
+                                    if (confirm("Are you sure you want to delete this expense?")) {
+                                      salesService.deleteExpense(e._id).then(() => {
+                                        toast({ title: "Success", description: "Expense deleted" });
+                                        queryClient.invalidateQueries({ queryKey: ["expenses"] });
+                                      }).catch(err => {
+                                        toast({ title: "Error", description: err.message, variant: "destructive" });
+                                      });
+                                    }
+                                  }}
+                                  className="gap-3 py-2.5 px-3 cursor-pointer rounded-lg hover:bg-rose-50 transition-colors group"
+                                >
                                   <Trash2 className="h-4 w-4 text-slate-400 group-hover:text-rose-500 transition-colors" />
                                   <span className="text-xs font-bold text-rose-500">Delete</span>
                                 </DropdownMenuItem>

@@ -31,6 +31,7 @@ export const salesService = {
   createExpense: (data) => apiClient.post("/expenses", data),
   updateExpense: (id, data) => apiClient.put(`/expenses/${id}`, data),
   getExpenseById: (id) => apiClient.get(`/expenses/${id}`),
+  deleteExpense: (id) => apiClient.delete(`/expenses/${id}`),
 
   // ─────────────────────────────────────────────
   // Subscriptions

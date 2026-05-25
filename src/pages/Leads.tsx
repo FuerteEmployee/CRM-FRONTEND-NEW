@@ -58,6 +58,18 @@ const Leads = () => {
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
   const [selectedLead, setSelectedLead] = useState<any>(null);
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({
+    massDelete: false,
+    status: "",
+    source: "",
+    assigned: "",
+    tags: "",
+    is_public: false,
+    contacted_today: false,
+    mark_lost: false,
+  });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [newStatusName, setNewStatusName] = useState("");
   const [newSourceName, setNewSourceName] = useState("");
   const [isAddingStatus, setIsAddingStatus] = useState(false);
@@ -131,6 +143,9 @@ const Leads = () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast({ title: "Success", description: "Lead created successfully" });
       setIsNewLeadOpen(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
     }
   });
 
@@ -140,6 +155,9 @@ const Leads = () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast({ title: "Success", description: "Lead updated successfully" });
       setIsNewLeadOpen(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
     }
   });
 
@@ -148,6 +166,9 @@ const Leads = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast({ title: "Deleted", description: "Lead removed from pipeline" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
     }
   });
 
@@ -170,8 +191,62 @@ const Leads = () => {
       });
       return;
     }
-    if (modalMode === "create") createLeadMutation.mutate(leadForm);
-    else updateLeadMutation.mutate(leadForm);
+    
+    // Sanitize payload to avoid CastError for empty ObjectIds
+    const payload = { ...leadForm };
+    if (!payload.assigned) delete payload.assigned;
+    
+    // Map position to title for backend consistency
+    if (payload.position) {
+      payload.title = payload.position;
+    }
+    
+    if (modalMode === "create") createLeadMutation.mutate(payload);
+    else updateLeadMutation.mutate(payload);
+  };
+
+  const handleBulkAction = async () => {
+    if (selectedLeads.length === 0) {
+      toast({ title: "Error", description: "No leads selected.", variant: "destructive" });
+      return;
+    }
+    setIsBulkLoading(true);
+
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedLeads.map(id => leadService.delete(id)));
+        toast({ title: "Success", description: `Deleted ${selectedLeads.length} leads.` });
+      } else {
+        const updates: any = {};
+        if (bulkState.status) updates.status = bulkState.status;
+        if (bulkState.source) updates.source = bulkState.source;
+        if (bulkState.assigned) updates.assigned = bulkState.assigned;
+        if (bulkState.tags) updates.tags = bulkState.tags.split(",").map(s => s.trim());
+        if (bulkState.is_public) updates.is_public = bulkState.is_public;
+        if (bulkState.contacted_today) updates.contacted_today = bulkState.contacted_today;
+
+        if (Object.keys(updates).length > 0) {
+          await Promise.all(selectedLeads.map(id => leadService.update(id, updates)));
+          toast({ title: "Success", description: `Updated ${selectedLeads.length} leads.` });
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      setSelectedLeads([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false, status: "", source: "", assigned: "", tags: "", is_public: false, contacted_today: false, mark_lost: false });
+    } catch (err: any) {
+      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedLeads(paginated.map((l: any) => l._id));
+    } else {
+      setSelectedLeads([]);
+    }
   };
 
   const countries = ["United States", "United Kingdom", "Canada", "Australia", "India", "Germany", "France", "Japan", "China", "Brazil"];
@@ -208,22 +283,6 @@ const Leads = () => {
     { id: "lost", label: "Lost Leads", icon: UserMinus, color: "text-red-500", bg: "bg-red-50", percentage: "0.00%" },
   ];
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedLeads(paginated.map(l => l._id));
-    } else {
-      setSelectedLeads([]);
-    }
-  };
-
-  const handleSelectLead = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedLeads(prev => [...prev, id]);
-    } else {
-      setSelectedLeads(prev => prev.filter(item => item !== id));
-    }
-  };
-
   return (
     <DashboardLayout>
       <div className="space-y-6 pb-20">
@@ -235,8 +294,8 @@ const Leads = () => {
           </div>
           {can("Leads", "Create") && (
             <Dialog open={isNewLeadOpen} onOpenChange={setIsNewLeadOpen}>
-                <Button onClick={() => openModal("create")} className="h-9 rounded-xl px-4 font-black uppercase text-[10px] tracking-widest shadow-md shadow-primary/10 transition-all hover:scale-105">
-                  <Plus className="mr-1.5 h-3.5 w-3.5 stroke-[3]" />
+                <Button onClick={() => openModal("create")} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest transition-all hover:scale-105">
+                  <Plus className="h-4 w-4 stroke-[3]" />
                   New Lead
                 </Button>
               <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white">
@@ -510,7 +569,13 @@ const Leads = () => {
                 </DropdownMenu>
 
                 {/* Bulk Actions Modal */}
-                <Dialog>
+                <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+                  if (open && selectedLeads.length === 0) {
+                    toast({ title: "Error", description: "Please select at least one lead first.", variant: "destructive" });
+                    return;
+                  }
+                  setBulkActionOpen(open);
+                }}>
                   <DialogTrigger asChild>
                     <Button variant="outline" className="h-10 rounded-xl px-4 border-slate-200 bg-white font-black uppercase text-[10px] tracking-widest">
                       Bulk Actions
@@ -526,17 +591,27 @@ const Leads = () => {
                     <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto no-scrollbar">
                       <div className="grid grid-cols-1 gap-4">
                         <div className="flex items-center gap-3 p-4 bg-rose-50/50 rounded-2xl border border-rose-100">
-                            <Checkbox id="bulk-delete" className="border-rose-300 data-[state=checked]:bg-rose-500 data-[state=checked]:border-rose-500" />
+                            <Checkbox 
+                              id="bulk-delete" 
+                              className="border-rose-300 data-[state=checked]:bg-rose-500 data-[state=checked]:border-rose-500" 
+                              checked={bulkState.massDelete}
+                              onCheckedChange={(c) => setBulkState({...bulkState, massDelete: !!c})}
+                            />
                             <Label htmlFor="bulk-delete" className="font-black text-xs uppercase tracking-widest text-rose-600 cursor-pointer">Mass Delete</Label>
                         </div>
                         <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                            <Checkbox id="bulk-lost" />
+                            <Checkbox 
+                              id="bulk-lost" 
+                              checked={bulkState.mark_lost}
+                              onCheckedChange={(c) => setBulkState({...bulkState, mark_lost: !!c})}
+                              disabled={bulkState.massDelete}
+                            />
                             <Label htmlFor="bulk-lost" className="font-black text-xs uppercase tracking-widest text-slate-600 cursor-pointer">Mark as lost</Label>
                         </div>
                         
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Change Status</Label>
-                            <Select>
+                            <Select value={bulkState.status} onValueChange={(v) => setBulkState({...bulkState, status: v})} disabled={bulkState.massDelete}>
                                 <SelectTrigger className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4">
                                     <SelectValue placeholder="Select Status" />
                                 </SelectTrigger>
@@ -548,7 +623,7 @@ const Leads = () => {
 
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Lead Source</Label>
-                            <Select>
+                            <Select value={bulkState.source} onValueChange={(v) => setBulkState({...bulkState, source: v})} disabled={bulkState.massDelete}>
                                 <SelectTrigger className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4"><SelectValue placeholder="Select Source" /></SelectTrigger>
                                 <SelectContent>{sources.map(s => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}</SelectContent>
                             </Select>
@@ -556,28 +631,43 @@ const Leads = () => {
 
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Assigned To</Label>
-                            <Select>
+                            <Select value={bulkState.assigned} onValueChange={(v) => setBulkState({...bulkState, assigned: v})} disabled={bulkState.massDelete}>
                                 <SelectTrigger className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4"><SelectValue placeholder="Select Staff" /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="s1">Mike Johnson</SelectItem>
-                                    <SelectItem value="s2">Sarah Chen</SelectItem>
+                                    {staff.map(s => <SelectItem key={s._id} value={s._id}>{s.firstname} {s.lastname}</SelectItem>)}
                                 </SelectContent>
                             </Select>
                         </div>
 
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Tags</Label>
-                            <Input placeholder="Enter tags separated by comma" className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4" />
+                            <Input 
+                              placeholder="Enter tags separated by comma" 
+                              className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4" 
+                              value={bulkState.tags}
+                              onChange={(e) => setBulkState({...bulkState, tags: e.target.value})}
+                              disabled={bulkState.massDelete}
+                            />
                         </div>
 
                         <div className="flex items-center gap-6 p-4 bg-blue-50/30 rounded-2xl border border-blue-100">
                             <div className="flex items-center gap-3">
-                                <Checkbox id="bulk-public" />
+                                <Checkbox 
+                                  id="bulk-public" 
+                                  checked={bulkState.is_public}
+                                  onCheckedChange={(c) => setBulkState({...bulkState, is_public: !!c})}
+                                  disabled={bulkState.massDelete}
+                                />
                                 <Label htmlFor="bulk-public" className="font-black text-xs uppercase tracking-widest text-blue-600">Public</Label>
                             </div>
                             <div className="flex items-center gap-3">
-                                <Checkbox id="bulk-private" />
-                                <Label htmlFor="bulk-private" className="font-black text-xs uppercase tracking-widest text-slate-600">Private</Label>
+                                <Checkbox 
+                                  id="bulk-contacted" 
+                                  checked={bulkState.contacted_today}
+                                  onCheckedChange={(c) => setBulkState({...bulkState, contacted_today: !!c})}
+                                  disabled={bulkState.massDelete}
+                                />
+                                <Label htmlFor="bulk-contacted" className="font-black text-xs uppercase tracking-widest text-slate-600">Contacted Today</Label>
                             </div>
                         </div>
                       </div>
@@ -586,7 +676,13 @@ const Leads = () => {
                       <DialogClose asChild>
                         <Button variant="ghost" className="h-11 rounded-xl px-8 font-black uppercase text-xs tracking-widest text-slate-500 hover:bg-slate-200 transition-all">Close</Button>
                       </DialogClose>
-                      <Button className="h-11 rounded-xl px-8 font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 transition-all hover:scale-105">Confirm Action</Button>
+                      <Button 
+                        className="h-11 rounded-xl px-8 font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 transition-all hover:scale-105"
+                        onClick={handleBulkAction}
+                        disabled={isBulkLoading}
+                      >
+                        {isBulkLoading ? "Processing..." : "Confirm Action"}
+                      </Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
@@ -645,7 +741,16 @@ const Leads = () => {
                           selectedLeads.includes(l._id) ? "bg-primary/5" : ""
                         )}
                       >
-                        <td className="p-4"><Checkbox className="border-slate-200 rounded-md" checked={selectedLeads.includes(l._id)} onCheckedChange={(c) => handleSelectLead(l._id, !!c)} /></td>
+                        <td className="p-4">
+                          <Checkbox 
+                            className="border-slate-200 rounded-md" 
+                            checked={selectedLeads.includes(l._id)} 
+                            onCheckedChange={(c) => {
+                              if (c) setSelectedLeads([...selectedLeads, l._id]);
+                              else setSelectedLeads(selectedLeads.filter(id => id !== l._id));
+                            }} 
+                          />
+                        </td>
                         <td className="p-4 text-center text-[10px] font-black text-slate-300">{(currentPage - 1) * itemsPerPage + index + 1}</td>
                         <td className="p-4">
                             <div className="flex items-center gap-2">

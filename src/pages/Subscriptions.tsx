@@ -100,7 +100,7 @@ const Subscriptions = () => {
             </p>
           </div>
           <Button 
-            className="flex items-center gap-2 h-10 px-6 rounded-xl shadow-lg shadow-primary/20 font-black tracking-widest uppercase text-xs"
+            className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
             onClick={() => navigate("/admin/subscriptions/create")}
           >
             <Plus className="h-4 w-4" />

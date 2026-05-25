@@ -5,12 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -113,6 +115,13 @@ const Customers = () => {
   const navigate = useNavigate();
   const itemsPerPage = 25;
 
+  const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({
+    massDelete: false,
+    groups: "",
+  });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
   const {
     data: customers = [],
     isLoading,
@@ -144,6 +153,45 @@ const Customers = () => {
       });
     },
   });
+
+  const handleBulkAction = async () => {
+    if (selectedCustomers.length === 0) {
+      toast({ title: "Error", description: "No customers selected.", variant: "destructive" });
+      return;
+    }
+    setIsBulkLoading(true);
+
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedCustomers.map(id => customerService.delete(id)));
+        toast({ title: "Success", description: `Deleted ${selectedCustomers.length} customers.` });
+      } else {
+        const updates: any = {};
+        if (bulkState.groups) updates.groups = [bulkState.groups];
+
+        if (Object.keys(updates).length > 0) {
+          await Promise.all(selectedCustomers.map(id => customerService.update(id, updates)));
+          toast({ title: "Success", description: `Updated ${selectedCustomers.length} customers.` });
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      setSelectedCustomers([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false, groups: "" });
+    } catch (err: any) {
+      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedCustomers(paginatedCustomers.map((c: any) => c._id));
+    } else {
+      setSelectedCustomers([]);
+    }
+  };
 
   const filtered = customers.filter((c) => {
     const matchSearch = (c.company || "")
@@ -321,7 +369,7 @@ const Customers = () => {
             {can("Customers", "Create") && (
               <Dialog>
                 <DialogTrigger asChild>
-                  <Button>
+                  <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                     <Plus className="mr-2 h-4 w-4" />
                     New Customer
                   </Button>
@@ -660,7 +708,7 @@ const Customers = () => {
             <div className="flex items-center justify-between p-3 border-b">
               <div className="flex items-center gap-2">
                 <Select defaultValue="25">
-                  <SelectTrigger className="w-[70px] h-8 text-xs">
+                  <SelectTrigger className="w-[70px] h-11 rounded-xl font-bold text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -671,7 +719,7 @@ const Customers = () => {
                 </Select>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-8 gap-2 text-xs font-bold uppercase tracking-wider">
+                    <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest">
                       <Download className="h-3.5 w-3.5" />
                       Export
                       <ChevronDown className="h-3 w-3 opacity-50" />
@@ -696,18 +744,63 @@ const Customers = () => {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button variant="outline" size="sm" className="text-xs h-8" asChild>
+                <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl font-black uppercase text-[10px] tracking-widest" asChild>
                   <Link to="/admin/contacts">Contacts</Link>
                 </Button>
-                <Button variant="outline" size="sm" className="text-xs h-8">
-                  Bulk Actions
-                </Button>
+                <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+                  if (open && selectedCustomers.length === 0) {
+                    toast({ title: "Error", description: "Please select at least one customer first.", variant: "destructive" });
+                    return;
+                  }
+                  setBulkActionOpen(open);
+                }}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700">
+                      Bulk Actions
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md bg-white">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-bold">Bulk Actions</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="mass_delete" 
+                          className="border-red-200 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" 
+                          checked={bulkState.massDelete}
+                          onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                        />
+                        <Label htmlFor="mass_delete" className="text-sm font-semibold text-red-600">Mass Delete</Label>
+                      </div>
+                      <div className="space-y-1.5 pt-2">
+                        <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assign to Group</Label>
+                        <Select value={bulkState.groups} onValueChange={(val) => setBulkState({...bulkState, groups: val})} disabled={bulkState.massDelete}>
+                          <SelectTrigger className="h-10 bg-slate-50/50 border-slate-200 rounded-lg">
+                            <SelectValue placeholder="Select Group" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {groups.map(g => (
+                              <SelectItem key={g._id} value={g._id}>{g.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <DialogFooter className="gap-2 sm:gap-0">
+                      <Button variant="ghost" onClick={() => setBulkActionOpen(false)} className="font-bold uppercase tracking-widest text-[10px]">Close</Button>
+                      <Button onClick={handleBulkAction} disabled={isBulkLoading} className="font-bold uppercase tracking-widest text-[10px]">
+                        {isBulkLoading ? "Processing..." : "Confirm"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </div>
               <div className="relative">
-                <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search..."
-                  className="pl-8 h-8 w-[200px] text-xs"
+                  className="pl-8 h-11 rounded-xl w-[200px] text-xs font-bold"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -722,6 +815,8 @@ const Customers = () => {
                       <input
                         type="checkbox"
                         className="rounded border-border"
+                        checked={paginatedCustomers.length > 0 && selectedCustomers.length === paginatedCustomers.length}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
                       />
                     </th>
                     <th className="p-3 font-medium">#</th>
@@ -763,6 +858,11 @@ const Customers = () => {
                           <input
                             type="checkbox"
                             className="rounded border-border"
+                            checked={selectedCustomers.includes(c._id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedCustomers([...selectedCustomers, c._id]);
+                              else setSelectedCustomers(selectedCustomers.filter(id => id !== c._id));
+                            }}
                           />
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">

@@ -176,7 +176,7 @@ export function DataTable<T extends Record<string, any>>({
               setCurrentPage(1);
             }}
           >
-            <SelectTrigger className="w-[70px] h-10">
+            <SelectTrigger className="w-[70px] h-11 rounded-xl font-bold text-xs">
               <SelectValue placeholder="25" />
             </SelectTrigger>
             <SelectContent>
@@ -189,7 +189,7 @@ export function DataTable<T extends Record<string, any>>({
           <Button
             variant="outline"
             onClick={handleExport}
-            className="flex items-center gap-2 h-10 px-4 border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all duration-200 font-medium text-sm"
+            className="flex items-center gap-2 h-11 px-6 rounded-xl border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all duration-200 font-black text-[10px] uppercase tracking-widest"
           >
             <FileDown className="h-4 w-4" />
             Export
@@ -198,7 +198,7 @@ export function DataTable<T extends Record<string, any>>({
             <Button
               variant="outline"
               size="icon"
-              className="h-10 w-10"
+              className="h-11 w-11 rounded-xl"
               onClick={onRefresh}
             >
               <RotateCcw className="h-4 w-4" />
@@ -209,7 +209,7 @@ export function DataTable<T extends Record<string, any>>({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
           <Input
             placeholder={searchPlaceholder}
-            className="pl-10 h-10 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-200 rounded-lg bg-muted/50"
+            className="pl-10 h-11 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-200 rounded-xl bg-muted/50 font-bold text-xs"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);

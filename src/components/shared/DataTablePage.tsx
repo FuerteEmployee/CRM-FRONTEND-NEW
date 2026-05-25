@@ -53,10 +53,10 @@ export function DataTablePage<T extends Record<string, any>>({
           {onAdd && (
             <Button
               onClick={onAdd}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2 h-10 px-5 rounded-lg shadow-sm hover:shadow-md transition-all duration-300 active:scale-95"
+              className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground flex items-center transition-all duration-300 active:scale-95"
             >
               <Plus className="h-4 w-4" />
-              <span className="font-semibold text-sm">
+              <span>
                 {addLabel || `New ${title.slice(0, -1)}`}
               </span>
             </Button>

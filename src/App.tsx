@@ -11,11 +11,13 @@ import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
+import ProjectCreate from "./pages/ProjectCreate";
 import Tasks from "./pages/Tasks";
 import Customers from "./pages/Customers";
 import Invoices from "./pages/Invoices";
 import Contacts from "./pages/Contacts";
 import Expenses from "./pages/Expenses";
+import ExpenseCreate from "./pages/ExpenseCreate";
 
 import Profile from "./pages/Profile";
 import ActivityLogs from "./pages/ActivityLogs";
@@ -23,6 +25,9 @@ import TicketPipeLog from "./pages/TicketPipeLog";
 import Calendar from "./pages/Calendar";
 import Leads from "./pages/Leads";
 import Subscriptions from "./pages/Subscriptions";
+import SubscriptionCreate from "./pages/SubscriptionCreate";
+import SubscriptionWebsite from "./pages/SubscriptionWebsite";
+import SubscriptionPricing from "./pages/SubscriptionPricing";
 import Contracts from "./pages/Contracts";
 import Support from "./pages/Support";
 import EstimateRequest from "./pages/EstimateRequest";
@@ -232,6 +237,8 @@ const MainApp = () => {
           {/* Protected: redirects to login if not authenticated */}
           <Route path="dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="projects" element={<ProtectedRoute><Projects /></ProtectedRoute>} />
+          <Route path="projects/create" element={<ProtectedRoute><ProjectCreate /></ProtectedRoute>} />
+          <Route path="projects/edit/:id" element={<ProtectedRoute><ProjectCreate /></ProtectedRoute>} />
           <Route path="tasks" element={<ProtectedRoute><Tasks /></ProtectedRoute>} />
           <Route path="customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
           <Route path="customers/:id" element={<ProtectedRoute><CustomerView /></ProtectedRoute>} />
@@ -240,12 +247,18 @@ const MainApp = () => {
           <Route path="invoices/create/:clientId?" element={<ProtectedRoute><InvoiceCreate /></ProtectedRoute>} />
           <Route path="invoices/edit/:id" element={<ProtectedRoute><InvoiceCreate /></ProtectedRoute>} />
           <Route path="expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
+          <Route path="expenses/create" element={<ProtectedRoute><ExpenseCreate /></ProtectedRoute>} />
+          <Route path="expenses/edit/:id" element={<ProtectedRoute><ExpenseCreate /></ProtectedRoute>} />
           <Route path="profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           <Route path="activity" element={<ProtectedRoute><ActivityLogs /></ProtectedRoute>} />
           <Route path="ticket-pipe-log" element={<ProtectedRoute><TicketPipeLog /></ProtectedRoute>} />
           <Route path="calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
           <Route path="leads" element={<ProtectedRoute><Leads /></ProtectedRoute>} />
           <Route path="subscriptions" element={<ProtectedRoute><Subscriptions /></ProtectedRoute>} />
+          <Route path="subscriptions/create" element={<ProtectedRoute><SubscriptionCreate /></ProtectedRoute>} />
+          <Route path="subscriptions/create/:clientId" element={<ProtectedRoute><SubscriptionCreate /></ProtectedRoute>} />
+          <Route path="subscriptions/edit/:id" element={<ProtectedRoute><SubscriptionCreate /></ProtectedRoute>} />
+          <Route path="pricing" element={<ProtectedRoute><SubscriptionPricing /></ProtectedRoute>} />
           <Route path="contracts" element={<ProtectedRoute><Contracts /></ProtectedRoute>} />
           <Route path="support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
           <Route path="estimate-request" element={<ProtectedRoute><EstimateRequest /></ProtectedRoute>} />

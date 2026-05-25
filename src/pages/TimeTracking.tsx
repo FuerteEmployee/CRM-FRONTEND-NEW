@@ -39,7 +39,7 @@ const TimeTracking = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div><h1 className="text-2xl font-bold">Time Tracking</h1><p className="text-muted-foreground">Track time spent on projects and tasks</p></div>
           <Dialog>
-            <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Log Time</Button></DialogTrigger>
+            <DialogTrigger asChild><Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"><Plus className="h-4 w-4" />Log Time</Button></DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Log Time Entry</DialogTitle></DialogHeader>
               <div className="space-y-4 pt-2">

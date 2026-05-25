@@ -32,7 +32,7 @@ import {
 import { 
   Plus, Search, ChevronDown, Download, FileSpreadsheet, FileJson, FileType, Printer, MoreHorizontal 
 } from "lucide-react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supportService } from "@/api/services/support.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
@@ -48,6 +48,19 @@ const Support = () => {
   const { toast } = useToast();
   const { can } = usePermissions();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const [selectedTickets, setSelectedTickets] = useState<string[]>([]);
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({
+    massDelete: false,
+    status: "",
+    department: "",
+    priority: "",
+    tags: "",
+    service: ""
+  });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
 
   const { data: tickets = [], isLoading, refetch } = useQuery<any[]>({
     queryKey: ["tickets"],
@@ -68,6 +81,48 @@ const Support = () => {
       });
     }
   });
+
+  const handleBulkAction = async () => {
+    if (selectedTickets.length === 0) {
+      toast({ title: "Error", description: "No tickets selected.", variant: "destructive" });
+      return;
+    }
+    setIsBulkLoading(true);
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedTickets.map(id => supportService.deleteTicket(id)));
+        toast({ title: "Success", description: `Deleted ${selectedTickets.length} tickets.` });
+      } else {
+        const updates: any = {};
+        if (bulkState.status) updates.status = bulkState.status;
+        if (bulkState.department) updates.department = bulkState.department;
+        if (bulkState.priority) updates.priority = bulkState.priority;
+        if (bulkState.service) updates.service = bulkState.service;
+        if (bulkState.tags) updates.tags = bulkState.tags.split(",").map(s => s.trim());
+
+        if (Object.keys(updates).length > 0) {
+          await Promise.all(selectedTickets.map(id => supportService.updateTicket(id, updates)));
+          toast({ title: "Success", description: `Updated ${selectedTickets.length} tickets.` });
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ["tickets"] });
+      setSelectedTickets([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false, status: "", department: "", priority: "", tags: "", service: "" });
+    } catch (err: any) {
+      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedTickets(paginated.map((t: any) => t._id));
+    } else {
+      setSelectedTickets([]);
+    }
+  };
 
   const filtered = tickets.filter(
     (t: any) =>
@@ -136,8 +191,8 @@ const Support = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Support Tickets</h1>
           {can("Support", "Create") && (
-            <Button size="sm" onClick={() => navigate("/admin/support/create")}>
-              <Plus className="mr-2 h-4 w-4" />
+            <Button onClick={() => navigate("/admin/support/create")} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
+              <Plus className="h-4 w-4" />
               New Ticket
             </Button>
           )}
@@ -175,9 +230,15 @@ const Support = () => {
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                <Dialog>
+                <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+                  if (open && selectedTickets.length === 0) {
+                    toast({ title: "Error", description: "Please select at least one ticket first.", variant: "destructive" });
+                    return;
+                  }
+                  setBulkActionOpen(open);
+                }}>
                   <DialogTrigger asChild>
-                    <Button variant="outline" className="h-9 text-xs font-bold bg-white border-slate-200 rounded-lg uppercase tracking-wider">
+                    <Button variant="outline" className="h-11 px-6 rounded-xl font-black gap-2 uppercase tracking-widest text-[10px] bg-slate-50 border-slate-200 text-slate-700">
                       Bulk Actions
                     </Button>
                   </DialogTrigger>
@@ -187,18 +248,23 @@ const Support = () => {
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                       <div className="flex items-center space-x-2">
-                        <Checkbox id="merge" />
-                        <Label htmlFor="merge" className="text-sm font-semibold">Merge Tickets</Label>
+                        <Checkbox id="merge" disabled />
+                        <Label htmlFor="merge" className="text-sm font-semibold text-slate-400">Merge Tickets (Not Supported)</Label>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Checkbox id="mass_delete" className="border-red-200 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" />
+                        <Checkbox 
+                          id="mass_delete" 
+                          className="border-red-200 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" 
+                          checked={bulkState.massDelete}
+                          onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                        />
                         <Label htmlFor="mass_delete" className="text-sm font-semibold text-red-600">Mass Delete</Label>
                       </div>
                       
                       <div className="grid gap-4 pt-2">
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Change Status</Label>
-                          <Select>
+                          <Select value={bulkState.status} onValueChange={(val) => setBulkState({...bulkState, status: val})} disabled={bulkState.massDelete}>
                             <SelectTrigger className="h-10 bg-slate-50/50 border-slate-200 rounded-lg">
                               <SelectValue placeholder="Select Status" />
                             </SelectTrigger>
@@ -211,7 +277,7 @@ const Support = () => {
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Department</Label>
-                          <Select>
+                          <Select value={bulkState.department} onValueChange={(val) => setBulkState({...bulkState, department: val})} disabled={bulkState.massDelete}>
                             <SelectTrigger className="h-10 bg-slate-50/50 border-slate-200 rounded-lg">
                               <SelectValue placeholder="Select Department" />
                             </SelectTrigger>
@@ -223,7 +289,7 @@ const Support = () => {
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ticket Priority</Label>
-                          <Select>
+                          <Select value={bulkState.priority} onValueChange={(val) => setBulkState({...bulkState, priority: val})} disabled={bulkState.massDelete}>
                             <SelectTrigger className="h-10 bg-slate-50/50 border-slate-200 rounded-lg">
                               <SelectValue placeholder="Select Priority" />
                             </SelectTrigger>
@@ -236,15 +302,25 @@ const Support = () => {
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tags</Label>
-                          <Input className="h-10 bg-slate-50/50 border-slate-200 rounded-lg" placeholder="Tag1, Tag2..." />
+                          <Input 
+                            className="h-10 bg-slate-50/50 border-slate-200 rounded-lg" 
+                            placeholder="Tag1, Tag2..." 
+                            value={bulkState.tags}
+                            onChange={(e) => setBulkState({...bulkState, tags: e.target.value})}
+                            disabled={bulkState.massDelete}
+                          />
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Service</Label>
-                          <SearchableSelect 
-                            options={[{ label: "Support", value: "s1" }, { label: "Billing", value: "s2" }]} 
-                            placeholder="Search Service..."
-                            className="h-10 bg-slate-50/50 border-slate-200 rounded-lg"
-                          />
+                          <Select value={bulkState.service} onValueChange={(val) => setBulkState({...bulkState, service: val})} disabled={bulkState.massDelete}>
+                            <SelectTrigger className="h-10 bg-slate-50/50 border-slate-200 rounded-lg">
+                              <SelectValue placeholder="Search Service..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="s1">Support</SelectItem>
+                              <SelectItem value="s2">Billing</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     </div>
@@ -252,7 +328,13 @@ const Support = () => {
                       <DialogClose asChild>
                         <Button variant="ghost" className="font-bold uppercase tracking-widest text-[10px]">Close</Button>
                       </DialogClose>
-                      <Button className="font-bold uppercase tracking-widest text-[10px]">Confirm</Button>
+                      <Button 
+                        className="font-bold uppercase tracking-widest text-[10px]"
+                        onClick={handleBulkAction}
+                        disabled={isBulkLoading}
+                      >
+                        {isBulkLoading ? "Processing..." : "Confirm"}
+                      </Button>
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
@@ -274,7 +356,11 @@ const Support = () => {
                 <thead>
                   <tr className="border-b text-left text-[11px] text-slate-500 uppercase tracking-widest bg-slate-50/80">
                     <th className="p-4 w-10">
-                      <Checkbox className="border-slate-300" />
+                      <Checkbox 
+                        className="border-slate-300"
+                        checked={paginated.length > 0 && selectedTickets.length === paginated.length}
+                        onCheckedChange={handleSelectAll}
+                      />
                     </th>
                     <th className="p-4 font-bold w-12">#</th>
                     <th className="p-4 font-bold min-w-[200px]">Subject</th>
@@ -308,7 +394,14 @@ const Support = () => {
                     paginated.map((ticket, index) => (
                       <tr key={ticket._id} className="border-b last:border-0 hover:bg-slate-50/50 transition-colors group">
                         <td className="p-4">
-                          <Checkbox className="border-slate-300 data-[state=checked]:bg-primary" />
+                          <Checkbox 
+                            className="border-slate-300 data-[state=checked]:bg-primary"
+                            checked={selectedTickets.includes(ticket._id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) setSelectedTickets([...selectedTickets, ticket._id]);
+                              else setSelectedTickets(selectedTickets.filter(id => id !== ticket._id));
+                            }}
+                          />
                         </td>
                         <td className="p-4 text-xs font-medium text-slate-500">
                           {(currentPage - 1) * itemsPerPage + index + 1}

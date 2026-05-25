@@ -174,7 +174,7 @@ export default function Meetings() {
             />
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
               <DialogTrigger asChild>
-                <Button onClick={() => setEditingMeeting(null)} className="font-bold uppercase tracking-wider text-xs">
+                <Button onClick={() => setEditingMeeting(null)} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                   <Plus className="mr-2 h-4 w-4" />
                   New Meeting
                 </Button>

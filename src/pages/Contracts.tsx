@@ -56,8 +56,8 @@ const Contracts = () => {
           {can("Contracts", "Create") && (
             <Dialog>
               <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
+                <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
+                  <Plus className="h-4 w-4" />
                   New Contract
                 </Button>
               </DialogTrigger>

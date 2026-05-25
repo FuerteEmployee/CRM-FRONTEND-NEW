@@ -535,6 +535,14 @@ export function AppSidebar() {
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 )}
+                {renderItems([
+                  {
+                    title: "Subscription Details",
+                    url: "/admin/pricing",
+                    icon: DollarSign,
+                    permission: "Subscriptions",
+                  }
+                ])}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

@@ -166,8 +166,8 @@ const KnowledgeBase = () => {
           <h1 className="text-2xl font-bold text-slate-900">Knowledge Base</h1>
           <Dialog open={isNewArticleModalOpen} onOpenChange={setIsNewArticleModalOpen}>
             <DialogTrigger asChild>
-              <Button className="h-10 rounded-xl px-6 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 transition-all hover:scale-105">
-                <Plus className="mr-2 h-4 w-4 stroke-[3]" />
+              <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
+                <Plus className="h-4 w-4" />
                 New Article
               </Button>
             </DialogTrigger>

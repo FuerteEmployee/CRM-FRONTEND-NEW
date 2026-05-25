@@ -143,7 +143,14 @@ const ExpenseCreate = () => {
       toast({ title: "Error", description: "Please fill all required fields.", variant: "destructive" });
       return;
     }
-    mutation.mutate(formData);
+
+    const payload = { ...formData };
+    if (!payload.client) delete payload.client;
+    if (!payload.project) delete payload.project;
+    if (!payload.tax || payload.tax === "none") delete payload.tax;
+    if (!payload.tax2 || payload.tax2 === "none") delete payload.tax2;
+
+    mutation.mutate(payload);
   };
 
   const ToggleButton = ({ label, isOpen, onClick }: { label: string, isOpen: boolean, onClick: () => void }) => (

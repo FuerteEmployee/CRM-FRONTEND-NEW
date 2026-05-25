@@ -88,7 +88,7 @@ const Goals = () => {
             <p className="text-muted-foreground text-sm font-medium">Set and track organizational achievements</p>
           </div>
           <Button 
-            className="gap-2 rounded-xl h-11 px-6 shadow-lg shadow-primary/20"
+            className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
             onClick={() => navigate("/admin/goals/new")}
           >
             <Plus className="h-4 w-4" />
