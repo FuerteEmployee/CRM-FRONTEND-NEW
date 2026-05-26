@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, Routes, Route } from "react-router-dom";
 import { PermissionProvider, usePermissionContext } from "@/context/PermissionContext";
 import { Loader2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
@@ -212,7 +212,7 @@ const MainApp = () => {
   }
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         {/* Root → smart redirect based on who is logged in */}
         <Route path="/" element={<SmartRoot />} />
@@ -336,7 +336,7 @@ const MainApp = () => {
         <Route path="/forms/quote/:id" element={<PublicForm />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 };
 
