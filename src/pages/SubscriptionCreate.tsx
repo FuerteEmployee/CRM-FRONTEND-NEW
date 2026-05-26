@@ -41,6 +41,7 @@ const SubscriptionCreate = () => {
     description: "",
     include_description: false,
     currency: "USD",
+    amount: 0,
     tax: "",
     tax2: "",
     terms: ""
@@ -92,10 +93,14 @@ const SubscriptionCreate = () => {
   const handleSelectChange = (name: string, value: any) => {
     setFormData((prev: any) => ({ ...prev, [name]: value }));
     
-    if (name === "plan" && !formData.name) {
+    if (name === "plan") {
       const selectedItem = items.find((i: any) => i._id === value);
       if (selectedItem) {
-        setFormData((prev: any) => ({ ...prev, name: selectedItem.description }));
+        setFormData((prev: any) => ({ 
+          ...prev, 
+          name: prev.name || selectedItem.description,
+          amount: selectedItem.rate || 0
+        }));
       }
     }
   };
@@ -174,18 +179,34 @@ const SubscriptionCreate = () => {
               </div>
 
               {/* Quantity */}
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500 ml-1">
-                  Quantity
-                </Label>
-                <Input
-                  type="number"
-                  name="quantity"
-                  min="1"
-                  value={formData.quantity}
-                  onChange={handleInputChange}
-                  className="rounded-xl border-slate-200 h-10 shadow-sm font-medium text-xs transition-all focus:ring-primary/20"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500 ml-1">
+                    Quantity
+                  </Label>
+                  <Input
+                    type="number"
+                    name="quantity"
+                    min="1"
+                    value={formData.quantity}
+                    onChange={handleInputChange}
+                    className="rounded-xl border-slate-200 h-10 shadow-sm font-medium text-xs transition-all focus:ring-primary/20"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500 ml-1">
+                    Amount ({formData.currency})
+                  </Label>
+                  <Input
+                    type="number"
+                    name="amount"
+                    min="0"
+                    step="0.01"
+                    value={formData.amount}
+                    onChange={handleInputChange}
+                    className="rounded-xl border-slate-200 h-10 shadow-sm font-medium text-xs transition-all focus:ring-primary/20"
+                  />
+                </div>
               </div>
 
               {/* First Billing Date */}

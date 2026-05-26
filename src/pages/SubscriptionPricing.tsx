@@ -5,11 +5,53 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Zap, Crown, Shield, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { itemService } from "@/api/services/item.service";
 
 const SubscriptionPricing = () => {
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annually">("monthly");
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
 
-  const pricingTiers = [
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ["items"],
+    queryFn: () => itemService.getAll(),
+  });
+
+  // Dynamically generate plans from items (you can filter by group if needed, e.g., item.group === "Subscription")
+  // For now, if there are items, we'll map them. If empty, we show a loading or fallback.
+  let dynamicPlans = items.map((item: any, index: number) => {
+    // Determine icon and colors based on index or price
+    const icons = [Shield, Zap, Crown];
+    const colors = ["text-blue-500", "text-emerald-500", "text-amber-500"];
+    const bgColors = ["bg-blue-50", "bg-emerald-50", "bg-amber-50"];
+    const borderColors = ["border-blue-100", "border-primary", "border-amber-100"];
+    
+    const i = index % 3;
+    
+    // Parse long_description into features array, fallback to default if empty
+    const features = item.long_description 
+      ? item.long_description.split('\n').filter((f: string) => f.trim() !== '')
+      : ["Basic CRM Features", "Email Support"];
+
+    return {
+      id: item._id,
+      name: item.description,
+      description: item.group || "Subscription Plan",
+      // Calculate annual price dynamically if item.rate is monthly
+      price: billingCycle === "monthly" ? item.rate : item.rate * 12 * 0.84, // 16% discount for annual
+      period: billingCycle === "monthly" ? "/mo" : "/yr",
+      icon: icons[i],
+      color: colors[i],
+      bgColor: bgColors[i],
+      borderColor: borderColors[i],
+      buttonVariant: i === 1 ? "default" : "outline", // middle plan is popular
+      popular: i === 1,
+      features: features,
+    };
+  });
+
+  // Hardcoded fallback if no dynamic plans exist in the database
+  const fallbackPlans = [
     {
       name: "Basic",
       description: "Perfect for small businesses just getting started.",
@@ -73,6 +115,10 @@ const SubscriptionPricing = () => {
     },
   ];
 
+  const displayPlans = dynamicPlans.length > 0 ? dynamicPlans : fallbackPlans;
+
+
+
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto space-y-12 animate-in fade-in duration-700 pb-16">
@@ -126,13 +172,20 @@ const SubscriptionPricing = () => {
 
         {/* Pricing Cards */}
         <div className="grid md:grid-cols-3 gap-8 pt-8 items-start">
-          {pricingTiers.map((tier, index) => (
+          {isLoading ? (
+            <div className="col-span-3 text-center text-slate-400 font-bold py-12 animate-pulse">Loading plans...</div>
+          ) : displayPlans.map((tier: any, index: number) => (
             <Card 
               key={index}
+              onClick={() => setSelectedPlan(tier.name)}
               className={cn(
-                "relative border-2 shadow-2xl rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:shadow-primary/10",
-                tier.popular ? "shadow-primary/20 border-primary" : "border-transparent hover:border-border",
-                tier.popular ? "md:-mt-8 md:mb-8" : ""
+                "relative border-2 shadow-2xl rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:shadow-primary/10 cursor-pointer",
+                selectedPlan === tier.name 
+                  ? "border-primary ring-4 ring-primary/20 bg-primary/5 scale-105 z-10 shadow-primary/20"
+                  : tier.popular 
+                    ? "shadow-primary/20 border-primary" 
+                    : "border-transparent hover:border-border",
+                tier.popular && selectedPlan !== tier.name ? "md:-mt-8 md:mb-8" : ""
               )}
             >
               {tier.popular && (
@@ -165,12 +218,29 @@ const SubscriptionPricing = () => {
                   <Button 
                     className={cn(
                       "w-full h-12 rounded-xl font-black uppercase tracking-widest text-[11px] gap-2 transition-all",
-                      tier.popular ? "shadow-xl shadow-primary/25 hover:scale-[1.02]" : "hover:bg-muted"
+                      selectedPlan === tier.name
+                        ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl shadow-primary/25"
+                        : tier.popular 
+                          ? "shadow-xl shadow-primary/25 hover:scale-[1.02]" 
+                          : "hover:bg-muted"
                     )}
-                    variant={tier.buttonVariant as any}
+                    variant={selectedPlan === tier.name ? "default" : tier.buttonVariant as any}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPlan(tier.name);
+                    }}
                   >
-                    Select Plan
-                    <ArrowRight className="h-4 w-4" />
+                    {selectedPlan === tier.name ? (
+                      <>
+                        Selected Plan
+                        <CheckCircle2 className="h-4 w-4" />
+                      </>
+                    ) : (
+                      <>
+                        Select Plan
+                        <ArrowRight className="h-4 w-4" />
+                      </>
+                    )}
                   </Button>
 
                   <div className="space-y-4 pt-6">
