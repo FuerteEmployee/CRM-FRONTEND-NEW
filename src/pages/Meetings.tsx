@@ -40,6 +40,7 @@ export default function Meetings() {
     time: "",
     status: "Scheduled",
     members: "",
+    summary: "",
   });
 
   const { data: meetings = [], isLoading } = useQuery({
@@ -111,6 +112,7 @@ export default function Meetings() {
       time: "",
       status: "Scheduled",
       members: "",
+      summary: "",
     });
   };
 
@@ -123,6 +125,7 @@ export default function Meetings() {
       time: meeting.time || "",
       status: meeting.status || "Scheduled",
       members: Array.isArray(meeting.members) ? meeting.members.join(", ") : meeting.members || "",
+      summary: meeting.summary || "",
     });
     setIsModalOpen(true);
   };
@@ -169,7 +172,8 @@ export default function Meetings() {
                 { header: "Time", key: "time" },
                 { header: "Members", key: (m) => Array.isArray(m.members) ? m.members.join(", ") : m.members },
                 { header: "Status", key: "status" },
-                { header: "Agenda", key: "agenda" }
+                { header: "Agenda", key: "agenda" },
+                { header: "Summary", key: "summary" }
               ]}
             />
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
@@ -215,8 +219,14 @@ export default function Meetings() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="agenda" className="text-xs font-bold uppercase tracking-wider">Agenda</Label>
-                  <Textarea id="agenda" value={formData.agenda} onChange={handleInputChange} placeholder="What will be discussed?" className="min-h-[100px]" />
+                  <Textarea id="agenda" value={formData.agenda} onChange={handleInputChange} placeholder="What will be discussed?" className="min-h-[80px]" />
                 </div>
+                {editingMeeting && (
+                  <div className="space-y-2">
+                    <Label htmlFor="summary" className="text-xs font-bold uppercase tracking-wider">Live Summary</Label>
+                    <Textarea id="summary" value={formData.summary} onChange={handleInputChange} placeholder="Meeting notes and outcome..." className="min-h-[80px] border-primary/20 bg-primary/5 focus-visible:ring-primary/20" />
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <DialogClose asChild>
@@ -250,6 +260,7 @@ export default function Meetings() {
                     <th className="px-6 py-4 font-bold">Date & Time</th>
                     <th className="px-6 py-4 font-bold">Members</th>
                     <th className="px-6 py-4 font-bold">Status</th>
+                    <th className="px-6 py-4 font-bold">Summary</th>
                     <th className="px-6 py-4 font-bold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -262,7 +273,7 @@ export default function Meetings() {
                     ))
                   ) : filteredMeetings.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-muted-foreground">No meetings found.</td>
+                      <td colSpan={6} className="p-8 text-center text-muted-foreground">No meetings found.</td>
                     </tr>
                   ) : (
                     filteredMeetings.map((meeting: any) => (
@@ -293,6 +304,11 @@ export default function Meetings() {
                           <Badge variant={meeting.status === 'Completed' ? 'default' : meeting.status === 'Cancelled' ? 'destructive' : 'secondary'} className="font-bold uppercase text-[10px]">
                             {meeting.status}
                           </Badge>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-xs text-slate-600 line-clamp-2 max-w-xs italic">
+                            {meeting.summary || <span className="text-slate-400">No summary yet</span>}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
