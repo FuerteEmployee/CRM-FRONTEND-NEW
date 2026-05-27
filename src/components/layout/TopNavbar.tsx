@@ -31,6 +31,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import { notifications } from "@/data/mockData";
 import { useTheme } from "@/hooks/useTheme";
@@ -49,6 +52,41 @@ export function TopNavbar() {
     await logout();
     navigate("/admin/login");
   };
+
+  const handleLanguageChange = (langCode: string) => {
+    if (langCode === 'en') {
+      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=" + window.location.hostname + "; path=/;";
+    } else {
+      document.cookie = `googtrans=/en/${langCode}; path=/`;
+      document.cookie = `googtrans=/en/${langCode}; domain=` + window.location.hostname + `; path=/`;
+    }
+    window.location.reload();
+  };
+
+  const languages = [
+    { code: "ar", name: "Arabic" },
+    { code: "bg", name: "Bulgarian" },
+    { code: "ca", name: "Catalan" },
+    { code: "zh-CN", name: "Chinese" },
+    { code: "cs", name: "Czech" },
+    { code: "en", name: "English" },
+    { code: "fi", name: "Finnish" },
+    { code: "fr", name: "French" },
+    { code: "de", name: "German" },
+    { code: "el", name: "Greek" },
+    { code: "hi", name: "Hindi" },
+    { code: "id", name: "Indonesia" },
+    { code: "it", name: "Italian" },
+    { code: "ja", name: "Japanese" },
+    { code: "fa", name: "Persian" },
+    { code: "pt-PT", name: "Portuguese" },
+    { code: "pt-BR", name: "Portuguese (BR)" },
+    { code: "ro", name: "Romanian" },
+    { code: "ru", name: "Russian" },
+    { code: "es", name: "Spanish" },
+    { code: "uk", name: "Ukrainian" },
+  ];
 
   const initials = user
     ? `${user.firstname?.[0] || ""}${user.lastname?.[0] || ""}`.toUpperCase()
@@ -79,7 +117,7 @@ export function TopNavbar() {
       {/* Quick Action Icons */}
       <div className="flex items-center gap-0.5 md:gap-1 ml-auto">
         {/* Settings - visible on md and up with text, always icon */}
-        <NavLink to="/setup" className="inline-flex">
+        <NavLink to="/admin/setup" className="inline-flex">
           <Button
             variant="ghost"
             size="sm"
@@ -106,7 +144,7 @@ export function TopNavbar() {
           </Button>
 
           {/* Tasks */}
-          <NavLink to="/tasks" className="inline-flex">
+          <NavLink to="/admin/tasks" className="inline-flex">
             <Button
               variant="ghost"
               size="icon"
@@ -118,7 +156,7 @@ export function TopNavbar() {
           </NavLink>
 
           {/* Time Tracking */}
-          <NavLink to="/time-tracking" className="inline-flex">
+          <NavLink to="/admin/time-tracking" className="inline-flex">
             <Button
               variant="ghost"
               size="icon"
@@ -147,11 +185,11 @@ export function TopNavbar() {
                 <Share2 className="mr-2 h-4 w-4 text-muted-foreground" />
                 <span>Share</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/tasks")}>
+              <DropdownMenuItem onClick={() => navigate("/admin/tasks")}>
                 <CheckSquare className="mr-2 h-4 w-4 text-muted-foreground" />
                 <span>Tasks</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/time-tracking")}>
+              <DropdownMenuItem onClick={() => navigate("/admin/time-tracking")}>
                 <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
                 <span>Time Tracking</span>
               </DropdownMenuItem>
@@ -265,7 +303,7 @@ export function TopNavbar() {
           <div className="py-1">
             <DropdownMenuItem
               className="gap-3 px-4 py-2.5 cursor-pointer"
-              onClick={() => navigate("/profile")}
+              onClick={() => navigate("/admin/profile")}
             >
               <User className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">My Profile</span>
@@ -273,7 +311,7 @@ export function TopNavbar() {
 
             <DropdownMenuItem
               className="gap-3 px-4 py-2.5 cursor-pointer"
-              onClick={() => navigate("/time-tracking")}
+              onClick={() => navigate("/admin/time-tracking")}
             >
               <ClipboardList className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">My Timesheets</span>
@@ -281,19 +319,29 @@ export function TopNavbar() {
 
             <DropdownMenuItem
               className="gap-3 px-4 py-2.5 cursor-pointer"
-              onClick={() => navigate("/profile")}
+              onClick={() => navigate("/admin/profile")}
             >
               <Edit className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">Edit Profile</span>
             </DropdownMenuItem>
 
-            <DropdownMenuItem className="gap-3 px-4 py-2.5 cursor-pointer justify-between">
-              <div className="flex items-center gap-3">
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className="gap-3 px-4 py-2.5 cursor-pointer notranslate">
                 <Globe className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm">Language</span>
-              </div>
-              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-            </DropdownMenuItem>
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-48 max-h-72 overflow-y-auto notranslate">
+                {languages.map((lang) => (
+                  <DropdownMenuItem 
+                    key={lang.code} 
+                    onClick={() => handleLanguageChange(lang.code)}
+                    className="cursor-pointer font-medium"
+                  >
+                    {lang.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
           </div>
 
           <DropdownMenuSeparator />
