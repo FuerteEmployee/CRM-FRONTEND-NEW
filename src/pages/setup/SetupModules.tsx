@@ -3,6 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useSettings } from "@/context/SettingsContext";
+import { settingsService } from "@/api/services/settings.service";
+import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 
 const modules = [
   { key: "subscriptions", label: "Subscriptions" },
@@ -20,6 +25,41 @@ const modules = [
 ];
 
 export default function SetupModules() {
+  const { getSetting, refreshSettings } = useSettings();
+  const { toast } = useToast();
+  const [moduleStates, setModuleStates] = useState<Record<string, boolean>>({});
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const states: Record<string, boolean> = {};
+    modules.forEach((m) => {
+      states[`module_${m.key}`] = getSetting(`module_${m.key}`, true); // Enabled by default
+    });
+    setModuleStates(states);
+  }, [getSetting]);
+
+  const handleToggle = (key: string, checked: boolean) => {
+    setModuleStates((prev) => ({ ...prev, [`module_${key}`]: checked }));
+  };
+
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      const payload = Object.entries(moduleStates).map(([name, value]) => ({
+        name,
+        value: value ? "true" : "false",
+      }));
+      
+      await settingsService.updateSettings({ settings: payload });
+      await refreshSettings();
+      toast({ title: "Success", description: "Modules settings updated" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save settings", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-5 max-w-2xl">
@@ -37,10 +77,16 @@ export default function SetupModules() {
             {modules.map((m) => (
               <div key={m.key} className="flex items-center justify-between">
                 <Label className="text-sm">{m.label}</Label>
-                <Switch defaultChecked />
+                <Switch 
+                  checked={moduleStates[`module_${m.key}`] ?? true} 
+                  onCheckedChange={(checked) => handleToggle(m.key, checked)}
+                />
               </div>
             ))}
-            <Button size="sm" className="mt-2">Save Changes</Button>
+            <Button onClick={handleSave} disabled={isSaving} size="sm" className="mt-2">
+              {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Save Changes
+            </Button>
           </CardContent>
         </Card>
       </div>

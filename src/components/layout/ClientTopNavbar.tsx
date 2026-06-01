@@ -7,7 +7,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, User, Settings, HelpCircle, Search } from "lucide-react";
+import { LogOut, User, Settings, HelpCircle, Mic } from "lucide-react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authService } from "@/api/services/auth.service";
 import { usePermissionContext } from "@/context/PermissionContext";
@@ -24,6 +25,7 @@ const clientNavLinks = [
 
 export function ClientTopNavbar() {
   const navigate = useNavigate();
+  const [search, setSearch] = useState("");
 
   const { logout } = usePermissionContext();
  
@@ -63,11 +65,12 @@ export function ClientTopNavbar() {
 
         {/* Right Actions */}
         <div className="flex items-center gap-4">
-          <div className="relative hidden lg:block">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <input
+          <div className="relative hidden lg:block group">
+            <Input
               placeholder="Search..."
-              className="h-9 w-64 rounded-md border border-input bg-transparent pl-8 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-9 w-64 rounded-md border border-input bg-transparent pl-4 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
 

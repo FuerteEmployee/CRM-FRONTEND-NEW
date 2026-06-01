@@ -22,6 +22,7 @@ import ExpenseCreate from "./pages/ExpenseCreate";
 import Profile from "./pages/Profile";
 import ActivityLogs from "./pages/ActivityLogs";
 import TicketPipeLog from "./pages/TicketPipeLog";
+import TicketCreate from "./pages/TicketCreate";
 import Calendar from "./pages/Calendar";
 import Leads from "./pages/Leads";
 import Subscriptions from "./pages/Subscriptions";
@@ -262,6 +263,8 @@ const MainApp = () => {
           <Route path="pricing" element={<ProtectedRoute><SubscriptionPricing /></ProtectedRoute>} />
           <Route path="contracts" element={<ProtectedRoute><Contracts /></ProtectedRoute>} />
           <Route path="support" element={<ProtectedRoute><Support /></ProtectedRoute>} />
+          <Route path="support/create" element={<ProtectedRoute><TicketCreate /></ProtectedRoute>} />
+          <Route path="support/edit/:id" element={<ProtectedRoute><TicketCreate /></ProtectedRoute>} />
           <Route path="estimate-request" element={<ProtectedRoute><EstimateRequest /></ProtectedRoute>} />
           <Route path="knowledge-base" element={<ProtectedRoute><KnowledgeBase /></ProtectedRoute>} />
           <Route path="chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />

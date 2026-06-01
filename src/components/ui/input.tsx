@@ -35,29 +35,31 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       const recognition = new SpeechRecognition();
-      recognition.continuous = true;
+      recognition.continuous = false;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
       recognition.onstart = () => setIsRecording(true);
       recognition.onend = () => setIsRecording(false);
       recognition.onerror = (event: any) => {
-        console.error(event.error);
         setIsRecording(false);
+        if (event.error === 'no-speech' || event.error === 'aborted') return;
+        if (event.error === 'not-allowed') {
+          toast.error("Microphone access denied.");
+          return;
+        }
+        // Fallback for other errors
+        console.error(event.error);
       };
 
       recognition.onresult = (event: any) => {
-        let finalTranscript = "";
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript + " ";
-          }
+        let transcript = "";
+        for (let i = 0; i < event.results.length; i++) {
+          transcript += event.results[i][0].transcript;
         }
         
-        if (finalTranscript && internalRef.current) {
+        if (transcript && internalRef.current) {
           const inputNode = internalRef.current;
-          const currentValue = inputNode.value;
-          const newValue = (currentValue ? currentValue + " " + finalTranscript : finalTranscript).trim();
           
           const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
             window.HTMLInputElement.prototype,
@@ -65,7 +67,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           )?.set;
           
           if (nativeInputValueSetter) {
-            nativeInputValueSetter.call(inputNode, newValue);
+            nativeInputValueSetter.call(inputNode, transcript);
             inputNode.dispatchEvent(new Event('input', { bubbles: true }));
           }
         }

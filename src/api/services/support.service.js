@@ -40,4 +40,10 @@ export const supportService = {
   // Services
   getServices: () => apiClient.get("/services"),
   createService: (data) => apiClient.post("/services", data),
+
+  // Predefined Replies
+  getPredefinedReplies: () => apiClient.get("/predefined-replies"),
+  createPredefinedReply: (data) => apiClient.post("/predefined-replies", data),
+  updatePredefinedReply: (id, data) => apiClient.put(`/predefined-replies/${id}`, data),
+  deletePredefinedReply: (id) => apiClient.delete(`/predefined-replies/${id}`),
 };

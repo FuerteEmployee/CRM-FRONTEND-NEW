@@ -4,9 +4,43 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Globe } from "lucide-react";
+import { Globe, Loader2 } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useSettings } from "@/context/SettingsContext";
+import { settingsService } from "@/api/services/settings.service";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SetupLeadsWebToLead() {
+  const { getSetting, refreshSettings } = useSettings();
+  const { toast } = useToast();
+  
+  const [redirectUrl, setRedirectUrl] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setRedirectUrl(getSetting("web_to_lead_url", ""));
+    setSuccessMessage(getSetting("web_to_lead_success_message", ""));
+  }, [getSetting]);
+
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      await settingsService.updateSettings({
+        settings: [
+          { name: "web_to_lead_url", value: redirectUrl },
+          { name: "web_to_lead_success_message", value: successMessage },
+        ],
+      });
+      await refreshSettings();
+      toast({ title: "Success", description: "Web to Lead settings updated" });
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-5 max-w-2xl">
@@ -26,13 +60,24 @@ export default function SetupLeadsWebToLead() {
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
               <Label>Redirect URL (after submission)</Label>
-              <Input placeholder="https://example.com/thank-you" />
+              <Input 
+                value={redirectUrl} 
+                onChange={(e) => setRedirectUrl(e.target.value)} 
+                placeholder="https://example.com/thank-you" 
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Success Message</Label>
-              <Textarea placeholder="Thank you! We will get back to you shortly." />
+              <Textarea 
+                value={successMessage}
+                onChange={(e) => setSuccessMessage(e.target.value)}
+                placeholder="Thank you! We will get back to you shortly." 
+              />
             </div>
-            <Button size="sm">Generate Embed Code</Button>
+            <Button onClick={handleSave} disabled={isSaving} size="sm">
+              {isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Save Settings
+            </Button>
           </CardContent>
         </Card>
       </div>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,7 +27,8 @@ import {
   Clock, 
   Bell, 
   Globe,
-  Palette
+  Palette,
+  Trash2
 } from "lucide-react";
 import { 
   format, 
@@ -49,8 +50,10 @@ import {
   eachHourOfInterval,
   isWithinInterval
 } from "date-fns";
-import { toast } from "sonner";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { calendarEventService } from "@/api/services/calendar_event.service";
+import { usePermissionContext } from "@/context/PermissionContext";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const COLORS = [
@@ -65,15 +68,14 @@ const COLORS = [
 type ViewMode = "month" | "week" | "day";
 
 const Calendar = () => {
+  const { user } = usePermissionContext();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [events, setEvents] = useState<any[]>(() => {
-    const saved = localStorage.getItem("crm_calendar_events");
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [events, setEvents] = useState<any[]>([]);
 
   // Modal Form State
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [eventTitle, setEventTitle] = useState("");
   const [description, setDescription] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -82,6 +84,20 @@ const Calendar = () => {
   const [notifUnit, setNotifUnit] = useState("minutes");
   const [eventColor, setEventColor] = useState("#3b82f6");
   const [isPublic, setIsPublic] = useState(false);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const fetchEvents = async () => {
+    try {
+      const data = await calendarEventService.getEvents();
+      setEvents(data || []);
+    } catch (error) {
+      console.error("Failed to fetch events:", error);
+    }
+  };
 
   // Month View Helpers
   const monthStart = startOfMonth(currentDate);
@@ -113,11 +129,32 @@ const Calendar = () => {
   };
 
   const handleDateClick = (date: Date) => {
+    resetForm();
     setStartDate(format(date, "yyyy-MM-dd'T'HH:mm"));
+    setIsModalOpen(true);
+  };
+  
+  const handleEventClick = (e: React.MouseEvent, event: any) => {
+    e.stopPropagation();
+    setSelectedEventId(event._id);
+    setEventTitle(event.title);
+    setDescription(event.description || "");
+    setStartDate(format(new Date(event.start), "yyyy-MM-dd'T'HH:mm"));
+    if (event.end) setEndDate(format(new Date(event.end), "yyyy-MM-dd'T'HH:mm"));
+    setEventColor(event.color || "#3b82f6");
+    setIsPublic(event.isPublic || false);
+    if (event.notification) {
+      const parts = event.notification.split(" ");
+      if (parts.length === 2) {
+        setNotifValue(parts[0]);
+        setNotifUnit(parts[1]);
+      }
+    }
     setIsModalOpen(true);
   };
 
   const resetForm = () => {
+    setSelectedEventId(null);
     setEventTitle("");
     setDescription("");
     setStartDate("");
@@ -128,13 +165,12 @@ const Calendar = () => {
     setIsPublic(false);
   };
 
-  const saveEvent = () => {
+  const saveEvent = async () => {
     if (!eventTitle || !startDate) {
-      toast.error("Please fill in required fields");
+      toast({ title: "Error", description: "Please fill in required fields", variant: "destructive" });
       return;
     }
-    const newEvent = {
-      id: Date.now(),
+    const payload = {
       title: eventTitle,
       description,
       start: startDate,
@@ -143,20 +179,43 @@ const Calendar = () => {
       isPublic,
       notification: `${notifValue} ${notifUnit}`
     };
-    const updatedEvents = [...events, newEvent];
-    setEvents(updatedEvents);
-    localStorage.setItem("crm_calendar_events", JSON.stringify(updatedEvents));
-    toast.success("Event added");
-    setIsModalOpen(false);
-    resetForm();
+
+    try {
+      if (selectedEventId) {
+        await calendarEventService.updateEvent(selectedEventId, payload);
+        toast({ title: "Success", description: "Event updated" });
+      } else {
+        await calendarEventService.createEvent(payload);
+        toast({ title: "Success", description: "Event created" });
+      }
+      setIsModalOpen(false);
+      resetForm();
+      fetchEvents();
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to save event", variant: "destructive" });
+    }
+  };
+  
+  const deleteEvent = async () => {
+    if (!selectedEventId) return;
+    try {
+      await calendarEventService.deleteEvent(selectedEventId);
+      toast({ title: "Success", description: "Event deleted" });
+      setIsModalOpen(false);
+      resetForm();
+      fetchEvents();
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to delete event", variant: "destructive" });
+    }
   };
 
   const getEventsForDay = (date: Date) => {
-    return events.filter(e => isSameDay(new Date(e.start), date));
+    return events.filter(e => e.start && isSameDay(new Date(e.start), date));
   };
 
   const getEventsForHour = (date: Date, hour: number) => {
     return events.filter(e => {
+      if (!e.start) return false;
       const start = new Date(e.start);
       return isSameDay(start, date) && start.getHours() === hour;
     });
@@ -241,7 +300,7 @@ const Calendar = () => {
                         </div>
                         <div className="space-y-1">
                           {dayEvents.map(event => (
-                            <div key={event.id} className="text-[10px] px-2 py-1 rounded-lg border font-bold text-white truncate shadow-sm" style={{ backgroundColor: event.color, borderColor: `${event.color}aa` }}>
+                            <div key={event._id} onClick={(e) => handleEventClick(e, event)} className="text-[10px] px-2 py-1 rounded-lg border font-bold text-white truncate shadow-sm hover:opacity-80" style={{ backgroundColor: event.color, borderColor: `${event.color}aa` }}>
                               {event.title}
                             </div>
                           ))}
@@ -276,7 +335,7 @@ const Calendar = () => {
                         return (
                           <div key={day.toString()} onClick={() => handleDateClick(day)} className="p-1 border-r border-gray-400 dark:border-gray-700 last:border-r-0 hover:bg-accent/5 cursor-pointer">
                             {hourlyEvents.map(event => (
-                              <div key={event.id} className="text-[9px] px-1.5 py-0.5 rounded border font-bold text-white truncate mb-0.5" style={{ backgroundColor: event.color }}>
+                              <div key={event._id} onClick={(e) => handleEventClick(e, event)} className="text-[9px] px-1.5 py-0.5 rounded border font-bold text-white truncate mb-0.5 hover:opacity-80" style={{ backgroundColor: event.color }}>
                                 {event.title}
                               </div>
                             ))}
@@ -301,7 +360,7 @@ const Calendar = () => {
                       </div>
                       <div onClick={() => handleDateClick(currentDate)} className="flex-1 p-2 hover:bg-accent/5 cursor-pointer space-y-2">
                         {hourlyEvents.map(event => (
-                          <div key={event.id} className="p-3 rounded-xl border-l-4 shadow-sm text-sm" style={{ backgroundColor: `${event.color}15`, borderLeftColor: event.color }}>
+                          <div key={event._id} onClick={(e) => handleEventClick(e, event)} className="p-3 rounded-xl border-l-4 shadow-sm text-sm hover:bg-accent/10" style={{ backgroundColor: `${event.color}15`, borderLeftColor: event.color }}>
                              <div className="font-bold flex items-center gap-2" style={{ color: event.color }}>
                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: event.color }} />
                                {event.title}
@@ -318,15 +377,24 @@ const Calendar = () => {
           </CardContent>
         </Card>
 
-        {/* Modal remains same as before... */}
+        {/* Modal */}
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogContent className="max-w-md rounded-3xl p-0 border-none shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <DialogHeader className="bg-primary p-6 text-primary-foreground shrink-0">
-              <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                <CalendarIcon className="h-5 w-5" />
-                Add New Event
-              </DialogTitle>
-              <p className="text-primary-foreground/70 text-xs font-medium">Create a new entry in your schedule</p>
+              <div className="flex justify-between items-center">
+                <div>
+                  <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                    <CalendarIcon className="h-5 w-5" />
+                    {selectedEventId ? "Edit Event" : "Add New Event"}
+                  </DialogTitle>
+                  <p className="text-primary-foreground/70 text-xs font-medium mt-1">{selectedEventId ? "Update your schedule entry" : "Create a new entry in your schedule"}</p>
+                </div>
+                {selectedEventId && (
+                  <Button variant="ghost" size="icon" onClick={deleteEvent} className="text-white hover:text-red-300 hover:bg-red-500/20 rounded-full h-8 w-8">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </DialogHeader>
             <div className="p-6 space-y-6 bg-background overflow-y-auto flex-1 custom-scrollbar">
               <div className="space-y-2"><Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Event Title *</Label><Input placeholder="What is happening?" className="rounded-xl border-border/50 h-12" value={eventTitle} onChange={(e) => setEventTitle(e.target.value)}/></div>
@@ -353,7 +421,7 @@ const Calendar = () => {
                 <Checkbox id="public" checked={isPublic} onCheckedChange={(val) => setIsPublic(val as boolean)} className="rounded-md h-5 w-5 data-[state=checked]:bg-primary"/><div className="flex flex-col gap-0.5"><Label htmlFor="public" className="text-sm font-bold cursor-pointer">Public Event</Label><p className="text-[10px] text-muted-foreground">Visible to everyone in the system</p></div><Globe className="ml-auto h-5 w-5 text-primary opacity-30" />
               </div>
             </div>
-            <DialogFooter className="p-6 bg-accent/5 border-t border-border/40 gap-3 shrink-0"><Button variant="outline" onClick={() => setIsModalOpen(false)} className="rounded-xl flex-1 h-12 font-bold">Close</Button><Button onClick={saveEvent} className="rounded-xl flex-1 h-12 font-bold shadow-xl shadow-primary/20">Save Event</Button></DialogFooter>
+            <DialogFooter className="p-6 bg-accent/5 border-t border-border/40 gap-3 shrink-0"><Button variant="outline" onClick={() => setIsModalOpen(false)} className="rounded-xl flex-1 h-12 font-bold">Close</Button><Button onClick={saveEvent} className="rounded-xl flex-1 h-12 font-bold shadow-xl shadow-primary/20">{selectedEventId ? "Save Changes" : "Save Event"}</Button></DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

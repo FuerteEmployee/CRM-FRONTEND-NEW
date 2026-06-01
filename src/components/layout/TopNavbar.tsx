@@ -15,6 +15,7 @@ import {
   LogOut,
   ChevronRight,
   MoreVertical,
+  Mic,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,7 @@ import { useNavigate } from "react-router-dom";
 import { authService } from "@/api/services/auth.service";
 
 export function TopNavbar() {
+  const [search, setSearch] = useState("");
   const unreadCount = notifications.filter((n) => !n.read).length;
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -105,11 +107,12 @@ export function TopNavbar() {
 
       {/* Search */}
       <div className="flex-1 max-w-sm md:max-w-md">
-        <div className="relative animate-fade-in">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <div className="relative animate-fade-in group">
           <Input
             placeholder="Search..."
-            className="pl-9 pr-4 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-4 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl transition-all"
           />
         </div>
       </div>

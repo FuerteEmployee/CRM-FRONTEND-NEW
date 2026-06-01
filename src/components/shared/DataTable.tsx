@@ -17,7 +17,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Search,
   FileDown,
   RotateCcw,
   Pencil,
@@ -25,8 +24,13 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
+  Mic,
+  MicOff,
+  CheckSquare
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "@/hooks/use-toast";
 
 export interface DataTableColumn<T> {
   key: keyof T | string;
@@ -49,6 +53,9 @@ interface DataTableProps<T> {
   showIdColumn?: boolean;
   children?: React.ReactNode;
   renderCustomActions?: (item: T) => React.ReactNode;
+  enableBulkActions?: boolean;
+  onBulkDelete?: (items: T[]) => void;
+  bulkActions?: { label: string; value: string; action: (items: T[]) => void }[];
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -63,8 +70,13 @@ export function DataTable<T extends Record<string, any>>({
   showIdColumn = true,
   children,
   renderCustomActions,
+  enableBulkActions = false,
+  onBulkDelete,
+  bulkActions,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
+  const [isListening, setIsListening] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<T[]>([]);
   const [pageSize, setPageSize] = useState("25");
   const [currentPage, setCurrentPage] = useState(1);
   const [sortConfig, setSortConfig] = useState<{
@@ -163,6 +175,63 @@ export function DataTable<T extends Record<string, any>>({
     URL.revokeObjectURL(url);
   };
 
+  const handleVoiceSearch = () => {
+    // @ts-ignore
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      toast({ title: "Error", description: "Voice search not supported in this browser", variant: "destructive" });
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+
+    recognition.onstart = () => setIsListening(true);
+    
+    recognition.onresult = (event: any) => {
+      let transcript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      setSearch(transcript);
+      setCurrentPage(1);
+    };
+    
+    recognition.onend = () => setIsListening(false);
+    
+    recognition.onerror = (event: any) => {
+      setIsListening(false);
+      // Ignore common non-critical errors
+      if (event.error === 'no-speech' || event.error === 'aborted' || event.error === 'not-allowed') {
+        if (event.error === 'not-allowed') {
+          toast({ title: "Microphone Access Denied", description: "Please allow microphone access in your browser to use voice search.", variant: "destructive" });
+        }
+        return;
+      }
+      toast({ title: "Error", description: `Voice recognition failed (${event.error}).`, variant: "destructive" });
+    };
+
+    recognition.start();
+  };
+
+  const toggleAll = () => {
+    if (selectedItems.length === currentItems.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems([...currentItems]);
+    }
+  };
+
+  const toggleItem = (item: T) => {
+    const isSelected = selectedItems.find((i) => i[idField as keyof T] === item[idField as keyof T]);
+    if (isSelected) {
+      setSelectedItems(selectedItems.filter((i) => i[idField as keyof T] !== item[idField as keyof T]));
+    } else {
+      setSelectedItems([...selectedItems, item]);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {children}
@@ -204,12 +273,43 @@ export function DataTable<T extends Record<string, any>>({
               <RotateCcw className="h-4 w-4" />
             </Button>
           )}
+          {enableBulkActions && selectedItems.length > 0 && (
+            <div className="flex items-center gap-2 border-l pl-2 ml-2">
+              <span className="text-sm font-bold text-muted-foreground mr-2">{selectedItems.length} selected</span>
+              {onBulkDelete && (
+                <Button 
+                  variant="destructive" 
+                  onClick={() => {
+                    if (confirm(`Are you sure you want to delete ${selectedItems.length} items?`)) {
+                      onBulkDelete(selectedItems);
+                      setSelectedItems([]);
+                    }
+                  }}
+                  className="h-11 px-4 text-xs font-bold uppercase tracking-widest rounded-xl"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" /> Bulk Delete
+                </Button>
+              )}
+              {bulkActions?.map((action, i) => (
+                <Button 
+                  key={i}
+                  variant="secondary" 
+                  onClick={() => {
+                    action.action(selectedItems);
+                    setSelectedItems([]);
+                  }}
+                  className="h-11 px-4 text-xs font-bold uppercase tracking-widest rounded-xl"
+                >
+                  <CheckSquare className="h-4 w-4 mr-2" /> {action.label}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="relative w-full max-w-sm group">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
           <Input
             placeholder={searchPlaceholder}
-            className="pl-10 h-11 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-200 rounded-xl bg-muted/50 font-bold text-xs"
+            className="pl-4 h-11 border-border focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all duration-200 rounded-xl bg-muted/50 font-bold text-xs"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -224,6 +324,14 @@ export function DataTable<T extends Record<string, any>>({
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow className="hover:bg-transparent">
+                {enableBulkActions && (
+                  <TableHead className="w-12 text-center py-3 px-4 border-r">
+                    <Checkbox 
+                      checked={currentItems.length > 0 && selectedItems.length === currentItems.length}
+                      onCheckedChange={toggleAll}
+                    />
+                  </TableHead>
+                )}
                 {showIdColumn && (
                   <TableHead
                     className="w-16 font-semibold text-foreground py-3 px-4 border-r cursor-pointer hover:bg-accent/50 group whitespace-nowrap"
@@ -265,6 +373,11 @@ export function DataTable<T extends Record<string, any>>({
               {isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <TableRow key={i}>
+                    {enableBulkActions && (
+                      <TableCell className="border-r">
+                        <Skeleton className="h-4 w-4" />
+                      </TableCell>
+                    )}
                     {showIdColumn && (
                       <TableCell className="border-r">
                         <Skeleton className="h-4 w-4" />
@@ -291,6 +404,7 @@ export function DataTable<T extends Record<string, any>>({
                     colSpan={
                       columns.length +
                       (showIdColumn ? 1 : 0) +
+                      (enableBulkActions ? 1 : 0) +
                       (onEdit || onDelete || renderCustomActions ? 1 : 0)
                     }
                     className="h-32 text-center text-muted-foreground italic"
@@ -304,6 +418,14 @@ export function DataTable<T extends Record<string, any>>({
                     key={item[idField as string] || index}
                     className="hover:bg-muted/20 transition-colors group border-b last:border-0"
                   >
+                    {enableBulkActions && (
+                      <TableCell className="border-r py-3 px-4">
+                        <Checkbox 
+                          checked={!!selectedItems.find((i) => i[idField as keyof T] === item[idField as keyof T])}
+                          onCheckedChange={() => toggleItem(item)}
+                        />
+                      </TableCell>
+                    )}
                     {showIdColumn && (
                       <TableCell className="text-muted-foreground font-mono text-[11px] border-r py-3 px-4">
                         {startIndex + index + 1}
