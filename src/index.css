@@ -152,6 +152,73 @@
     --info: 213 44% 35%;
     --info-foreground: 0 0% 100%;
   }
+
+  .color {
+    --background: 230 40% 12%;
+    --foreground: 210 40% 98%;
+
+    --card: 230 40% 16%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 230 40% 16%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 280 80% 65%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 320 80% 55%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 230 30% 25%;
+    --muted-foreground: 210 20% 75%;
+
+    --accent: 320 80% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 230 30% 30%;
+    --input: 230 30% 30%;
+    --ring: 280 80% 65%;
+
+    --sidebar-background: 230 45% 10%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 280 80% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 320 80% 55%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 230 30% 30%;
+    --sidebar-ring: 280 80% 65%;
+
+    --success: 152 69% 40%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 200 90% 50%;
+    --info-foreground: 0 0% 100%;
+    
+    --table-links-color: 280 80% 65%;
+    --table-links-hover-color: 280 80% 75%;
+    --table-headings-color: 210 20% 75%;
+    --items-table-heading-bg: 230 40% 18%;
+    --items-table-heading-text: 210 40% 98%;
+    --modal-heading-bg: 230 40% 14%;
+    --modal-heading-color: 210 40% 98%;
+    --modal-close-color: 210 20% 75%;
+    --modal-header-text: 210 20% 75%;
+    --main-content-bg: 230 40% 10%;
+    
+    --customer-nav-bg: 230 45% 10%;
+    --customer-nav-links: 210 40% 98%;
+    --customer-footer-bg: 230 45% 10%;
+    --customer-footer-text: 210 20% 75%;
+    
+    --links-color: 280 80% 65%;
+    --links-hover-color: 280 80% 75%;
+    --admin-login-bg: 230 45% 10%;
+    --text-muted: 210 20% 75%;
+  }
 }
 
 @layer base {

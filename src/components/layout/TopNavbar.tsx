@@ -16,6 +16,14 @@ import {
   ChevronRight,
   MoreVertical,
   Mic,
+  Palette,
+  Plus,
+  Target,
+  CalendarPlus,
+  Headphones,
+  Users,
+  FileText,
+  Receipt,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,19 +44,30 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
-import { notifications } from "@/data/mockData";
 import { useTheme } from "@/hooks/useTheme";
 import { NavLink } from "@/components/NavLink";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useNavigate } from "react-router-dom";
 import { authService } from "@/api/services/auth.service";
+import { useNotificationContext } from "@/context/NotificationContext";
 
 export function TopNavbar() {
   const [search, setSearch] = useState("");
-  const unreadCount = notifications.filter((n) => !n.read).length;
-  const { theme, toggleTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
+
+  const quickCreateItems = [
+    { label: "Estimate",  icon: ClipboardList, path: "/admin/estimates/create",       color: "text-violet-500 bg-violet-50 dark:bg-violet-500/10" },
+    { label: "Proposal",  icon: FileText,      path: "/admin/proposals/create",        color: "text-blue-500 bg-blue-50 dark:bg-blue-500/10" },
+    { label: "Customer",  icon: Users,         path: "/admin/customers",               color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10" },
+    { label: "Task",      icon: CheckSquare,   path: "/admin/tasks",                   color: "text-amber-500 bg-amber-50 dark:bg-amber-500/10" },
+    { label: "Expense",   icon: Receipt,       path: "/admin/expenses/create",         color: "text-rose-500 bg-rose-50 dark:bg-rose-500/10" },
+    { label: "Goal",      icon: Target,        path: "/admin/goals/new",               color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10" },
+    { label: "Ticket",    icon: Headphones,    path: "/admin/support/create",          color: "text-pink-500 bg-pink-50 dark:bg-pink-500/10" },
+    { label: "Event",     icon: CalendarPlus,  path: "/admin/calendar",               color: "text-teal-500 bg-teal-50 dark:bg-teal-500/10" },
+  ];
   const { user, logout } = usePermissionContext();
+  const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotificationContext();
 
   const handleLogout = async () => {
     await logout();
@@ -102,19 +121,50 @@ export function TopNavbar() {
       (typeof user?.role === "string" ? user.role : "Staff");
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/95 backdrop-blur-md px-4 shadow-sm">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/95 backdrop-blur-md px-4 shadow-sm" id="tour-topnav">
       <SidebarTrigger className="shrink-0" />
 
-      {/* Search */}
-      <div className="flex-1 max-w-sm md:max-w-md">
-        <div className="relative animate-fade-in group">
+      {/* Search and Quick Create */}
+      <div className="flex-1 max-w-sm md:max-w-md flex items-center gap-2">
+        <div className="relative animate-fade-in group flex-1">
           <Input
             placeholder="Search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-4 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl transition-all"
+            className="pl-4 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl transition-all w-full"
           />
         </div>
+
+        {/* Quick Create Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" className="h-9 w-9 shrink-0 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
+              <Plus className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-56 p-2 rounded-xl mt-1 shadow-lg border-border/50">
+            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+              Quick Create
+            </div>
+            <div className="grid grid-cols-2 gap-1">
+              {quickCreateItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <DropdownMenuItem
+                    key={item.label}
+                    onClick={() => navigate(item.path)}
+                    className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-lg cursor-pointer transition-colors"
+                  >
+                    <div className={`p-2 rounded-full ${item.color}`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <span className="text-[10px] font-medium">{item.label}</span>
+                  </DropdownMenuItem>
+                );
+              })}
+            </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Quick Action Icons */}
@@ -222,51 +272,76 @@ export function TopNavbar() {
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={markAllAsRead}
                 className="text-xs text-primary h-auto p-0"
               >
                 Mark all read
               </Button>
             </div>
             <div className="max-h-80 overflow-y-auto">
-              {notifications.map((n) => (
-                <div
-                  key={n.id}
-                  className={`flex gap-3 p-3 border-b last:border-0 transition-colors hover:bg-muted/50 ${!n.read ? "bg-primary/5" : ""}`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{n.title}</p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {n.message}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {n.time}
-                    </p>
-                  </div>
-                  {!n.read && (
-                    <div className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />
-                  )}
+              {notifications.length === 0 ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">
+                  No notifications yet.
                 </div>
-              ))}
+              ) : (
+                notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    onClick={() => markAsRead(n.id)}
+                    className={`flex gap-3 p-3 border-b last:border-0 transition-colors cursor-pointer hover:bg-muted/50 ${!n.read ? "bg-primary/5" : ""}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{n.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {n.message}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {n.time}
+                      </p>
+                    </div>
+                    {!n.read && (
+                      <div className="mt-1.5 h-2 w-2 rounded-full bg-primary shrink-0" />
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </PopoverContent>
         </Popover>
 
-        {/* Dark Mode Toggle */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 text-muted-foreground hover:text-foreground"
-          onClick={toggleTheme}
-          title={
-            theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"
-          }
-        >
-          {theme === "dark" ? (
-            <Sun className="h-4 w-4" />
-          ) : (
-            <Moon className="h-4 w-4" />
-          )}
-        </Button>
+        {/* Theme Select */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-muted-foreground hover:text-foreground"
+              title="Theme Selection"
+            >
+              {theme === "dark" ? (
+                <Moon className="h-4 w-4" />
+              ) : theme === "color" ? (
+                <Palette className="h-4 w-4" />
+              ) : (
+                <Sun className="h-4 w-4" />
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-36">
+            <DropdownMenuItem onClick={() => setTheme("light")}>
+              <Sun className="mr-2 h-4 w-4" />
+              <span>Light Mode</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("dark")}>
+              <Moon className="mr-2 h-4 w-4" />
+              <span>Dark Mode</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme("color")}>
+              <Palette className="mr-2 h-4 w-4" />
+              <span>Color Mode</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Profile Dropdown — always last */}

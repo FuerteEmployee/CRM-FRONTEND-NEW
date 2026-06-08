@@ -3,7 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { HashRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PermissionProvider, usePermissionContext } from "@/context/PermissionContext";
 import { Loader2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
@@ -57,6 +57,7 @@ import Bookmarks from "./pages/Bookmarks";
 import { ReportSales, ReportExpenses, ReportExpensesVsIncome, ReportLeads, ReportTimesheets, ReportKBArticles } from "./pages/ReportPages";
 import CustomerView from "./pages/CustomerView";
 import InvoiceCreate from "./pages/InvoiceCreate";
+import FAQ from "./pages/FAQ";
 import NotFound from "./pages/NotFound";
 import Setup from "./pages/Setup";
 // Setup sub-pages
@@ -213,7 +214,7 @@ const MainApp = () => {
   }
 
   return (
-    <HashRouter>
+    <BrowserRouter>
       <Routes>
         {/* Root → smart redirect based on who is logged in */}
         <Route path="/" element={<SmartRoot />} />
@@ -271,6 +272,7 @@ const MainApp = () => {
           <Route path="time-tracking" element={<ProtectedRoute><TimeTracking /></ProtectedRoute>} />
           <Route path="utilities" element={<ProtectedRoute><Utilities /></ProtectedRoute>} />
           <Route path="reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+          <Route path="faq" element={<ProtectedRoute><FAQ /></ProtectedRoute>} />
           <Route path="setup" element={<ProtectedRoute><Setup /></ProtectedRoute>} />
           <Route path="proposals" element={<ProtectedRoute><Proposals /></ProtectedRoute>} />
           <Route path="proposals/create/:clientId?" element={<ProtectedRoute><ProposalCreate /></ProtectedRoute>} />
@@ -339,23 +341,26 @@ const MainApp = () => {
         <Route path="/forms/quote/:id" element={<PublicForm />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   );
 };
 
 import { ThemeStyleProvider } from "@/context/ThemeContext";
 import { SettingsProvider } from "@/context/SettingsContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <PermissionProvider>
       <SettingsProvider>
         <ThemeStyleProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <MainApp />
-          </TooltipProvider>
+          <NotificationProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <MainApp />
+            </TooltipProvider>
+          </NotificationProvider>
         </ThemeStyleProvider>
       </SettingsProvider>
     </PermissionProvider>

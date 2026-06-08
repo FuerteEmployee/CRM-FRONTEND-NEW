@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   FolderKanban,
+  LayoutGrid,
   CheckSquare,
   Users,
   FileText,
@@ -157,6 +158,11 @@ const managementNav = [
     icon: BookOpen,
     permission: "Knowledge Base",
   },
+  {
+    title: "FAQ",
+    url: "/admin/faq",
+    icon: HelpCircle,
+  },
 ];
 
 const utilitiesNav = [
@@ -190,6 +196,12 @@ const utilitiesNav = [
 ];
 
 const reportsNav = [
+  {
+    title: "Master Dashboard",
+    url: "/admin/reports",
+    icon: LayoutGrid,
+    permission: "Reports",
+  },
   {
     title: "Sales",
     url: "/admin/reports/sales",
@@ -488,7 +500,7 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar collapsible="offcanvas">
+    <Sidebar collapsible="offcanvas" id="tour-sidebar">
       <SidebarHeader className="p-4 pb-3">
         <NavLink
           to="/admin/dashboard"

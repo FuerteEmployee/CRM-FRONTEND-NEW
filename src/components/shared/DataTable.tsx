@@ -188,7 +188,7 @@ export function DataTable<T extends Record<string, any>>({
     recognition.interimResults = true;
 
     recognition.onstart = () => setIsListening(true);
-    
+
     recognition.onresult = (event: any) => {
       let transcript = '';
       for (let i = 0; i < event.results.length; i++) {
@@ -197,9 +197,9 @@ export function DataTable<T extends Record<string, any>>({
       setSearch(transcript);
       setCurrentPage(1);
     };
-    
+
     recognition.onend = () => setIsListening(false);
-    
+
     recognition.onerror = (event: any) => {
       setIsListening(false);
       // Ignore common non-critical errors
@@ -277,8 +277,8 @@ export function DataTable<T extends Record<string, any>>({
             <div className="flex items-center gap-2 border-l pl-2 ml-2">
               <span className="text-sm font-bold text-muted-foreground mr-2">{selectedItems.length} selected</span>
               {onBulkDelete && (
-                <Button 
-                  variant="destructive" 
+                <Button
+                  variant="destructive"
                   onClick={() => {
                     if (confirm(`Are you sure you want to delete ${selectedItems.length} items?`)) {
                       onBulkDelete(selectedItems);
@@ -291,9 +291,9 @@ export function DataTable<T extends Record<string, any>>({
                 </Button>
               )}
               {bulkActions?.map((action, i) => (
-                <Button 
+                <Button
                   key={i}
-                  variant="secondary" 
+                  variant="secondary"
                   onClick={() => {
                     action.action(selectedItems);
                     setSelectedItems([]);
@@ -326,7 +326,7 @@ export function DataTable<T extends Record<string, any>>({
               <TableRow className="hover:bg-transparent">
                 {enableBulkActions && (
                   <TableHead className="w-12 text-center py-3 px-4 border-r">
-                    <Checkbox 
+                    <Checkbox
                       checked={currentItems.length > 0 && selectedItems.length === currentItems.length}
                       onCheckedChange={toggleAll}
                     />
@@ -346,11 +346,10 @@ export function DataTable<T extends Record<string, any>>({
                 {columns.map((col, i) => (
                   <TableHead
                     key={i}
-                    className={`font-semibold text-foreground py-3 px-4 group select-none whitespace-nowrap ${
-                      col.sortable !== false
-                        ? "cursor-pointer hover:bg-accent/50"
-                        : ""
-                    } ${col.className || ""} ${i < columns.length - 1 ? "border-r" : ""}`}
+                    className={`font-semibold text-foreground py-3 px-4 group select-none whitespace-nowrap ${col.sortable !== false
+                      ? "cursor-pointer hover:bg-accent/50"
+                      : ""
+                      } ${col.className || ""} ${i < columns.length - 1 ? "border-r" : ""}`}
                     style={{ width: col.width }}
                     onClick={() =>
                       col.sortable !== false && requestSort(col.key as string)
@@ -420,7 +419,7 @@ export function DataTable<T extends Record<string, any>>({
                   >
                     {enableBulkActions && (
                       <TableCell className="border-r py-3 px-4">
-                        <Checkbox 
+                        <Checkbox
                           checked={!!selectedItems.find((i) => i[idField as keyof T] === item[idField as keyof T])}
                           onCheckedChange={() => toggleItem(item)}
                         />
@@ -434,9 +433,8 @@ export function DataTable<T extends Record<string, any>>({
                     {columns.map((col, j) => (
                       <TableCell
                         key={j}
-                        className={`py-3 px-4 ${col.className || ""} ${
-                          j < columns.length - 1 ? "border-r" : ""
-                        }`}
+                        className={`py-3 px-4 ${col.className || ""} ${j < columns.length - 1 ? "border-r" : ""
+                          }`}
                       >
                         {col.render
                           ? col.render(item, startIndex + index)
@@ -505,11 +503,10 @@ export function DataTable<T extends Record<string, any>>({
                   <Button
                     key={page}
                     variant={page === safeCurrentPage ? "default" : "ghost"}
-                    className={`h-9 w-9 p-0 rounded-lg text-sm font-bold transition-all duration-300 ${
-                      page === safeCurrentPage
-                        ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_2px_10px_-3px_hsl(var(--primary)/0.5)]"
-                        : "text-muted-foreground hover:bg-accent"
-                    }`}
+                    className={`h-9 w-9 p-0 rounded-lg text-sm font-bold transition-all duration-300 ${page === safeCurrentPage
+                      ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_2px_10px_-3px_hsl(var(--primary)/0.5)]"
+                      : "text-muted-foreground hover:bg-accent"
+                      }`}
                     onClick={() => setCurrentPage(page)}
                   >
                     {page}

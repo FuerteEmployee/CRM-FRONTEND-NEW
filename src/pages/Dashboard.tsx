@@ -37,6 +37,8 @@ import {
   Legend,
 } from "recharts";
 
+import { driver } from "driver.js";
+import "driver.js/dist/driver.css";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
@@ -723,16 +725,95 @@ const Dashboard = () => {
     }));
   }, [projectsList]);
 
+  const startTour = () => {
+    const driverObj = driver({
+      showProgress: true,
+      animate: true,
+      steps: [
+        {
+          element: '#tour-header',
+          popover: {
+            title: 'Welcome to the Dashboard Tour!',
+            description: 'This is the CRM Dashboard. Here you can see a high-level overview of everything happening in your business.',
+            side: "bottom",
+            align: 'start'
+          }
+        },
+        {
+          element: '#tour-topnav',
+          popover: {
+            title: 'Top Navigation Bar',
+            description: 'Use the top bar to search globally, toggle themes, view notifications, and manage your profile settings.',
+            side: "bottom",
+            align: 'center'
+          }
+        },
+        {
+          element: '#tour-sidebar',
+          popover: {
+            title: 'Main Navigation',
+            description: 'Use this sidebar to navigate through your Customers, Sales, Projects, Support, and Settings.',
+            side: "right",
+            align: 'start'
+          }
+        },
+        {
+          element: '#tour-stats',
+          popover: {
+            title: 'Key Statistics',
+            description: 'These metric cards give you an instant read on Invoices, Leads, Projects, and Tasks progress.',
+            side: "bottom",
+            align: 'start'
+          }
+        },
+        {
+          element: '#tour-overview',
+          popover: {
+            title: 'Financial & Sales Overview',
+            description: 'A detailed breakdown of all your Estimates, Invoices, and Proposals by their current status.',
+            side: "bottom",
+            align: 'start'
+          }
+        },
+        {
+          element: '#tour-todo',
+          popover: {
+            title: 'Personal To-Do List',
+            description: 'Your personal quick task manager. Add, complete, and track small reminders here without creating full tasks.',
+            side: "left",
+            align: 'start'
+          }
+        },
+        {
+          element: '#tour-charts',
+          popover: {
+            title: 'Interactive Visualizations',
+            description: 'Scroll down to explore interactive charts, revenue timelines, leads distribution, and your activity logs!',
+            side: "top",
+            align: 'center'
+          }
+        }
+      ]
+    });
+    driverObj.drive();
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back, {user?.firstname || "User"}. Here's what's happening.</p>
+        <div className="flex items-center justify-between" id="tour-header">
+          <div>
+            <h1 className="text-2xl font-bold">Dashboard</h1>
+            <p className="text-muted-foreground">Welcome back, {user?.firstname || "User"}. Here's what's happening.</p>
+          </div>
+          <Button onClick={startTour} className="gap-2 rounded-xl shadow-lg shadow-primary/20 bg-primary font-bold uppercase tracking-widest text-[10px]">
+            <Megaphone className="h-4 w-4" />
+            Start Demo Tour
+          </Button>
         </div>
 
         {/* Stat Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="tour-stats">
           {statCards.map((s) => (
             <Card key={s.label}>
               <CardContent className="p-4">
@@ -749,7 +830,7 @@ const Dashboard = () => {
 
         {/* Invoice / Estimate / Proposal Overview + To Do */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-          <Card className="lg:col-span-3">
+          <Card className="lg:col-span-3" id="tour-overview">
             <CardContent className="p-5">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 divide-y md:divide-y-0 md:divide-x divide-border">
                 <OverviewSection
@@ -776,7 +857,7 @@ const Dashboard = () => {
           </Card>
 
           {/* To Do Items */}
-          <Card>
+          <Card id="tour-todo">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -844,7 +925,7 @@ const Dashboard = () => {
         </div>
 
         {/* Tabbed Section + Side Widgets */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4" id="tour-charts">
           {/* My Tasks / Projects / Reminders / Tickets / Announcements */}
           <Card className="lg:col-span-2">
             <CardContent className="p-0">

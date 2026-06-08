@@ -56,6 +56,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useNavigate, Link } from "react-router-dom";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { customerService } from "@/api/services/customer.service";
 
 const taskStatusConfig = [
   { id: 1, label: "Not Started", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" },
@@ -86,6 +87,7 @@ const Tasks = () => {
     name: "",
     hourly_rate: "",
     related_to: "",
+    rel_id: "",
     startdate: "",
     duedate: "",
     priority: "2",
@@ -145,6 +147,18 @@ const Tasks = () => {
     queryKey: ["staff"],
     queryFn: staffService.getAll,
   });
+
+  const { data: customers = [] } = useQuery<any[]>({
+    queryKey: ["customers"],
+    queryFn: customerService.getAll,
+  });
+
+  const customerOptions = useMemo(() => 
+    customers.map((c: any) => ({
+      label: c.company || c.firstname + ' ' + c.lastname,
+      value: c._id
+    }))
+  , [customers]);
 
   const staffOptions = useMemo(() => 
     staffMembers.map((member: any) => ({
@@ -332,6 +346,7 @@ const Tasks = () => {
       name: "",
       hourly_rate: "",
       related_to: "",
+      rel_id: "",
       startdate: "",
       duedate: "",
       priority: "2",
@@ -352,6 +367,7 @@ const Tasks = () => {
       name: task.name || "",
       hourly_rate: task.hourly_rate?.toString() || "",
       related_to: task.rel_type || "",
+      rel_id: task.rel_id || "",
       startdate: task.startdate ? new Date(task.startdate).toISOString().split('T')[0] : "",
       duedate: task.duedate ? new Date(task.duedate).toISOString().split('T')[0] : "",
       priority: (task.priority || 2).toString(),
@@ -438,13 +454,13 @@ const Tasks = () => {
                   </div>
                 </div>
 
-                <div className="space-y-6">
+                  <div className="space-y-6">
                   <div className="space-y-4">
                     <span 
                       className="text-primary text-sm font-bold flex items-center gap-2 cursor-pointer hover:underline w-fit transition-colors"
                       onClick={() => setShowAttachment(!showAttachment)}
                     >
-                      <Paperclip className="h-4 w-4" />
+                      <Plus className="h-4 w-4" />
                       Attach Files
                     </span>
                     
@@ -483,6 +499,21 @@ const Tasks = () => {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {formData.related_to === 'customer' && (
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
+                          <span className="text-red-500">*</span> Customer
+                        </Label>
+                        <SearchableSelect 
+                          options={customerOptions} 
+                          value={formData.rel_id} 
+                          onValueChange={(v) => handleSelectChange('rel_id', v)}
+                          placeholder="Search customer..."
+                          className="h-12 rounded-xl border-slate-200 shadow-none bg-white"
+                        />
+                      </div>
+                    )}
 
                     <div className="space-y-1">
                       <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">

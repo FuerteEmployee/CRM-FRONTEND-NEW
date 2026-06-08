@@ -181,6 +181,15 @@ const Leads = () => {
     }
   });
 
+  const createSourceMutation = useMutation({
+    mutationFn: (name: string) => leadService.createSource({ name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-sources"] });
+      setNewSourceName("");
+      setIsAddingSource(false);
+    }
+  });
+
   const handleSaveLead = () => {
     if (modalMode === "view") return;
     if (!leadForm.name || !leadForm.status || !leadForm.source) {

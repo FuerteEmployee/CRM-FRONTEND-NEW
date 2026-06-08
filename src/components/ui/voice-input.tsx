@@ -8,6 +8,11 @@ import { toast } from "sonner";
 export function VoiceInput({ value, onChange, className, placeholder, name, type = "text", ...props }: any) {
   const [isRecording, setIsRecording] = useState(false);
   const [recognitionInstance, setRecognitionInstance] = useState<any>(null);
+  
+  const valueRef = React.useRef(value);
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   const toggleVoiceRecord = () => {
     if (isRecording && recognitionInstance) {
@@ -39,7 +44,10 @@ export function VoiceInput({ value, onChange, className, placeholder, name, type
         }
       }
       if (finalTranscript) {
-        onChange({ target: { value: (value ? value + " " + finalTranscript : finalTranscript).trim(), name } });
+        const currentValue = valueRef.current || "";
+        const newValue = (currentValue ? currentValue + " " + finalTranscript : finalTranscript).trim();
+        valueRef.current = newValue; // Update ref immediately to prevent race conditions on next result
+        onChange({ target: { value: newValue, name } });
       }
     };
 

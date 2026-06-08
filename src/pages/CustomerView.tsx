@@ -63,6 +63,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -602,6 +603,34 @@ export default function CustomerView() {
   const [isZipCreditNotesModalOpen, setIsZipCreditNotesModalOpen] = useState(false);
   const [zipCreditNotesForm, setZipCreditNotesForm] = useState({ status: "all", fromDate: "", toDate: "" });
   const [mapForm, setMapForm] = useState({ latitude: "", longitude: "" });
+  const [isContractModalOpen, setIsContractModalOpen] = useState(false);
+  const [contractFormData, setContractFormData] = useState({
+    subject: "",
+    contract_value: "",
+    contract_type: "",
+    datestart: "",
+    dateend: "",
+    description: "",
+  });
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [taskFormData, setTaskFormData] = useState({
+    public: false,
+    billable: false,
+    name: "",
+    hourly_rate: "",
+    related_to: "customer",
+    rel_id: id,
+    startdate: "",
+    duedate: "",
+    priority: "2",
+    repeat_every: "none",
+    tags: "",
+    description: "",
+    status: 1,
+    assignees: [],
+    followers: []
+  });
+  const [showTaskAttachment, setShowTaskAttachment] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -619,6 +648,20 @@ export default function CustomerView() {
     queryKey: ["staff"],
     queryFn: staffService.getAll,
   });
+
+  const staffOptions = useMemo(() => 
+    staff.map((member: any) => ({
+      label: `${member.firstname || ''} ${member.lastname || ''}`.trim() || member.email,
+      value: member._id
+    }))
+  , [staff]);
+
+  const customerOptions = useMemo(() => 
+    customer ? [{
+      label: customer.company || customer.firstname + ' ' + customer.lastname,
+      value: customer._id
+    }] : []
+  , [customer]);
 
   const { data: contacts = [], isLoading: isLoadingContacts } = useQuery({
     queryKey: ["contacts", id],
@@ -714,6 +757,91 @@ export default function CustomerView() {
     },
   });
 
+  const createContractMutation = useMutation({
+    mutationFn: (data: any) => contractService.createContract({ ...data, client: id }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customerContracts", id] });
+      setIsContractModalOpen(false);
+      setContractFormData({
+        subject: "",
+        contract_value: "",
+        contract_type: "",
+        datestart: "",
+        dateend: "",
+        description: "",
+      });
+      toast({ title: "Success", description: "Contract created successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to create contract", variant: "destructive" });
+    }
+  });
+
+  const handleCreateContract = () => {
+    if (!contractFormData.subject) {
+      toast({ title: "Error", description: "Subject is required.", variant: "destructive" });
+      return;
+    }
+    const dataToSubmit = {
+      ...contractFormData,
+      contract_value: Number(contractFormData.contract_value) || 0
+    };
+    createContractMutation.mutate(dataToSubmit);
+  };
+
+  const createTaskMutation = useMutation({
+    mutationFn: taskService.create,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customerTasks", id] });
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      setIsTaskModalOpen(false);
+      setTaskFormData({
+        public: false,
+        billable: false,
+        name: "",
+        hourly_rate: "",
+        related_to: "customer",
+        rel_id: id || "",
+        startdate: "",
+        duedate: "",
+        priority: "2",
+        repeat_every: "none",
+        tags: "",
+        description: "",
+        status: 1,
+        assignees: [],
+        followers: []
+      });
+      toast({ title: "Success", description: "Task created successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to create task", variant: "destructive" });
+    }
+  });
+
+  const handleCreateTask = () => {
+    if (!taskFormData.name || !taskFormData.startdate) {
+      toast({ title: "Error", description: "Subject and Start Date are required fields.", variant: "destructive" });
+      return;
+    }
+    const payload = {
+      ...taskFormData,
+      tags: taskFormData.tags ? taskFormData.tags.split(',').map(t => t.trim()) : [],
+      hourly_rate: taskFormData.hourly_rate ? parseFloat(taskFormData.hourly_rate) : 0,
+      priority: parseInt(taskFormData.priority)
+    };
+    createTaskMutation.mutate(payload);
+  };
+
+  const handleTaskInputChange = (e: any) => {
+    const { id, value, type, checked } = e.target;
+    setTaskFormData(prev => ({ ...prev, [id]: type === 'checkbox' ? checked : value }));
+  };
+
+  const handleTaskSelectChange = (field: string, value: any) => {
+    setTaskFormData(prev => ({ ...prev, [field]: value }));
+  };
+
   const getStatementRange = () => {
     const today = new Date();
     let from = new Date();
@@ -756,11 +884,15 @@ export default function CustomerView() {
     return { from: from.toISOString(), to: to.toISOString() };
   };
 
-  const { data: projects = [], isLoading: isLoadingProjects } = useQuery({
-    queryKey: ["projects", id],
-    queryFn: () => projectService.getAll({ clientid: id }),
+  const { data: allProjects = [], isLoading: isLoadingProjects } = useQuery({
+    queryKey: ["projects"],
+    queryFn: projectService.getAll,
     enabled: activeTab === "projects",
   });
+
+  const projects = useMemo(() => {
+    return allProjects.filter((p: any) => p.clientid?._id === id || p.clientid === id);
+  }, [allProjects, id]);
 
   const { data: customerTasks = [], isLoading: isLoadingTasks } = useQuery({
     queryKey: ["customerTasks", id, taskRelatedFilter],
@@ -3918,13 +4050,59 @@ export default function CustomerView() {
                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Legal agreements and signatures</p>
                           </div>
                         </div>
-                        <Button
-                          className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
-                          onClick={() => navigate(`/admin/contracts/create?clientId=${id}`)}
-                        >
-                          <Plus className="h-4 w-4" />
-                          New Contract
-                        </Button>
+                        <Dialog open={isContractModalOpen} onOpenChange={setIsContractModalOpen}>
+                          <DialogTrigger asChild>
+                            <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
+                              <Plus className="h-4 w-4" />
+                              New Contract
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Add Contract</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
+                              <div className="space-y-2">
+                                <Label>Subject *</Label>
+                                <Input placeholder="Contract subject" value={contractFormData.subject} onChange={(e) => setContractFormData({ ...contractFormData, subject: e.target.value })} />
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Contract Value</Label>
+                                  <Input type="number" placeholder="0.00" value={contractFormData.contract_value} onChange={(e) => setContractFormData({ ...contractFormData, contract_value: e.target.value })} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>Contract Type</Label>
+                                  <Select value={contractFormData.contract_type} onValueChange={(val) => setContractFormData({ ...contractFormData, contract_type: val })}>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Select type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="Fixed">Fixed Price</SelectItem>
+                                      <SelectItem value="Hourly">Hourly</SelectItem>
+                                      <SelectItem value="Retainer">Retainer</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label>Start Date</Label>
+                                  <Input type="date" value={contractFormData.datestart} onChange={(e) => setContractFormData({ ...contractFormData, datestart: e.target.value })} />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label>End Date</Label>
+                                  <Input type="date" value={contractFormData.dateend} onChange={(e) => setContractFormData({ ...contractFormData, dateend: e.target.value })} />
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <Label>Description</Label>
+                                <Textarea placeholder="Contract description..." rows={3} value={contractFormData.description} onChange={(e) => setContractFormData({ ...contractFormData, description: e.target.value })} />
+                              </div>
+                              <Button className="w-full" onClick={handleCreateContract}>Save Contract</Button>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                       </div>
 
                       {/* Table Controls */}
@@ -4055,13 +4233,6 @@ export default function CustomerView() {
                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Customer projects and development</p>
                           </div>
                         </div>
-                        <Button
-                          className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
-                          onClick={() => navigate(`/admin/projects/create/${id}`)}
-                        >
-                          <Plus className="h-4 w-4" />
-                          New Project
-                        </Button>
                       </div>
 
                       {/* Status Summary Cards */}
@@ -4226,13 +4397,129 @@ export default function CustomerView() {
                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Management and execution pipeline</p>
                           </div>
                         </div>
-                        <Button
-                          className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
-                          onClick={() => navigate(`/admin/tasks/create?rel_id=${id}&rel_type=customer`)}
-                        >
-                          <Plus className="h-4 w-4" />
-                          New Task
-                        </Button>
+                        <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>
+                          <DialogTrigger asChild>
+                            <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
+                              <Plus className="h-4 w-4" />
+                              New Task
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden flex flex-col bg-white">
+                            <DialogHeader className="p-6 bg-white border-b border-slate-100 flex-shrink-0">
+                              <DialogTitle className="text-xl font-bold text-slate-800">
+                                Add new task
+                              </DialogTitle>
+                            </DialogHeader>
+                            <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                              <div className="flex items-center gap-6 pb-2 border-b border-slate-200">
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox id="task_public" checked={taskFormData.public} onCheckedChange={(checked) => handleTaskInputChange({ target: { id: 'public', type: 'checkbox', checked }})} className="border-slate-300 data-[state=checked]:bg-primary h-5 w-5" />
+                                  <Label htmlFor="task_public" className="font-bold text-sm text-slate-700 cursor-pointer">Public</Label>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox id="task_billable" checked={taskFormData.billable} onCheckedChange={(checked) => handleTaskInputChange({ target: { id: 'billable', type: 'checkbox', checked }})} className="border-slate-300 data-[state=checked]:bg-primary h-5 w-5" />
+                                  <Label htmlFor="task_billable" className="font-bold text-sm text-slate-700 cursor-pointer">Billable</Label>
+                                </div>
+                              </div>
+                              <div className="space-y-6">
+                                <div className="space-y-4">
+                                  <span className="text-primary text-sm font-bold flex items-center gap-2 cursor-pointer hover:underline w-fit transition-colors" onClick={() => setShowTaskAttachment(!showTaskAttachment)}>
+                                    <Plus className="h-4 w-4" /> Attach Files
+                                  </span>
+                                  {showTaskAttachment && (
+                                    <div className="space-y-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Attachment</Label>
+                                      <Input type="file" className="h-12 bg-white rounded-xl border-slate-200 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-all cursor-pointer" />
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="grid grid-cols-2 gap-6">
+                                  <div className="col-span-2 space-y-1">
+                                    <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1"><span className="text-red-500">*</span> Subject</Label>
+                                    <Input id="name" value={taskFormData.name} onChange={handleTaskInputChange} className="h-12 bg-white rounded-xl border-slate-200 font-medium" />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Hourly Rate</Label>
+                                    <Input id="hourly_rate" value={taskFormData.hourly_rate} onChange={handleTaskInputChange} type="number" className="h-12 bg-white rounded-xl border-slate-200 font-medium" />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Related To</Label>
+                                    <Select value={taskFormData.related_to} onValueChange={(v) => handleTaskSelectChange('related_to', v)}>
+                                      <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium"><SelectValue placeholder="Nothing Selected" /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="project">Project</SelectItem>
+                                        <SelectItem value="invoice">Invoice</SelectItem>
+                                        <SelectItem value="customer">Customer</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  {taskFormData.related_to === 'customer' && (
+                                    <div className="space-y-1">
+                                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1"><span className="text-red-500">*</span> Customer</Label>
+                                      <SearchableSelect options={customerOptions} value={taskFormData.rel_id} onValueChange={(v) => handleTaskSelectChange('rel_id', v)} placeholder="Search customer..." className="h-12 rounded-xl border-slate-200 shadow-none bg-white" />
+                                    </div>
+                                  )}
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1"><span className="text-red-500">*</span> Start Date</Label>
+                                    <Input id="startdate" value={taskFormData.startdate} onChange={handleTaskInputChange} type="date" className="h-12 bg-white rounded-xl border-slate-200 font-medium" />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Due Date</Label>
+                                    <Input id="duedate" value={taskFormData.duedate} onChange={handleTaskInputChange} type="date" className="h-12 bg-white rounded-xl border-slate-200 font-medium" />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Priority</Label>
+                                    <Select value={taskFormData.priority.toString()} onValueChange={(v) => handleTaskSelectChange('priority', v)}>
+                                      <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium"><SelectValue placeholder="Select Priority" /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="1">Low</SelectItem>
+                                        <SelectItem value="2">Medium</SelectItem>
+                                        <SelectItem value="3">High</SelectItem>
+                                        <SelectItem value="4">Urgent</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Repeat Every</Label>
+                                    <Select value={taskFormData.repeat_every} onValueChange={(v) => handleTaskSelectChange('repeat_every', v)}>
+                                      <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium"><SelectValue placeholder="None" /></SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">None</SelectItem>
+                                        <SelectItem value="1_week">1 Week</SelectItem>
+                                        <SelectItem value="1_month">1 Month</SelectItem>
+                                        <SelectItem value="1_year">1 Year</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Assignees</Label>
+                                    <SearchableSelect options={staffOptions} value={taskFormData.assignees} onValueChange={(v) => handleTaskSelectChange('assignees', v)} multiple placeholder="Select Assignees" className="h-12 rounded-xl border-slate-200 shadow-none" />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Followers</Label>
+                                    <SearchableSelect options={staffOptions} value={taskFormData.followers} onValueChange={(v) => handleTaskSelectChange('followers', v)} multiple placeholder="Select Followers" className="h-12 rounded-xl border-slate-200 shadow-none" />
+                                  </div>
+                                  <div className="col-span-2 space-y-1">
+                                    <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tags</Label>
+                                    <Input id="tags" value={taskFormData.tags} onChange={handleTaskInputChange} className="h-12 bg-white rounded-xl border-slate-200 font-medium" placeholder="Type and press enter..." />
+                                  </div>
+                                </div>
+                                <div className="space-y-2">
+                                  <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Task Description</Label>
+                                  <Textarea id="description" value={taskFormData.description} onChange={handleTaskInputChange} className="min-h-[150px] p-4 text-sm bg-white rounded-xl border-slate-200 resize-none" placeholder="Task description..." />
+                                </div>
+                              </div>
+                            </div>
+                            <DialogFooter className="p-6 bg-slate-50 border-t border-slate-100 flex-shrink-0">
+                              <DialogClose asChild>
+                                <Button variant="outline" onClick={() => setIsTaskModalOpen(false)} className="font-bold uppercase tracking-wider text-xs px-4 h-9 bg-white hover:bg-slate-100 border-slate-300">Close</Button>
+                              </DialogClose>
+                              <Button onClick={handleCreateTask} className="font-bold uppercase tracking-wider text-xs px-4 h-9 bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/20">
+                                Save
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
                       </div>
 
                       {/* Related To Filters */}

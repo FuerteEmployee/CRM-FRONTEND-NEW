@@ -11,7 +11,15 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { projectService } from "@/api/services/project.service";
 import { staffService } from "@/api/services/staff.service";
 import { formatDate } from "@/lib/dateFormat";
-import { Mail, Phone, Briefcase, Calendar, Shield, Save, Loader2 } from "lucide-react";
+import { Mail, Phone, Briefcase, Calendar, Shield, Save, Loader2, Volume2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { SOUND_OPTIONS, playNotificationSound } from "@/lib/soundUtils";
 import { toast } from "sonner";
 
 const statusConfig = [
@@ -34,6 +42,7 @@ const Profile = () => {
     lastname: "",
     email: "",
     phonenumber: "",
+    notification_sound: "default",
   });
 
   useEffect(() => {
@@ -43,6 +52,7 @@ const Profile = () => {
         lastname: user.lastname || "",
         email: user.email || "",
         phonenumber: (user as any).phonenumber || "",
+        notification_sound: (user as any).notification_sound || "default",
       });
     }
   }, [user]);
@@ -150,6 +160,39 @@ const Profile = () => {
                   <div className="space-y-2">
                     <Label htmlFor="phonenumber">Phone Number</Label>
                     <Input id="phonenumber" name="phonenumber" type="tel" value={formData.phonenumber} onChange={handleChange} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Notification Sound</Label>
+                    <div className="flex gap-2 items-center">
+                      <Select 
+                        value={formData.notification_sound} 
+                        onValueChange={(val) => {
+                          setFormData(prev => ({ ...prev, notification_sound: val }));
+                          playNotificationSound(val);
+                        }}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select a sound" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {SOUND_OPTIONS.map(sound => (
+                            <SelectItem key={sound.value} value={sound.value}>
+                              {sound.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="icon" 
+                        onClick={() => playNotificationSound(formData.notification_sound)}
+                        title="Preview Sound"
+                      >
+                        <Volume2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">Select the sound you want to hear for new notifications.</p>
                   </div>
                   <div className="flex justify-end pt-4">
                     <Button type="submit" disabled={updateProfileMutation.isPending} className="gap-2">
