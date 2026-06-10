@@ -65,179 +65,15 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { mainSidebarService } from "@/api/services/mainsidebar.service";
+import * as Icons from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSettings } from "@/context/SettingsContext";
 
-const mainNav = [
-  { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
-  { title: "Chat", url: "/admin/chat", icon: MessageSquare },
-  { title: "Meetings", url: "/admin/meetings", icon: Users },
-  { title: "Bookmarks", url: "/admin/bookmarks", icon: Bookmark },
-];
-
-const customersNav = [
-  {
-    title: "Customers",
-    url: "/admin/customers",
-    icon: Users,
-    permission: "Customers",
-  },
-];
-
-
-const salesNav = [
-  {
-    title: "Proposals",
-    url: "/admin/proposals",
-    icon: FileBarChart,
-    permission: "Proposals",
-  },
-  {
-    title: "Estimates",
-    url: "/admin/estimates",
-    icon: ClipboardList,
-    permission: "Estimates",
-  },
-  {
-    title: "Invoices",
-    url: "/admin/invoices",
-    icon: FileText,
-    permission: "Invoices",
-  },
-  {
-    title: "Payments",
-    url: "/admin/payments",
-    icon: Wallet,
-    permission: "Payments",
-  },
-  {
-    title: "Credit Notes",
-    url: "/admin/credit-notes",
-    icon: Receipt,
-    permission: "Credit Notes",
-  },
-  { title: "Items", url: "/admin/items", icon: Package, permission: "Items" },
-];
-
-const managementNav = [
-  {
-    title: "Subscriptions",
-    url: "/admin/subscriptions",
-    icon: CreditCard,
-    permission: "Subscriptions",
-  },
-  {
-    title: "Expenses",
-    url: "/admin/expenses",
-    icon: Receipt,
-    permission: "Expenses",
-  },
-  {
-    title: "Contracts",
-    url: "/admin/contracts",
-    icon: FileSignature,
-    permission: "Contracts",
-  },
-  {
-    title: "Projects",
-    url: "/admin/projects",
-    icon: FolderKanban,
-  },
-  { title: "Tasks", url: "/admin/tasks", icon: CheckSquare },
-  { title: "Support", url: "/admin/support", icon: HeadphonesIcon },
-  { title: "Leads", url: "/admin/leads", icon: Target, permission: "Leads" },
-  {
-    title: "Estimate Request",
-    url: "/admin/estimate-request",
-    icon: ClipboardList,
-    permission: "Estimate Request",
-  },
-  {
-    title: "Knowledge Base",
-    url: "/admin/knowledge-base",
-    icon: BookOpen,
-    permission: "Knowledge Base",
-  },
-  {
-    title: "FAQ",
-    url: "/admin/faq",
-    icon: HelpCircle,
-  },
-];
-
-const utilitiesNav = [
-  { title: "Media", url: "/admin/media", icon: Image },
-  {
-    title: "Bulk PDF Export",
-    url: "/admin/bulk-export",
-    icon: FileDown,
-    permission: "Bulk PDF Export",
-  },
-  { title: "Calendar", url: "/admin/calendar", icon: CalendarDays },
-  {
-    title: "Announcements",
-    url: "/admin/announcements",
-    icon: Megaphone,
-    permission: "Announcements",
-  },
-  { title: "Goals", url: "/admin/goals", icon: Crosshair, permission: "Goals" },
-  {
-    title: "Activity Log",
-    url: "/admin/activity",
-    icon: Activity,
-    permission: "Activity Log",
-  },
-  {
-    title: "Ticket Pipe Log",
-    url: "/admin/ticket-pipe-log",
-    icon: MessageSquare,
-    permission: "Ticket Pipe Log",
-  },
-];
-
-const reportsNav = [
-  {
-    title: "Master Dashboard",
-    url: "/admin/reports",
-    icon: LayoutGrid,
-    permission: "Reports",
-  },
-  {
-    title: "Sales",
-    url: "/admin/reports/sales",
-    icon: DollarSign,
-    permission: "Reports",
-  },
-  {
-    title: "Expenses",
-    url: "/admin/reports/expenses",
-    icon: Receipt,
-    permission: "Reports",
-  },
-  {
-    title: "Expenses vs Income",
-    url: "/admin/reports/expenses-vs-income",
-    icon: BarChart3,
-    permission: "Reports",
-  },
-  {
-    title: "Leads",
-    url: "/admin/reports/leads",
-    icon: Target,
-    permission: "Reports",
-  },
-  {
-    title: "Timesheets Overview",
-    url: "/admin/reports/timesheets",
-    icon: Clock,
-    permission: "Reports",
-  },
-  {
-    title: "KB Articles",
-    url: "/admin/reports/kb-articles",
-    icon: BookOpen,
-    permission: "Reports",
-  },
+const fallbackNav = [
+  { title: "Dashboard", url: "/admin/dashboard", icon: "LayoutDashboard", group: "Main" },
+  { title: "Setup", url: "/admin/setup", icon: "Settings", permission: "Settings", group: "Setup" },
 ];
 
 const setupMenuItems = [
@@ -308,7 +144,6 @@ const setupMenuItems = [
     icon: ClipboardList,
     permission: "Estimate Request",
     subItems: [
-      { title: "Forms", url: "/admin/setup/estimate-request/form-fields" },
       { title: "Statuses", url: "/admin/setup/estimate-request/statuses" },
     ],
   },
@@ -366,6 +201,27 @@ export function AppSidebar() {
     () =>
       (localStorage.getItem("sidebar:menuMode") as "main" | "setup") || "main",
   );
+
+  const { data: dbMenuItems = [], isLoading: menusLoading } = useQuery({
+    queryKey: ["mainsidebar"],
+    queryFn: mainSidebarService.getSidebarItems,
+  });
+
+  const getMenuItems = () => {
+    const rawItems = dbMenuItems.length > 0 ? dbMenuItems : fallbackNav;
+    const items = rawItems.filter((i: any) => i.active !== false);
+    return {
+      mainNav: items.filter((i: any) => i.group === "Main"),
+      customersNav: items.filter((i: any) => i.group === "Customers"),
+      salesNav: items.filter((i: any) => i.group === "Sales"),
+      managementNav: items.filter((i: any) => i.group === "Management"),
+      utilitiesNav: items.filter((i: any) => i.group === "Utilities"),
+      reportsNav: items.filter((i: any) => i.group === "Reports"),
+      setupNav: items.filter((i: any) => i.group === "Setup"),
+    };
+  };
+
+  const dynamicNav = getMenuItems();
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     () => {
       try {
@@ -390,7 +246,7 @@ export function AppSidebar() {
   };
 
   const renderItems = (
-    items: (typeof mainNav)[number][],
+    items: any[],
     onItemClick?: () => void,
   ) => {
     const handleClick = () => {
@@ -405,6 +261,8 @@ export function AppSidebar() {
           location.pathname === item.url ||
           location.pathname.startsWith(item.url + "/");
         const isExternal = item.url?.startsWith("http");
+        const IconComponent = (Icons as any)[item.icon] || Icons.Circle;
+
         return (
           <SidebarMenuItem key={item.title}>
             <SidebarMenuButton asChild isActive={!isExternal && isActive}>
@@ -416,7 +274,7 @@ export function AppSidebar() {
                   onClick={handleClick}
                   className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
                 >
-                  <item.icon className="mr-2.5 h-4 w-4 shrink-0 transition-colors" />
+                  <IconComponent className="mr-2.5 h-4 w-4 shrink-0 transition-colors" />
                   {!collapsed && (
                     <span className="text-[13px] font-medium">{item.title}</span>
                   )}
@@ -432,7 +290,7 @@ export function AppSidebar() {
                   {isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
                   )}
-                  <item.icon
+                  <IconComponent
                     className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isActive ? "text-primary" : ""}`}
                   />
                   {!collapsed && (
@@ -526,12 +384,12 @@ export function AppSidebar() {
           <SidebarGroup className="py-2">
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {renderItems(mainNav)}
-                {renderItems(customersNav)}
-                {renderCollapsibleItem("Sales", Zap, salesNav)}
-                {renderItems(managementNav)}
-                {renderCollapsibleItem("Utilities", CircleDot, utilitiesNav)}
-                {renderCollapsibleItem("Reports", TrendingUp, reportsNav)}
+                {renderItems(dynamicNav.mainNav)}
+                {renderItems(dynamicNav.customersNav)}
+                {renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
+                {renderItems(dynamicNav.managementNav)}
+                {renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav)}
+                {renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav)}
                 {hasSetupAccess && (
                   <SidebarMenuItem>
                     <SidebarMenuButton
@@ -542,7 +400,7 @@ export function AppSidebar() {
                       }}
                       className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative cursor-pointer"
                     >
-                      <Settings className="mr-2.5 h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
+                      <Icons.Settings className="mr-2.5 h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
                       {!collapsed && (
                         <span className="text-[13px] font-medium">Setup</span>
                       )}
@@ -553,7 +411,7 @@ export function AppSidebar() {
                   {
                     title: "Subscription Details",
                     url: "/admin/pricing",
-                    icon: DollarSign,
+                    icon: "DollarSign",
                     permission: "Subscriptions",
                   }
                 ])}

@@ -18,6 +18,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { settingsService } from "@/api/services/settings.service";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { estimateService } from "@/api/services/estimate.service";
 import {
   Settings,
   Banknote,
@@ -156,8 +158,14 @@ const settingsNavigation: SettingCategory[] = [
 
 
 export default function SetupSettings() {
-  const { settings: globalSettings, refreshSettings: refreshGlobalSettings } = useSettings();
   const [activeTab, setActiveTab] = useState("gen-general");
+  const { settings: globalSettings, refreshSettings: refreshGlobalSettings, updateSettings, isLoading: isSettingsLoading } = useSettings();
+
+  const { data: estimateForms = [] } = useQuery({
+    queryKey: ["estimate-request-forms"],
+    queryFn: () => estimateService.getEstimateRequestForms(),
+  });
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const sigInputRef = useRef<HTMLInputElement>(null);
@@ -4098,8 +4106,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="no">No</SelectItem>
-                          <SelectItem value="dummy">Dummy Form</SelectItem>
-                          <SelectItem value="electronics">General Electronics Ui And Ux</SelectItem>
+                          {(Array.isArray(estimateForms) ? estimateForms : []).map((form: any) => (
+                            <SelectItem key={form._id} value={form._id}>
+                              {form.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

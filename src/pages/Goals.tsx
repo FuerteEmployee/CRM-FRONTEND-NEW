@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { 
   Table, 
   TableBody, 
@@ -22,9 +24,9 @@ import {
   Activity,
   MoreHorizontal,
   Eye,
-  Edit2,
   Trash2,
-  Bell
+  Bell,
+  Zap
 } from "lucide-react";
 import { 
   DropdownMenu,
@@ -39,7 +41,7 @@ import { goalService } from "@/services/goal.service";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog";
 
 const Goals = () => {
   const navigate = useNavigate();
@@ -48,6 +50,11 @@ const Goals = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedGoal, setSelectedGoal] = useState<any | null>(null);
   const [isViewOpen, setIsViewOpen] = useState(false);
+
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({ massDelete: false });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
 
   const { data: goals = [], isLoading } = useQuery({
     queryKey: ["goals"],
@@ -68,6 +75,37 @@ const Goals = () => {
   const handleDelete = (id: string) => {
     if (confirm("Are you sure you want to delete this goal?")) {
       deleteMutation.mutate(id);
+    }
+  };
+
+  const handleBulkAction = async () => {
+    if (selectedItems.length === 0) {
+      toast.error("No goals selected.");
+      return;
+    }
+    setIsBulkLoading(true);
+
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedItems.map(id => goalService.deleteGoal(id)));
+        toast.success(`Deleted ${selectedItems.length} goals.`);
+      }
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
+      setSelectedItems([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false });
+    } catch (err: any) {
+      toast.error("Failed to perform bulk action.");
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedItems(displayData.map((a: any) => a._id));
+    } else {
+      setSelectedItems([]);
     }
   };
 
@@ -126,6 +164,44 @@ const Goals = () => {
                     <SelectItem value="print">Print</SelectItem>
                   </SelectContent>
                 </Select>
+
+                <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+                  if (open && selectedItems.length === 0) {
+                    toast.error("Please select at least one goal first.");
+                    return;
+                  }
+                  setBulkActionOpen(open);
+                }}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="h-9 px-4 gap-2 rounded-lg font-bold text-xs uppercase tracking-wider hover:bg-transparent border-border/40">
+                      <Zap className="h-3.5 w-3.5 text-primary" />
+                      Bulk Actions
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Bulk Actions</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-5 pt-4">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="massDelete" 
+                          className="border-red-500 data-[state=checked]:bg-red-500"
+                          checked={bulkState.massDelete}
+                          onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                        />
+                        <Label htmlFor="massDelete" className="text-red-600 font-bold">Mass Delete</Label>
+                      </div>
+                      <Button 
+                        onClick={handleBulkAction} 
+                        disabled={!bulkState.massDelete || isBulkLoading} 
+                        className="w-full bg-primary hover:bg-primary/90 text-white font-bold tracking-widest uppercase text-xs h-12"
+                      >
+                        {isBulkLoading ? "Processing..." : "Confirm"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
 
               <div className="flex-1 max-w-sm relative group">
@@ -144,6 +220,13 @@ const Goals = () => {
               <Table>
                 <TableHeader className="bg-accent/10">
                   <TableRow className="hover:bg-transparent border-border/40">
+                    <TableHead className="w-12 px-4 py-4">
+                      <Checkbox 
+                        checked={selectedItems.length > 0 && selectedItems.length === displayData.length}
+                        onCheckedChange={handleSelectAll}
+                        className="border-muted-foreground/30"
+                      />
+                    </TableHead>
                     <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Subject</TableHead>
                     <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Staff Member</TableHead>
                     <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Achievement</TableHead>
@@ -158,7 +241,7 @@ const Goals = () => {
                   {isLoading ? (
                     Array.from({ length: 3 }).map((_, i) => (
                       <TableRow key={i} className="animate-pulse border-border/40">
-                        <TableCell colSpan={8} className="py-8">
+                        <TableCell colSpan={9} className="py-8">
                            <div className="h-4 bg-muted rounded w-full" />
                         </TableCell>
                       </TableRow>
@@ -166,7 +249,20 @@ const Goals = () => {
                   ) : displayData.length > 0 ? (
                     displayData.map((goal: any) => (
                       <TableRow key={goal._id} className="hover:bg-accent/5 transition-colors border-border/40 group">
-                        <TableCell className="py-4 font-bold text-gray-900 group-hover:text-primary transition-colors">
+                        <TableCell className="px-4 py-4">
+                          <Checkbox 
+                            checked={selectedItems.includes(goal._id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) setSelectedItems([...selectedItems, goal._id]);
+                              else setSelectedItems(selectedItems.filter(id => id !== goal._id));
+                            }}
+                            className="border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                          />
+                        </TableCell>
+                        <TableCell className="py-4 font-bold text-gray-900 group-hover:text-primary transition-colors cursor-pointer" onClick={() => {
+                          setSelectedGoal(goal);
+                          setIsViewOpen(true);
+                        }}>
                           {goal.subject}
                         </TableCell>
                         <TableCell className="py-4 text-muted-foreground font-medium">
@@ -230,7 +326,7 @@ const Goals = () => {
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={8} className="h-64 text-center">
+                      <TableCell colSpan={9} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-3">
                           <div className="p-4 rounded-full bg-accent/10 text-muted-foreground/40">
                             <Target className="h-8 w-8" />

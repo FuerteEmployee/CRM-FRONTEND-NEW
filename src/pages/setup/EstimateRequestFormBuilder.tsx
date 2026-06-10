@@ -329,7 +329,7 @@ export default function EstimateRequestFormBuilder() {
             <div className="flex items-center gap-4">
               <button
                 onClick={() =>
-                  navigate("/admin/setup/estimate-request/form-fields")
+                  navigate("/admin/estimate-request")
                 }
                 className="p-2 hover:bg-slate-100 border border-slate-200 rounded-lg transition-colors bg-white shadow-sm"
               >

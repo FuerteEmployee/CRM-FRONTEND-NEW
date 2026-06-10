@@ -34,6 +34,7 @@ import {
   Receipt,
   Edit2,
   Trash2,
+  Zap
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
@@ -43,6 +44,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
+import { ExportButton } from "@/components/ui/export-button";
 
 const statusMap: Record<number, { label: string; color: string }> = {
   1: { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
@@ -239,42 +241,28 @@ const Invoices = () => {
                 ))}
               </SelectContent>
             </Select>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm"
-                >
-                  <Download className="h-3.5 w-3.5 text-primary" />
-                  Export
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
-                <DropdownMenuItem
-                  onClick={() => handleExport("pdf")}
-                  className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
-                >
-                  <FileText className="h-4 w-4 text-red-500 group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-bold">PDF</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleExport("csv")}
-                  className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
-                >
-                  <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-bold">CSV</span>
-                </DropdownMenuItem>
-                <div className="h-px bg-border/50 my-1 mx-1" />
-                <DropdownMenuItem
-                  onClick={() => handleExport("print")}
-                  className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
-                >
-                  <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-bold">Print</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest border-border/50 shadow-sm hover:bg-muted/50"
+              onClick={() => toast({ title: "Bulk Actions", description: "Select items first to apply bulk actions." })}
+            >
+              <Zap className="h-3.5 w-3.5 text-primary" />
+              Bulk Actions
+            </Button>
+            <ExportButton 
+              data={filtered} 
+              filename="invoices" 
+              columns={[
+                { header: "Invoice #", key: (inv) => inv.number || `INV-${inv._id?.substring(0, 6)}` },
+                { header: "Customer", key: (inv) => inv.client?.company || "N/A" },
+                { header: "Amount", key: "total" },
+                { header: "Total Tax", key: "total_tax" },
+                { header: "Date", key: "date" },
+                { header: "Due Date", key: "duedate" },
+                { header: "Status", key: (inv) => statusMap[inv.status]?.label || "Unpaid" }
+              ]} 
+            />
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

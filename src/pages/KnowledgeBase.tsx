@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, BookOpen, Eye, ThumbsUp, Download, ChevronDown, FileSpreadsheet, FileJson, FileType, Printer, Undo, Redo, Bold, Italic, Underline, AlignLeft, List } from "lucide-react";
+import { Plus, Search, BookOpen, Eye, ThumbsUp, Download, ChevronDown, FileSpreadsheet, FileJson, FileType, Printer, Undo, Redo, Bold, Italic, Underline, AlignLeft, List, Zap, Trash2, Pencil } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supportService } from "@/api/services/support.service";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -58,6 +58,12 @@ const KnowledgeBase = () => {
     disabled: false,
     description: ""
   });
+
+  const [selectedArticles, setSelectedArticles] = useState<string[]>([]);
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({ massDelete: false });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
+  const [editingArticleId, setEditingArticleId] = useState<string | null>(null);
 
   const [newGroupData, setNewGroupData] = useState({
     name: "",
@@ -107,15 +113,71 @@ const KnowledgeBase = () => {
   });
 
   const createArticleMutation = useMutation({
-    mutationFn: (data: any) => supportService.createKBArticle(data),
+    mutationFn: (data: any) => {
+      if (editingArticleId) return supportService.updateKBArticle(editingArticleId, data);
+      return supportService.createKBArticle(data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["kb-articles"] });
       setIsNewArticleModalOpen(false);
       setNewArticleData({ subject: "", group: "", internal: false, disabled: false, description: "" });
-      toast.success("Article created successfully");
+      setEditingArticleId(null);
+      toast.success(editingArticleId ? "Article updated successfully" : "Article created successfully");
     },
-    onError: (err: any) => toast.error(err.message || "Failed to create article")
+    onError: (err: any) => toast.error(err.message || "Failed to save article")
   });
+
+  const deleteArticleMutation = useMutation({
+    mutationFn: (id: string) => supportService.deleteKBArticle(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["kb-articles"] });
+      toast.success("Article deleted successfully");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to delete article")
+  });
+
+  const handleBulkAction = async () => {
+    if (selectedArticles.length === 0) {
+      toast.error("No articles selected.");
+      return;
+    }
+    setIsBulkLoading(true);
+
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedArticles.map(id => supportService.deleteKBArticle(id)));
+        toast.success(`Deleted ${selectedArticles.length} articles.`);
+      }
+      queryClient.invalidateQueries({ queryKey: ["kb-articles"] });
+      setSelectedArticles([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false });
+    } catch (err: any) {
+      toast.error("Failed to perform bulk action.");
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedArticles(paginatedArticles.map((a: any) => a._id));
+    } else {
+      setSelectedArticles([]);
+    }
+  };
+
+  const openEditModal = (article: any) => {
+    setEditingArticleId(article._id);
+    setNewArticleData({
+      subject: article.subject || article.title || "",
+      group: article.group || "",
+      internal: article.internal || false,
+      disabled: article.disabled || false,
+      description: article.description || ""
+    });
+    setIsNewArticleModalOpen(true);
+  };
 
   const RichToolbar = ({ onAction }: { onAction?: (action: string) => void }) => (
     <div className="bg-slate-50 border-b border-slate-200 flex flex-col">
@@ -164,7 +226,13 @@ const KnowledgeBase = () => {
       <div className="space-y-6 pb-20">
         <div className="flex items-center justify-between pt-4">
           <h1 className="text-2xl font-bold text-slate-900">Knowledge Base</h1>
-          <Dialog open={isNewArticleModalOpen} onOpenChange={setIsNewArticleModalOpen}>
+          <Dialog open={isNewArticleModalOpen} onOpenChange={(open) => {
+            if (!open) {
+              setEditingArticleId(null);
+              setNewArticleData({ subject: "", group: "", internal: false, disabled: false, description: "" });
+            }
+            setIsNewArticleModalOpen(open);
+          }}>
             <DialogTrigger asChild>
               <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                 <Plus className="h-4 w-4" />
@@ -175,7 +243,7 @@ const KnowledgeBase = () => {
               <div className="bg-white px-8 py-6 text-slate-900 flex items-center justify-between border-b border-slate-100">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Article Management</p>
-                  <h2 className="text-2xl font-black tracking-tight">Create New Article</h2>
+                  <h2 className="text-2xl font-black tracking-tight">{editingArticleId ? "Edit Article" : "Create New Article"}</h2>
                 </div>
                 <BookOpen className="h-8 w-8 text-primary" />
               </div>
@@ -253,7 +321,7 @@ const KnowledgeBase = () => {
                   disabled={!newArticleData.subject || !newArticleData.group || createArticleMutation.isPending}
                   className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 shadow-lg shadow-primary/20"
                 >
-                  {createArticleMutation.isPending ? "Saving..." : "Save Article"}
+                  {createArticleMutation.isPending ? "Saving..." : (editingArticleId ? "Update Article" : "Save Article")}
                 </Button>
               </div>
             </DialogContent>
@@ -373,6 +441,44 @@ const KnowledgeBase = () => {
                   </SelectContent>
                 </Select>
 
+                <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+                  if (open && selectedArticles.length === 0) {
+                    toast.error("Please select at least one article first.");
+                    return;
+                  }
+                  setBulkActionOpen(open);
+                }}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 px-4 gap-2 text-xs font-bold uppercase tracking-wider hover:bg-transparent">
+                      <Zap className="h-3.5 w-3.5 text-primary" />
+                      Bulk Actions
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Bulk Actions</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-5 pt-4">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="massDelete" 
+                          className="border-red-500 data-[state=checked]:bg-red-500"
+                          checked={bulkState.massDelete}
+                          onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                        />
+                        <Label htmlFor="massDelete" className="text-red-600 font-bold">Mass Delete</Label>
+                      </div>
+                      <Button 
+                        onClick={handleBulkAction} 
+                        disabled={!bulkState.massDelete || isBulkLoading} 
+                        className="w-full bg-primary hover:bg-primary/90 text-white font-bold tracking-widest uppercase text-xs h-12"
+                      >
+                        {isBulkLoading ? "Processing..." : "Confirm"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="h-8 gap-2 text-xs font-bold uppercase tracking-wider hover:bg-transparent">
@@ -421,12 +527,17 @@ const KnowledgeBase = () => {
                 <thead>
                   <tr className="border-b text-left text-[11px] text-muted-foreground uppercase tracking-wider bg-zinc-50/50">
                     <th className="p-3 font-semibold w-8">
-                      <input type="checkbox" className="rounded border-zinc-300" />
+                      <Checkbox 
+                        checked={selectedArticles.length > 0 && selectedArticles.length === paginatedArticles.length}
+                        onCheckedChange={handleSelectAll}
+                        className="rounded border-zinc-300" 
+                      />
                     </th>
                     <th className="p-3 font-semibold w-10">#</th>
                     <th className="p-3 font-semibold">Article Name ↕</th>
                     <th className="p-3 font-semibold">Group</th>
                     <th className="p-3 font-semibold">Date Published</th>
+                    <th className="p-3 font-semibold text-right">Options</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -440,7 +551,7 @@ const KnowledgeBase = () => {
                     ))
                   ) : paginatedArticles.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-10 text-center text-muted-foreground text-sm">
+                      <td colSpan={6} className="p-10 text-center text-muted-foreground text-sm">
                         No articles found.
                       </td>
                     </tr>
@@ -448,25 +559,64 @@ const KnowledgeBase = () => {
                     paginatedArticles.map((article: any, index) => (
                       <tr key={article._id} className="border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer">
                         <td className="p-3">
-                          <input type="checkbox" className="rounded border-zinc-300" />
+                          <Checkbox 
+                            checked={selectedArticles.includes(article._id)}
+                            onCheckedChange={(checked) => {
+                              if (checked) setSelectedArticles([...selectedArticles, article._id]);
+                              else setSelectedArticles(selectedArticles.filter(id => id !== article._id));
+                            }}
+                            className="rounded border-zinc-300" 
+                          />
                         </td>
-                        <td className="p-3 text-xs text-muted-foreground">
+                        <td className="p-3 text-xs text-muted-foreground" onClick={() => openEditModal(article)}>
                           {(currentPage - 1) * pageSize + index + 1}
                         </td>
-                        <td className="p-3">
+                        <td className="p-3" onClick={() => openEditModal(article)}>
                           <div className="flex flex-col">
                             <span className="text-sm font-semibold text-primary hover:underline">
                               {article.title || article.subject}
                             </span>
                           </div>
                         </td>
-                        <td className="p-3">
+                        <td className="p-3" onClick={() => openEditModal(article)}>
                           <Badge variant="secondary" className="text-[10px] px-1.5 h-5 font-bold uppercase tracking-wider">
                             {article.group_name || "General"}
                           </Badge>
                         </td>
-                        <td className="p-3 text-xs text-zinc-600">
+                        <td className="p-3 text-xs text-zinc-600" onClick={() => openEditModal(article)}>
                           {formatDate(article.datecreated || article.createdAt)}
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-primary/5"
+                              onClick={() => openEditModal(article)}
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-primary/5"
+                              onClick={() => openEditModal(article)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                              onClick={() => {
+                                if (confirm("Are you sure you want to delete this article?")) {
+                                  deleteArticleMutation.mutate(article._id);
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))

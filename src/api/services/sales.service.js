@@ -16,6 +16,7 @@ export const salesService = {
   deleteInvoice: (id) => apiClient.delete(`/invoices/${id}`),
   createProposal: (data) => apiClient.post("/proposals", data),
   updateProposal: (id, data) => apiClient.put(`/proposals/${id}`, data),
+  deleteProposal: (id) => apiClient.delete(`/proposals/${id}`),
 
   // ─────────────────────────────────────────────
   // Payments

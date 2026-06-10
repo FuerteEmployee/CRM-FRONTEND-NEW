@@ -20,14 +20,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Search, Zap } from "lucide-react";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { contractService } from "@/api/services/contract.service";
 import { customerService } from "@/api/services/customer.service";
+import { ExportButton } from "@/components/ui/export-button";
 
 const statusColors: Record<string, string> = {
   Active:
@@ -45,8 +46,17 @@ const Contracts = () => {
   const [viewItem, setViewItem] = useState<any | null>(null);
   const [editItem, setEditItem] = useState<any | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [itemsPerPage, setItemsPerPage] = useState("10");
   const { toast } = useToast();
   const { can } = usePermissions();
+
+  const filtered = useMemo(() => {
+    return contracts.filter((c: any) =>
+      (c.subject || "").toLowerCase().includes(search.toLowerCase()) ||
+      (c.client?.company || "").toLowerCase().includes(search.toLowerCase())
+    );
+  }, [contracts, search]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -226,6 +236,54 @@ const Contracts = () => {
             </Dialog>
           )}
         </div>
+
+        {/* Table Controls */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+          <div className="flex items-center gap-3">
+            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+              <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["10", "25", "50", "100", "All"].map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {v}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest border-border/50 shadow-sm hover:bg-muted/50"
+              onClick={() => toast({ title: "Bulk Actions", description: "Select items first to apply bulk actions." })}
+            >
+              <Zap className="h-3.5 w-3.5 text-primary" />
+              Bulk Actions
+            </Button>
+            <ExportButton 
+              data={filtered} 
+              filename="contracts" 
+              columns={[
+                { header: "Title", key: "subject" },
+                { header: "Customer", key: (c) => c.client?.company || c.client?.firstname || "Unknown" },
+                { header: "Value", key: "contract_value" },
+                { header: "Status", key: getStatus },
+                { header: "Start", key: "datestart" },
+                { header: "End", key: "dateend" }
+              ]} 
+            />
+          </div>
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search contracts..."
+              className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </div>
         <Card>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
@@ -244,9 +302,9 @@ const Contracts = () => {
                 <tbody>
                   {loading ? (
                     <tr><td colSpan={7} className="text-center p-4">Loading...</td></tr>
-                  ) : contracts.length === 0 ? (
+                  ) : filtered.length === 0 ? (
                     <tr><td colSpan={7} className="text-center p-4">No contracts found.</td></tr>
-                  ) : contracts.map((c) => (
+                  ) : filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage)).map((c) => (
                     <tr
                       key={c._id}
                       className="border-b last:border-0 hover:bg-muted/50"
@@ -287,6 +345,24 @@ const Contracts = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Pagination Footer */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+          <p className="text-xs font-bold text-muted-foreground italic">
+            Showing 1 to {filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage)).length} of {filtered.length} entries
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+              Previous
+            </Button>
+            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
+              1
+            </div>
+            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+              Next
+            </Button>
+          </div>
+        </div>
       </div>
 
       <Dialog open={!!viewItem} onOpenChange={() => setViewItem(null)}>

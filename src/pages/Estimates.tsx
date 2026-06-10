@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Search, Download, FileText, Target, Printer } from "lucide-react";
+import { Plus, Search, Download, FileText, Target, Printer, Zap } from "lucide-react";
 import { useState, useMemo } from "react";
 import { formatDate } from "@/lib/dateFormat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -126,6 +126,15 @@ const Estimates = () => {
                 ))}
               </SelectContent>
             </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest border-border/50 shadow-sm hover:bg-muted/50"
+              onClick={() => toast({ title: "Bulk Actions", description: "Select items first to apply bulk actions." })}
+            >
+              <Zap className="h-3.5 w-3.5 text-primary" />
+              Bulk Actions
+            </Button>
             <ExportButton 
               data={filtered} 
               filename="estimates" 

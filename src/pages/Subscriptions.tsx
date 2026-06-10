@@ -17,7 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Search, Download, FileText, FileSpreadsheet, Printer, ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
+import { Plus, Search, Download, FileText, FileSpreadsheet, Printer, ChevronLeft, ChevronRight, MoreHorizontal, Zap, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { formatDate } from "@/lib/dateFormat";
@@ -26,11 +26,28 @@ import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
 const Subscriptions = () => {
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState("25");
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({ massDelete: false });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
+
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: subscriptions = [], isLoading } = useQuery<any[]>({
     queryKey: ["subscriptions"],
@@ -41,6 +58,37 @@ const Subscriptions = () => {
     (s.name || "").toLowerCase().includes(search.toLowerCase()) ||
     (s.client?.company || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  const handleBulkAction = async () => {
+    if (selectedItems.length === 0) {
+      toast({ title: "Error", description: "No items selected.", variant: "destructive" });
+      return;
+    }
+    setIsBulkLoading(true);
+
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedItems.map(id => salesService.deleteSubscription(id)));
+        toast({ title: "Success", description: `Deleted ${selectedItems.length} subscriptions.` });
+      }
+      queryClient.invalidateQueries({ queryKey: ["subscriptions"] });
+      setSelectedItems([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false });
+    } catch (err: any) {
+      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedItems(filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage)).map((s: any) => s._id));
+    } else {
+      setSelectedItems([]);
+    }
+  };
 
   const handleExport = (type: "csv" | "pdf" | "print") => {
     if (filtered.length === 0) {
@@ -126,6 +174,47 @@ const Subscriptions = () => {
                   </SelectContent>
                 </Select>
 
+                <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+                  if (open && selectedItems.length === 0) {
+                    toast({ title: "Error", description: "Please select at least one item first.", variant: "destructive" });
+                    return;
+                  }
+                  setBulkActionOpen(open);
+                }}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="h-10 px-4 rounded-xl font-black uppercase tracking-widest text-[10px] gap-2 border-slate-200 bg-white shadow-sm hover:bg-slate-50 transition-all"
+                    >
+                      <Zap className="h-3.5 w-3.5 text-primary" />
+                      Bulk Actions
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Bulk Actions</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-5 pt-4">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          id="massDelete" 
+                          className="border-red-500 data-[state=checked]:bg-red-500"
+                          checked={bulkState.massDelete}
+                          onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                        />
+                        <Label htmlFor="massDelete" className="text-red-600 font-bold">Mass Delete</Label>
+                      </div>
+                      <Button 
+                        onClick={handleBulkAction} 
+                        disabled={!bulkState.massDelete || isBulkLoading} 
+                        className="w-full bg-primary hover:bg-primary/90 text-white font-bold tracking-widest uppercase text-xs h-12"
+                      >
+                        {isBulkLoading ? "Processing..." : "Confirm"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" className="h-10 px-4 rounded-xl font-black uppercase tracking-widest text-[10px] gap-2 border-slate-200 bg-white shadow-sm hover:bg-slate-50 transition-all">
@@ -167,6 +256,12 @@ const Subscriptions = () => {
               <table className="w-full text-sm text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/50 border-b border-slate-100">
+                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500 w-12 text-center">
+                      <Checkbox 
+                        checked={selectedItems.length > 0 && selectedItems.length === filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage)).length}
+                        onCheckedChange={handleSelectAll}
+                      />
+                    </th>
                     <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500 w-16">#</th>
                     <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Subscription Name</th>
                     <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Project</th>
@@ -181,6 +276,7 @@ const Subscriptions = () => {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="animate-pulse">
+                        <td className="px-6 py-4 text-center"><Skeleton className="h-4 w-4 rounded mx-auto" /></td>
                         <td className="px-6 py-4"><Skeleton className="h-4 w-4 rounded" /></td>
                         <td className="px-6 py-4"><Skeleton className="h-4 w-40 rounded" /></td>
                         <td className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
@@ -193,7 +289,7 @@ const Subscriptions = () => {
                     ))
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-bold italic bg-slate-50/20">
+                      <td colSpan={9} className="px-6 py-12 text-center text-slate-400 font-bold italic bg-slate-50/20">
                         No entries found
                       </td>
                     </tr>
@@ -205,6 +301,15 @@ const Subscriptions = () => {
                           key={s._id}
                           className="hover:bg-primary/[0.02] transition-colors group border-b border-slate-50 last:border-0"
                         >
+                          <td className="px-6 py-5 text-center">
+                            <Checkbox 
+                              checked={selectedItems.includes(s._id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) setSelectedItems([...selectedItems, s._id]);
+                                else setSelectedItems(selectedItems.filter(id => id !== s._id));
+                              }}
+                            />
+                          </td>
                           <td className="px-6 py-5 text-xs font-black text-slate-400">
                             {index + 1}
                           </td>

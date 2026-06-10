@@ -26,7 +26,8 @@ import {
   ChevronsUpDown,
   Mic,
   MicOff,
-  CheckSquare
+  CheckSquare,
+  Zap
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -271,6 +272,16 @@ export function DataTable<T extends Record<string, any>>({
               onClick={onRefresh}
             >
               <RotateCcw className="h-4 w-4" />
+            </Button>
+          )}
+          {enableBulkActions && selectedItems.length === 0 && (
+            <Button
+              variant="outline"
+              className="flex items-center gap-2 h-11 px-6 rounded-xl border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all duration-200 font-black text-[10px] uppercase tracking-widest"
+              onClick={() => toast({ title: "Bulk Actions", description: "Select items first to apply bulk actions." })}
+            >
+              <Zap className="h-4 w-4 text-primary" />
+              Bulk Actions
             </Button>
           )}
           {enableBulkActions && selectedItems.length > 0 && (

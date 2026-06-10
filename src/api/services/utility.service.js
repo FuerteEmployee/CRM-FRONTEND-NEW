@@ -23,6 +23,8 @@ export const utilityService = {
   
   getActivityLogs: () => apiClient.get('/activity-logs'),
   
+  deleteActivityLog: (id) => apiClient.delete(`/activity-logs/${id}`),
+  
   getTicketPipeLogs: () => apiClient.get('/ticket-pipe-logs'),
   
   getFinancialReport: (fromDate, toDate) => 

@@ -107,6 +107,16 @@ export default function EstimateRequest() {
     }
   };
 
+  const handleBulkDelete = async (items: EstimateRequestRecord[]) => {
+    try {
+      await Promise.all(items.map(item => estimateService.deleteRequest(item._id)));
+      queryClient.invalidateQueries({ queryKey: ["estimate-requests"] });
+      toast.success(`Deleted ${items.length} requests successfully`);
+    } catch (error: any) {
+      toast.error("Failed to delete some requests");
+    }
+  };
+
   const columns: DataTableColumn<EstimateRequestRecord>[] = [
     {
       key: "email",
@@ -188,6 +198,8 @@ export default function EstimateRequest() {
           isLoading={isLoading}
           onRefresh={refetch}
           showIdColumn={true}
+          enableBulkActions={true}
+          onBulkDelete={handleBulkDelete}
           renderCustomActions={(row) => (
             <div className="flex items-center gap-1">
               <Button

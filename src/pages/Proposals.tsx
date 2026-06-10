@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { FilePlus, Search, Download, FileText, Plus } from "lucide-react";
+import { FilePlus, Search, Download, FileText, Plus, Zap } from "lucide-react";
 import { useState } from "react";
 import { formatDate } from "@/lib/dateFormat";
 import { useQuery } from "@tanstack/react-query";
@@ -88,6 +88,15 @@ const Proposals = () => {
                 ))}
               </SelectContent>
             </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest border-border/50 shadow-sm hover:bg-muted/50"
+              onClick={() => toast({ title: "Bulk Actions", description: "Select items first to apply bulk actions." })}
+            >
+              <Zap className="h-3.5 w-3.5 text-primary" />
+              Bulk Actions
+            </Button>
             <ExportButton 
               data={filtered} 
               filename="proposals" 

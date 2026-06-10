@@ -97,30 +97,29 @@ export default function EstimateCreate() {
   const [discountType, setDiscountType] = useState("percent");
   const [adjustmentValue, setAdjustmentValue] = useState(0);
 
-  // Queries
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
-    queryFn: customerService.getAll
+    queryFn: () => customerService.getAll().then((res: any) => res.data || res)
   });
 
   const { data: currencies = [] } = useQuery({
     queryKey: ["currencies"],
-    queryFn: financeService.getCurrencies
+    queryFn: () => financeService.getCurrencies().then((res: any) => res.data || res)
   });
 
   const { data: availableItems = [] } = useQuery({
     queryKey: ["items"],
-    queryFn: itemService.getAll
+    queryFn: () => itemService.getAll().then((res: any) => res.data || res)
   });
 
   const { data: taxes = [] } = useQuery({
     queryKey: ["taxes"],
-    queryFn: financeService.getTaxes
+    queryFn: () => financeService.getTaxes().then((res: any) => res.data || res)
   });
 
   const { data: staff = [] } = useQuery({
     queryKey: ["staff"],
-    queryFn: staffService.getAll
+    queryFn: () => staffService.getAll().then((res: any) => res.data || res)
   });
 
   useEffect(() => {

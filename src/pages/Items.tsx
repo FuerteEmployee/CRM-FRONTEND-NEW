@@ -20,7 +20,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Layers, AlertCircle, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, Layers, AlertCircle, Edit, Trash2, Zap } from "lucide-react";
+import { ExportButton } from "@/components/ui/export-button";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -34,6 +35,7 @@ const Items = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [viewItem, setViewItem] = useState<any>(null);
   const [editItem, setEditItem] = useState<any>(null);
+  const [itemsPerPage, setItemsPerPage] = useState("10");
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
@@ -301,15 +303,52 @@ const Items = () => {
           )}
         </div>
 
-        {/* Filter Toolbar */}
-        <div className="relative max-w-md bg-muted/10 p-2 rounded-2xl border border-border/50">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search items library..."
-            className="pl-10 h-10 bg-background border-none shadow-sm rounded-xl text-xs"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+        {/* Table Controls */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
+          <div className="flex items-center gap-3">
+            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+              <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {["10", "25", "50", "100", "All"].map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {v}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest border-border/50 shadow-sm hover:bg-muted/50"
+              onClick={() => toast({ title: "Bulk Actions", description: "Select items first to apply bulk actions." })}
+            >
+              <Zap className="h-3.5 w-3.5 text-primary" />
+              Bulk Actions
+            </Button>
+            <ExportButton 
+              data={filtered} 
+              filename="items" 
+              columns={[
+                { header: "Item Name", key: "description" },
+                { header: "Group", key: (i) => i.group || "-" },
+                { header: "Description", key: (i) => i.long_description || "-" },
+                { header: "Rate", key: "rate" },
+                { header: "Unit", key: (i) => i.unit || "item" },
+                { header: "Tax", key: (i) => i.tax ? (typeof i.tax === "object" ? `${i.tax.name} (${i.tax.taxrate}%)` : "Active Tax") : "-" }
+              ]} 
+            />
+          </div>
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search items library..."
+              className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
         </div>
 
         {/* Items Data Grid */}
@@ -344,7 +383,9 @@ const Items = () => {
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((item: any) => (
+                    filtered
+                      .slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage))
+                      .map((item: any) => (
                       <tr key={item._id} className="hover:bg-muted/30 transition-colors">
                         <td className="px-6 py-4 font-bold text-slate-800">{item.description}</td>
                         <td className="px-6 py-4">
@@ -386,6 +427,24 @@ const Items = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Pagination Footer */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
+          <p className="text-xs font-bold text-muted-foreground italic">
+            Showing 1 to {filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage)).length} of {filtered.length} entries
+          </p>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+              Previous
+            </Button>
+            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
+              1
+            </div>
+            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+              Next
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* View Item Details */}

@@ -37,7 +37,9 @@ import {
   FileSpreadsheet,
   FileJson,
   FileType,
-  Printer
+  Printer,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -122,6 +124,13 @@ const Customers = () => {
     groups: "",
   });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importState, setImportState] = useState({
+    file: null as File | null,
+    group: "",
+    defaultPassword: ""
+  });
+  const [showPassword, setShowPassword] = useState(false);
   const {
     data: customers = [],
     isLoading,
@@ -672,10 +681,96 @@ const Customers = () => {
               </Dialog>
             )}
             {can("Customers", "Create") && (
-              <Button variant="outline">
-                <Upload className="mr-2 h-4 w-4" />
-                Import Customers
-              </Button>
+              <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="rounded-xl font-black gap-2 shadow-lg px-6 h-11 uppercase text-xs tracking-widest">
+                    <Upload className="h-4 w-4" />
+                    Import Customers
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-xl">
+                  <DialogHeader>
+                    <DialogTitle>Import Customers</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-6 py-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase tracking-widest text-slate-500">Choose CSV File <span className="text-destructive">*</span></Label>
+                      <Input 
+                        type="file" 
+                        accept=".csv"
+                        className="h-11 rounded-xl"
+                        onChange={(e) => setImportState({...importState, file: e.target.files ? e.target.files[0] : null})}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase tracking-widest text-slate-500">Groups</Label>
+                      <Select value={importState.group} onValueChange={(val) => setImportState({...importState, group: val})}>
+                        <SelectTrigger className="h-11 rounded-xl">
+                          <SelectValue placeholder="Select Group" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {groups.map(g => (
+                            <SelectItem key={g._id} value={g._id}>{g.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase tracking-widest text-slate-500">Default password for all contacts</Label>
+                      <div className="relative">
+                        <Input 
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Enter default password"
+                          className="h-11 rounded-xl pr-10"
+                          value={importState.defaultPassword}
+                          onChange={(e) => setImportState({...importState, defaultPassword: e.target.value})}
+                        />
+                        <button
+                          type="button"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                          onClick={() => setShowPassword(!showPassword)}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">If empty, passwords will be generated automatically and sent via email (if configured).</p>
+                    </div>
+                  </div>
+                  <DialogFooter className="gap-2 sm:gap-0">
+                    <Button 
+                      variant="outline" 
+                      className="rounded-xl font-bold uppercase text-[10px] tracking-widest"
+                      onClick={() => {
+                        if (!importState.file) {
+                          toast({ title: "Error", description: "Please choose a CSV file.", variant: "destructive" });
+                          return;
+                        }
+                        toast({ title: "Simulating", description: "Simulating import... (no data saved)" });
+                      }}
+                    >
+                      Simulate Import
+                    </Button>
+                    <Button 
+                      className="rounded-xl font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20"
+                      onClick={() => {
+                        if (!importState.file) {
+                          toast({ title: "Error", description: "Please choose a CSV file.", variant: "destructive" });
+                          return;
+                        }
+                        toast({ title: "Importing", description: "Import process started..." });
+                        setTimeout(() => {
+                           setIsImportOpen(false);
+                           setImportState({ file: null, group: "", defaultPassword: "" });
+                        }, 1000);
+                      }}
+                    >
+                      Import
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             )}
           </div>
           <Button

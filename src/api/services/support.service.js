@@ -16,7 +16,12 @@ export const supportService = {
     return apiClient.get(`/kb/articles${query}`);
   },
   createKBGroup: (data) => apiClient.post("/kb/groups", data),
+  updateKBGroup: (id, data) => apiClient.put(`/kb/groups/${id}`, data),
+  deleteKBGroup: (id) => apiClient.delete(`/kb/groups/${id}`),
+
   createKBArticle: (data) => apiClient.post("/kb/articles", data),
+  updateKBArticle: (id, data) => apiClient.put(`/kb/articles/${id}`, data),
+  deleteKBArticle: (id) => apiClient.delete(`/kb/articles/${id}`),
 
   // Departments
   getDepartments: () => apiClient.get("/departments"),

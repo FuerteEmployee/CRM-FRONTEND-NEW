@@ -60,12 +60,7 @@ export function normalizeToHex(color: string): string {
   return `#${r}${g}${b}`;
 }
 
-export const applyThemeToDom = (theme: any) => {
-  const root = document.documentElement;
-  
-  if (!theme) return;
-
-  const mapping: Record<string, string[]> = {
+export const mapping: Record<string, string[]> = {
     'adminArea': [
       'sidebarBackground', '--sidebar-background', 
       'sidebarForeground', '--sidebar-foreground', 
@@ -122,7 +117,7 @@ export const applyThemeToDom = (theme: any) => {
       'homeopathy', '--tag-homeopathy',
       'hospital', '--tag-hospital',
       'jaimin', '--tag-jaimin',
-      'jaiminFollowups', '--tag-jaiminfollowups',
+      'jaiminfollowups', '--tag-jaiminfollowups',
       'jewellery', '--tag-jewellery',
       'meetingDoneWithAdil', '--tag-meetingdonewithadil',
       'meetingDoneWithYagnesh', '--tag-meetingdonewithyagnesh',
@@ -137,7 +132,36 @@ export const applyThemeToDom = (theme: any) => {
       'warm', '--tag-warm',
       'yagnesh', '--tag-yagnesh'
     ],
+};
+
+export const clearThemeFromDom = () => {
+  const root = document.documentElement;
+  Object.values(mapping).forEach(pairs => {
+    for (let i = 0; i < pairs.length; i += 2) {
+      const variable = pairs[i + 1];
+      root.style.removeProperty(variable);
+      if (variable === '--primary') {
+        root.style.removeProperty('--ring');
+      }
+    }
+  });
+
+  const removeStyle = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) el.remove();
   };
+
+  removeStyle('custom-css-both');
+  removeStyle('custom-css-admin');
+  removeStyle('custom-css-customers');
+};
+
+export const applyThemeToDom = (theme: any) => {
+  const root = document.documentElement;
+  
+  if (!theme) return;
+
+
 
   Object.entries(mapping).forEach(([section, pairs]) => {
     const themeSection = theme[section];

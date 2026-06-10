@@ -29,6 +29,7 @@ import {
   Printer,
   Eye,
   CreditCard,
+  Zap,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
@@ -37,6 +38,7 @@ import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
+import { ExportButton } from "@/components/ui/export-button";
 
 const Payments = () => {
   const [search, setSearch] = useState("");
@@ -173,42 +175,28 @@ const Payments = () => {
                 ))}
               </SelectContent>
             </Select>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 rounded-lg font-bold uppercase tracking-wider text-[10px] gap-2 border-none bg-background shadow-sm"
-                >
-                  <Download className="h-3.5 w-3.5 text-primary" />
-                  Export
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-40 rounded-xl border-border/50 shadow-xl p-1">
-                <DropdownMenuItem
-                  onClick={() => handleExport("pdf")}
-                  className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
-                >
-                  <FileText className="h-4 w-4 text-red-500 group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-bold">PDF</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleExport("csv")}
-                  className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
-                >
-                  <FileText className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-bold">CSV</span>
-                </DropdownMenuItem>
-                <div className="h-px bg-border/50 my-1 mx-1" />
-                <DropdownMenuItem
-                  onClick={() => handleExport("print")}
-                  className="gap-3 py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
-                >
-                  <Printer className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-bold">Print</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest border-border/50 shadow-sm hover:bg-muted/50"
+              onClick={() => toast({ title: "Bulk Actions", description: "Select items first to apply bulk actions." })}
+            >
+              <Zap className="h-3.5 w-3.5 text-primary" />
+              Bulk Actions
+            </Button>
+            <ExportButton 
+              data={filtered} 
+              filename="payments" 
+              columns={[
+                { header: "Payment #", key: (p) => p._id?.substring(0, 8) || "" },
+                { header: "Invoice #", key: (p) => p.invoice?.number || "N/A" },
+                { header: "Customer", key: (p) => p.invoice?.client?.company || "N/A" },
+                { header: "Payment Mode", key: (p) => p.paymentmode || "Bank Transfer" },
+                { header: "Transaction ID", key: (p) => p.transactionid || "-" },
+                { header: "Amount", key: "amount" },
+                { header: "Date", key: "date" }
+              ]} 
+            />
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

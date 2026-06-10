@@ -7,6 +7,156 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
+    --foreground: 0 0% 0%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 0%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 0%;
+
+    --primary: 0 0% 0%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 0%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 40%;
+
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 0%;
+
+    --destructive: 0 0% 0%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 0 0% 0%;
+
+    --radius: 0.625rem;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 0 0% 0%;
+    --sidebar-primary: 0 0% 0%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 96%;
+    --sidebar-accent-foreground: 0 0% 0%;
+    --sidebar-border: 0 0% 90%;
+    --sidebar-ring: 0 0% 0%;
+
+    --header-background: 0 0% 100%;
+    --header-links: 0 0% 0%;
+
+    --success: 0 0% 0%;
+    --success-foreground: 0 0% 100%;
+    --warning: 0 0% 0%;
+    --warning-foreground: 0 0% 100%;
+    --info: 0 0% 0%;
+    --info-foreground: 0 0% 100%;
+    
+    /* Custom Theme Variables */
+    --table-links-color: 0 0% 0%;
+    --table-links-hover-color: 0 0% 40%;
+    --table-headings-color: 0 0% 40%;
+    --items-table-heading-bg: 0 0% 96%;
+    --items-table-heading-text: 0 0% 0%;
+    --modal-heading-bg: 0 0% 100%;
+    --modal-heading-color: 0 0% 0%;
+    --modal-close-color: 0 0% 40%;
+    --modal-header-text: 0 0% 40%;
+    --main-content-bg: 0 0% 100%;
+    
+    /* Customer Area Variables */
+    --customer-nav-bg: 0 0% 100%;
+    --customer-nav-links: 0 0% 0%;
+    --customer-footer-bg: 0 0% 100%;
+    --customer-footer-text: 0 0% 40%;
+    
+    /* General Settings Variables */
+    --links-color: 0 0% 0%;
+    --links-hover-color: 0 0% 40%;
+    --admin-login-bg: 0 0% 100%;
+    --text-muted: 0 0% 40%;
+    --text-danger: 0 0% 0%;
+    --text-warning: 0 0% 0%;
+    --text-info: 0 0% 0%;
+    --text-success: 0 0% 0%;
+
+    --tag-adsleads: 0 0% 0%;
+    --tag-brijtag: 0 0% 0%;
+    --tag-ceramic: 0 0% 0%;
+    --tag-closedtoday: 0 0% 0%;
+    --tag-education: 0 0% 0%;
+    --tag-furniture: 0 0% 0%;
+    --tag-god: 0 0% 0%;
+    --tag-homeopathy: 0 0% 0%;
+    --tag-hospital: 0 0% 0%;
+    --tag-jaimin: 0 0% 0%;
+    --tag-jaiminfollowups: 0 0% 0%;
+    --tag-jewellery: 0 0% 0%;
+    --tag-meetingdonewithadil: 0 0% 0%;
+    --tag-meetingdonewithyagnesh: 0 0% 0%;
+    --tag-metaads: 0 0% 0%;
+    --tag-morbi: 0 0% 0%;
+    --tag-naturopathy: 0 0% 0%;
+    --tag-podcast: 0 0% 0%;
+    --tag-solidsurface: 0 0% 0%;
+    --tag-studyroomreferral: 0 0% 0%;
+    --tag-supermarket: 0 0% 0%;
+    --tag-tiles: 0 0% 0%;
+    --tag-warm: 0 0% 0%;
+    --tag-yagnesh: 0 0% 0%;
+  }
+
+  .dark {
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+
+    --card: 0 0% 5%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 0 0% 5%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 0 0% 100%;
+    --primary-foreground: 0 0% 0%;
+
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
+
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 0% 100%;
+    --destructive-foreground: 0 0% 0%;
+
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 0 0% 100%;
+
+    --sidebar-background: 0 0% 0%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-accent: 0 0% 15%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 20%;
+    --sidebar-ring: 0 0% 100%;
+
+    --success: 0 0% 100%;
+    --success-foreground: 0 0% 0%;
+    --warning: 0 0% 100%;
+    --warning-foreground: 0 0% 0%;
+    --info: 0 0% 100%;
+    --info-foreground: 0 0% 0%;
+  }
+
+  .color {
+    --background: 0 0% 100%;
     --foreground: 220 20% 14%;
 
     --card: 0 0% 100%;
@@ -34,8 +184,6 @@
     --input: 214 25% 91%;
     --ring: var(--primary); /* Link ring to primary */
 
-    --radius: 0.625rem;
-
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 220 20% 20%;
     --sidebar-primary: var(--primary); /* Link sidebar primary to global primary */
@@ -54,6 +202,7 @@
     --warning-foreground: 0 0% 100%;
     --info: 213 44% 25%;
     --info-foreground: 0 0% 100%;
+    
     /* Custom Theme Variables */
     --table-links-color: 221 83% 53%;
     --table-links-hover-color: 221 83% 40%;
@@ -65,6 +214,7 @@
     --modal-close-color: 215 16% 47%;
     --modal-header-text: 215 16% 47%;
     --main-content-bg: 210 20% 98%;
+    
     /* Customer Area Variables */
     --customer-nav-bg: 0 0% 100%;
     --customer-nav-links: 220 20% 14%;
@@ -105,119 +255,6 @@
     --tag-tiles: 221 83% 53%;
     --tag-warm: 221 83% 53%;
     --tag-yagnesh: 221 83% 53%;
-  }
-
-  .dark {
-    --background: 220 20% 7%;
-    --foreground: 210 20% 94%;
-
-    --card: 220 20% 10%;
-    --card-foreground: 210 20% 94%;
-
-    --popover: 220 20% 10%;
-    --popover-foreground: 210 20% 94%;
-
-    --primary: 213 44% 35%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 220 20% 15%;
-    --secondary-foreground: 210 20% 94%;
-
-    --muted: 220 20% 15%;
-    --muted-foreground: 215 16% 57%;
-
-    --accent: 220 20% 15%;
-    --accent-foreground: 210 20% 94%;
-
-    --destructive: 0 62% 30%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 220 20% 18%;
-    --input: 220 20% 18%;
-    --ring: 213 44% 35%;
-
-    --sidebar-background: 220 20% 8%;
-    --sidebar-foreground: 210 20% 94%;
-    --sidebar-primary: 213 44% 35%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 20% 14%;
-    --sidebar-accent-foreground: 210 20% 94%;
-    --sidebar-border: 220 20% 18%;
-    --sidebar-ring: 213 44% 35%;
-
-    --success: 152 69% 40%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    --info: 213 44% 35%;
-    --info-foreground: 0 0% 100%;
-  }
-
-  .color {
-    --background: 230 40% 12%;
-    --foreground: 210 40% 98%;
-
-    --card: 230 40% 16%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 230 40% 16%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 280 80% 65%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 320 80% 55%;
-    --secondary-foreground: 0 0% 100%;
-
-    --muted: 230 30% 25%;
-    --muted-foreground: 210 20% 75%;
-
-    --accent: 320 80% 55%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 230 30% 30%;
-    --input: 230 30% 30%;
-    --ring: 280 80% 65%;
-
-    --sidebar-background: 230 45% 10%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 280 80% 65%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 320 80% 55%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 230 30% 30%;
-    --sidebar-ring: 280 80% 65%;
-
-    --success: 152 69% 40%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    --info: 200 90% 50%;
-    --info-foreground: 0 0% 100%;
-    
-    --table-links-color: 280 80% 65%;
-    --table-links-hover-color: 280 80% 75%;
-    --table-headings-color: 210 20% 75%;
-    --items-table-heading-bg: 230 40% 18%;
-    --items-table-heading-text: 210 40% 98%;
-    --modal-heading-bg: 230 40% 14%;
-    --modal-heading-color: 210 40% 98%;
-    --modal-close-color: 210 20% 75%;
-    --modal-header-text: 210 20% 75%;
-    --main-content-bg: 230 40% 10%;
-    
-    --customer-nav-bg: 230 45% 10%;
-    --customer-nav-links: 210 40% 98%;
-    --customer-footer-bg: 230 45% 10%;
-    --customer-footer-text: 210 20% 75%;
-    
-    --links-color: 280 80% 65%;
-    --links-hover-color: 280 80% 75%;
-    --admin-login-bg: 230 45% 10%;
-    --text-muted: 210 20% 75%;
   }
 }
 

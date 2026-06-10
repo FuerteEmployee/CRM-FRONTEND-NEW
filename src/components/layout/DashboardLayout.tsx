@@ -1,6 +1,7 @@
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { TopNavbar } from "./TopNavbar";
+import { FuerteAIAssistant } from "../shared/FuerteAIAssistant";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,6 +13,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
           <main className="flex-1 p-4 md:p-6 overflow-auto animate-fade-in">{children}</main>
         </div>
       </div>
+      <FuerteAIAssistant />
     </SidebarProvider>
   );
 }

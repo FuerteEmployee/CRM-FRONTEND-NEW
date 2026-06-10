@@ -106,16 +106,16 @@ const Leads = () => {
     setSelectedLead(lead);
     if (lead) {
       setLeadForm({
-        status: typeof lead.status === 'object' ? lead.status?._id : (lead.status || ""),
-        source: typeof lead.source === 'object' ? lead.source?._id : (lead.source || ""),
-        assigned: lead.assigned?._id || lead.assigned || "",
-        tags: lead.tags || "",
+        status: lead.status?._id || lead.status?.id || (typeof lead.status === 'string' ? lead.status : ""),
+        source: lead.source?._id || lead.source?.id || (typeof lead.source === 'string' ? lead.source : ""),
+        assigned: lead.assigned?._id || lead.assigned?.id || (typeof lead.assigned === 'string' ? lead.assigned : ""),
+        tags: Array.isArray(lead.tags) ? lead.tags.join(", ") : (lead.tags || ""),
         name: lead.name || "",
-        position: lead.position || "",
+        position: lead.position || lead.title || "",
         email: lead.email || "",
         website: lead.website || "",
         phonenumber: lead.phonenumber || lead.phoneNumber || "",
-        lead_value: lead.lead_value || lead.leadValue || "",
+        lead_value: lead.lead_value ?? lead.leadValue ?? "",
         company: lead.company || "",
         address: lead.address || "",
         city: lead.city || "",
@@ -204,10 +204,20 @@ const Leads = () => {
     // Sanitize payload to avoid CastError for empty ObjectIds
     const payload = { ...leadForm };
     if (!payload.assigned) delete payload.assigned;
+    if (payload.lead_value === "") payload.lead_value = 0;
     
     // Map position to title for backend consistency
     if (payload.position) {
       payload.title = payload.position;
+    }
+
+    // Ensure tags is sent as a string (which is what the backend model expects)
+    if (typeof payload.tags !== 'string') {
+      if (Array.isArray(payload.tags)) {
+        payload.tags = payload.tags.join(",");
+      } else {
+        payload.tags = "";
+      }
     }
     
     if (modalMode === "create") createLeadMutation.mutate(payload);
@@ -230,7 +240,7 @@ const Leads = () => {
         if (bulkState.status) updates.status = bulkState.status;
         if (bulkState.source) updates.source = bulkState.source;
         if (bulkState.assigned) updates.assigned = bulkState.assigned;
-        if (bulkState.tags) updates.tags = bulkState.tags.split(",").map(s => s.trim());
+        if (bulkState.tags) updates.tags = bulkState.tags.split(",").map(s => s.trim()).join(", ");
         if (bulkState.is_public) updates.is_public = bulkState.is_public;
         if (bulkState.contacted_today) updates.contacted_today = bulkState.contacted_today;
 
@@ -494,17 +504,19 @@ const Leads = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Footer buttons moved inside the scrollable area to prevent cutoff */}
+                  <div className="mt-8 flex justify-end gap-3 pt-6 border-t border-slate-100">
+                    <DialogClose asChild>
+                      <Button variant="ghost" className="h-9 rounded-xl px-6 font-black uppercase text-[10px] tracking-widest text-slate-500 hover:bg-slate-200 transition-all">Close</Button>
+                    </DialogClose>
+                    {modalMode !== "view" && (
+                      <Button onClick={handleSaveLead} disabled={createLeadMutation.isPending || updateLeadMutation.isPending} className="h-9 rounded-xl px-6 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 transition-all hover:scale-105">
+                        {createLeadMutation.isPending || updateLeadMutation.isPending ? "Saving..." : modalMode === "create" ? "Save Lead" : "Update Lead"}
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <DialogFooter className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
-                  <DialogClose asChild>
-                    <Button variant="ghost" className="h-9 rounded-xl px-6 font-black uppercase text-[10px] tracking-widest text-slate-500 hover:bg-slate-200 transition-all">Close</Button>
-                  </DialogClose>
-                  {modalMode !== "view" && (
-                    <Button onClick={handleSaveLead} disabled={createLeadMutation.isPending || updateLeadMutation.isPending} className="h-9 rounded-xl px-6 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 transition-all hover:scale-105">
-                      {createLeadMutation.isPending || updateLeadMutation.isPending ? "Saving..." : modalMode === "create" ? "Save Lead" : "Update Lead"}
-                    </Button>
-                  )}
-                </DialogFooter>
               </DialogContent>
             </Dialog>
           )}
@@ -580,13 +592,7 @@ const Leads = () => {
                 </DropdownMenu>
 
                 {/* Bulk Actions Modal */}
-                <Dialog open={bulkActionOpen} onOpenChange={(open) => {
-                  if (open && selectedLeads.length === 0) {
-                    toast({ title: "Error", description: "Please select at least one lead first.", variant: "destructive" });
-                    return;
-                  }
-                  setBulkActionOpen(open);
-                }}>
+                <Dialog open={bulkActionOpen} onOpenChange={setBulkActionOpen}>
                   <DialogTrigger asChild>
                     <Button variant="outline" className="h-10 rounded-xl px-4 border-slate-200 bg-white font-black uppercase text-[10px] tracking-widest">
                       Bulk Actions
@@ -682,19 +688,21 @@ const Leads = () => {
                             </div>
                         </div>
                       </div>
+
+                      {/* Footer buttons moved inside the scrollable area to prevent cutoff */}
+                      <div className="mt-8 flex justify-end gap-4 pt-6 border-t border-slate-100">
+                        <DialogClose asChild>
+                          <Button variant="ghost" className="h-11 rounded-xl px-8 font-black uppercase text-xs tracking-widest text-slate-500 hover:bg-slate-200 transition-all">Close</Button>
+                        </DialogClose>
+                        <Button 
+                          className="h-11 rounded-xl px-8 font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 transition-all hover:scale-105"
+                          onClick={handleBulkAction}
+                          disabled={isBulkLoading}
+                        >
+                          {isBulkLoading ? "Processing..." : "Confirm Action"}
+                        </Button>
+                      </div>
                     </div>
-                    <DialogFooter className="p-8 bg-slate-50 border-t border-slate-100 flex gap-4">
-                      <DialogClose asChild>
-                        <Button variant="ghost" className="h-11 rounded-xl px-8 font-black uppercase text-xs tracking-widest text-slate-500 hover:bg-slate-200 transition-all">Close</Button>
-                      </DialogClose>
-                      <Button 
-                        className="h-11 rounded-xl px-8 font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 transition-all hover:scale-105"
-                        onClick={handleBulkAction}
-                        disabled={isBulkLoading}
-                      >
-                        {isBulkLoading ? "Processing..." : "Confirm Action"}
-                      </Button>
-                    </DialogFooter>
                   </DialogContent>
                 </Dialog>
               </div>
@@ -796,10 +804,34 @@ const Leads = () => {
                             </div>
                         </td>
                         <td className="p-4">
-                            <div className="flex items-center gap-1.5">
-                                <div className="h-5 w-5 rounded-md bg-blue-50 flex items-center justify-center"><User className="h-2.5 w-2.5 text-blue-500" /></div>
-                                <span className="text-[10px] font-bold text-slate-500">Unassigned</span>
-                            </div>
+                            {l.assigned ? (
+                                (() => {
+                                    const assignedObj = typeof l.assigned === 'object' ? l.assigned : staff.find(s => s._id === l.assigned);
+                                    if (assignedObj) {
+                                        return (
+                                            <div className="flex items-center gap-1.5 group/assigned cursor-pointer">
+                                                <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center group-hover/assigned:bg-primary/20 transition-colors">
+                                                    <User className="h-2.5 w-2.5 text-primary" />
+                                                </div>
+                                                <span className="text-[10px] font-bold text-slate-700 group-hover/assigned:text-primary transition-colors">
+                                                    {assignedObj.firstname} {assignedObj.lastname}
+                                                </span>
+                                            </div>
+                                        );
+                                    }
+                                    return (
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="h-5 w-5 rounded-md bg-slate-50 flex items-center justify-center"><User className="h-2.5 w-2.5 text-slate-400" /></div>
+                                            <span className="text-[10px] font-bold text-slate-400">Unknown</span>
+                                        </div>
+                                    );
+                                })()
+                            ) : (
+                                <div className="flex items-center gap-1.5">
+                                    <div className="h-5 w-5 rounded-md bg-slate-50 flex items-center justify-center"><User className="h-2.5 w-2.5 text-slate-400" /></div>
+                                    <span className="text-[10px] font-bold text-slate-400">Unassigned</span>
+                                </div>
+                            )}
                         </td>
                         <td className="p-4">
                             <Badge className="rounded-lg border-none font-black text-[8px] uppercase tracking-wider px-2 h-5 bg-blue-50 text-blue-500">

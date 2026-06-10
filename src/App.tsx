@@ -91,6 +91,7 @@ import SetupAIFineTuning from "./pages/setup/SetupAIFineTuning";
 import SetupHelp from "./pages/setup/SetupHelp";
 import SetupStaffForm from "./pages/setup/SetupStaffForm";
 import EstimateRequestFormBuilder from "./pages/setup/EstimateRequestFormBuilder";
+import SetupMainSidebar from "./pages/setup/SetupMainSidebar";
 import PublicForm from "./pages/PublicForm";
 import { ClientLayout } from "./components/layout/ClientLayout";
 import ClientLogin from "./pages/client/ClientLogin";
@@ -296,12 +297,14 @@ const MainApp = () => {
           <Route path="meetings" element={<ProtectedRoute><Meetings /></ProtectedRoute>} />
           <Route path="meetings/room/:roomId" element={<ProtectedRoute><MeetingRoom /></ProtectedRoute>} />
           <Route path="bookmarks" element={<ProtectedRoute><Bookmarks /></ProtectedRoute>} />
+          <Route path="reports/master" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
           <Route path="reports/sales" element={<ProtectedRoute><ReportSales /></ProtectedRoute>} />
           <Route path="reports/expenses" element={<ProtectedRoute><ReportExpenses /></ProtectedRoute>} />
           <Route path="reports/expenses-vs-income" element={<ProtectedRoute><ReportExpensesVsIncome /></ProtectedRoute>} />
           <Route path="reports/leads" element={<ProtectedRoute><ReportLeads /></ProtectedRoute>} />
           <Route path="reports/timesheets" element={<ProtectedRoute><ReportTimesheets /></ProtectedRoute>} />
           <Route path="reports/kb-articles" element={<ProtectedRoute><ReportKBArticles /></ProtectedRoute>} />
+          <Route path="reports/kb" element={<ProtectedRoute><ReportKBArticles /></ProtectedRoute>} />
           
           {/* Setup sub-routes */}
           <Route path="setup/staff" element={<ProtectedRoute><SetupStaff /></ProtectedRoute>} />
@@ -323,7 +326,6 @@ const MainApp = () => {
           <Route path="setup/finance/payment-modes" element={<ProtectedRoute><SetupPaymentModes /></ProtectedRoute>} />
           <Route path="setup/finance/expense-categories" element={<ProtectedRoute><SetupExpensesCategories /></ProtectedRoute>} />
           <Route path="setup/contracts/contract-types" element={<ProtectedRoute><SetupContractTypes /></ProtectedRoute>} />
-          <Route path="setup/estimate-request/form-fields" element={<ProtectedRoute><SetupEstimateRequestFormFields /></ProtectedRoute>} />
           <Route path="setup/estimate-request/statuses" element={<ProtectedRoute><SetupEstimateStatus /></ProtectedRoute>} />
           <Route path="setup/estimate-request/form-fields/new" element={<ProtectedRoute><EstimateRequestFormBuilder /></ProtectedRoute>} />
           <Route path="setup/estimate-request/form-fields/:id" element={<ProtectedRoute><EstimateRequestFormBuilder /></ProtectedRoute>} />
@@ -336,6 +338,7 @@ const MainApp = () => {
           <Route path="setup/settings" element={<ProtectedRoute><SetupSettings /></ProtectedRoute>} />
           <Route path="setup/ai-fine-tuning" element={<ProtectedRoute><SetupAIFineTuning /></ProtectedRoute>} />
           <Route path="setup/help" element={<ProtectedRoute><SetupHelp /></ProtectedRoute>} />
+          <Route path="setup/mainsidebar" element={<ProtectedRoute><SetupMainSidebar /></ProtectedRoute>} />
         </Route>
 
         <Route path="/forms/quote/:id" element={<PublicForm />} />

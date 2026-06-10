@@ -95,44 +95,44 @@ export default function InvoiceCreate() {
 
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
-    queryFn: customerService.getAll
+    queryFn: () => customerService.getAll().then((res: any) => res.data || res)
   });
 
   const { data: customer } = useQuery({
     queryKey: ["customer", formData.client],
-    queryFn: () => customerService.getById(formData.client),
+    queryFn: () => customerService.getById(formData.client).then((res: any) => res.data || res),
     enabled: !!formData.client
   });
 
   const { data: projects = [] } = useQuery({
     queryKey: ["projects", formData.client],
-    queryFn: () => projectService.getAll({ clientid: formData.client }),
+    queryFn: () => projectService.getAll({ clientid: formData.client }).then((res: any) => res.data || res),
     enabled: !!formData.client
   });
 
   const { data: staff = [] } = useQuery({
     queryKey: ["staff"],
-    queryFn: staffService.getAll
+    queryFn: () => staffService.getAll().then((res: any) => res.data || res)
   });
 
   const { data: currencies = [] } = useQuery({
     queryKey: ["currencies"],
-    queryFn: financeService.getCurrencies
+    queryFn: () => financeService.getCurrencies().then((res: any) => res.data || res)
   });
 
   const { data: paymentModes = [] } = useQuery({
     queryKey: ["payment-modes"],
-    queryFn: financeService.getPaymentModes
+    queryFn: () => financeService.getPaymentModes().then((res: any) => res.data || res)
   });
 
   const { data: availableItems = [] } = useQuery({
     queryKey: ["items"],
-    queryFn: itemService.getAll
+    queryFn: () => itemService.getAll().then((res: any) => res.data || res)
   });
 
   const { data: taxes = [] } = useQuery({
     queryKey: ["taxes"],
-    queryFn: financeService.getTaxes
+    queryFn: () => financeService.getTaxes().then((res: any) => res.data || res)
   });
 
   useEffect(() => {
