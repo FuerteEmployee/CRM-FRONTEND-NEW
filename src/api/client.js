@@ -1,6 +1,6 @@
-const BASE_URL = import.meta.env.MODE === "development" 
+const BASE_URL = import.meta.env.VITE_API_URL || (import.meta.env.MODE === "development" 
   ? "http://localhost:5000/api" 
-  : "https://crm-backend-1-qurl.onrender.com/api";
+  : "https://rosybrown-bat-931514.hostingersite.com/api");
 
 
 

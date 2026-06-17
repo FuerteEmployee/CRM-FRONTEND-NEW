@@ -24,6 +24,7 @@ import {
   Users,
   FileText,
   Receipt,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -379,6 +380,16 @@ export function TopNavbar() {
 
           {/* Menu Items */}
           <div className="py-1">
+            {user?.is_superadmin && (
+              <DropdownMenuItem
+                className="gap-3 px-4 py-2.5 cursor-pointer text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20 mb-1"
+                onClick={() => navigate("/super-admin/dashboard")}
+              >
+                <ShieldCheck className="h-4 w-4" />
+                <span className="text-sm font-semibold">Super Admin Panel</span>
+              </DropdownMenuItem>
+            )}
+
             <DropdownMenuItem
               className="gap-3 px-4 py-2.5 cursor-pointer"
               onClick={() => navigate("/admin/profile")}

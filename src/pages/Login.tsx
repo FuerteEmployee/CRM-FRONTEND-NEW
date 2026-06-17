@@ -51,7 +51,11 @@ const Login = () => {
       } else {
         toast.success("Welcome back!");
         refreshPermissions();
-        navigate("/admin/dashboard");
+        if (response.user?.is_superadmin) {
+          navigate("/super-admin/dashboard");
+        } else {
+          navigate("/admin/dashboard");
+        }
       }
     } catch (error: any) {
       toast.error(error.message || "Invalid credentials. Please try again.");

@@ -13,15 +13,18 @@ interface User {
   lastname: string;
   email: string;
   admin: boolean;
+  is_superadmin?: boolean;
   role?: any;
 }
 
 interface PermissionContextType {
   user: User | null;
   permissions: Record<string, Record<string, boolean>>;
+  planModules: Record<string, boolean> | null;
   isAdmin: boolean;
   can: (feature: string, capability: string) => boolean;
   canView: (feature: string) => boolean;
+  isModuleEnabled: (moduleKey: string) => boolean;
   loading: boolean;
   refreshPermissions: () => void;
   logout: () => Promise<void>;
@@ -44,6 +47,10 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
     const cached = localStorage.getItem("crm_permissions");
     return cached ? JSON.parse(cached) : {};
   });
+  const [planModules, setPlanModules] = useState<Record<string, boolean> | null>(() => {
+    const cached = localStorage.getItem("crm_plan_modules");
+    return cached ? JSON.parse(cached) : null;
+  });
   const [loading, setLoading] = useState(true);
 
   const syncPermissions = async () => {
@@ -60,6 +67,10 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
       if (data.permissions) {
         setPermissions(data.permissions);
         localStorage.setItem("crm_permissions", JSON.stringify(data.permissions));
+      }
+      if (data.plan_modules) {
+        setPlanModules(data.plan_modules);
+        localStorage.setItem("crm_plan_modules", JSON.stringify(data.plan_modules));
       }
     } catch (error) {
       console.error("Error syncing permissions:", error);
@@ -108,8 +119,17 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
     } finally {
       setUser(null);
       setPermissions({});
+      setPlanModules(null);
+      localStorage.removeItem("crm_user");
+      localStorage.removeItem("crm_permissions");
+      localStorage.removeItem("crm_plan_modules");
       queryClient.clear();
     }
+  };
+
+  const isModuleEnabled = (moduleKey: string): boolean => {
+    if (!planModules) return true; // no plan restriction → show everything
+    return planModules[moduleKey] !== false;
   };
 
   const refreshPermissions = () => {
@@ -121,9 +141,11 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
       value={{
         user,
         permissions,
+        planModules,
         isAdmin,
         can,
         canView,
+        isModuleEnabled,
         loading,
         refreshPermissions,
         logout,

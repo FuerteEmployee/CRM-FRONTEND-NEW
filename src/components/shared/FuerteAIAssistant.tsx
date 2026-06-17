@@ -1,17 +1,24 @@
+import "regenerator-runtime/runtime";
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Mic, MicOff } from "lucide-react";
+import { Bot, Mic } from "lucide-react";
+import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 
 export function FuerteAIAssistant() {
-  const [isListening, setIsListening] = useState(false);
   const [isAwake, setIsAwake] = useState(false);
-  const [transcript, setTranscript] = useState("");
-  const recognitionRef = useRef<any>(null);
   const isAwakeRef = useRef(false);
   const awakeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const {
+    transcript,
+    listening,
+    resetTranscript,
+    browserSupportsSpeechRecognition,
+  } = useSpeechRecognition();
 
   const setAwakeState = (awake: boolean) => {
     setIsAwake(awake);
@@ -19,65 +26,29 @@ export function FuerteAIAssistant() {
   };
 
   useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) return;
+    if (transcript) {
+      processCommand(transcript.toLowerCase());
+    }
+  }, [transcript]);
 
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = false;
-    recognition.lang = "en-US";
-    recognitionRef.current = recognition;
-
-    recognition.onresult = (event: any) => {
-      const current = event.resultIndex;
-      const result = event.results[current][0].transcript.toLowerCase();
-      setTranscript(result);
-      processCommand(result);
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error("Speech recognition error", event.error);
-    };
-
-    recognition.onend = () => {
-      if (isListening && recognitionRef.current) {
-        try {
-            recognitionRef.current.start(); // Keep listening if it was intentionally started
-        } catch(e) {}
-      }
-    };
-
-    return () => {
-      if (recognitionRef.current) {
-          recognitionRef.current.stop();
-      }
-    };
-  }, [isListening]);
+  if (!browserSupportsSpeechRecognition) {
+    return null; // Or show a fallback UI
+  }
 
   const toggleListening = () => {
-    if (isListening) {
-      if (recognitionRef.current) recognitionRef.current.stop();
-      setIsListening(false);
+    if (listening) {
+      SpeechRecognition.stopListening();
       toast({
         title: "Fuerte AI",
         description: "Microphone off. AI is sleeping.",
       });
     } else {
-      try {
-        if (recognitionRef.current) recognitionRef.current.start();
-        setIsListening(true);
-        toast({
-          title: "Fuerte AI",
-          description: "AI is working and listening in the background.",
-        });
-      } catch (e) {
-        console.error(e);
-        toast({
-          title: "Fuerte AI Error",
-          description: "Could not start microphone.",
-          variant: "destructive",
-        });
-      }
+      resetTranscript();
+      SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
+      toast({
+        title: "Fuerte AI",
+        description: "AI is working and listening in the background.",
+      });
     }
   };
 
@@ -86,20 +57,22 @@ export function FuerteAIAssistant() {
     const wakeWords = ["fuerte", "for the ai", "40 ai", "forty", "forte", "four tay", "for tay"];
     const isWakeWordPresent = wakeWords.some(word => command.includes(word));
     
-    if (isWakeWordPresent) {
+    if (isWakeWordPresent && !isAwakeRef.current) {
       setAwakeState(true);
       toast({
         title: "Fuerte AI",
         description: "Listening...",
       });
+      resetTranscript();
       if (awakeTimeoutRef.current) clearTimeout(awakeTimeoutRef.current);
       awakeTimeoutRef.current = setTimeout(() => {
         setAwakeState(false);
-        setTranscript("");
+        resetTranscript();
       }, 10000);
+      return; // Return early to wait for the actual command after wake word
     }
 
-    if (!isAwakeRef.current && !isWakeWordPresent) return;
+    if (!isAwakeRef.current) return;
 
     let handled = false;
 
@@ -197,15 +170,11 @@ export function FuerteAIAssistant() {
         title: "Fuerte AI",
         description: `Executed: "${command}"`,
       });
-      setTimeout(() => {
-         setAwakeState(false);
-         setTranscript("");
-      }, 2000);
-    } else if (isAwakeRef.current && !isWakeWordPresent) {
-      toast({
-        title: "Fuerte AI",
-        description: `Heard: "${command}"`,
-      });
+      setAwakeState(false);
+      resetTranscript();
+    } else if (isAwakeRef.current && command.length > 3) {
+      // Optional: Give feedback that it heard something but didn't match a command
+      // Avoid spamming if it just picked up noise
     }
   };
 
@@ -213,9 +182,9 @@ export function FuerteAIAssistant() {
     <div className="fixed bottom-6 right-6 z-50">
       <button
         onClick={toggleListening}
-        className={`h-14 w-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 border-4 border-white ${isListening ? 'bg-primary text-white animate-pulse shadow-primary/40' : 'bg-slate-900 text-white hover:bg-slate-800 hover:scale-105'}`}
+        className={`h-14 w-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 border-4 border-white ${listening ? 'bg-primary text-white animate-pulse shadow-primary/40' : 'bg-slate-900 text-white hover:bg-slate-800 hover:scale-105'}`}
       >
-        {isListening ? <Mic className="h-6 w-6" /> : <Bot className="h-6 w-6" />}
+        {listening ? <Mic className="h-6 w-6" /> : <Bot className="h-6 w-6" />}
       </button>
     </div>
   );

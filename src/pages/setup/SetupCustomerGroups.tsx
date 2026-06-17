@@ -13,11 +13,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService } from "@/api/services/customer.service";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Loader2 } from "lucide-react";
+import { Loader2, Zap } from "lucide-react";
 
 export default function SetupCustomerGroups() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
+  const [bulkGroupNames, setBulkGroupNames] = useState("");
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
 
   const queryClient = useQueryClient();
@@ -49,6 +51,17 @@ export default function SetupCustomerGroups() {
       setNewGroupName("");
     },
     onError: () => toast.error("Failed to create customer group"),
+  });
+
+  const bulkCreateMutation = useMutation({
+    mutationFn: (groups: string[]) => customerService.bulkCreateGroup({ groups }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customer-groups"] });
+      toast.success("Customer groups created successfully");
+      setIsBulkModalOpen(false);
+      setBulkGroupNames("");
+    },
+    onError: () => toast.error("Failed to create customer groups"),
   });
 
   const updateMutation = useMutation({
@@ -86,12 +99,40 @@ export default function SetupCustomerGroups() {
     }
   };
 
+  const handleBulkSave = () => {
+    if (!bulkGroupNames.trim()) {
+      toast.error("Please enter at least one group name");
+      return;
+    }
+    const names = bulkGroupNames.split(/[\n,]+/).map(n => n.trim()).filter(n => n);
+    if (names.length === 0) {
+      toast.error("No valid group names found");
+      return;
+    }
+    bulkCreateMutation.mutate(names);
+  };
+
   return (
     <>
       <DataTablePage
         title="Customer Groups"
         subtitle="Manage and organize your customer categories"
         addLabel="New Customer Group"
+        toolbarActions={
+          can("Customers", "Create") && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setBulkGroupNames("");
+                setIsBulkModalOpen(true);
+              }}
+              className="flex items-center gap-2 h-11 px-6 rounded-xl border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all duration-200 font-black text-[10px] uppercase tracking-widest"
+            >
+              <Zap className="h-4 w-4" />
+              Bulk Actions
+            </Button>
+          )
+        }
         onAdd={
           can("Customers", "Create")
             ? () => {
@@ -182,6 +223,53 @@ export default function SetupCustomerGroups() {
               }
             >
               {createMutation.isPending || updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Create Modal */}
+      <Dialog open={isBulkModalOpen} onOpenChange={setIsBulkModalOpen}>
+        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-xl">
+          <DialogHeader className="px-6 py-4 border-b">
+            <DialogTitle className="text-lg font-semibold text-gray-800">
+              Bulk Create Customer Groups
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">
+                <span className="text-red-500 mr-1">*</span>Group Names (comma or newline separated)
+              </label>
+              <textarea
+                value={bulkGroupNames}
+                onChange={(e) => setBulkGroupNames(e.target.value)}
+                className="w-full min-h-[120px] p-3 border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:outline-none text-gray-800"
+                placeholder="Group A, Group B&#10;Group C"
+                disabled={!can("Customers", "Create")}
+              />
+            </div>
+          </div>
+          <DialogFooter className="px-6 py-4 bg-gray-50 flex items-center justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setIsBulkModalOpen(false)}
+              className="bg-white border-gray-300 text-foreground hover:bg-gray-100 px-6 h-10 font-medium"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={handleBulkSave}
+              className="px-8 h-10 font-medium"
+              disabled={
+                bulkCreateMutation.isPending || !can("Customers", "Create")
+              }
+            >
+              {bulkCreateMutation.isPending ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 "Save"

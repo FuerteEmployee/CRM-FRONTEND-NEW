@@ -36,11 +36,8 @@ export const ThemeStyleProvider = ({ children }: { children: React.ReactNode }) 
     return null;
   }, [globalSettings]);
 
-  // Apply cache immediately on mount (before paint if possible)
+  // Apply cache immediately on mount before first paint — no preference gate
   useLayoutEffect(() => {
-    const pref = localStorage.getItem('crm_theme_preference');
-    if (pref !== 'color') return; // Do not inject inline styles if not in color mode
-
     const cached = localStorage.getItem(THEME_CACHE_KEY);
     if (cached && !hasAppliedInitial) {
       try {
@@ -53,28 +50,25 @@ export const ThemeStyleProvider = ({ children }: { children: React.ReactNode }) 
     }
   }, []);
 
-  // Apply theme when fetched from API
+  // Apply theme when fetched from API — always apply if data exists
   useEffect(() => {
-    const pref = localStorage.getItem('crm_theme_preference');
-    if (themeSettings && pref === 'color') {
+    if (themeSettings) {
       applyThemeToDom(themeSettings);
+      localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(themeSettings));
     }
   }, [themeSettings]);
 
   const updateTheme = async (newTheme) => {
     try {
-      // Update cache immediately for instant feedback
+      // Cache and activate color mode so theme persists across page navigation
       localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(newTheme));
-      
-      const pref = localStorage.getItem('crm_theme_preference');
-      if (pref === 'color') {
-        applyThemeToDom(newTheme);
-      }
+      localStorage.setItem('crm_theme_preference', 'color');
+      applyThemeToDom(newTheme);
 
       await utilityService.updateSettings({
         settings: [{ name: 'theme_style', value: newTheme }]
       });
-      
+
       // Sync global settings context so other components see the change
       await refreshSettings();
     } catch (error) {

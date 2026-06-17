@@ -57,6 +57,7 @@ interface DataTableProps<T> {
   enableBulkActions?: boolean;
   onBulkDelete?: (items: T[]) => void;
   bulkActions?: { label: string; value: string; action: (items: T[]) => void }[];
+  toolbarActions?: React.ReactNode;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -74,6 +75,7 @@ export function DataTable<T extends Record<string, any>>({
   enableBulkActions = false,
   onBulkDelete,
   bulkActions,
+  toolbarActions,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -264,6 +266,7 @@ export function DataTable<T extends Record<string, any>>({
             <FileDown className="h-4 w-4" />
             Export
           </Button>
+          {toolbarActions}
           {onRefresh && (
             <Button
               variant="outline"

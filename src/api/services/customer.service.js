@@ -34,6 +34,7 @@ export const customerService = {
   // Groups
   getGroups: () => apiClient.get("/client-groups"),
   createGroup: (data) => apiClient.post("/client-groups", data),
+  bulkCreateGroup: (data) => apiClient.post("/client-groups/bulk", data),
   updateGroup: (id, data) => apiClient.put(`/client-groups/${id}`, data),
   deleteGroup: (id) => apiClient.delete(`/client-groups/${id}`),
 

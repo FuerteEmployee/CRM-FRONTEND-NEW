@@ -20,6 +20,8 @@ interface DataTablePageProps<T> {
   showIdColumn?: boolean;
   children?: React.ReactNode;
   renderCustomActions?: (item: T) => React.ReactNode;
+  headerActions?: React.ReactNode;
+  toolbarActions?: React.ReactNode;
 }
 
 export function DataTablePage<T extends Record<string, any>>({
@@ -38,6 +40,8 @@ export function DataTablePage<T extends Record<string, any>>({
   showIdColumn = true,
   children,
   renderCustomActions,
+  headerActions,
+  toolbarActions,
 }: DataTablePageProps<T>) {
   return (
     <DashboardLayout>
@@ -50,17 +54,20 @@ export function DataTablePage<T extends Record<string, any>>({
               <p className="text-muted-foreground text-sm">{subtitle}</p>
             )}
           </div>
-          {onAdd && (
-            <Button
-              onClick={onAdd}
-              className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground flex items-center transition-all duration-300 active:scale-95"
-            >
-              <Plus className="h-4 w-4" />
-              <span>
-                {addLabel || `New ${title.slice(0, -1)}`}
-              </span>
-            </Button>
-          )}
+          <div className="flex items-center gap-3">
+            {headerActions}
+            {onAdd && (
+              <Button
+                onClick={onAdd}
+                className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest bg-primary hover:bg-primary/90 text-primary-foreground flex items-center transition-all duration-300 active:scale-95"
+              >
+                <Plus className="h-4 w-4" />
+                <span>
+                  {addLabel || `New ${title.slice(0, -1)}`}
+                </span>
+              </Button>
+            )}
+          </div>
         </div>
 
         <DataTable
@@ -74,6 +81,7 @@ export function DataTablePage<T extends Record<string, any>>({
           idField={idField}
           showIdColumn={showIdColumn}
           renderCustomActions={renderCustomActions}
+          toolbarActions={toolbarActions}
         >
           {children}
         </DataTable>

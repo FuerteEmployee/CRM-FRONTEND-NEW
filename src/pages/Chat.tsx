@@ -41,6 +41,7 @@ import { usePermissionContext } from "@/context/PermissionContext";
 import { format } from "date-fns";
 import { io, Socket } from "socket.io-client";
 import EmojiPicker from "emoji-picker-react";
+import { useNotificationContext } from "@/context/NotificationContext";
 import { JitsiMeeting } from "@jitsi/react-sdk";
 
 interface ChatContact {
@@ -74,6 +75,7 @@ interface ChatMessage {
 
 const Chat = () => {
   const { user: currentUser } = usePermissionContext();
+  const { setChatUnreadCount } = useNotificationContext();
   const [contacts, setContacts] = useState<ChatContact[]>([]);
   const [selectedContact, setSelectedContact] = useState<ChatContact | null>(
     null,
@@ -100,11 +102,19 @@ const Chat = () => {
 
   useEffect(() => {
     selectedContactRef.current = selectedContact;
+    if (selectedContact) {
+      sessionStorage.setItem("activeChatId", selectedContact._id);
+    } else {
+      sessionStorage.removeItem("activeChatId");
+    }
+    return () => sessionStorage.removeItem("activeChatId");
   }, [selectedContact]);
 
   // Connect to WebSocket on mount
   useEffect(() => {
-    socketRef.current = io("http://localhost:5000", {
+    socketRef.current = io(import.meta.env.VITE_SOCKET_URL || (import.meta.env.MODE === "development"
+      ? "http://localhost:5000"
+      : "https://rosybrown-bat-931514.hostingersite.com"), {
       withCredentials: true,
     });
 
@@ -200,6 +210,11 @@ const Chat = () => {
           setMessages(data || []);
           setHasMore(data.length === 50); // Initial limit is 50
           setTimeout(scrollToBottom, 50); // Scroll to bottom on initial load
+
+          if (selectedContact.unreadCount > 0) {
+            setChatUnreadCount(prev => Math.max(0, prev - selectedContact.unreadCount));
+            setContacts(prev => prev.map(c => c._id === selectedContact._id ? { ...c, unreadCount: 0 } : c));
+          }
         }
       } catch (error) {
         console.error("Failed to fetch history:", error);
@@ -344,7 +359,9 @@ const Chat = () => {
           <div className="w-80 border-r flex flex-col bg-card">
             <div className="p-3 border-b">
               <div className="flex items-center justify-between mb-2">
-                <h2 className="font-semibold">Messages</h2>
+                <h2 className="font-semibold">
+                  Messages
+                </h2>
                 <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => setIsCreateGroupOpen(true)}>
                   Create Group
                 </Button>
@@ -389,11 +406,18 @@ const Chat = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium truncate">
-                          {contact.isGroup ? contact.firstname : `${contact.firstname} ${contact.lastname}`}
-                        </span>
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <span className="text-sm font-medium truncate">
+                            {contact.isGroup ? contact.firstname : `${contact.firstname} ${contact.lastname}`}
+                          </span>
+                          {contact.unreadCount > 0 && selectedContact?._id !== contact._id && (
+                            <Badge variant="destructive" className="h-4 min-w-[16px] px-1 rounded-full p-0 flex items-center justify-center text-[10px] shrink-0">
+                              {contact.unreadCount}
+                            </Badge>
+                          )}
+                        </div>
                         {contact.lastMessageTime && (
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-[10px] text-muted-foreground shrink-0 ml-2">
                             {format(new Date(contact.lastMessageTime), "HH:mm")}
                           </span>
                         )}
@@ -402,12 +426,6 @@ const Chat = () => {
                         {contact.lastMessage || contact.email}
                       </p>
                     </div>
-                    {contact.unreadCount > 0 &&
-                      selectedContact?._id !== contact._id && (
-                        <Badge className="h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px]">
-                          {contact.unreadCount}
-                        </Badge>
-                      )}
                   </button>
                 ))
               )}

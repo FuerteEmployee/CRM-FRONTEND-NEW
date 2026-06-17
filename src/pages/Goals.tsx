@@ -6,17 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from "@/components/ui/table";
-import { 
-  Plus, 
-  Search, 
+import {
+  Plus,
+  Search,
   FileDown,
   Target,
   Calendar,
@@ -28,7 +28,7 @@ import {
   Bell,
   Zap
 } from "lucide-react";
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -109,7 +109,7 @@ const Goals = () => {
     }
   };
 
-  const filteredData = goals.filter((item: any) => 
+  const filteredData = goals.filter((item: any) =>
     item.subject?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.goal_type?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -125,7 +125,7 @@ const Goals = () => {
             <h1 className="text-2xl font-bold tracking-tight">Goals</h1>
             <p className="text-muted-foreground text-sm font-medium">Set and track organizational achievements</p>
           </div>
-          <Button 
+          <Button
             className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
             onClick={() => navigate("/admin/goals/new")}
           >
@@ -149,7 +149,7 @@ const Goals = () => {
                     ))}
                   </SelectContent>
                 </Select>
-                
+
                 <Select>
                   <SelectTrigger className="w-[120px] h-9 rounded-lg border-border/40 bg-background font-bold text-xs uppercase tracking-wider">
                     <div className="flex items-center gap-2">
@@ -184,17 +184,17 @@ const Goals = () => {
                     </DialogHeader>
                     <div className="space-y-5 pt-4">
                       <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id="massDelete" 
+                        <Checkbox
+                          id="massDelete"
                           className="border-red-500 data-[state=checked]:bg-red-500"
                           checked={bulkState.massDelete}
-                          onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                          onCheckedChange={(checked) => setBulkState({ ...bulkState, massDelete: checked as boolean })}
                         />
                         <Label htmlFor="massDelete" className="text-red-600 font-bold">Mass Delete</Label>
                       </div>
-                      <Button 
-                        onClick={handleBulkAction} 
-                        disabled={!bulkState.massDelete || isBulkLoading} 
+                      <Button
+                        onClick={handleBulkAction}
+                        disabled={!bulkState.massDelete || isBulkLoading}
                         className="w-full bg-primary hover:bg-primary/90 text-white font-bold tracking-widest uppercase text-xs h-12"
                       >
                         {isBulkLoading ? "Processing..." : "Confirm"}
@@ -206,8 +206,8 @@ const Goals = () => {
 
               <div className="flex-1 max-w-sm relative group">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                <Input 
-                  placeholder="Search goals..." 
+                <Input
+                  placeholder="Search goals..."
                   className="pl-10 h-9 rounded-lg border-border/40 bg-background focus-visible:ring-primary/20"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -221,7 +221,7 @@ const Goals = () => {
                 <TableHeader className="bg-accent/10">
                   <TableRow className="hover:bg-transparent border-border/40">
                     <TableHead className="w-12 px-4 py-4">
-                      <Checkbox 
+                      <Checkbox
                         checked={selectedItems.length > 0 && selectedItems.length === displayData.length}
                         onCheckedChange={handleSelectAll}
                         className="border-muted-foreground/30"
@@ -242,7 +242,7 @@ const Goals = () => {
                     Array.from({ length: 3 }).map((_, i) => (
                       <TableRow key={i} className="animate-pulse border-border/40">
                         <TableCell colSpan={9} className="py-8">
-                           <div className="h-4 bg-muted rounded w-full" />
+                          <div className="h-4 bg-muted rounded w-full" />
                         </TableCell>
                       </TableRow>
                     ))
@@ -250,7 +250,7 @@ const Goals = () => {
                     displayData.map((goal: any) => (
                       <TableRow key={goal._id} className="hover:bg-accent/5 transition-colors border-border/40 group">
                         <TableCell className="px-4 py-4">
-                          <Checkbox 
+                          <Checkbox
                             checked={selectedItems.includes(goal._id)}
                             onCheckedChange={(checked) => {
                               if (checked) setSelectedItems([...selectedItems, goal._id]);
@@ -269,7 +269,7 @@ const Goals = () => {
                           {goal.staff_member?.firstname} {goal.staff_member?.lastname}
                         </TableCell>
                         <TableCell className="py-4 text-muted-foreground font-bold">
-                           {goal.achievement}
+                          {goal.achievement}
                         </TableCell>
                         <TableCell className="py-4 text-muted-foreground font-medium">
                           {format(new Date(goal.start_date), "MMM dd, yyyy")}
@@ -278,24 +278,24 @@ const Goals = () => {
                           {format(new Date(goal.end_date), "MMM dd, yyyy")}
                         </TableCell>
                         <TableCell className="py-4">
-                           <div className="flex items-center px-3 py-1 rounded-full bg-accent/10 border border-border/40 w-fit">
-                             <span className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">{goal.goal_type}</span>
-                           </div>
+                          <div className="flex items-center px-3 py-1 rounded-full bg-accent/10 border border-border/40 w-fit">
+                            <span className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">{goal.goal_type}</span>
+                          </div>
                         </TableCell>
                         <TableCell className="py-4">
                           <div className="w-full max-w-[120px] space-y-1.5">
                             <div className="flex justify-between text-[10px] font-bold">
-                               <span className="text-muted-foreground">Progress</span>
-                               <span className="text-primary">{goal.progress}%</span>
+                              <span className="text-muted-foreground">Progress</span>
+                              <span className="text-primary">{goal.progress}%</span>
                             </div>
                             <Progress value={goal.progress} className="h-1.5 bg-accent/20" />
                           </div>
                         </TableCell>
                         <TableCell className="py-4 text-right pr-6">
                           <div className="flex items-center justify-end gap-1">
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors"
                               onClick={() => {
                                 setSelectedGoal(goal);
@@ -304,17 +304,17 @@ const Goals = () => {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               className="h-8 w-8 rounded-lg hover:bg-amber-50 hover:text-amber-600 transition-colors"
                               onClick={() => navigate(`/admin/goals/edit/${goal._id}`)}
                             >
                               <Edit2 className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 transition-colors"
                               onClick={() => handleDelete(goal._id)}
                             >

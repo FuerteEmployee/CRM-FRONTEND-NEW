@@ -70,6 +70,8 @@ import { mainSidebarService } from "@/api/services/mainsidebar.service";
 import * as Icons from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSettings } from "@/context/SettingsContext";
+import { Badge } from "@/components/ui/badge";
+import { useNotificationContext } from "@/context/NotificationContext";
 
 const fallbackNav = [
   { title: "Dashboard", url: "/admin/dashboard", icon: "LayoutDashboard", group: "Main" },
@@ -176,8 +178,9 @@ export function AppSidebar() {
   const { state, setOpenMobile, isMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { isAdmin, canView } = usePermissions();
+  const { isAdmin, canView, isModuleEnabled } = usePermissions();
   const { getSetting } = useSettings();
+  const { chatUnreadCount } = useNotificationContext();
 
   const companyName = getSetting("companyName", "CRMPro");
   const logoLight = getSetting("compLogoLight", "");
@@ -202,7 +205,7 @@ export function AppSidebar() {
       (localStorage.getItem("sidebar:menuMode") as "main" | "setup") || "main",
   );
 
-  const { data: dbMenuItems = [], isLoading: menusLoading } = useQuery({
+  const { data: dbMenuItems = [] as any[], isLoading: menusLoading } = useQuery<any[]>({
     queryKey: ["mainsidebar"],
     queryFn: mainSidebarService.getSidebarItems,
   });
@@ -254,8 +257,35 @@ export function AppSidebar() {
       if (isMobile) setOpenMobile(false);
     };
 
+    // Map sidebar URLs → plan module keys (SaasPlan.module_access)
+    const URL_MODULE_MAP: Record<string, string> = {
+      "/admin/tasks": "tasks",
+      "/admin/projects": "projects",
+      "/admin/support": "support",
+      "/admin/leads": "leads",
+      "/admin/contracts": "contracts",
+      "/admin/invoices": "finance",
+      "/admin/payments": "finance",
+      "/admin/credit-notes": "finance",
+      "/admin/subscriptions": "finance",
+      "/admin/expenses": "finance",
+      "/admin/items": "finance",
+      "/admin/proposals": "finance",
+      "/admin/estimates": "finance",
+      "/admin/estimate-request": "finance",
+      "/admin/reports/expenses": "finance",
+      "/admin/reports/expenses-vs-income": "finance",
+      "/admin/reports/sales": "finance",
+      "/admin/reports/leads": "leads",
+    };
+
     return items
       .filter((item: any) => !item.permission || canView(item.permission))
+      .filter((item: any) => {
+        // Hide modules disabled in the tenant's plan
+        const moduleKey = URL_MODULE_MAP[item.url];
+        return !moduleKey || isModuleEnabled(moduleKey);
+      })
       .map((item: any) => {
         const isActive =
           location.pathname === item.url ||
@@ -276,7 +306,14 @@ export function AppSidebar() {
                 >
                   <IconComponent className="mr-2.5 h-4 w-4 shrink-0 transition-colors" />
                   {!collapsed && (
-                    <span className="text-[13px] font-medium">{item.title}</span>
+                    <span className="text-[13px] font-medium flex-1 text-left flex items-center justify-between">
+                      {item.title}
+                      {item.title === "Chat" && chatUnreadCount > 0 && (
+                        <Badge variant="destructive" className="ml-auto h-5 px-1.5 flex items-center justify-center text-[10px] min-w-[20px]">
+                          {chatUnreadCount}
+                        </Badge>
+                      )}
+                    </span>
                   )}
                 </a>
               ) : (
@@ -294,7 +331,14 @@ export function AppSidebar() {
                     className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isActive ? "text-primary" : ""}`}
                   />
                   {!collapsed && (
-                    <span className="text-[13px] font-medium">{item.title}</span>
+                    <span className="text-[13px] font-medium flex-1 text-left flex items-center justify-between">
+                      {item.title}
+                      {item.title === "Chat" && chatUnreadCount > 0 && (
+                        <Badge variant="destructive" className="ml-auto h-5 px-1.5 flex items-center justify-center text-[10px] min-w-[20px]">
+                          {chatUnreadCount}
+                        </Badge>
+                      )}
+                    </span>
                   )}
                 </NavLink>
               )}
@@ -307,7 +351,7 @@ export function AppSidebar() {
   const renderCollapsibleItem = (
     label: string,
     icon: React.ElementType,
-    items: (typeof mainNav)[number][],
+    items: any[],
   ) => {
     const visibleItems = items.filter(
       (item: any) => !item.permission || canView(item.permission),
@@ -393,6 +437,7 @@ export function AppSidebar() {
                 {hasSetupAccess && (
                   <SidebarMenuItem>
                     <SidebarMenuButton
+                      id="tour-setup"
                       onClick={() => {
                         setMenuMode("setup");
                         setOpenSections({});
@@ -556,6 +601,7 @@ export function AppSidebar() {
                             </a>
                           ) : (
                             <NavLink
+                              id={item.title === "Settings" ? "tour-settings" : undefined}
                               to={item.url!}
                               end
                               onClick={() => isMobile && setOpenMobile(false)}

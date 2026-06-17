@@ -1,5 +1,6 @@
 import { useState } from "react"; 
-import { Plus, Search, ChevronDown, Download, FileSpreadsheet, FileJson, FileType, Printer, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, ArrowRight, X, Trash2, CheckCircle2, Clock, Flame, Snowflake, Sun, Ghost, MapPin, ClipboardList, Users, UserMinus, Edit, Eye } from "lucide-react";
+import { Plus, Search, ChevronDown, Download, FileSpreadsheet, FileJson, FileType, Printer, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, ArrowRight, X, Trash2, CheckCircle2, Clock, Flame, Snowflake, Sun, Ghost, MapPin, ClipboardList, Users, UserMinus, Edit, Eye, Upload } from "lucide-react";
+import Papa from "papaparse";
 
 import { cn } from "@/lib/utils";
 
@@ -172,6 +173,62 @@ const Leads = () => {
     }
   });
 
+  const importLeadsMutation = useMutation({
+    mutationFn: leadService.importLeads,
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      toast({ title: "Import Successful", description: data.message || `Imported leads` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Import Failed", description: err.response?.data?.message || err.message, variant: "destructive" });
+    }
+  });
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        if (results.errors.length > 0) {
+          toast({ title: "Parsing Error", description: "There was an error parsing the CSV file.", variant: "destructive" });
+          return;
+        }
+        
+        const defaultStatusId = statuses.length > 0 ? statuses[0]._id : undefined;
+        const defaultSourceId = sources.length > 0 ? sources[0]._id : undefined;
+
+        const leadsData = results.data.map((row: any) => ({
+           name: row.name || row.Name || "",
+           email: row.email || row.Email || "",
+           company: row.company || row.Company || "",
+           phonenumber: row.phonenumber || row.phone || row.Phone || "",
+           position: row.position || row.Position || row.title || row.Title || "",
+           lead_value: Number(row.lead_value || row.leadValue || row.Value || 0),
+           address: row.address || row.Address || "",
+           city: row.city || row.City || "",
+           state: row.state || row.State || "",
+           country: row.country || row.Country || "",
+           zip: row.zip || row.Zip || "",
+           status: defaultStatusId,
+           source: defaultSourceId,
+        }));
+        
+        const validLeads = leadsData.filter(l => l.name);
+        
+        if (validLeads.length === 0) {
+          toast({ title: "Error", description: "No valid leads found in CSV. Make sure 'name' or 'Name' column exists.", variant: "destructive" });
+          return;
+        }
+
+        importLeadsMutation.mutate(validLeads);
+      }
+    });
+    e.target.value = '';
+  };
+
   const createStatusMutation = useMutation({
     mutationFn: (name: string) => leadService.createStatus({ name, color: "#3b82f6", order: 0 }),
     onSuccess: () => {
@@ -316,11 +373,21 @@ const Leads = () => {
             <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Management Pipeline</p>
           </div>
           {can("Leads", "Create") && (
-            <Dialog open={isNewLeadOpen} onOpenChange={setIsNewLeadOpen}>
-                <Button onClick={() => openModal("create")} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest transition-all hover:scale-105">
-                  <Plus className="h-4 w-4 stroke-[3]" />
-                  New Lead
-                </Button>
+            <div className="flex gap-2 items-center">
+              <div>
+                <input type="file" id="import-csv" accept=".csv" className="hidden" onChange={handleFileUpload} />
+                <Label htmlFor="import-csv">
+                  <div className="cursor-pointer flex items-center justify-center rounded-xl font-black gap-2 shadow-sm border border-slate-200 px-4 h-11 uppercase text-xs tracking-widest transition-all hover:bg-slate-50 text-slate-700">
+                    <Upload className="h-4 w-4 stroke-[3]" />
+                    {importLeadsMutation.isPending ? "Importing..." : "Import Leads"}
+                  </div>
+                </Label>
+              </div>
+              <Dialog open={isNewLeadOpen} onOpenChange={setIsNewLeadOpen}>
+                  <Button onClick={() => openModal("create")} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest transition-all hover:scale-105">
+                    <Plus className="h-4 w-4 stroke-[3]" />
+                    New Lead
+                  </Button>
               <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white">
                 <div className="bg-white px-8 py-5 flex items-center justify-between border-b border-slate-300 shrink-0">
                   <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
@@ -519,6 +586,7 @@ const Leads = () => {
                 </div>
               </DialogContent>
             </Dialog>
+            </div>
           )}
         </div>
 

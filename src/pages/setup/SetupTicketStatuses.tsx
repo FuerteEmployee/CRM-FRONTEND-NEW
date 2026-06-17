@@ -14,11 +14,13 @@ import { supportService } from "@/api/services/support.service";
 import { toast } from "sonner";
 import { useRef } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { Loader2 } from "lucide-react";
+import { Loader2, Zap } from "lucide-react";
 
 export default function SetupTicketStatuses() {
   const colorInputRef = useRef<HTMLInputElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [bulkNames, setBulkNames] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
@@ -42,6 +44,19 @@ export default function SetupTicketStatuses() {
     },
   });
 
+
+
+  const bulkCreateMutation = useMutation({
+    mutationFn: (items: string[]) => supportService.bulkCreateTicketStatus({ items }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ticket-statuses"] });
+      toast.success("Bulk create successful");
+      setIsBulkModalOpen(false);
+      setBulkNames("");
+    },
+    onError: () => toast.error("Failed to bulk create"),
+  });
+
   const createMutation = useMutation({
     mutationFn: (data: any) => supportService.createTicketStatus(data),
     onSuccess: () => {
@@ -49,9 +64,8 @@ export default function SetupTicketStatuses() {
       toast.success("Ticket status created successfully");
       closeModal();
     },
-    onError: () => toast.error("Failed to create ticket status"),
+    onError: () => toast.error("Failed to create ticket status")
   });
-
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) =>
       supportService.updateTicketStatus(id, data),
@@ -109,11 +123,37 @@ export default function SetupTicketStatuses() {
     }
   };
 
+  const handleBulkSave = () => {
+    if (!bulkNames.trim()) {
+      toast({ title: "Error", variant: "destructive", description: "Please enter at least one item" });
+      return;
+    }
+    const names = bulkNames.split(/[\n,]+/).map(n => n.trim()).filter(n => n);
+    if (names.length === 0) return;
+    bulkCreateMutation.mutate(names);
+  };
+
+
   return (
     <>
       <DataTablePage
         title="Ticket Statuses"
         subtitle="Define workflow statuses and display order for support tickets"
+        toolbarActions={
+          can("Support", "Create") && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setBulkNames("");
+                setIsBulkModalOpen(true);
+              }}
+              className="flex items-center gap-2 h-11 px-6 rounded-xl border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all duration-200 font-black text-[10px] uppercase tracking-widest"
+            >
+              <Zap className="h-4 w-4" />
+              Bulk Actions
+            </Button>
+          )
+        }
         addLabel="Add Status"
         onAdd={can("Support", "Create") ? () => openModal() : undefined}
         onRefresh={() =>
@@ -258,6 +298,53 @@ export default function SetupTicketStatuses() {
               }
             >
               {createMutation.isPending || updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    
+      {/* Bulk Create Modal */}
+      <Dialog open={isBulkModalOpen} onOpenChange={setIsBulkModalOpen}>
+        <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-xl">
+          <DialogHeader className="px-6 py-4 border-b">
+            <DialogTitle className="text-lg font-semibold text-gray-800">
+              Bulk Create Ticket Statuses
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">
+                <span className="text-red-500 mr-1">*</span>Item Names (comma or newline separated)
+              </label>
+              <textarea
+                value={bulkNames}
+                onChange={(e) => setBulkNames(e.target.value)}
+                className="w-full min-h-[120px] p-3 border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:outline-none text-gray-800"
+                placeholder="Item A, Item B\nItem C"
+                disabled={!can("Support", "Create")}
+              />
+            </div>
+          </div>
+          <DialogFooter className="px-6 py-4 bg-gray-50 flex items-center justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setIsBulkModalOpen(false)}
+              className="bg-white border-gray-300 text-foreground hover:bg-gray-100 px-6 h-10 font-medium"
+            >
+              Close
+            </Button>
+            <Button
+              onClick={handleBulkSave}
+              className="px-8 h-10 font-medium"
+              disabled={
+                bulkCreateMutation.isPending || !can("Support", "Create")
+              }
+            >
+              {bulkCreateMutation.isPending ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 "Save"

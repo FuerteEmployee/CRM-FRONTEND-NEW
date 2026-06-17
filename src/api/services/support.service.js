@@ -26,18 +26,21 @@ export const supportService = {
   // Departments
   getDepartments: () => apiClient.get("/departments"),
   createDepartment: (data) => apiClient.post("/departments", data),
+  bulkCreateDepartment: (data) => apiClient.post("/departments/bulk", data),
   updateDepartment: (id, data) => apiClient.put(`/departments/${id}`, data),
   deleteDepartment: (id) => apiClient.delete(`/departments/${id}`),
 
   // Priorities
   getPriorities: () => apiClient.get("/priorities"),
   createPriority: (data) => apiClient.post("/priorities", data),
+  bulkCreatePriority: (data) => apiClient.post("/priorities/bulk", data),
   updatePriority: (id, data) => apiClient.put(`/priorities/${id}`, data),
   deletePriority: (id) => apiClient.delete(`/priorities/${id}`),
 
   // Ticket Statuses
   getTicketStatuses: () => apiClient.get("/ticket-statuses"),
   createTicketStatus: (data) => apiClient.post("/ticket-statuses", data),
+  bulkCreateTicketStatus: (data) => apiClient.post("/ticket-statuses/bulk", data),
   updateTicketStatus: (id, data) =>
     apiClient.put(`/ticket-statuses/${id}`, data),
   deleteTicketStatus: (id) => apiClient.delete(`/ticket-statuses/${id}`),
@@ -49,6 +52,7 @@ export const supportService = {
   // Predefined Replies
   getPredefinedReplies: () => apiClient.get("/predefined-replies"),
   createPredefinedReply: (data) => apiClient.post("/predefined-replies", data),
+  bulkCreatePredefinedReply: (data) => apiClient.post("/predefined-replies/bulk", data),
   updatePredefinedReply: (id, data) => apiClient.put(`/predefined-replies/${id}`, data),
   deletePredefinedReply: (id) => apiClient.delete(`/predefined-replies/${id}`),
 };

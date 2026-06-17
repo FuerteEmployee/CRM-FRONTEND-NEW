@@ -792,6 +792,31 @@ const Dashboard = () => {
             side: "top",
             align: 'center'
           }
+        },
+        {
+          element: '#tour-setup',
+          popover: {
+            title: 'Setup Configuration',
+            description: 'This is the Setup menu. Clicking this will flip the sidebar to reveal administrative tools for configuring your CRM.',
+            side: "right",
+            align: 'start',
+            onNextClick: () => {
+              const setupBtn = document.getElementById('tour-setup');
+              if (setupBtn) setupBtn.click();
+              setTimeout(() => {
+                driverObj.moveNext();
+              }, 200);
+            }
+          }
+        },
+        {
+          element: '#tour-settings',
+          popover: {
+            title: 'System Settings',
+            description: 'Once inside Setup, you can access global Settings to manage company details, localizations, and integrations!',
+            side: "right",
+            align: 'start'
+          }
         }
       ]
     });

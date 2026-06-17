@@ -41,6 +41,8 @@ export default function Meetings() {
     status: "Scheduled",
     members: "",
     summary: "",
+    meeting_link: "",
+    reminder_time: "15",
   });
 
   const { data: meetings = [], isLoading } = useQuery({
@@ -113,6 +115,8 @@ export default function Meetings() {
       status: "Scheduled",
       members: "",
       summary: "",
+      meeting_link: "",
+      reminder_time: "15",
     });
   };
 
@@ -126,6 +130,8 @@ export default function Meetings() {
       status: meeting.status || "Scheduled",
       members: Array.isArray(meeting.members) ? meeting.members.join(", ") : meeting.members || "",
       summary: meeting.summary || "",
+      meeting_link: meeting.meeting_link || "",
+      reminder_time: meeting.reminder_time?.toString() || "15",
     });
     setIsModalOpen(true);
   };
@@ -136,15 +142,42 @@ export default function Meetings() {
     }
   };
 
+  const generateMeetLink = () => {
+    const chars = 'abcdefghijklmnopqrstuvwxyz';
+    const getChars = (len: number) => Array.from({length: len}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    setFormData(prev => ({ ...prev, meeting_link: `https://meet.google.com/${getChars(3)}-${getChars(4)}-${getChars(3)}` }));
+  };
+
+  const openGoogleMeet = (link: string) => {
+    if (!link) return;
+    const width = 1100;
+    const height = 750;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+    
+    // Opens Google Meet in a dedicated, app-like popup window
+    window.open(
+      link,
+      "GoogleMeetApp",
+      `width=${width},height=${height},top=${top},left=${left},menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=yes`
+    );
+  };
+
   const handleSave = () => {
     if (!formData.topic || !formData.date) {
       toast({ title: "Validation Error", description: "Topic and Date are required", variant: "destructive" });
+      return;
+    }
+    
+    if (!formData.meeting_link) {
+      toast({ title: "Validation Error", description: "Please provide a Google Meet link", variant: "destructive" });
       return;
     }
 
     const payload = {
       ...formData,
       members: formData.members ? formData.members.split(",").map((m) => m.trim()) : [],
+      reminder_time: parseInt(formData.reminder_time, 10) || 15,
     };
 
     if (editingMeeting) {
@@ -206,17 +239,48 @@ export default function Meetings() {
                   <Label htmlFor="members" className="text-xs font-bold uppercase tracking-wider">Members</Label>
                   <Input id="members" value={formData.members} onChange={handleInputChange} placeholder="Comma-separated emails or names" />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="status" className="text-xs font-bold uppercase tracking-wider">Status</Label>
-                  <Select value={formData.status} onValueChange={(v) => handleSelectChange('status', v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Scheduled">Scheduled</SelectItem>
-                      <SelectItem value="Completed">Completed</SelectItem>
-                      <SelectItem value="Cancelled">Cancelled</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="status" className="text-xs font-bold uppercase tracking-wider">Status</Label>
+                    <Select value={formData.status} onValueChange={(v) => handleSelectChange('status', v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Scheduled">Scheduled</SelectItem>
+                        <SelectItem value="Completed">Completed</SelectItem>
+                        <SelectItem value="Cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="reminder_time" className="text-xs font-bold uppercase tracking-wider">Reminder Alert</Label>
+                    <Select value={formData.reminder_time} onValueChange={(v) => handleSelectChange('reminder_time', v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">At time of meeting</SelectItem>
+                        <SelectItem value="5">5 minutes before</SelectItem>
+                        <SelectItem value="10">10 minutes before</SelectItem>
+                        <SelectItem value="15">15 minutes before</SelectItem>
+                        <SelectItem value="30">30 minutes before</SelectItem>
+                        <SelectItem value="60">1 hour before</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
+                
+                <div className="space-y-2 p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="meeting_link" className="text-xs font-bold uppercase tracking-wider text-blue-700">Google Meet Link <span className="text-red-500">*</span></Label>
+                    <Button type="button" variant="ghost" size="sm" onClick={generateMeetLink} className="h-6 text-[10px] bg-blue-100 hover:bg-blue-200 text-blue-700">
+                      Auto-Generate Link
+                    </Button>
+                  </div>
+                  <Input id="meeting_link" value={formData.meeting_link} onChange={handleInputChange} placeholder="https://meet.google.com/xxx-xxxx-xxx" className="bg-white" />
+                  <p className="text-[10px] text-blue-600/80 font-semibold mt-1">
+                    Please note: Auto-generated Google Meet links require Google Workspace API to be officially valid. You can also paste your own link.
+                  </p>
+                </div>
+                
+
                 <div className="space-y-2">
                   <Label htmlFor="agenda" className="text-xs font-bold uppercase tracking-wider">Agenda</Label>
                   <Textarea id="agenda" value={formData.agenda} onChange={handleInputChange} placeholder="What will be discussed?" className="min-h-[80px]" />
@@ -312,13 +376,21 @@ export default function Meetings() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex items-center justify-end gap-2">
-                            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-blue-600" onClick={() => navigate(`/admin/meetings/room/${meeting._id}`)}>
+                            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-green-600 border-green-200 hover:bg-green-50" onClick={() => {
+                              openGoogleMeet(meeting.meeting_link || "https://meet.google.com/new");
+                            }}>
                               <Video className="h-3.5 w-3.5" />
-                              Join
+                              Join Meet
                             </Button>
+                            
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-500 hover:bg-slate-100" onClick={() => {
-                              navigator.clipboard.writeText(window.location.origin + `/admin/meetings/room/${meeting._id}`);
-                              toast({ title: "Copied!", description: "Meeting link copied to clipboard." });
+                              const link = meeting.meeting_link || "";
+                              if (link) {
+                                navigator.clipboard.writeText(link);
+                                toast({ title: "Copied!", description: "Meeting link copied to clipboard." });
+                              } else {
+                                toast({ title: "Error", description: "No link available to copy.", variant: "destructive" });
+                              }
                             }} title="Copy Link">
                               <Copy className="h-4 w-4" />
                             </Button>

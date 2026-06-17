@@ -3140,7 +3140,7 @@ export default function CustomerView() {
                                         title="View PDF"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/invoices/pdf/${inv._id}`;
+                                          window.location.href = `${import.meta.env.VITE_API_URL || (import.meta.env.MODE === "development" ? "http://localhost:5000/api" : "https://rosybrown-bat-931514.hostingersite.com/api")}/invoices/pdf/${inv._id}`;
                                         }}
                                       >
                                         <Eye className="h-3.5 w-3.5" />
