@@ -160,7 +160,16 @@ export default function FAQ() {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center p-10"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>
+          <div className="space-y-3 mt-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="border border-border rounded-lg p-4 space-y-2">
+                <div className="flex justify-between items-center">
+                  <div className="h-4 w-48 bg-muted animate-pulse rounded" />
+                  <div className="h-4 w-4 bg-muted animate-pulse rounded" />
+                </div>
+              </div>
+            ))}
+          </div>
         ) : Object.keys(faqsByCategory).length === 0 ? (
           <Card className="border-dashed border-2 bg-muted/20">
             <CardContent className="flex flex-col items-center justify-center h-48 pt-6">

@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { AdminDashboardSkeleton } from "@/components/ui/page-skeleton";
+import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -75,7 +77,7 @@ const Dashboard = () => {
   const { user } = usePermissionContext();
 
   // 1. Fetching all dynamic datasets from backend APIs
-  const { data: invoicesList = [] } = useQuery({
+  const { data: invoicesList = [], isLoading } = useQuery({
     queryKey: ["dashboard-invoices"],
     queryFn: async () => {
       const res = await salesService.getInvoices();
@@ -822,6 +824,9 @@ const Dashboard = () => {
     });
     driverObj.drive();
   };
+
+  const showSkeleton = useMinimumLoading(isLoading);
+  if (showSkeleton) return <DashboardLayout><AdminDashboardSkeleton /></DashboardLayout>;
 
   return (
     <DashboardLayout>

@@ -1153,9 +1153,29 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   if (isLoading) {
     return (
       <DashboardLayout>
-        <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-          <div className="h-10 w-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm font-medium text-muted-foreground tracking-widest uppercase">Syncing System Settings...</p>
+        <div className="max-w-4xl mx-auto p-6 space-y-6">
+          <div className="space-y-2">
+            <div className="h-7 w-44 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-64 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-10 bg-muted animate-pulse rounded-lg" />
+            ))}
+          </div>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="border border-border rounded-xl p-5 space-y-4">
+              <div className="h-5 w-36 bg-muted animate-pulse rounded" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {Array.from({ length: 4 }).map((_, j) => (
+                  <div key={j} className="space-y-1.5">
+                    <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+                    <div className="h-10 w-full bg-muted animate-pulse rounded-lg" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </DashboardLayout>
     );

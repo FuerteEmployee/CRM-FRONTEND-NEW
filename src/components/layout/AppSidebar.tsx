@@ -259,24 +259,36 @@ export function AppSidebar() {
 
     // Map sidebar URLs → plan module keys (SaasPlan.module_access)
     const URL_MODULE_MAP: Record<string, string> = {
+      // Finance module
+      "/admin/invoices": "finance",
+      "/admin/payments": "finance",
+      "/admin/credit-notes": "finance",
+      "/admin/items": "finance",
+      // Individual modules
       "/admin/tasks": "tasks",
       "/admin/projects": "projects",
       "/admin/support": "support",
       "/admin/leads": "leads",
       "/admin/contracts": "contracts",
-      "/admin/invoices": "finance",
-      "/admin/payments": "finance",
-      "/admin/credit-notes": "finance",
-      "/admin/subscriptions": "finance",
-      "/admin/expenses": "finance",
-      "/admin/items": "finance",
-      "/admin/proposals": "finance",
-      "/admin/estimates": "finance",
-      "/admin/estimate-request": "finance",
-      "/admin/reports/expenses": "finance",
-      "/admin/reports/expenses-vs-income": "finance",
-      "/admin/reports/sales": "finance",
-      "/admin/reports/leads": "leads",
+      "/admin/chat": "chat",
+      "/admin/meetings": "meetings",
+      "/admin/subscriptions": "subscriptions",
+      "/admin/expenses": "expenses",
+      "/admin/proposals": "proposals",
+      "/admin/estimates": "estimates",
+      "/admin/estimate-request": "estimate_request",
+      "/admin/knowledge-base": "knowledge_base",
+      "/admin/time-tracking": "time_tracking",
+      "/admin/goals": "goals",
+      "/admin/announcements": "announcements",
+      "/admin/calendar": "calendar",
+      "/admin/bookmarks": "bookmarks",
+      // Reports sub-routes
+      "/admin/reports/expenses": "reports",
+      "/admin/reports/expenses-vs-income": "reports",
+      "/admin/reports/sales": "reports",
+      "/admin/reports/leads": "reports",
+      "/admin/reports": "reports",
     };
 
     return items

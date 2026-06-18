@@ -33,7 +33,7 @@ const features = [
 
 const Login = () => {
   const navigate = useNavigate();
-  const { refreshPermissions } = usePermissionContext();
+  const { setFromLoginResponse } = usePermissionContext();
   const { settings } = useSettings();
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState("admin");
@@ -50,7 +50,7 @@ const Login = () => {
         // In a real app, you'd navigate to a 2FA page or show a modal
       } else {
         toast.success("Welcome back!");
-        refreshPermissions();
+        setFromLoginResponse(response.user, response.permissions, response.plan_modules);
         if (response.user?.is_superadmin) {
           navigate("/super-admin/dashboard");
         } else {

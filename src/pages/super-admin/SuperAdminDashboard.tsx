@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Users, Building2, Package, TrendingUp, Activity, CreditCard, ShieldCheck } from "lucide-react";
 import { apiClient as api } from "@/api/client";
+import { SuperAdminDashboardSkeleton } from "@/components/ui/page-skeleton";
+import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 
 interface DashboardMetrics {
   active_customers: number;
@@ -62,13 +64,8 @@ export default function SuperAdminDashboard() {
     }
   ];
 
-  if (loading) {
-    return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Activity className="h-8 w-8 text-blue-600 animate-spin" />
-      </div>
-    );
-  }
+  const showSkeleton = useMinimumLoading(loading);
+  if (showSkeleton) return <SuperAdminDashboardSkeleton />;
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">

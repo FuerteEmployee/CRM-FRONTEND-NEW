@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { apiClient as api } from "@/api/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { SuperAdminTablePageSkeleton } from "@/components/ui/page-skeleton";
+import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 
 interface SaasPlan {
   _id: string;
@@ -150,13 +152,8 @@ export default function SuperAdminCompanies() {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Activity className="h-8 w-8 text-blue-600 animate-spin" />
-      </div>
-    );
-  }
+  const showSkeleton = useMinimumLoading(loading);
+  if (showSkeleton) return <SuperAdminTablePageSkeleton />;
 
   return (
     <>

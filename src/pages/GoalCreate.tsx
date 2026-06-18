@@ -114,8 +114,18 @@ const GoalCreate = () => {
   if (isEdit && isLoadingGoal) {
     return (
       <DashboardLayout>
-        <div className="h-96 flex items-center justify-center">
-          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        <div className="max-w-2xl mx-auto p-6 space-y-5">
+          <div className="space-y-2">
+            <div className="h-7 w-40 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-56 bg-muted animate-pulse rounded" />
+          </div>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="space-y-1.5">
+              <div className="h-4 w-24 bg-muted animate-pulse rounded" />
+              <div className="h-10 w-full bg-muted animate-pulse rounded-lg" />
+            </div>
+          ))}
+          <div className="h-10 w-32 bg-muted animate-pulse rounded-lg" />
         </div>
       </DashboardLayout>
     );

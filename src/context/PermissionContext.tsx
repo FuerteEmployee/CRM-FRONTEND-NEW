@@ -26,7 +26,8 @@ interface PermissionContextType {
   canView: (feature: string) => boolean;
   isModuleEnabled: (moduleKey: string) => boolean;
   loading: boolean;
-  refreshPermissions: () => void;
+  refreshPermissions: () => Promise<void>;
+  setFromLoginResponse: (userData: User, permsData: Record<string, Record<string, boolean>>, planModulesData?: Record<string, boolean> | null) => void;
   logout: () => Promise<void>;
 }
 
@@ -133,7 +134,22 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const refreshPermissions = () => {
-    syncPermissions();
+    return syncPermissions();
+  };
+
+  const setFromLoginResponse = (
+    userData: User,
+    permsData: Record<string, Record<string, boolean>>,
+    planModulesData?: Record<string, boolean> | null,
+  ) => {
+    setUser(userData);
+    localStorage.setItem("crm_user", JSON.stringify(userData));
+    setPermissions(permsData || {});
+    localStorage.setItem("crm_permissions", JSON.stringify(permsData || {}));
+    if (planModulesData) {
+      setPlanModules(planModulesData);
+      localStorage.setItem("crm_plan_modules", JSON.stringify(planModulesData));
+    }
   };
 
   return (
@@ -148,6 +164,7 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
         isModuleEnabled,
         loading,
         refreshPermissions,
+        setFromLoginResponse,
         logout,
       }}
     >

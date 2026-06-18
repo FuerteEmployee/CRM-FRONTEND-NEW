@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from "react";
 import {
-  Plus, Edit2, Trash2, X, Package, Activity, Database, Users,
+  Plus, Edit2, Trash2, X, Package, Database, Users,
   DollarSign, Target, HeadphonesIcon, FileSignature, FolderKanban, CheckSquare,
+  MessageSquare, Video, CreditCard, Receipt, FileText, ClipboardList,
+  BookOpen, BarChart3, Clock, Goal, Megaphone, CalendarDays, Bookmark,
 } from "lucide-react";
 import { apiClient as api } from "@/api/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { SuperAdminPlansSkeleton } from "@/components/ui/page-skeleton";
+import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 
 interface SaasPlan {
   _id: string;
@@ -27,16 +31,44 @@ interface SaasPlan {
     contracts: boolean;
     projects: boolean;
     tasks: boolean;
+    chat: boolean;
+    meetings: boolean;
+    subscriptions: boolean;
+    expenses: boolean;
+    estimates: boolean;
+    proposals: boolean;
+    estimate_request: boolean;
+    knowledge_base: boolean;
+    reports: boolean;
+    time_tracking: boolean;
+    goals: boolean;
+    announcements: boolean;
+    calendar: boolean;
+    bookmarks: boolean;
   };
 }
 
 const MODULE_META: { key: keyof SaasPlan["module_access"]; label: string; icon: React.ElementType; color: string }[] = [
-  { key: "finance",   label: "Finance",   icon: DollarSign,     color: "text-green-500" },
-  { key: "leads",     label: "Leads",     icon: Target,         color: "text-orange-500" },
-  { key: "support",   label: "Support",   icon: HeadphonesIcon, color: "text-blue-500" },
-  { key: "contracts", label: "Contracts", icon: FileSignature,  color: "text-purple-500" },
-  { key: "projects",  label: "Projects",  icon: FolderKanban,   color: "text-indigo-500" },
-  { key: "tasks",     label: "Tasks",     icon: CheckSquare,    color: "text-rose-500" },
+  { key: "finance",          label: "Finance",          icon: DollarSign,    color: "text-green-500" },
+  { key: "leads",            label: "Leads",            icon: Target,        color: "text-orange-500" },
+  { key: "support",          label: "Support",          icon: HeadphonesIcon,color: "text-blue-500" },
+  { key: "contracts",        label: "Contracts",        icon: FileSignature, color: "text-purple-500" },
+  { key: "projects",         label: "Projects",         icon: FolderKanban,  color: "text-indigo-500" },
+  { key: "tasks",            label: "Tasks",            icon: CheckSquare,   color: "text-rose-500" },
+  { key: "chat",             label: "Chat",             icon: MessageSquare, color: "text-sky-500" },
+  { key: "meetings",         label: "Meetings",         icon: Video,         color: "text-violet-500" },
+  { key: "subscriptions",    label: "Subscriptions",    icon: CreditCard,    color: "text-teal-500" },
+  { key: "expenses",         label: "Expenses",         icon: Receipt,       color: "text-red-500" },
+  { key: "estimates",        label: "Estimates",        icon: FileText,      color: "text-amber-500" },
+  { key: "proposals",        label: "Proposals",        icon: ClipboardList, color: "text-lime-600" },
+  { key: "estimate_request", label: "Estimate Request", icon: ClipboardList, color: "text-cyan-500" },
+  { key: "knowledge_base",   label: "Knowledge Base",   icon: BookOpen,      color: "text-emerald-500" },
+  { key: "reports",          label: "Reports",          icon: BarChart3,     color: "text-blue-600" },
+  { key: "time_tracking",    label: "Time Tracking",    icon: Clock,         color: "text-slate-500" },
+  { key: "goals",            label: "Goals",            icon: Goal,          color: "text-pink-500" },
+  { key: "announcements",    label: "Announcements",    icon: Megaphone,     color: "text-yellow-500" },
+  { key: "calendar",         label: "Calendar",         icon: CalendarDays,  color: "text-fuchsia-500" },
+  { key: "bookmarks",        label: "Bookmarks",        icon: Bookmark,      color: "text-amber-600" },
 ];
 
 const DEFAULT_PLAN: Partial<SaasPlan> = {
@@ -47,7 +79,12 @@ const DEFAULT_PLAN: Partial<SaasPlan> = {
   trial_days: 14,
   active: true,
   features: { max_users: 1, max_storage_gb: 1, max_customers: -1 },
-  module_access: { finance: true, leads: true, support: true, contracts: true, projects: true, tasks: true },
+  module_access: {
+    finance: true, leads: true, support: true, contracts: true, projects: true, tasks: true,
+    chat: true, meetings: true, subscriptions: true, expenses: true, estimates: true,
+    proposals: true, estimate_request: true, knowledge_base: true, reports: true,
+    time_tracking: true, goals: true, announcements: true, calendar: true, bookmarks: true,
+  },
 };
 
 export default function SuperAdminPlans() {
@@ -125,13 +162,8 @@ export default function SuperAdminPlans() {
     }));
   };
 
-  if (loading) {
-    return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Activity className="h-8 w-8 text-blue-600 animate-spin" />
-      </div>
-    );
-  }
+  const showSkeleton = useMinimumLoading(loading);
+  if (showSkeleton) return <SuperAdminPlansSkeleton />;
 
   return (
     <>
@@ -181,34 +213,38 @@ export default function SuperAdminPlans() {
                 )}
               </div>
 
-              {/* Limits */}
+              {/* Limits — Team Members only */}
               <div className="px-5 pt-4 pb-2">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Limits</p>
-                <div className="flex items-center justify-between text-sm mb-1.5">
+                <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-500 flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> Team Members</span>
                   <span className="font-semibold text-gray-800">{plan.features.max_users === -1 ? "Unlimited" : plan.features.max_users}</span>
                 </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500 flex items-center gap-1.5"><Database className="h-3.5 w-3.5" /> Storage</span>
-                  <span className="font-semibold text-gray-800">{plan.features.max_storage_gb === -1 ? "Unlimited" : `${plan.features.max_storage_gb} GB`}</span>
-                </div>
               </div>
 
-              {/* Module Access */}
+              {/* Module Access — compact icon chips */}
               <div className="px-5 pt-3 pb-4 flex-1">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Module Access</p>
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Module Access</p>
+                  <span className="text-[10px] text-gray-400">
+                    {MODULE_META.filter(({ key }) => plan.module_access?.[key]).length}/{MODULE_META.length} enabled
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
                   {MODULE_META.map(({ key, label, icon: Icon, color }) => {
                     const enabled = plan.module_access?.[key];
                     return (
-                      <div key={key} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border ${
-                        enabled ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-gray-50 border-gray-200 text-gray-400"
-                      }`}>
-                        <Icon className={`h-3.5 w-3.5 shrink-0 ${enabled ? color : "text-gray-300"}`} />
+                      <div
+                        key={key}
+                        title={`${label}: ${enabled ? "On" : "Off"}`}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium border transition-colors ${
+                          enabled
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                            : "bg-gray-50 border-gray-200 text-gray-400"
+                        }`}
+                      >
+                        <Icon className={`h-3 w-3 shrink-0 ${enabled ? color : "text-gray-300"}`} />
                         <span>{label}</span>
-                        <span className={`ml-auto text-[9px] font-bold uppercase ${enabled ? "text-emerald-500" : "text-gray-400"}`}>
-                          {enabled ? "ON" : "OFF"}
-                        </span>
                       </div>
                     );
                   })}
@@ -324,28 +360,7 @@ export default function SuperAdminPlans() {
                     </div>
                   </div>
 
-                  {/* Usage Limits inside left column */}
-                  <div className="pt-1 space-y-2">
-                    <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider pb-1.5 border-b border-gray-100">Usage Limits</p>
-                    {[
-                      { label: "Team Members", field: "max_users" as const },
-                      { label: "Storage (GB)", field: "max_storage_gb" as const },
-                      { label: "CRM Customers", field: "max_customers" as const },
-                    ].map(({ label, field }) => (
-                      <div key={field} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-3 py-1.5">
-                        <div>
-                          <p className="text-xs font-semibold text-gray-700">{label}</p>
-                          <p className="text-[9px] text-gray-400">-1 = Unlimited</p>
-                        </div>
-                        <input
-                          type="number" min="-1"
-                          value={formData.features?.[field]}
-                          onChange={(e) => updateFeature(field, parseInt(e.target.value))}
-                          className="w-16 border border-gray-300 rounded-md px-2 py-1 text-xs text-center text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                        />
-                      </div>
-                    ))}
-                  </div>
+                  {/* Usage Limits — hidden */}
                 </div>
 
                 {/* ── RIGHT: Module Access ── */}
@@ -368,10 +383,8 @@ export default function SuperAdminPlans() {
                             <Icon className={`h-4 w-4 shrink-0 ${isActive ? color : "text-gray-300"}`} />
                             <span className={`text-sm font-medium ${isActive ? "text-gray-800" : "text-gray-400"}`}>{label}</span>
                           </div>
-                          <span className={`text-[11px] font-bold uppercase tracking-wide px-3 py-1 rounded-full transition-colors ${
-                            isActive ? "bg-emerald-500 text-white" : "bg-gray-300 text-gray-500"
-                          }`}>
-                            {isActive ? "Active" : "Inactive"}
+                          <span className={`relative inline-flex h-5 w-10 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${isActive ? "bg-emerald-500" : "bg-gray-300"}`}>
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${isActive ? "translate-x-5" : "translate-x-0"}`} />
                           </span>
                         </div>
                       );

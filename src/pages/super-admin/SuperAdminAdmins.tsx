@@ -3,6 +3,8 @@ import { Users, Plus, Edit2, Trash2, ShieldCheck, Building2, Search, X, Activity
 import { apiClient as api } from "@/api/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 
 interface Admin {
   _id: string;
@@ -24,6 +26,7 @@ export default function SuperAdminAdmins() {
   const [admins, setAdmins] = useState<Admin[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
+  const showAdminsSkeleton = useMinimumLoading(loading);
   const [search, setSearch] = useState("");
   
   // Modal state
@@ -170,13 +173,16 @@ export default function SuperAdminAdmins() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-10 text-center text-gray-400">
-                    <Activity className="h-6 w-6 animate-spin mx-auto mb-2 text-blue-500" />
-                    Loading admins...
-                  </td>
-                </tr>
+              {showAdminsSkeleton ? (
+                Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={i} className="border-b border-gray-50">
+                    <td className="px-6 py-3.5"><div className="flex items-center gap-3"><Skeleton className="h-8 w-8 rounded-full" /><div className="space-y-1.5"><Skeleton className="h-3.5 w-28" /><Skeleton className="h-3 w-36" /></div></div></td>
+                    <td className="px-6 py-3.5"><Skeleton className="h-5 w-20 rounded-full" /></td>
+                    <td className="px-6 py-3.5"><Skeleton className="h-4 w-32" /></td>
+                    <td className="px-6 py-3.5"><Skeleton className="h-5 w-16 rounded-full" /></td>
+                    <td className="px-6 py-3.5"><div className="flex gap-2 justify-end"><Skeleton className="h-8 w-8 rounded-md" /><Skeleton className="h-8 w-8 rounded-md" /></div></td>
+                  </tr>
+                ))
               ) : filteredAdmins.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-10 text-center text-gray-400">

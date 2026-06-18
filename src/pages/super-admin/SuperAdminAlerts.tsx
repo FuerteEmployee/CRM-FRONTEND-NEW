@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Bell, AlertTriangle, Info, CheckCircle2, XCircle, Clock, RefreshCw, Activity } from "lucide-react";
+import { Bell, AlertTriangle, Info, CheckCircle2, XCircle, Clock, RefreshCw } from "lucide-react";
 import { apiClient as api } from "@/api/client";
 import { toast } from "sonner";
 import { formatDistanceToNow, differenceInDays } from "date-fns";
+import { SuperAdminAlertsSkeleton } from "@/components/ui/page-skeleton";
+import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 
 interface Tenant {
   _id: string;
@@ -197,13 +199,8 @@ export default function SuperAdminAlerts() {
     success: alerts.filter((a) => !dismissed.has(a.id) && a.type === "success").length,
   };
 
-  if (loading) {
-    return (
-      <div className="h-full w-full flex items-center justify-center">
-        <Activity className="h-8 w-8 text-blue-600 animate-spin" />
-      </div>
-    );
-  }
+  const showSkeleton = useMinimumLoading(loading);
+  if (showSkeleton) return <SuperAdminAlertsSkeleton />;
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
