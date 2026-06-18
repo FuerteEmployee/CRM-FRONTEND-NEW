@@ -15,6 +15,7 @@ interface User {
   admin: boolean;
   is_superadmin?: boolean;
   role?: any;
+  tenant?: any;
 }
 
 interface PermissionContextType {
