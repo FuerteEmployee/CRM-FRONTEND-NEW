@@ -4,6 +4,8 @@ import {
   Zap, Globe, Shield, Clock, CheckCircle2, ArrowRight, Package
 } from "lucide-react";
 import { apiClient as api } from "@/api/client";
+import { SuperAdminBillingSkeleton } from "@/components/ui/page-skeleton";
+import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 
 interface Tenant {
   _id: string;
@@ -65,6 +67,7 @@ const BILLING_FEATURES = [
 export default function SuperAdminBilling() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
+  const showBillingSkeleton = useMinimumLoading(loading);
 
   useEffect(() => {
     api.get("/super-admin/tenants")
@@ -98,10 +101,8 @@ export default function SuperAdminBilling() {
       </div>
 
       {/* Stats */}
-      {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <Activity className="h-7 w-7 text-blue-500 animate-spin" />
-        </div>
+      {showBillingSkeleton ? (
+        <SuperAdminBillingSkeleton />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {stats.map((stat) => {
@@ -166,7 +167,7 @@ export default function SuperAdminBilling() {
         )}
       </div>
 
-      {/* Integration roadmap */}
+      {/* Integration roadmap — hidden until payment gateway is implemented
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
         <div className="px-6 py-5 border-b border-gray-100 flex items-start gap-4">
           <div className="p-2.5 rounded-lg bg-blue-50 flex-shrink-0">
@@ -200,7 +201,6 @@ export default function SuperAdminBilling() {
           })}
         </div>
 
-        {/* Gateway cards */}
         <div className="px-6 pb-6">
           <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">Planned Gateways</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -220,6 +220,7 @@ export default function SuperAdminBilling() {
           </div>
         </div>
       </div>
+      */}
     </div>
   );
 }

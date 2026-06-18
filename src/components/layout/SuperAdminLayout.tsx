@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -7,8 +7,11 @@ import {
   CreditCard,
   Bell,
   LogOut,
+  User,
+  ChevronDown,
 } from "lucide-react";
 import { usePermissionContext } from "@/context/PermissionContext";
+import { useSettings } from "@/context/SettingsContext";
 
 const mainItems = [
   { name: "Dashboard", path: "/super-admin/dashboard", icon: LayoutDashboard },
@@ -24,7 +27,27 @@ const subscriptionItems = [
 export function SuperAdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = usePermissionContext();
+  const { logout, user } = usePermissionContext();
+  const { getSetting } = useSettings();
+  const companyName = getSetting("companyName", "FuerteCRM");
+  const [profileOpen, setProfileOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const initials = user
+    ? `${user.firstname?.[0] || ""}${user.lastname?.[0] || ""}`.toUpperCase()
+    : "SA";
+  const fullName = user ? `${user.firstname} ${user.lastname}` : "Super Admin";
+  const userEmail = user?.email || "";
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setProfileOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -39,11 +62,11 @@ export function SuperAdminLayout() {
         <div className="h-14 flex items-center px-4 border-b border-gray-100">
           <div className="flex items-center gap-2.5">
             <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
-              S
+              {companyName.charAt(0).toUpperCase()}
             </div>
             <div className="flex flex-col leading-tight">
               <span className="text-[15px] font-bold tracking-tight text-gray-900">
-                Fuerte<span className="text-blue-600">SaaS</span>
+                {companyName}
               </span>
               <span className="text-[10px] font-semibold uppercase tracking-widest text-blue-500">
                 Super Admin
@@ -129,9 +152,66 @@ export function SuperAdminLayout() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-50">
-        <Outlet />
-      </main>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Header */}
+        <header className="h-14 flex-shrink-0 bg-white border-b border-gray-200 flex items-center justify-end px-6">
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setProfileOpen((o) => !o)}
+              className="flex items-center gap-2.5 outline-none group"
+            >
+              <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ring-2 ring-transparent group-hover:ring-blue-200 transition-all">
+                {initials}
+              </div>
+              <div className="text-left hidden sm:block">
+                <p className="text-sm font-semibold text-gray-900 leading-tight">{fullName}</p>
+                <p className="text-[11px] text-gray-400 leading-tight">Super Admin</p>
+              </div>
+              <ChevronDown className="h-3.5 w-3.5 text-gray-400 group-hover:text-gray-600 transition-colors" />
+            </button>
+
+            {profileOpen && (
+              <div className="absolute right-0 top-full mt-2 w-60 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                {/* Header */}
+                <div className="flex items-center gap-3 p-3 border-b border-gray-100 bg-gray-50">
+                  <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                    {initials}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 leading-tight">{fullName}</p>
+                    <p className="text-[11px] text-gray-500 truncate">{userEmail}</p>
+                  </div>
+                </div>
+
+                {/* Menu items */}
+                <div className="py-1">
+                  <button
+                    onClick={() => { navigate("/super-admin/profile"); setProfileOpen(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <User className="h-4 w-4 text-gray-400" />
+                    My Profile
+                  </button>
+                </div>
+
+                <div className="border-t border-gray-100 py-1">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Logout
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-50">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 }

@@ -110,19 +110,30 @@ import SuperAdminPlans from "./pages/super-admin/SuperAdminPlans";
 import SuperAdminCompanies from "./pages/super-admin/SuperAdminCompanies";
 import SuperAdminBilling from "./pages/super-admin/SuperAdminBilling";
 import SuperAdminAlerts from "./pages/super-admin/SuperAdminAlerts";
+import SuperAdminProfile from "./pages/super-admin/SuperAdminProfile";
 
 
-// Redirect logged-out users away from protected pages
+// Redirect logged-out users away from admin protected pages
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = usePermissionContext();
-  if (loading) return null; // wait for session check
+  if (loading) return null;
   if (!user) return <Navigate to="/admin/login" replace />;
   return <>{children}</>;
 };
 
-// Redirect already-logged-in users away from the login page
+// Redirect logged-out users away from super-admin protected pages
+const SuperAdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = usePermissionContext();
+  if (loading) return null;
+  if (!user) return <Navigate to="/super-admin/login" replace />;
+  if (!user.is_superadmin) return <Navigate to="/admin/login" replace />;
+  return <>{children}</>;
+};
+
+// Redirect already-logged-in users away from the login pages
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = usePermissionContext();
+  if (loading) return null;
   if (user) {
     if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
     return <Navigate to="/admin/dashboard" replace />;
@@ -246,13 +257,15 @@ const MainApp = () => {
         </Route>
 
         {/* Super Admin Routes */}
-        <Route path="/super-admin" element={<ProtectedRoute><SuperAdminLayout /></ProtectedRoute>}>
+        <Route path="/super-admin/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/super-admin" element={<SuperAdminProtectedRoute><SuperAdminLayout /></SuperAdminProtectedRoute>}>
           <Route path="dashboard" element={<SuperAdminDashboard />} />
           <Route path="companies" element={<SuperAdminCompanies />} />
           <Route path="admins" element={<SuperAdminAdmins />} />
           <Route path="plans" element={<SuperAdminPlans />} />
           <Route path="billing" element={<SuperAdminBilling />} />
           <Route path="alerts" element={<SuperAdminAlerts />} />
+          <Route path="profile" element={<SuperAdminProfile />} />
         </Route>
 
         {/* Admin Side Routes */}

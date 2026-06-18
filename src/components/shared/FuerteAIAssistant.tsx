@@ -2,189 +2,189 @@ import "regenerator-runtime/runtime";
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Mic } from "lucide-react";
+import { Bot, Mic, MicOff, X } from "lucide-react";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 
+// ─── Route map: keyword phrases → route paths ───────────────────────────────
+const COMMAND_MAP: { keywords: string[]; route: string; label: string }[] = [
+  { keywords: ["dashboard", "home"], route: "/admin/dashboard", label: "Dashboard" },
+  { keywords: ["tasks", "task"], route: "/admin/tasks", label: "Tasks" },
+  { keywords: ["leads", "lead"], route: "/admin/leads", label: "Leads" },
+  { keywords: ["customers", "customer", "clients"], route: "/admin/customers", label: "Customers" },
+  { keywords: ["projects", "project"], route: "/admin/projects", label: "Projects" },
+  { keywords: ["create project", "new project"], route: "/admin/projects/create", label: "Create Project" },
+  { keywords: ["invoices", "invoice"], route: "/admin/invoices", label: "Invoices" },
+  { keywords: ["create invoice", "new invoice"], route: "/admin/invoices/create", label: "Create Invoice" },
+  { keywords: ["expenses", "expense"], route: "/admin/expenses", label: "Expenses" },
+  { keywords: ["estimates", "estimate"], route: "/admin/estimates", label: "Estimates" },
+  { keywords: ["proposals", "proposal"], route: "/admin/proposals", label: "Proposals" },
+  { keywords: ["credit notes", "credit note"], route: "/admin/credit-notes", label: "Credit Notes" },
+  { keywords: ["tickets", "support", "ticket"], route: "/admin/support", label: "Support" },
+  { keywords: ["chat", "messages"], route: "/admin/chat", label: "Chat" },
+  { keywords: ["calendar", "schedule"], route: "/admin/calendar", label: "Calendar" },
+  { keywords: ["meetings", "meeting"], route: "/admin/meetings", label: "Meetings" },
+  { keywords: ["reports", "analytics"], route: "/admin/reports", label: "Reports" },
+  { keywords: ["attendance", "time tracking"], route: "/admin/time-tracking", label: "Attendance" },
+  { keywords: ["staff", "team"], route: "/admin/setup/staff", label: "Staff" },
+  { keywords: ["settings", "setup"], route: "/admin/setup", label: "Settings" },
+];
+
+const WAKE_WORDS = ["fuerte", "for the ai", "forty", "forte", "four tay", "for tay"];
+
+type AIState = "sleeping" | "listening" | "awake";
+
 export function FuerteAIAssistant() {
-  const [isAwake, setIsAwake] = useState(false);
-  const isAwakeRef = useRef(false);
-  const awakeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  
+  const [aiState, setAIState]     = useState<AIState>("sleeping");
+  const [tooltip, setTooltip]     = useState(false);
+  const aiStateRef                = useRef<AIState>("sleeping");
+  const awakeTimerRef             = useRef<NodeJS.Timeout | null>(null);
+
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const {
-    transcript,
-    listening,
-    resetTranscript,
-    browserSupportsSpeechRecognition,
-  } = useSpeechRecognition();
+  const { transcript, listening, resetTranscript, browserSupportsSpeechRecognition } =
+    useSpeechRecognition();
 
-  const setAwakeState = (awake: boolean) => {
-    setIsAwake(awake);
-    isAwakeRef.current = awake;
+  const changeState = (s: AIState) => {
+    setAIState(s);
+    aiStateRef.current = s;
   };
 
+  // ─── Process transcript on every change ─────────────────────────────────
   useEffect(() => {
-    if (transcript) {
-      processCommand(transcript.toLowerCase());
-    }
+    if (!transcript) return;
+    handleTranscript(transcript.toLowerCase());
   }, [transcript]);
 
-  if (!browserSupportsSpeechRecognition) {
-    return null; // Or show a fallback UI
-  }
+  if (!browserSupportsSpeechRecognition) return null;
 
+  // ─── FAB toggle ──────────────────────────────────────────────────────────
   const toggleListening = () => {
     if (listening) {
       SpeechRecognition.stopListening();
-      toast({
-        title: "Fuerte AI",
-        description: "Microphone off. AI is sleeping.",
-      });
+      changeState("sleeping");
+      resetTranscript();
+      setTooltip(false);
+      toast({ title: "Fuerte AI", description: "Microphone off. AI is sleeping." });
     } else {
       resetTranscript();
-      SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
-      toast({
-        title: "Fuerte AI",
-        description: "AI is working and listening in the background.",
-      });
+      SpeechRecognition.startListening({ continuous: true, language: "en-US" });
+      changeState("listening");
+      setTooltip(true);
+      toast({ title: "Fuerte AI", description: "AI is working and listening in the background." });
     }
   };
 
-  const processCommand = (command: string) => {
-    // Add multiple phonetic fallbacks for the Spanish word "Fuerte" to improve recognition accuracy in English
-    const wakeWords = ["fuerte", "for the ai", "40 ai", "forty", "forte", "four tay", "for tay"];
-    const isWakeWordPresent = wakeWords.some(word => command.includes(word));
-    
-    if (isWakeWordPresent && !isAwakeRef.current) {
-      setAwakeState(true);
-      toast({
-        title: "Fuerte AI",
-        description: "Listening...",
-      });
-      resetTranscript();
-      if (awakeTimeoutRef.current) clearTimeout(awakeTimeoutRef.current);
-      awakeTimeoutRef.current = setTimeout(() => {
-        setAwakeState(false);
+  // ─── Keyword matcher ─────────────────────────────────────────────────────
+  const handleTranscript = (cmd: string) => {
+    // Step 1 — check for wake word while in listening state
+    if (aiStateRef.current === "listening") {
+      const woken = WAKE_WORDS.some((w) => cmd.includes(w));
+      if (woken) {
+        changeState("awake");
         resetTranscript();
-      }, 10000);
-      return; // Return early to wait for the actual command after wake word
+        if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
+        // Auto-sleep after 10 s if no command
+        awakeTimerRef.current = setTimeout(() => {
+          changeState("listening");
+          resetTranscript();
+        }, 10000);
+        toast({ title: "Fuerte AI", description: "Listening for your command…" });
+        return;
+      }
     }
 
-    if (!isAwakeRef.current) return;
+    // Step 2 — only match commands when awake
+    if (aiStateRef.current !== "awake") return;
 
-    let handled = false;
-
-    if (command.includes("go to dashboard") || command.includes("open dashboard") || command.includes("home")) {
-      navigate("/admin/dashboard");
-      handled = true;
-    } else if (command.includes("create task") || command.includes("new task") || command.includes("add task") || command.includes("assign task")) {
-      navigate("/admin/tasks");
-      handled = true;
-    } else if (command.includes("go to tasks") || command.includes("open tasks")) {
-      navigate("/admin/tasks");
-      handled = true;
-    } else if (command.includes("create lead") || command.includes("new lead") || command.includes("add lead")) {
-      navigate("/admin/leads");
-      handled = true;
-    } else if (command.includes("go to leads") || command.includes("open leads")) {
-      navigate("/admin/leads");
-      handled = true;
-    } else if (command.includes("create customer") || command.includes("add customer") || command.includes("new customer")) {
-      navigate("/admin/customers");
-      handled = true;
-    } else if (command.includes("go to customers") || command.includes("open customers")) {
-      navigate("/admin/customers");
-      handled = true;
-    } else if (command.includes("create project") || command.includes("new project") || command.includes("add project")) {
-      navigate("/admin/projects/create");
-      handled = true;
-    } else if (command.includes("go to projects") || command.includes("open projects")) {
-      navigate("/admin/projects");
-      handled = true;
-    } else if (command.includes("create invoice") || command.includes("new invoice") || command.includes("add invoice")) {
-      navigate("/admin/invoices/create");
-      handled = true;
-    } else if (command.includes("go to invoices") || command.includes("open invoices")) {
-      navigate("/admin/invoices");
-      handled = true;
-    } else if (command.includes("create expense") || command.includes("new expense") || command.includes("add expense") || command.includes("record expense")) {
-      navigate("/admin/expenses/create");
-      handled = true;
-    } else if (command.includes("go to expenses") || command.includes("open expenses")) {
-      navigate("/admin/expenses");
-      handled = true;
-    } else if (command.includes("create estimate") || command.includes("new estimate") || command.includes("add estimate")) {
-      navigate("/admin/estimates/create");
-      handled = true;
-    } else if (command.includes("go to estimates") || command.includes("open estimates")) {
-      navigate("/admin/estimates");
-      handled = true;
-    } else if (command.includes("create proposal") || command.includes("new proposal") || command.includes("add proposal")) {
-      navigate("/admin/proposals/create");
-      handled = true;
-    } else if (command.includes("go to proposals") || command.includes("open proposals")) {
-      navigate("/admin/proposals");
-      handled = true;
-    } else if (command.includes("create credit note") || command.includes("new credit note") || command.includes("add credit note")) {
-      navigate("/admin/credit-notes/create");
-      handled = true;
-    } else if (command.includes("go to credit notes") || command.includes("open credit notes")) {
-      navigate("/admin/credit-notes");
-      handled = true;
-    } else if (command.includes("go to tickets") || command.includes("open tickets") || command.includes("support")) {
-      navigate("/admin/support");
-      handled = true;
-    } else if (command.includes("create ticket") || command.includes("new ticket") || command.includes("open a ticket")) {
-      navigate("/admin/support/create");
-      handled = true;
-    } else if (command.includes("go to chat") || command.includes("open chat") || command.includes("messages")) {
-      navigate("/admin/chat");
-      handled = true;
-    } else if (command.includes("go to calendar") || command.includes("open calendar") || command.includes("schedule")) {
-      navigate("/admin/calendar");
-      handled = true;
-    } else if (command.includes("go to meetings") || command.includes("open meetings") || command.includes("zoom")) {
-      navigate("/admin/meetings");
-      handled = true;
-    } else if (command.includes("go to reports") || command.includes("open reports") || command.includes("analytics")) {
-      navigate("/admin/reports");
-      handled = true;
-    } else if (command.includes("go to attendance") || command.includes("open attendance") || command.includes("time tracking")) {
-      navigate("/admin/time-tracking");
-      handled = true;
-    } else if (command.includes("go to staff") || command.includes("open staff") || command.includes("team members")) {
-      navigate("/admin/setup/staff");
-      handled = true;
-    } else if (command.includes("go to settings") || command.includes("open settings") || command.includes("setup")) {
-      navigate("/admin/setup");
-      handled = true;
-    } else if (command.includes("logout") || command.includes("log out") || command.includes("sign out")) {
-      navigate("/admin/login");
-      handled = true;
+    // Step 3 — keyword matcher: phrases → route
+    for (const { keywords, route, label } of COMMAND_MAP) {
+      if (keywords.some((k) => cmd.includes(k))) {
+        toast({ title: "Fuerte AI", description: `Opening ${label}…` });
+        navigate(route);
+        changeState("listening");
+        resetTranscript();
+        if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
+        return;
+      }
     }
 
-    if (handled) {
-      toast({
-        title: "Fuerte AI",
-        description: `Executed: "${command}"`,
-      });
-      setAwakeState(false);
+    // Step 4 — no match fallback (AI backend placeholder)
+    if (cmd.length > 4) {
+      toast({ title: "Fuerte AI", description: `Command not recognised: "${cmd}"` });
       resetTranscript();
-    } else if (isAwakeRef.current && command.length > 3) {
-      // Optional: Give feedback that it heard something but didn't match a command
-      // Avoid spamming if it just picked up noise
     }
   };
+
+  // ─── UI helpers ──────────────────────────────────────────────────────────
+  const fabColor =
+    aiState === "awake"
+      ? "bg-green-600 shadow-green-400/50 animate-pulse"
+      : aiState === "listening"
+      ? "bg-primary shadow-primary/40 animate-pulse"
+      : "bg-slate-900 hover:bg-slate-800 hover:scale-105";
+
+  const statusLabel =
+    aiState === "awake"
+      ? "Say a command…"
+      : aiState === "listening"
+      ? 'Say "Fuerte" to wake me'
+      : "Microphone off";
+
+  const statusDot =
+    aiState === "awake" ? "bg-green-400" : aiState === "listening" ? "bg-blue-400 animate-pulse" : "bg-gray-400";
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+
+      {/* ── Tooltip panel (shown while mic is active) ── */}
+      {tooltip && listening && (
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-xl p-4 w-64 animate-fade-in">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${statusDot}`} />
+              <span className="text-sm font-bold text-gray-800">Fuerte AI</span>
+            </div>
+            <button
+              onClick={() => setTooltip(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          {/* Status */}
+          <p className="text-xs text-gray-500 mb-3">{statusLabel}</p>
+
+          {/* Live transcript */}
+          {transcript && (
+            <div className="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+              <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-0.5">Hearing</p>
+              <p className="text-xs text-gray-700 font-medium leading-snug line-clamp-2">{transcript}</p>
+            </div>
+          )}
+
+          {/* State badge */}
+          <div className="mt-3 flex items-center justify-between">
+            <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full
+              ${aiState === "awake" ? "bg-green-100 text-green-700" : "bg-blue-50 text-blue-600"}`}>
+              {aiState === "awake" ? "Awake" : "Listening"}
+            </span>
+            <span className="text-[10px] text-gray-400">Web Speech API</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── FAB button ── */}
       <button
         onClick={toggleListening}
-        className={`h-14 w-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 border-4 border-white ${listening ? 'bg-primary text-white animate-pulse shadow-primary/40' : 'bg-slate-900 text-white hover:bg-slate-800 hover:scale-105'}`}
+        title={listening ? "Stop Fuerte AI" : "Start Fuerte AI"}
+        className={`h-14 w-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 border-4 border-white text-white ${fabColor}`}
       >
-        {listening ? <Mic className="h-6 w-6" /> : <Bot className="h-6 w-6" />}
+        {aiState === "awake"   ? <Mic className="h-6 w-6" /> :
+         aiState === "listening" ? <Mic className="h-6 w-6" /> :
+                                   <Bot className="h-6 w-6" />}
       </button>
     </div>
   );
