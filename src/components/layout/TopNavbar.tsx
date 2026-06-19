@@ -58,14 +58,14 @@ export function TopNavbar() {
   const navigate = useNavigate();
 
   const quickCreateItems = [
-    { label: "Estimate",  icon: ClipboardList, path: "/admin/estimates/create",       color: "text-violet-500 bg-violet-50 dark:bg-violet-500/10" },
-    { label: "Proposal",  icon: FileText,      path: "/admin/proposals/create",        color: "text-blue-500 bg-blue-50 dark:bg-blue-500/10" },
-    { label: "Customer",  icon: Users,         path: "/admin/customers",               color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10" },
-    { label: "Task",      icon: CheckSquare,   path: "/admin/tasks",                   color: "text-amber-500 bg-amber-50 dark:bg-amber-500/10" },
-    { label: "Expense",   icon: Receipt,       path: "/admin/expenses/create",         color: "text-rose-500 bg-rose-50 dark:bg-rose-500/10" },
-    { label: "Goal",      icon: Target,        path: "/admin/goals/new",               color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10" },
-    { label: "Ticket",    icon: Headphones,    path: "/admin/support/create",          color: "text-pink-500 bg-pink-50 dark:bg-pink-500/10" },
-    { label: "Event",     icon: CalendarPlus,  path: "/admin/calendar",               color: "text-teal-500 bg-teal-50 dark:bg-teal-500/10" },
+    { label: "Estimate", icon: ClipboardList, path: "/admin/estimates/create", color: "text-violet-500 bg-violet-50 dark:bg-violet-500/10" },
+    { label: "Proposal", icon: FileText, path: "/admin/proposals/create", color: "text-blue-500 bg-blue-50 dark:bg-blue-500/10" },
+    { label: "Customer", icon: Users, path: "/admin/customers", color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10" },
+    { label: "Task", icon: CheckSquare, path: "/admin/tasks", color: "text-amber-500 bg-amber-50 dark:bg-amber-500/10" },
+    { label: "Expense", icon: Receipt, path: "/admin/expenses/create", color: "text-rose-500 bg-rose-50 dark:bg-rose-500/10" },
+    { label: "Goal", icon: Target, path: "/admin/goals/new", color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10" },
+    { label: "Ticket", icon: Headphones, path: "/admin/support/create", color: "text-pink-500 bg-pink-50 dark:bg-pink-500/10" },
+    { label: "Event", icon: CalendarPlus, path: "/admin/calendar", color: "text-teal-500 bg-teal-50 dark:bg-teal-500/10" },
   ];
   const { user, logout } = usePermissionContext();
   const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotificationContext();
@@ -119,7 +119,7 @@ export function TopNavbar() {
   const userRole = user?.admin
     ? "Admin"
     : user?.role?.name ||
-      (typeof user?.role === "string" ? user.role : "Staff");
+    (typeof user?.role === "string" ? user.role : "Staff");
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/95 backdrop-blur-md px-4 shadow-sm" id="tour-topnav">
@@ -235,7 +235,7 @@ export function TopNavbar() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => {}}>
+              <DropdownMenuItem onClick={() => { }}>
                 <Share2 className="mr-2 h-4 w-4 text-muted-foreground" />
                 <span>Share</span>
               </DropdownMenuItem>
@@ -386,7 +386,7 @@ export function TopNavbar() {
                 onClick={() => navigate("/super-admin/dashboard")}
               >
                 <ShieldCheck className="h-4 w-4" />
-                <span className="text-sm font-semibold">Super Admin Panel</span>
+                <span className="text-sm font-semibold"> Panel</span>
               </DropdownMenuItem>
             )}
 
@@ -421,8 +421,8 @@ export function TopNavbar() {
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-48 max-h-72 overflow-y-auto notranslate">
                 {languages.map((lang) => (
-                  <DropdownMenuItem 
-                    key={lang.code} 
+                  <DropdownMenuItem
+                    key={lang.code}
                     onClick={() => handleLanguageChange(lang.code)}
                     className="cursor-pointer font-medium"
                   >

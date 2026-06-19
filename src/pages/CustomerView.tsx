@@ -87,6 +87,7 @@ import {
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { useToast } from "@/hooks/use-toast";
+import { useSettings } from "@/context/SettingsContext";
 import {
   ChevronDown,
   FileSpreadsheet,
@@ -420,6 +421,8 @@ export function VoiceInput({ value, onChange, className, placeholder, name, type
 }
 
 export default function CustomerView() {
+  const { getSetting } = useSettings();
+  const companyName = getSetting("companyName", "Fuerte CRM");
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -649,19 +652,19 @@ export default function CustomerView() {
     queryFn: staffService.getAll,
   });
 
-  const staffOptions = useMemo(() => 
+  const staffOptions = useMemo(() =>
     staff.map((member: any) => ({
       label: `${member.firstname || ''} ${member.lastname || ''}`.trim() || member.email,
       value: member._id
     }))
-  , [staff]);
+    , [staff]);
 
-  const customerOptions = useMemo(() => 
+  const customerOptions = useMemo(() =>
     customer ? [{
       label: customer.company || customer.firstname + ' ' + customer.lastname,
       value: customer._id
     }] : []
-  , [customer]);
+    , [customer]);
 
   const { data: contacts = [], isLoading: isLoadingContacts } = useQuery({
     queryKey: ["contacts", id],
@@ -1407,7 +1410,7 @@ export default function CustomerView() {
                 <div class="vat-number">VAT Number: ${customer?.vat || ''}</div>
               </div>
               <div class="company-info">
-                <div class="company-name">Fuerte Developers</div>
+                <div class="company-name">
                 <div>405, The Spireee</div>
                 <div>Rajkot Rajkot</div>
                 <div>India 360007</div>
@@ -1501,7 +1504,7 @@ export default function CustomerView() {
           <div style="color: #666; font-size: 13px; margin-top: 20px;">VAT Number: ${customer?.vat || ''}</div>
         </div>
         <div style="text-align: right; line-height: 1.4; color: #000; font-weight: 500;">
-          <div style="font-weight: 700; font-size: 15px; margin-bottom: 2px;">Fuerte Developers</div>
+          <div style="font-weight: 700; font-size: 15px; margin-bottom: 2px;">${companyName}</div>
           <div>405, The Spireee</div>
           <div>Rajkot Rajkot</div>
           <div>India 360007</div>
@@ -2857,7 +2860,7 @@ export default function CustomerView() {
                           {/* Statement Header */}
                           <div className="space-y-8">
                             <div className="md:text-right space-y-1">
-                              <p className="text-sm font-black text-foreground uppercase tracking-tight">Fuerte Developers</p>
+                              <p className="text-sm font-black text-foreground uppercase tracking-tight">{companyName}</p>
                               <p className="text-xs text-muted-foreground">405, The Spireee</p>
                               <p className="text-xs text-muted-foreground">Rajkot Rajkot</p>
                               <p className="text-xs text-muted-foreground">India 360007</p>
@@ -3061,7 +3064,7 @@ export default function CustomerView() {
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <VoiceInput
-                              placeholder="Search invoices..."
+                            placeholder="Search invoices..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={invoiceSearch}
                             onChange={(e: any) => setInvoiceSearch(e.target.value)}
@@ -3237,7 +3240,7 @@ export default function CustomerView() {
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <VoiceInput
-                              placeholder="Search credit notes..."
+                            placeholder="Search credit notes..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={creditNoteSearch}
                             onChange={(e: any) => setCreditNoteSearch(e.target.value)}
@@ -3361,7 +3364,7 @@ export default function CustomerView() {
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <VoiceInput
-                              placeholder="Search payments..."
+                            placeholder="Search payments..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={paymentSearch}
                             onChange={(e: any) => setPaymentSearch(e.target.value)}
@@ -3470,7 +3473,7 @@ export default function CustomerView() {
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <VoiceInput
-                              placeholder="Search proposals..."
+                            placeholder="Search proposals..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={proposalSearch}
                             onChange={(e: any) => setProposalSearch(e.target.value)}
@@ -3653,7 +3656,7 @@ export default function CustomerView() {
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <VoiceInput
-                              placeholder="Search estimates..."
+                            placeholder="Search estimates..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={estimateSearch}
                             onChange={(e: any) => setEstimateSearch(e.target.value)}
@@ -3951,7 +3954,7 @@ export default function CustomerView() {
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <VoiceInput
-                              placeholder="Search expenses..."
+                            placeholder="Search expenses..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={expenseSearch}
                             onChange={(e: any) => setExpenseSearch(e.target.value)}
@@ -4145,7 +4148,7 @@ export default function CustomerView() {
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <VoiceInput
-                              placeholder="Search contracts..."
+                            placeholder="Search contracts..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={contractSearch}
                             onChange={(e: any) => setContractSearch(e.target.value)}
@@ -4293,7 +4296,7 @@ export default function CustomerView() {
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <VoiceInput
-                              placeholder="Search projects..."
+                            placeholder="Search projects..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={projectSearch}
                             onChange={(e: any) => setProjectSearch(e.target.value)}
@@ -4413,11 +4416,11 @@ export default function CustomerView() {
                             <div className="flex-1 overflow-y-auto p-6 space-y-8">
                               <div className="flex items-center gap-6 pb-2 border-b border-slate-200">
                                 <div className="flex items-center space-x-2">
-                                  <Checkbox id="task_public" checked={taskFormData.public} onCheckedChange={(checked) => handleTaskInputChange({ target: { id: 'public', type: 'checkbox', checked }})} className="border-slate-300 data-[state=checked]:bg-primary h-5 w-5" />
+                                  <Checkbox id="task_public" checked={taskFormData.public} onCheckedChange={(checked) => handleTaskInputChange({ target: { id: 'public', type: 'checkbox', checked } })} className="border-slate-300 data-[state=checked]:bg-primary h-5 w-5" />
                                   <Label htmlFor="task_public" className="font-bold text-sm text-slate-700 cursor-pointer">Public</Label>
                                 </div>
                                 <div className="flex items-center space-x-2">
-                                  <Checkbox id="task_billable" checked={taskFormData.billable} onCheckedChange={(checked) => handleTaskInputChange({ target: { id: 'billable', type: 'checkbox', checked }})} className="border-slate-300 data-[state=checked]:bg-primary h-5 w-5" />
+                                  <Checkbox id="task_billable" checked={taskFormData.billable} onCheckedChange={(checked) => handleTaskInputChange({ target: { id: 'billable', type: 'checkbox', checked } })} className="border-slate-300 data-[state=checked]:bg-primary h-5 w-5" />
                                   <Label htmlFor="task_billable" className="font-bold text-sm text-slate-700 cursor-pointer">Billable</Label>
                                 </div>
                               </div>
@@ -4580,7 +4583,7 @@ export default function CustomerView() {
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <VoiceInput
-                              placeholder="Search tasks..."
+                            placeholder="Search tasks..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={taskSearch}
                             onChange={(e: any) => setTaskSearch(e.target.value)}
@@ -4747,7 +4750,7 @@ export default function CustomerView() {
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <VoiceInput
-                              placeholder="Search tickets..."
+                            placeholder="Search tickets..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={ticketSearch}
                             onChange={(e: any) => setTicketSearch(e.target.value)}
@@ -4922,7 +4925,7 @@ export default function CustomerView() {
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <VoiceInput
-                              placeholder="Search files..."
+                            placeholder="Search files..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={fileSearch}
                             onChange={(e: any) => setFileSearch(e.target.value)}
@@ -5060,7 +5063,7 @@ export default function CustomerView() {
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <VoiceInput
-                              placeholder="Search vault..."
+                            placeholder="Search vault..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={vaultSearch}
                             onChange={(e: any) => setVaultSearch(e.target.value)}
@@ -5214,7 +5217,7 @@ export default function CustomerView() {
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <VoiceInput
-                              placeholder="Search reminders..."
+                            placeholder="Search reminders..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={reminderSearch}
                             onChange={(e: any) => setReminderSearch(e.target.value)}
@@ -6813,7 +6816,7 @@ function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPen
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div 
+              <div
                 className={cn(
                   "flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer",
                   formData.is_primary ? "bg-blue-50/50 border-blue-600 shadow-sm" : "bg-white border-slate-100 hover:border-slate-200"
@@ -6835,7 +6838,7 @@ function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPen
                 />
               </div>
 
-              <div 
+              <div
                 className={cn(
                   "flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer",
                   formData.active !== false ? "bg-emerald-50/50 border-emerald-600 shadow-sm" : "bg-white border-slate-100 hover:border-slate-200"
@@ -6875,12 +6878,12 @@ function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPen
               </h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {permissions.map((perm) => (
-                  <div 
-                    key={perm.id} 
+                  <div
+                    key={perm.id}
                     className={cn(
                       "flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer group",
-                      formData.permissions?.includes(perm.id) 
-                        ? "bg-indigo-50/50 border-indigo-600" 
+                      formData.permissions?.includes(perm.id)
+                        ? "bg-indigo-50/50 border-indigo-600"
                         : "bg-white border-slate-100 hover:border-slate-200"
                     )}
                     onClick={() => handlePermissionChange(perm.id, "permissions")}
@@ -6904,12 +6907,12 @@ function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPen
               </h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {emailNotifications.map((notif) => (
-                  <div 
-                    key={notif.id} 
+                  <div
+                    key={notif.id}
                     className={cn(
                       "flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer group",
-                      formData.email_notifications?.includes(notif.id) 
-                        ? "bg-rose-50/50 border-rose-600" 
+                      formData.email_notifications?.includes(notif.id)
+                        ? "bg-rose-50/50 border-rose-600"
                         : "bg-white border-slate-100 hover:border-slate-200"
                     )}
                     onClick={() => handlePermissionChange(notif.id, "email_notifications")}
