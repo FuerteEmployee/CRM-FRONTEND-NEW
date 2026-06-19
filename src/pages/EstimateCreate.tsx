@@ -6,15 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
-import { 
-  ChevronLeft, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  ChevronLeft,
   Plus,
   Trash2,
   Calendar as CalendarIcon,
@@ -83,6 +89,7 @@ export default function EstimateCreate() {
 
   const [showQtyAs, setShowQtyAs] = useState("qty");
   const [items, setItems] = useState<any[]>([]);
+  const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
   const [newItem, setNewItem] = useState({
     description: "",
     long_description: "",
@@ -130,7 +137,7 @@ export default function EstimateCreate() {
         expirydate: estimate.expirydate ? new Date(estimate.expirydate).toISOString().split('T')[0] : formData.expirydate,
         discount_type: estimate.discount_percent > 0 ? "percent" : "no_discount"
       });
-      
+
       if (estimate.items) {
         setItems(estimate.items.map((item: any) => ({
           ...item,
@@ -145,14 +152,14 @@ export default function EstimateCreate() {
 
   const calculations = useMemo(() => {
     const subTotal = items.reduce((acc, item) => acc + (item.qty * item.rate), 0);
-    const discountAmount = formData.discount_type === "no_discount" ? 0 : 
+    const discountAmount = formData.discount_type === "no_discount" ? 0 :
       (discountType === "percent" ? (subTotal * (discountValue / 100)) : discountValue);
     const totalTax = items.reduce((acc, item) => {
       const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || 0;
       return acc + ((item.qty * item.rate) * (taxRate / 100));
     }, 0);
     const total = subTotal - discountAmount + totalTax + Number(adjustmentValue);
-    
+
     return { subTotal, discountAmount, totalTax, total };
   }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, taxes]);
 
@@ -169,6 +176,7 @@ export default function EstimateCreate() {
       unit: "",
       item_group: ""
     });
+    setIsAddItemModalOpen(false);
   };
 
   const removeItem = (id: string) => {
@@ -178,15 +186,15 @@ export default function EstimateCreate() {
   const mutation = useMutation({
     mutationFn: (payload: any) => isEdit ? estimateService.updateEstimate(id!, payload) : estimateService.createEstimate(payload),
     onSuccess: () => {
-      toast({ 
-        title: isEdit ? "Estimate Updated Successfully!" : "Estimate Created Successfully!", 
+      toast({
+        title: isEdit ? "Estimate Updated Successfully!" : "Estimate Created Successfully!",
         className: "bg-green-600 text-white font-bold rounded-2xl shadow-2xl border-none",
       });
       navigate(formData.client ? `/admin/customers/${formData.client}?tab=estimates` : "/admin/estimates");
     },
     onError: (error: any) => {
-      toast({ 
-        title: "Error Saving Estimate", 
+      toast({
+        title: "Error Saving Estimate",
         description: error.response?.data?.message || "An unexpected error occurred.",
         variant: "destructive"
       });
@@ -199,7 +207,7 @@ export default function EstimateCreate() {
       return;
     }
 
-    const payload: any = { 
+    const payload: any = {
       ...formData,
       items: items.map(item => ({
         description: item.description,
@@ -213,7 +221,7 @@ export default function EstimateCreate() {
       adjustment: Number(adjustmentValue) || 0,
       subtotal: Number(calculations.subTotal) || 0,
       total_tax: Number(calculations.totalTax) || 0,
-      total: Number(calculations.total) || 0 
+      total: Number(calculations.total) || 0
     };
 
     // Clean up
@@ -249,12 +257,12 @@ export default function EstimateCreate() {
                 </div>
                 <SearchableSelect
                   placeholder="Select Customer"
-                  options={customers.map((c: any) => ({ value: c._id, label: c.company }))}
+                  options={customers.map((c: any) => ({ value: c._id, label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email }))}
                   value={formData.client}
-                  onChange={(val) => {
+                  onValueChange={(val) => {
                     const client = customers.find((c: any) => c._id === val);
-                    setFormData(p => ({ 
-                      ...p, 
+                    setFormData(p => ({
+                      ...p,
                       client: val,
                       billing_street: client?.address || "",
                       billing_city: client?.city || "",
@@ -304,7 +312,7 @@ export default function EstimateCreate() {
                   <div className="h-12 px-4 flex items-center bg-muted/50 border border-r-0 border-border/50 rounded-l-2xl text-xs font-black text-muted-foreground uppercase tracking-widest">
                     EST-
                   </div>
-                  <Input 
+                  <Input
                     className="h-12 rounded-l-none rounded-r-2xl border-border/50 bg-background shadow-sm font-mono font-bold text-lg tracking-wider"
                     value={formData.number.replace('EST-', '')}
                     onChange={(e) => setFormData(p => ({ ...p, number: `EST-${e.target.value}` }))}
@@ -318,8 +326,8 @@ export default function EstimateCreate() {
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Estimate Date</Label>
                     <span className="text-destructive text-lg leading-none">*</span>
                   </div>
-                  <Input 
-                    type="date" 
+                  <Input
+                    type="date"
                     className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
                     value={formData.date}
                     onChange={(e) => setFormData(p => ({ ...p, date: e.target.value }))}
@@ -329,8 +337,8 @@ export default function EstimateCreate() {
                   <div className="flex items-center gap-2">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Expiry Date</Label>
                   </div>
-                  <Input 
-                    type="date" 
+                  <Input
+                    type="date"
                     className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
                     value={formData.expirydate}
                     onChange={(e) => setFormData(p => ({ ...p, expirydate: e.target.value }))}
@@ -348,8 +356,8 @@ export default function EstimateCreate() {
                   <TagIcon className="h-3.5 w-3.5 text-primary" />
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Tags</Label>
                 </div>
-                <Input 
-                  placeholder="Tag" 
+                <Input
+                  placeholder="Tag"
                   className="h-12 rounded-2xl border-border/50 bg-background shadow-sm text-xs font-bold"
                   onChange={(e) => setFormData(p => ({ ...p, tags: e.target.value.split(',').map(t => t.trim()) }))}
                 />
@@ -391,7 +399,7 @@ export default function EstimateCreate() {
 
               <div className="space-y-2.5">
                 <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Reference #</Label>
-                <Input 
+                <Input
                   className="h-12 rounded-2xl border-border/50 bg-background shadow-sm text-xs font-bold"
                   value={formData.reference}
                   onChange={(e) => setFormData(p => ({ ...p, reference: e.target.value }))}
@@ -429,7 +437,7 @@ export default function EstimateCreate() {
 
               <div className="space-y-2.5 pt-4">
                 <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Admin Note</Label>
-                <Textarea 
+                <Textarea
                   className="min-h-[120px] rounded-[2rem] border-border/50 bg-background/50 shadow-sm p-6 text-xs font-medium resize-none focus:ring-primary/20"
                   value={formData.adminnote}
                   onChange={(e) => setFormData(p => ({ ...p, adminnote: e.target.value }))}
@@ -445,31 +453,33 @@ export default function EstimateCreate() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="flex items-center gap-2 flex-1 w-full md:w-auto">
                 <div className="flex-1 max-w-sm">
-                  <SearchableSelect 
+                  <SearchableSelect
                     placeholder="Add Item"
                     options={availableItems.map((i: any) => ({ value: i._id, label: i.description }))}
                     value=""
-                    onChange={(val) => {
+                    onValueChange={(val) => {
                       const item = availableItems.find((i: any) => i._id === val);
                       if (item) {
-                        setItems([...items, {
-                          id: Date.now().toString(),
+                        setNewItem({
                           description: item.description,
                           long_description: item.long_description || "",
                           qty: 1,
                           rate: item.rate,
                           tax: item.tax?._id || "",
-                          unit: item.unit || ""
-                        }]);
+                          tax2: "",
+                          unit: item.unit || "",
+                          item_group: item.group || ""
+                        });
+                        setIsAddItemModalOpen(true);
                       }
                     }}
                   />
                 </div>
-                <Button 
-                  size="icon" 
-                  variant="outline" 
-                  className="h-10 w-11 rounded-xl bg-white border-slate-200 shadow-sm" 
-                  onClick={() => {/* could open a modal here if needed */}}
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-10 w-11 rounded-xl bg-white border-slate-200 shadow-sm"
+                  onClick={() => setIsAddItemModalOpen(true)}
                 >
                   <Plus className="h-4 w-4 text-slate-600" />
                 </Button>
@@ -490,10 +500,10 @@ export default function EstimateCreate() {
                       )}>
                         {showQtyAs === opt.id && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
                       </div>
-                      <input 
-                        type="radio" 
-                        name="qty_as" 
-                        className="hidden" 
+                      <input
+                        type="radio"
+                        name="qty_as"
+                        className="hidden"
                         checked={showQtyAs === opt.id}
                         onChange={() => setShowQtyAs(opt.id)}
                       />
@@ -531,16 +541,16 @@ export default function EstimateCreate() {
                   {/* New Item Input Row */}
                   <tr className="border-b border-border/30 bg-primary/5 group">
                     <td className="p-4 align-top w-[250px]">
-                      <Textarea 
-                        placeholder="Description" 
+                      <Textarea
+                        placeholder="Description"
                         className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
                         value={newItem.description}
                         onChange={(e) => setNewItem(p => ({ ...p, description: e.target.value }))}
                       />
                     </td>
                     <td className="p-4 align-top">
-                      <Textarea 
-                        placeholder="Long description" 
+                      <Textarea
+                        placeholder="Long description"
                         className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
                         value={newItem.long_description}
                         onChange={(e) => setNewItem(p => ({ ...p, long_description: e.target.value }))}
@@ -548,9 +558,9 @@ export default function EstimateCreate() {
                     </td>
                     <td className="p-4 align-top w-[120px]">
                       <div className="space-y-1">
-                        <Input 
-                          type="number" 
-                          value={newItem.qty} 
+                        <Input
+                          type="number"
+                          value={newItem.qty}
                           onChange={(e) => setNewItem(p => ({ ...p, qty: Number(e.target.value) }))}
                           className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                         />
@@ -558,8 +568,8 @@ export default function EstimateCreate() {
                       </div>
                     </td>
                     <td className="p-4 align-top w-[150px]">
-                      <Input 
-                        placeholder="Rate" 
+                      <Input
+                        placeholder="Rate"
                         type="number"
                         value={newItem.rate}
                         onChange={(e) => setNewItem(p => ({ ...p, rate: Number(e.target.value) }))}
@@ -614,7 +624,7 @@ export default function EstimateCreate() {
               <div className="space-y-8">
                 <div className="space-y-3">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Client Note</Label>
-                  <Textarea 
+                  <Textarea
                     className="min-h-[120px] rounded-[2rem] border-border/50 bg-background/50 shadow-sm p-6 text-xs font-medium resize-none focus:ring-primary/20"
                     placeholder="Visible to client..."
                     value={formData.notes}
@@ -623,7 +633,7 @@ export default function EstimateCreate() {
                 </div>
                 <div className="space-y-3">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Terms & Conditions</Label>
-                  <Textarea 
+                  <Textarea
                     className="min-h-[120px] rounded-[2rem] border-border/50 bg-background/50 shadow-sm p-6 text-xs font-medium resize-none focus:ring-primary/20"
                     placeholder="Terms and conditions..."
                     value={formData.terms}
@@ -637,12 +647,12 @@ export default function EstimateCreate() {
                   <span>Sub Total :</span>
                   <span className="text-foreground">${calculations.subTotal.toFixed(2)}</span>
                 </div>
-                
+
                 <div className="flex justify-between items-center py-2">
                   <span className="text-sm font-bold text-muted-foreground">Discount</span>
                   <div className="flex items-center gap-3">
-                    <Input 
-                      type="number" 
+                    <Input
+                      type="number"
                       className="h-9 w-20 rounded-lg border-border/50 bg-background shadow-sm text-xs font-bold text-center"
                       value={discountValue}
                       onChange={(e) => setDiscountValue(Number(e.target.value))}
@@ -672,8 +682,8 @@ export default function EstimateCreate() {
                 <div className="flex justify-between items-center py-2">
                   <span className="text-sm font-bold text-muted-foreground">Adjustment</span>
                   <div className="flex items-center gap-3">
-                    <Input 
-                      type="number" 
+                    <Input
+                      type="number"
                       className="h-9 w-32 rounded-lg border-border/50 bg-background shadow-sm text-xs font-bold text-center"
                       value={adjustmentValue}
                       onChange={(e) => setAdjustmentValue(Number(e.target.value))}
@@ -695,16 +705,16 @@ export default function EstimateCreate() {
 
         {/* Bottom Actions */}
         <div className="flex items-center justify-end gap-4 pt-4">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => navigate(-1)}
             className="rounded-xl px-6 h-10 text-xs font-bold border-border/50 bg-background/50 backdrop-blur-sm hover:bg-background transition-all shadow-sm"
           >
             Cancel
           </Button>
-          
+
           <div className="flex items-center">
-            <Button 
+            <Button
               onClick={() => handleSave("save")}
               className="rounded-l-xl px-8 h-10 shadow-lg shadow-primary/20 font-black tracking-widest uppercase text-xs border-r border-white/10"
             >
@@ -728,6 +738,93 @@ export default function EstimateCreate() {
           </div>
         </div>
       </div>
+      <AddItemModal
+        open={isAddItemModalOpen}
+        onOpenChange={setIsAddItemModalOpen}
+        newItem={newItem}
+        setNewItem={setNewItem}
+        onAdd={addItem}
+        taxes={taxes}
+      />
     </DashboardLayout>
+  );
+}
+
+function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }: any) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl bg-white dark:bg-slate-900 flex flex-col max-h-[85vh]">
+        <div className="bg-slate-50 dark:bg-slate-800/50 px-8 py-6 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-4 tracking-tight">
+              <div className="p-2.5 bg-primary/10 rounded-2xl">
+                <Plus className="h-6 w-6 text-primary" />
+              </div>
+              Add New Item
+            </DialogTitle>
+          </DialogHeader>
+        </div>
+
+        <div className="p-8 space-y-6 overflow-y-auto bg-white dark:bg-slate-900 flex-1">
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Description</Label>
+            <Input
+              placeholder="Item name"
+              value={newItem.description}
+              onChange={(e) => setNewItem((p: any) => ({ ...p, description: e.target.value }))}
+              className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Long Description</Label>
+            <Textarea
+              placeholder="Details..."
+              value={newItem.long_description}
+              onChange={(e) => setNewItem((p: any) => ({ ...p, long_description: e.target.value }))}
+              className="min-h-[100px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium resize-none p-4 focus-visible:ring-1 focus-visible:ring-primary/30"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Qty</Label>
+              <Input
+                type="number"
+                value={newItem.qty}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, qty: Number(e.target.value) }))}
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Rate</Label>
+              <Input
+                type="number"
+                value={newItem.rate}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, rate: Number(e.target.value) }))}
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Tax</Label>
+            <Select value={newItem.tax} onValueChange={(v) => setNewItem((p: any) => ({ ...p, tax: v }))}>
+              <SelectTrigger className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus:ring-1 focus:ring-primary/30">
+                <SelectValue placeholder="No Tax" />
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl">
+                <SelectItem value="none">No Tax</SelectItem>
+                {taxes.map((t: any) => (
+                  <SelectItem key={t._id} value={t._id}>{t.name} ({t.taxrate}%)</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="p-8 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-4">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-2xl font-bold h-12 px-8 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Cancel</Button>
+          <Button className="rounded-2xl px-12 h-12 shadow-lg shadow-primary/20 font-black tracking-widest uppercase text-xs text-white" onClick={onAdd}>Save</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
