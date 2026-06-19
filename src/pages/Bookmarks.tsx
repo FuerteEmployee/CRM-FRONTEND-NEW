@@ -8,7 +8,6 @@ import { Search, ExternalLink, Trash2, Bookmark as BookmarkIcon, Folder as Folde
 import { useState, useMemo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { formatDate } from "@/lib/dateFormat";
 
 export default function Bookmarks() {
   const [search, setSearch] = useState("");
@@ -47,6 +46,40 @@ export default function Bookmarks() {
     });
     return groups;
   }, [filteredBookmarks]);
+
+  const renderBookmark = (bookmark: any) => (
+    <div key={bookmark._id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-white border rounded-xl shadow-sm hover:shadow-md transition-all hover:border-primary/20 group gap-4">
+      <div className="flex items-start gap-4">
+        <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100 group-hover:bg-blue-50 transition-colors">
+          {(() => {
+            try {
+              const urlObj = new URL(bookmark.url);
+              const hostname = urlObj.hostname;
+              
+              if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === 'newtab' || urlObj.protocol === 'chrome:' || urlObj.protocol === 'edge:' || !hostname.includes('.')) {
+                return <Globe className="h-5 w-5 text-slate-400" />;
+              }
+              
+              return <img src={`https://icons.duckduckgo.com/ip3/${hostname}.ico`} alt="" className="h-5 w-5 rounded" onError={(e: any) => { e.target.style.display='none'; }} />;
+            } catch (e) {
+              return <Globe className="h-5 w-5 text-slate-400" />;
+            }
+          })()}
+        </div>
+        <div className="flex flex-col min-w-0">
+          <a href={bookmark.url} target="_blank" rel="noopener noreferrer" className="font-bold text-slate-800 hover:text-primary transition-colors truncate max-w-[500px] flex items-center gap-2 text-sm">
+            {bookmark.title}
+            <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </a>
+          <span className="text-xs text-slate-400 truncate max-w-[400px] mt-0.5">{bookmark.url}</span>
+        </div>
+      </div>
+      
+      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteMutation.mutate(bookmark._id)}>
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
+  );
 
   return (
     <DashboardLayout>
@@ -95,40 +128,7 @@ export default function Bookmarks() {
                     </div>
                     
                     <div className="grid gap-3">
-                      {items.map((bookmark: any) => (
-                        <div key={bookmark._id} className="flex items-center justify-between p-3 bg-white border rounded-xl shadow-sm hover:shadow-md transition-all hover:border-primary/20 group">
-                          <div className="flex items-start gap-4">
-                            <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100 group-hover:bg-blue-50 transition-colors">
-                              {(() => {
-                                try {
-                                  const urlObj = new URL(bookmark.url);
-                                  const hostname = urlObj.hostname;
-                                  
-                                  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === 'newtab' || urlObj.protocol === 'chrome:' || urlObj.protocol === 'edge:' || !hostname.includes('.')) {
-                                    return <Globe className="h-5 w-5 text-slate-400" />;
-                                  }
-                                  
-                                  // DuckDuckGo's favicon API always returns a default icon (200 OK) instead of a 404 error
-                                  return <img src={`https://icons.duckduckgo.com/ip3/${hostname}.ico`} alt="" className="h-5 w-5 rounded" onError={(e: any) => { e.target.style.display='none'; }} />;
-                                } catch (e) {
-                                  return <Globe className="h-5 w-5 text-slate-400" />;
-                                }
-                              })()}
-                            </div>
-                            <div className="flex flex-col min-w-0">
-                              <a href={bookmark.url} target="_blank" rel="noopener noreferrer" className="font-bold text-slate-800 hover:text-primary transition-colors truncate max-w-[500px] flex items-center gap-2 text-sm">
-                                {bookmark.title}
-                                <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </a>
-                              <span className="text-xs text-slate-400 truncate max-w-[400px] mt-0.5">{bookmark.url}</span>
-                            </div>
-                          </div>
-                          
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteMutation.mutate(bookmark._id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
+                      {items.map(bookmark => renderBookmark(bookmark))}
                     </div>
                   </div>
                 ))

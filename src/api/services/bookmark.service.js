@@ -7,5 +7,13 @@ export const bookmarkService = {
   
   deleteBookmark: async (id) => {
     return apiClient.delete(`/bookmarks/${id}`);
+  },
+  
+  updateBookmark: async (id, data) => {
+    return apiClient.put(`/bookmarks/${id}`, data);
+  },
+  
+  createBookmark: async (data) => {
+    return apiClient.post('/bookmarks', data);
   }
 };

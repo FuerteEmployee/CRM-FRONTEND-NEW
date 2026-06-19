@@ -76,6 +76,16 @@ const OverviewSection = ({ title, icon: Icon, items }: { title: string; icon: Re
 const Dashboard = () => {
   const { user } = usePermissionContext();
 
+  const getDaysRemaining = () => {
+    if (!user?.tenant) return null;
+    const endDate = user.tenant.billing_cycle_end || user.tenant.trial_ends_at;
+    if (!endDate) return null;
+    const diff = new Date(endDate).getTime() - new Date().getTime();
+    return Math.ceil(diff / (1000 * 3600 * 24));
+  };
+
+  const daysRemaining = getDaysRemaining();
+
   // 1. Fetching all dynamic datasets from backend APIs
   const { data: invoicesList = [], isLoading } = useQuery({
     queryKey: ["dashboard-invoices"],
@@ -841,6 +851,28 @@ const Dashboard = () => {
             Start Demo Tour
           </Button>
         </div>
+
+        {/* Subscription Alert */}
+        {daysRemaining !== null && daysRemaining <= 30 && (
+          <div className={`px-4 py-3 rounded-lg flex items-center justify-between shadow-sm border ${daysRemaining <= 0 ? 'bg-destructive/15 border-destructive text-destructive' : 'bg-yellow-500/15 border-yellow-500 text-yellow-700 dark:text-yellow-500'}`}>
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5" />
+              <div>
+                <p className="font-semibold text-sm">
+                  {daysRemaining <= 0 ? 'Subscription Expired' : 'Subscription expiring soon'}
+                </p>
+                <p className="text-xs opacity-90">
+                  {daysRemaining <= 0 
+                    ? 'Your subscription has expired. Please renew to continue using the CRM.'
+                    : `You have ${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'} remaining on your current plan.`}
+                </p>
+              </div>
+            </div>
+            <Button variant={daysRemaining <= 0 ? "destructive" : "default"} size="sm" onClick={() => window.location.href = '/admin/settings'} className="font-semibold shadow-md whitespace-nowrap">
+              Renew Plan
+            </Button>
+          </div>
+        )}
 
         {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="tour-stats">
