@@ -58,7 +58,7 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
   const syncPermissions = async () => {
     // Only set loading if we don't have cached data to show
     if (!user) setLoading(true);
-    
+
     try {
       const { authService } = await import("@/api/services/auth.service");
       const data = await authService.getMe();
@@ -70,17 +70,27 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
         setPermissions(data.permissions);
         localStorage.setItem("crm_permissions", JSON.stringify(data.permissions));
       }
-      if (data.plan_modules) {
-        setPlanModules(data.plan_modules);
-        localStorage.setItem("crm_plan_modules", JSON.stringify(data.plan_modules));
+      // Always sync plan_modules — even when null (super admin has no plan restrictions)
+      const modules = data.plan_modules ?? null;
+      setPlanModules(modules);
+      if (modules) {
+        localStorage.setItem("crm_plan_modules", JSON.stringify(modules));
+      } else {
+        localStorage.removeItem("crm_plan_modules");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error syncing permissions:", error);
-      // Only clear if the error is an actual 401/Unauthorized
-      setUser(null);
-      setPermissions({});
-      localStorage.removeItem("crm_user");
-      localStorage.removeItem("crm_permissions");
+      // Only clear session on actual auth failures (401/403), not network errors
+      const status = error?.response?.status ?? error?.status ?? error?.response?.data?.status;
+      if (status === 401 || status === 403) {
+        setUser(null);
+        setPermissions({});
+        setPlanModules(null);
+        localStorage.removeItem("crm_token");
+        localStorage.removeItem("crm_user");
+        localStorage.removeItem("crm_permissions");
+        localStorage.removeItem("crm_plan_modules");
+      }
     } finally {
       setLoading(false);
     }
@@ -122,6 +132,7 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
       setUser(null);
       setPermissions({});
       setPlanModules(null);
+      localStorage.removeItem("crm_token");
       localStorage.removeItem("crm_user");
       localStorage.removeItem("crm_permissions");
       localStorage.removeItem("crm_plan_modules");
@@ -147,9 +158,13 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
     localStorage.setItem("crm_user", JSON.stringify(userData));
     setPermissions(permsData || {});
     localStorage.setItem("crm_permissions", JSON.stringify(permsData || {}));
-    if (planModulesData) {
-      setPlanModules(planModulesData);
-      localStorage.setItem("crm_plan_modules", JSON.stringify(planModulesData));
+    // Always set plan_modules — null means super admin (no restrictions)
+    const modules = planModulesData ?? null;
+    setPlanModules(modules);
+    if (modules) {
+      localStorage.setItem("crm_plan_modules", JSON.stringify(modules));
+    } else {
+      localStorage.removeItem("crm_plan_modules");
     }
   };
 
