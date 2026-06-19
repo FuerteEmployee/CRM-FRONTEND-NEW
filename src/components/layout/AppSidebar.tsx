@@ -244,6 +244,19 @@ export function AppSidebar() {
     localStorage.setItem("sidebar:openSections", JSON.stringify(openSections));
   }, [openSections]);
 
+  // Open a specific collapsible section when Fuerte AI voice command navigates here
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent<{ section: string }>).detail?.section;
+      if (section) {
+        setMenuMode("main");
+        setOpenSections((prev) => ({ ...prev, [section]: true }));
+      }
+    };
+    window.addEventListener("fuerte:open-section", handler);
+    return () => window.removeEventListener("fuerte:open-section", handler);
+  }, []);
+
   const toggleSection = (title: string) => {
     setOpenSections((prev) => ({ ...prev, [title]: !prev[title] }));
   };

@@ -5,6 +5,7 @@ import {
   AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiClient as api } from "@/api/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -386,18 +387,26 @@ export default function SuperAdminCompanies() {
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Plan</label>
                 <div className="relative">
-                  <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <select
-                    required
+                  <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+                  <Select
                     value={createForm.plan_id}
-                    onChange={(e) => setCreateForm({ ...createForm, plan_id: e.target.value })}
-                    className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 appearance-none"
+                    onValueChange={(val) => setCreateForm({ ...createForm, plan_id: val })}
                   >
-                    <option value="">Select a plan</option>
-                    {plans.map((p) => (
-                      <option key={p._id} value={p._id}>{p.name} — ${p.price}/mo</option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-full pl-9 h-10 bg-white border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                      <SelectValue placeholder="Select a plan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {plans.map((p) => (
+                        <SelectItem key={p._id} value={p._id}>
+                          <span className="flex items-center gap-2">
+                            <Package className="h-3.5 w-3.5 text-gray-400" />
+                            <span>{p.name}</span>
+                            <span className="text-gray-400 text-xs">— ${p.price}/mo</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -489,16 +498,28 @@ export default function SuperAdminCompanies() {
               {/* Plan */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Plan</label>
-                <select
-                  value={manageForm.plan_id}
-                  onChange={(e) => setManageForm({ ...manageForm, plan_id: e.target.value })}
-                  className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                >
-                  <option value="">No Plan</option>
-                  {plans.map((p) => (
-                    <option key={p._id} value={p._id}>{p.name} — ${p.price}/mo</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+                  <Select
+                    value={manageForm.plan_id}
+                    onValueChange={(val) => setManageForm({ ...manageForm, plan_id: val })}
+                  >
+                    <SelectTrigger className="w-full pl-9 h-10 bg-white border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
+                      <SelectValue placeholder="Select a plan" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {plans.map((p) => (
+                        <SelectItem key={p._id} value={p._id}>
+                          <span className="flex items-center gap-2">
+                            <Package className="h-3.5 w-3.5 text-gray-400" />
+                            <span>{p.name}</span>
+                            <span className="text-gray-400 text-xs">— ${p.price}/mo</span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               {/* Status */}
