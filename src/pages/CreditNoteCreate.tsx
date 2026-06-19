@@ -680,10 +680,10 @@ export default function CreditNoteCreate() {
 function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }: any) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white">
-        <div className="bg-zinc-950 px-8 py-6 flex items-center justify-between border-b border-white/5">
+      <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden rounded-[2.5rem] border border-slate-200 dark:border-slate-800 shadow-2xl bg-white dark:bg-slate-900 flex flex-col max-h-[85vh]">
+        <div className="bg-slate-50 dark:bg-slate-800/50 px-8 py-6 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black text-white flex items-center gap-4 tracking-tight">
+            <DialogTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-4 tracking-tight">
               <div className="p-2.5 bg-primary/10 rounded-2xl">
                 <Plus className="h-6 w-6 text-primary" />
               </div>
@@ -692,52 +692,52 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
           </DialogHeader>
         </div>
 
-        <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+        <div className="p-8 space-y-6 overflow-y-auto bg-white dark:bg-slate-900 flex-1">
           <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Description</Label>
+            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Description</Label>
             <Input 
               placeholder="Item name" 
               value={newItem.description}
               onChange={(e) => setNewItem((p: any) => ({ ...p, description: e.target.value }))}
-              className="h-12 bg-muted/40 border-none rounded-2xl font-bold"
+              className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
             />
           </div>
           <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Long Description</Label>
+            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Long Description</Label>
             <Textarea 
               placeholder="Details..." 
               value={newItem.long_description}
               onChange={(e) => setNewItem((p: any) => ({ ...p, long_description: e.target.value }))}
-              className="min-h-[100px] bg-muted/40 border-none rounded-2xl font-medium resize-none p-4"
+              className="min-h-[100px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium resize-none p-4 focus-visible:ring-1 focus-visible:ring-primary/30"
             />
           </div>
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Qty</Label>
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Qty</Label>
               <Input 
                 type="number" 
                 value={newItem.qty}
                 onChange={(e) => setNewItem((p: any) => ({ ...p, qty: Number(e.target.value) }))}
-                className="h-12 bg-muted/40 border-none rounded-2xl font-bold"
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Rate</Label>
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Rate</Label>
               <Input 
                 type="number" 
                 value={newItem.rate}
                 onChange={(e) => setNewItem((p: any) => ({ ...p, rate: Number(e.target.value) }))}
-                className="h-12 bg-muted/40 border-none rounded-2xl font-bold"
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
               />
             </div>
           </div>
           <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">Tax</Label>
+            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Tax</Label>
             <Select value={newItem.tax} onValueChange={(v) => setNewItem((p: any) => ({ ...p, tax: v }))}>
-              <SelectTrigger className="h-12 bg-muted/40 border-none rounded-2xl font-bold">
+              <SelectTrigger className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus:ring-1 focus:ring-primary/30">
                 <SelectValue placeholder="No Tax" />
               </SelectTrigger>
-              <SelectContent className="rounded-2xl border-none shadow-xl">
+              <SelectContent className="rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl">
                 <SelectItem value="none">No Tax</SelectItem>
                 {taxes.map((t: any) => (
                   <SelectItem key={t._id} value={t._id}>{t.name} ({t.taxrate}%)</SelectItem>
@@ -747,9 +747,9 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
           </div>
         </div>
 
-        <div className="p-8 bg-muted/20 border-t border-border/50 flex items-center justify-end gap-4">
-          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-2xl font-bold h-12 px-8">Cancel</Button>
-          <Button className="rounded-2xl px-12 h-12 shadow-lg shadow-primary/20 font-black tracking-widest uppercase text-xs" onClick={onAdd}>Save</Button>
+        <div className="p-8 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-4">
+          <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-2xl font-bold h-12 px-8 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100">Cancel</Button>
+          <Button className="rounded-2xl px-12 h-12 shadow-lg shadow-primary/20 font-black tracking-widest uppercase text-xs text-white" onClick={onAdd}>Save</Button>
         </div>
       </DialogContent>
     </Dialog>
