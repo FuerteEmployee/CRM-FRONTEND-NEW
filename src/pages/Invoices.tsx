@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,7 +34,11 @@ import {
   Receipt,
   Edit2,
   Trash2,
-  Zap
+  Zap,
+  Mail,
+  Maximize2,
+  Pencil,
+  ChevronDown
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
@@ -45,6 +49,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/ui/export-button";
+import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
 
 const statusMap: Record<number, { label: string; color: string }> = {
   1: { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
@@ -62,11 +67,439 @@ const statusCardConfig = [
   { label: "Cancelled", color: "text-slate-500", bg: "bg-slate-50/50", border: "border-slate-100", statusId: 5 },
 ];
 
+const getStatus = (statusId: any) => {
+  return statusMap[Number(statusId)] ?? { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" };
+};
+
+const DETAIL_TABS = ["Invoice", "Comments", "Reminders", "Tasks", "Notes", "Templates"];
+
+const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, setIsFullscreen }: {
+  invoice: any;
+  onClose: () => void;
+  onEdit: () => void;
+  onView: () => void;
+  isFullscreen: boolean;
+  setIsFullscreen: (v: boolean) => void;
+}) => {
+  const navigate = useNavigate();
+  const invoiceNumber = invoice.number || `INV-${invoice._id?.substring(0, 6)}`;
+  const status = getStatus(invoice.status);
+  const [activeTab, setActiveTab] = useState("Invoice");
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [ccEmail, setCcEmail] = useState("");
+  const [attachPdf, setAttachPdf] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const updateStatusMutation = useMutation({
+    mutationFn: (status: number) => salesService.updateInvoice(d._id || d.id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoice._id || invoice.id] });
+      toast({ title: "Status Updated", description: "Invoice status updated successfully.", className: "bg-green-600 text-white font-bold rounded-2xl" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to update status.", variant: "destructive" });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => salesService.deleteInvoice(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast({ title: "Deleted", description: "Invoice deleted successfully.", className: "bg-green-600 text-white font-bold rounded-2xl" });
+      onClose();
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to delete invoice.", variant: "destructive" });
+    }
+  });
+
+  const handleCopy = () => {
+    const link = `${window.location.origin}/invoice/${d._id || d.id}`;
+    navigator.clipboard.writeText(link);
+    toast({
+      title: "Copied",
+      description: "Invoice link copied to clipboard!",
+      className: "bg-green-600 text-white font-bold rounded-2xl"
+    });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      toast({
+        title: "File Attached",
+        description: `File "${file.name}" attached successfully (simulation).`,
+        className: "bg-green-600 text-white font-bold rounded-2xl"
+      });
+    }
+  };
+
+  const { data: detail, isLoading } = useQuery({
+    queryKey: ["invoice-detail", invoice._id || invoice.id],
+    queryFn: () => salesService.getInvoiceById(invoice._id || invoice.id).then((res: any) => res.data || res),
+    enabled: !!(invoice._id || invoice.id),
+  });
+
+  const d = detail || invoice;
+
+  return (
+    <>
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        style={{ display: "none" }}
+      />
+      <div className="flex flex-col">
+        {/* ── Tab header row ── */}
+        <div className="border-b border-border/50 px-4 pt-3 bg-background">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-0 overflow-x-auto">
+              {DETAIL_TABS.map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={cn(
+                    "px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors",
+                    activeTab === tab
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                  )}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+            {/* Icon tabs — right side */}
+            <div className="flex items-center gap-0.5 pb-1 ml-2 shrink-0">
+              <button
+                title="Emails Tracking"
+                onClick={() => setActiveTab("Emails Tracking")}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  activeTab === "Emails Tracking"
+                    ? "text-foreground bg-muted"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <Mail className="h-4 w-4" />
+              </button>
+              <button
+                title="View Tracking"
+                onClick={() => setActiveTab("View Tracking")}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  activeTab === "View Tracking"
+                    ? "text-foreground bg-muted"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+              <button
+                title="Toggle full view"
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Action bar ── */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50 bg-background">
+          <Badge variant="outline" className={cn("text-xs font-semibold px-2.5 py-0.5 bg-transparent", status.color)}>
+            {status.label}
+          </Badge>
+          <div className="flex items-center gap-1.5">
+            {/* Edit */}
+            <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg" title="Edit" onClick={onEdit}>
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+
+            {/* PDF dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="h-8 px-2 rounded-lg gap-0.5 text-xs">
+                  <FileText className="h-3.5 w-3.5" />
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>View PDF</DropdownMenuItem>
+                <DropdownMenuItem>View PDF in New Tab</DropdownMenuItem>
+                <DropdownMenuItem>Download</DropdownMenuItem>
+                <DropdownMenuItem>Print</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Email — opens Send dialog */}
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-8 rounded-lg"
+              title="Send Email"
+              onClick={() => setShowEmailDialog(true)}
+            >
+              <Mail className="h-3.5 w-3.5" />
+            </Button>
+
+            {/* More dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="h-8 px-2.5 rounded-lg gap-1 text-xs font-medium">
+                  More <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={onView}>View Invoice</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>Attach File</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleCopy}>Copy</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate(1)}>Mark as Unpaid</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate(2)}>Mark as Paid</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate(3)}>Mark as Partially Paid</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate(5)}>Mark as Cancelled</DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => deleteMutation.mutate(d._id || d.id)}>Delete</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Convert dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" className="h-8 px-3 rounded-lg gap-1 text-xs font-bold bg-green-600 hover:bg-green-700 text-white">
+                  Convert <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => navigate("/admin/credit-notes/create", { state: { prepopulate: d } })}>
+                  Convert to Credit Note
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* ── Tab content ── */}
+        <div className="px-6 py-5 overflow-y-auto max-h-[60vh]">
+          {/* Invoice tab */}
+          {activeTab === "Invoice" && (
+            isLoading ? (
+              <div className="space-y-3">
+                {Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-5 w-full" />)}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Header card */}
+                <div className="border border-border/40 rounded-xl p-5">
+                  <div className="flex justify-between items-start gap-4">
+                    <div>
+                      <p className="text-base font-bold text-primary">{invoiceNumber}</p>
+                      {d.client?.company && <p className="text-sm font-bold text-foreground mt-3">{d.client?.company}</p>}
+                      {d.client?.address && <p className="text-xs text-muted-foreground">{d.client?.address}</p>}
+                      {(d.client?.city || d.client?.state) && (
+                        <p className="text-xs text-muted-foreground">{[d.client?.city, d.client?.state, d.client?.zip].filter(Boolean).join(" ")}</p>
+                      )}
+                      {d.client?.country && <p className="text-xs text-muted-foreground">{d.client?.country}</p>}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-muted-foreground mb-0.5">To:</p>
+                      <p className="text-sm font-semibold text-primary">{d.client?.company || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Items breakdown */}
+                <div className="border border-border/40 rounded-xl p-5 min-h-[100px]">
+                  {d.items?.length > 0 ? (
+                    <>
+                      <table className="w-full text-xs mb-4">
+                        <thead className="bg-red-600 text-white text-[10px] font-black uppercase tracking-widest">
+                          <tr>
+                            <th className="px-3 py-2.5 text-left w-12">#</th>
+                            <th className="px-3 py-2.5 text-left">Item</th>
+                            <th className="px-3 py-2.5 text-left w-16">Qty</th>
+                            <th className="px-3 py-2.5 text-left w-24">Rate</th>
+                            <th className="px-3 py-2.5 text-left w-16">Tax</th>
+                            <th className="px-3 py-2.5 text-left w-28">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/30">
+                          {d.items.map((item: any, i: number) => (
+                            <tr key={i} className="hover:bg-muted/20">
+                              <td className="px-3 py-2.5 text-foreground font-medium">{i + 1}</td>
+                              <td className="px-3 py-2.5 text-foreground align-top">
+                                <div className="font-bold">{item.description || item.name || "—"}</div>
+                                {item.long_description && <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.long_description}</div>}
+                              </td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.qty || item.quantity || 1}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">₹{Number(item.rate || item.price || 0).toFixed(2)}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</td>
+                              <td className="px-3 py-2.5 font-bold text-foreground align-top">₹{Number((item.qty || 1) * (item.rate || item.price || 0)).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="flex flex-col items-end gap-1.5 pt-2 border-t border-border/30">
+                        {d.subtotal !== undefined && (
+                          <div className="flex gap-4 text-xs">
+                            <span className="text-muted-foreground font-medium">Sub Total:</span>
+                            <span className="font-bold">₹{Number(d.subtotal).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {d.discount_percent > 0 && (
+                          <div className="flex gap-4 text-xs text-destructive">
+                            <span className="font-medium">Discount ({d.discount_percent}%):</span>
+                            <span className="font-bold">-₹{Number(d.subtotal * (d.discount_percent / 100)).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {d.total_tax > 0 && (
+                          <div className="flex gap-4 text-xs">
+                            <span className="text-muted-foreground font-medium">Total Tax:</span>
+                            <span className="font-bold">₹{Number(d.total_tax).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {d.adjustment !== 0 && d.adjustment !== undefined && (
+                          <div className="flex gap-4 text-xs">
+                            <span className="text-muted-foreground font-medium">Adjustment:</span>
+                            <span className="font-bold">₹{Number(d.adjustment).toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="text-right mt-1 pt-1 border-t border-border/20 w-40">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total</p>
+                          <p className="text-lg font-black text-foreground">
+                            ₹{Number(d.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground font-mono">{"{invoice_items}"}</p>
+                  )}
+                </div>
+
+                {/* Tags */}
+                {d.tags?.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {d.tags.map((tag: string, i: number) => (
+                      <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          )}
+
+          {/* Comments tab */}
+          {activeTab === "Comments" && (
+            <div className="space-y-3 pt-2">
+              <textarea
+                value={commentText}
+                onChange={e => setCommentText(e.target.value)}
+                rows={5}
+                className="w-full rounded-xl border border-border/50 p-3 text-sm resize-y focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              />
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  className="bg-slate-800 hover:bg-slate-900 text-white font-semibold px-4 h-9 rounded-lg text-xs"
+                  onClick={() => setCommentText("")}
+                >
+                  Add Comment
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "Reminders" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No reminders set.</p>
+          )}
+          {activeTab === "Tasks" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No tasks linked.</p>
+          )}
+          {activeTab === "Notes" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No notes added.</p>
+          )}
+          {activeTab === "Templates" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No templates available.</p>
+          )}
+          {activeTab === "Emails Tracking" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No tracked emails sent.</p>
+          )}
+          {activeTab === "View Tracking" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No views tracked yet.</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Send Invoice Email Dialog ── */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="max-w-2xl p-6">
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold text-foreground">Send Invoice to Email</h2>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="attach-pdf"
+                checked={attachPdf}
+                onChange={e => setAttachPdf(e.target.checked)}
+                className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+              />
+              <label htmlFor="attach-pdf" className="text-sm font-medium cursor-pointer">Attach PDF</label>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium block mb-1.5">CC</label>
+              <Input
+                value={ccEmail}
+                onChange={e => setCcEmail(e.target.value)}
+                className="rounded-lg border-border/60"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium block mb-1.5">Preview Template</label>
+              <div className="border border-border/50 rounded-xl overflow-hidden">
+                <div className="flex items-center gap-4 px-3 py-2 border-b border-border/40 bg-muted/30 text-xs text-muted-foreground">
+                  {["File", "Edit", "View", "Insert", "Format", "Tools", "Table"].map(m => (
+                    <span key={m} className="cursor-pointer hover:text-foreground">{m}</span>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40 bg-muted/20 text-xs text-muted-foreground">
+                  <span className="border border-border/40 rounded px-2 py-0.5">System Font</span>
+                  <span className="border border-border/40 rounded px-2 py-0.5">12pt</span>
+                </div>
+                <textarea
+                  rows={8}
+                  className="w-full p-4 text-sm resize-none focus:outline-none bg-background"
+                  defaultValue={`Dear {contact_name}\n\nPlease find our attached invoice.\n\nThis invoice is due on: {invoice_duedate}\nYou can view the invoice on the following link: {invoice_number}\n\nPlease don't hesitate to comment online if you have any questions.\n\nWe look forward to your communication.\n\nKind Regards,\n{email_signature}`}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" className="rounded-lg" onClick={() => setShowEmailDialog(false)}>Cancel</Button>
+              <Button className="rounded-lg">Send</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
+
 const Invoices = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [itemsPerPage, setItemsPerPage] = useState("10");
-  const [viewItem, setViewItem] = useState<any>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [previewInvoice, setPreviewInvoice] = useState<any>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -311,11 +744,13 @@ const Invoices = () => {
                     const status = statusMap[inv.status] || statusMap[1];
                     return (
                       <tr key={inv._id} className="hover:bg-muted/30 transition-colors">
-                        <td
-                          className="px-6 py-4 font-bold text-primary cursor-pointer hover:underline"
-                          onClick={() => setViewItem(inv)}
-                        >
-                          {inv.number || `INV-${inv._id?.substring(0, 6)}`}
+                        <td className="px-6 py-4">
+                          <button
+                            className="font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer text-left"
+                            onClick={() => setSelectedInvoice(inv)}
+                          >
+                            {inv.number || `INV-${inv._id?.substring(0, 6)}`}
+                          </button>
                         </td>
                         <td className="px-6 py-4 font-medium text-foreground">
                           {inv.client?.company || "N/A"}
@@ -339,7 +774,7 @@ const Invoices = () => {
                         </td>
                         <td className="px-6 py-4">
                           <TableActions
-                            onView={() => setViewItem(inv)}
+                            onView={() => setPreviewInvoice(inv)}
                             onEdit={can("Invoices", "Edit") ? () => navigate(`/admin/invoices/edit/${inv._id}`) : undefined}
                             onDelete={can("Invoices", "Delete") ? () => deleteMutation.mutate(inv._id) : undefined}
                           />
@@ -371,56 +806,35 @@ const Invoices = () => {
         </div>
       </div>
 
-      {/* View Dialog */}
-      <Dialog open={!!viewItem} onOpenChange={() => setViewItem(null)}>
-        <DialogContent className="max-w-2xl rounded-3xl p-6 border-none shadow-2xl bg-white/95 backdrop-blur-md">
-          <DialogHeader className="border-b border-border/50 pb-4 mb-4">
-            <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <Receipt className="h-5 w-5 text-primary" />
-              Invoice #{viewItem?.number || viewItem?._id?.substring(0, 8)}
-            </DialogTitle>
-          </DialogHeader>
-          {viewItem && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Customer</p>
-                  <p className="text-sm font-bold text-slate-800">{viewItem.client?.company || "N/A"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Status</p>
-                  <Badge variant="outline" className={cn("text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5", statusMap[viewItem.status]?.color)}>
-                    {statusMap[viewItem.status]?.label || "Unpaid"}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Issue Date</p>
-                  <p className="text-sm font-medium text-slate-700">{viewItem.date ? formatDate(viewItem.date) : "-"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Due Date</p>
-                  <p className="text-sm font-medium text-slate-700">{viewItem.duedate ? formatDate(viewItem.duedate) : "-"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Total Amount</p>
-                  <p className="text-sm font-extrabold text-slate-900">₹{(viewItem.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Total Tax</p>
-                  <p className="text-sm font-bold text-slate-600">₹{(viewItem.total_tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                </div>
-              </div>
-
-              {viewItem.short_description && (
-                <div className="border-t border-border/50 pt-4">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Notes / Description</p>
-                  <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">{viewItem.short_description}</p>
-                </div>
-              )}
-            </div>
+      {/* Centered popup dialog */}
+      <Dialog open={!!selectedInvoice} onOpenChange={(open) => { if (!open) { setSelectedInvoice(null); setIsFullscreen(false); } }}>
+        <DialogContent className={cn("w-full p-0 overflow-hidden rounded-2xl transition-all", isFullscreen ? "max-w-[95vw]" : "max-w-3xl")}>
+          {selectedInvoice && (
+            <InvoiceDetailPanel
+              invoice={selectedInvoice}
+              onClose={() => setSelectedInvoice(null)}
+              onView={() => {
+                setPreviewInvoice(selectedInvoice);
+                setSelectedInvoice(null);
+              }}
+              isFullscreen={isFullscreen}
+              setIsFullscreen={setIsFullscreen}
+              onEdit={() => {
+                navigate(`/admin/invoices/edit/${selectedInvoice._id || selectedInvoice.id}`);
+                setSelectedInvoice(null);
+              }}
+            />
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Custom preview dialog */}
+      <DocumentPreviewDialog
+        open={!!previewInvoice}
+        onOpenChange={(open) => { if (!open) setPreviewInvoice(null); }}
+        type="invoice"
+        data={previewInvoice}
+      />
     </DashboardLayout>
   );
 };
