@@ -3,10 +3,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, Search, Download, FileText, Target, Printer, Zap } from "lucide-react";
-import { useState, useMemo } from "react";
+import { Plus, Search, Download, FileText, Target, Printer, Zap, Mail, Eye, Maximize2, Pencil, ChevronDown } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
 import { formatDate } from "@/lib/dateFormat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { estimateService } from "@/api/services/estimate.service";
@@ -17,10 +18,490 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { ExportButton } from "@/components/ui/export-button";
+import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
+
+const STATUS_MAP: Record<string, { label: string; className: string }> = {
+  "draft": { label: "Draft", className: "bg-slate-100 text-slate-600" },
+  "sent": { label: "Sent", className: "bg-blue-50 text-blue-600" },
+  "accepted": { label: "Accepted", className: "bg-emerald-50 text-emerald-600" },
+  "declined": { label: "Declined", className: "bg-red-50 text-red-600" },
+  "expired": { label: "Expired", className: "bg-amber-50 text-amber-600" },
+};
+
+const getStatus = (status: any) => {
+  const s = String(status).toLowerCase();
+  return STATUS_MAP[s] ?? { label: status || "Unknown", className: "bg-muted text-muted-foreground" };
+};
+
+const DETAIL_TABS = ["Estimate", "Comments", "Reminders", "Tasks", "Notes", "Templates"];
+
+const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, setIsFullscreen }: {
+  estimate: any;
+  onClose: () => void;
+  onEdit: () => void;
+  onView: () => void;
+  isFullscreen: boolean;
+  setIsFullscreen: (v: boolean) => void;
+}) => {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const estimateNumber = estimate.number || (estimate._id || estimate.id)?.slice(-6).toUpperCase();
+  const status = getStatus(estimate.status);
+  const [activeTab, setActiveTab] = useState("Estimate");
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [ccEmail, setCcEmail] = useState("");
+  const [attachPdf, setAttachPdf] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const updateStatusMutation = useMutation({
+    mutationFn: (status: string) => estimateService.updateEstimate(d._id || d.id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["estimates"] });
+      queryClient.invalidateQueries({ queryKey: ["estimate-detail", estimate._id || estimate.id] });
+      toast({ title: "Status Updated", description: "Estimate status updated successfully.", className: "bg-green-600 text-white font-bold rounded-2xl" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to update status.", variant: "destructive" });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => estimateService.deleteEstimate(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["estimates"] });
+      toast({ title: "Deleted", description: "Estimate deleted successfully.", className: "bg-green-600 text-white font-bold rounded-2xl" });
+      onClose();
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to delete estimate.", variant: "destructive" });
+    }
+  });
+
+  const handleCopy = () => {
+    const link = `${window.location.origin}/estimate/${d._id || d.id}`;
+    navigator.clipboard.writeText(link);
+    toast({
+      title: "Copied",
+      description: "Estimate link copied to clipboard!",
+      className: "bg-green-600 text-white font-bold rounded-2xl"
+    });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      toast({
+        title: "File Attached",
+        description: `File "${file.name}" attached successfully (simulation).`,
+        className: "bg-green-600 text-white font-bold rounded-2xl"
+      });
+    }
+  };
+
+  const { data: detail, isLoading } = useQuery({
+    queryKey: ["estimate-detail", estimate._id || estimate.id],
+    queryFn: () => estimateService.getEstimateById(estimate._id || estimate.id).then((res: any) => res.data || res),
+    enabled: !!(estimate._id || estimate.id),
+  });
+
+  const d = detail || estimate;
+
+  const convertMutation = useMutation({
+    mutationFn: (id: string) => estimateService.convertToInvoice(id),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ["estimates"] });
+      queryClient.invalidateQueries({ queryKey: ["estimate-detail", estimate._id || estimate.id] });
+      toast({
+        title: "Converted",
+        description: "Estimate successfully converted to invoice.",
+        className: "bg-green-600 text-white font-bold rounded-2xl",
+      });
+    },
+    onError: (err: any) => {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to convert estimate to invoice.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const handleConvertToInvoice = (id: string) => {
+    convertMutation.mutate(id);
+  };
+
+  return (
+    <>
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        style={{ display: "none" }}
+      />
+      <div className="flex flex-col">
+        {/* ── Tab header row ── */}
+        <div className="border-b border-border/50 px-4 pt-3 bg-background">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-0 overflow-x-auto">
+              {DETAIL_TABS.map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={cn(
+                    "px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors",
+                    activeTab === tab
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                  )}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+            {/* Icon tabs — right side */}
+            <div className="flex items-center gap-0.5 pb-1 ml-2 shrink-0">
+              <button
+                title="Emails Tracking"
+                onClick={() => setActiveTab("Emails Tracking")}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  activeTab === "Emails Tracking"
+                    ? "text-foreground bg-muted"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <Mail className="h-4 w-4" />
+              </button>
+              <button
+                title="View Tracking"
+                onClick={() => setActiveTab("View Tracking")}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  activeTab === "View Tracking"
+                    ? "text-foreground bg-muted"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+              <button
+                title="Toggle full view"
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Action bar ── */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50 bg-background">
+          <Badge variant="outline" className={cn("text-xs font-semibold px-2.5 py-0.5 bg-transparent", status.className)}>
+            {status.label}
+          </Badge>
+          <div className="flex items-center gap-1.5">
+            {/* Edit */}
+            <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg" title="Edit" onClick={onEdit}>
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+
+            {/* PDF dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="h-8 px-2 rounded-lg gap-0.5 text-xs">
+                  <FileText className="h-3.5 w-3.5" />
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>View PDF</DropdownMenuItem>
+                <DropdownMenuItem>View PDF in New Tab</DropdownMenuItem>
+                <DropdownMenuItem>Download</DropdownMenuItem>
+                <DropdownMenuItem>Print</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Email — opens Send dialog */}
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-8 rounded-lg"
+              title="Send Email"
+              onClick={() => setShowEmailDialog(true)}
+            >
+              <Mail className="h-3.5 w-3.5" />
+            </Button>
+
+            {/* More dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="h-8 px-2.5 rounded-lg gap-1 text-xs font-medium">
+                  More <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={onView}>View Estimate</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>Attach File</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleCopy}>Copy</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("draft")}>Mark as Draft</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("sent")}>Mark as Sent</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("accepted")}>Mark as Accepted</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("declined")}>Mark as Declined</DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => deleteMutation.mutate(d._id || d.id)}>Delete</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Convert dropdown / Converted Invoice Badge */}
+            {d.invoice_id ? (
+              <Button
+                size="sm"
+                className="bg-slate-950 hover:bg-slate-800 text-white font-mono text-xs px-3 h-8 rounded-lg font-bold"
+                onClick={() => navigate("/admin/invoices")}
+              >
+                {typeof d.invoice_id === "object" ? d.invoice_id?.number : d.invoice_id}
+              </Button>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    className="h-8 px-3 rounded-lg gap-1 text-xs font-bold bg-green-600 hover:bg-green-700 text-white"
+                    disabled={convertMutation.isPending}
+                  >
+                    {convertMutation.isPending ? "Converting..." : "Convert"} <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handleConvertToInvoice(d._id || d.id)}>
+                    Invoice
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
+        </div>
+
+        {/* ── Tab content ── */}
+        <div className="px-6 py-5 overflow-y-auto max-h-[60vh]">
+          {/* Estimate tab */}
+          {activeTab === "Estimate" && (
+            isLoading ? (
+              <div className="space-y-3">
+                {Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-5 w-full" />)}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Header card */}
+                <div className="border border-border/40 rounded-xl p-5">
+                  <div className="flex justify-between items-start gap-4">
+                    <div>
+                      <p className="text-base font-bold text-primary">{estimateNumber}</p>
+                      <p className="text-sm font-semibold text-muted-foreground mt-0.5">{d.subject}</p>
+                      {d.billing_street && <p className="text-xs text-muted-foreground mt-3">{d.billing_street}</p>}
+                      {(d.billing_city || d.billing_state) && (
+                        <p className="text-xs text-muted-foreground">{[d.billing_city, d.billing_state, d.billing_zip].filter(Boolean).join(" ")}</p>
+                      )}
+                      {d.billing_country && <p className="text-xs text-muted-foreground">{d.billing_country}</p>}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-muted-foreground mb-0.5">To:</p>
+                      <p className="text-sm font-semibold text-primary">{d.contact_name || d.client_id?.company || d.rel_id || "—"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Items breakdown */}
+                <div className="border border-border/40 rounded-xl p-5 min-h-[100px]">
+                  {d.items?.length > 0 ? (
+                    <>
+                      <table className="w-full text-xs mb-4">
+                        <thead className="bg-red-600 text-white text-[10px] font-black uppercase tracking-widest">
+                          <tr>
+                            <th className="px-3 py-2.5 text-left w-12">#</th>
+                            <th className="px-3 py-2.5 text-left">Item</th>
+                            <th className="px-3 py-2.5 text-left w-16">Qty</th>
+                            <th className="px-3 py-2.5 text-left w-24">Rate</th>
+                            <th className="px-3 py-2.5 text-left w-16">Tax</th>
+                            <th className="px-3 py-2.5 text-left w-28">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/30">
+                          {d.items.map((item: any, i: number) => (
+                            <tr key={i} className="hover:bg-muted/20">
+                              <td className="px-3 py-2.5 text-foreground font-medium">{i + 1}</td>
+                              <td className="px-3 py-2.5 text-foreground align-top">
+                                <div className="font-bold">{item.description || item.name || "—"}</div>
+                                {item.long_description && <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.long_description}</div>}
+                              </td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.qty || item.quantity || 1}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">${Number(item.rate || item.price || 0).toFixed(2)}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</td>
+                              <td className="px-3 py-2.5 font-bold text-foreground align-top">${Number((item.qty || 1) * (item.rate || item.price || 0)).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="flex flex-col items-end gap-1.5 pt-2 border-t border-border/30">
+                        {d.subtotal !== undefined && (
+                          <div className="flex gap-4 text-xs">
+                            <span className="text-muted-foreground font-medium">Sub Total:</span>
+                            <span className="font-bold">${Number(d.subtotal).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {d.discount_percent > 0 && (
+                          <div className="flex gap-4 text-xs text-destructive">
+                            <span className="font-medium">Discount ({d.discount_percent}%):</span>
+                            <span className="font-bold">-${Number(d.subtotal * (d.discount_percent / 100)).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {d.total_tax > 0 && (
+                          <div className="flex gap-4 text-xs">
+                            <span className="text-muted-foreground font-medium">Total Tax:</span>
+                            <span className="font-bold">${Number(d.total_tax).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {d.adjustment !== 0 && d.adjustment !== undefined && (
+                          <div className="flex gap-4 text-xs">
+                            <span className="text-muted-foreground font-medium">Adjustment:</span>
+                            <span className="font-bold">${Number(d.adjustment).toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="text-right mt-1 pt-1 border-t border-border/20 w-40">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total</p>
+                          <p className="text-lg font-black text-foreground">
+                            ${Number(d.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground font-mono">{"{estimate_items}"}</p>
+                  )}
+                </div>
+
+                {/* Tags */}
+                {d.tags?.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {d.tags.map((tag: string, i: number) => (
+                      <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          )}
+
+          {/* Comments tab */}
+          {activeTab === "Comments" && (
+            <div className="space-y-3 pt-2">
+              <textarea
+                value={commentText}
+                onChange={e => setCommentText(e.target.value)}
+                rows={5}
+                className="w-full rounded-xl border border-border/50 p-3 text-sm resize-y focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              />
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  className="bg-slate-800 hover:bg-slate-900 text-white font-semibold px-4 h-9 rounded-lg text-xs"
+                  onClick={() => setCommentText("")}
+                >
+                  Add Comment
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "Reminders" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No reminders set.</p>
+          )}
+          {activeTab === "Tasks" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No tasks linked.</p>
+          )}
+          {activeTab === "Notes" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No notes added.</p>
+          )}
+          {activeTab === "Templates" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No templates available.</p>
+          )}
+          {activeTab === "Emails Tracking" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No tracked emails sent.</p>
+          )}
+          {activeTab === "View Tracking" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No views tracked yet.</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Send Estimate Email Dialog ── */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="max-w-2xl p-6">
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold text-foreground">Send Estimate to Email</h2>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="attach-pdf"
+                checked={attachPdf}
+                onChange={e => setAttachPdf(e.target.checked)}
+                className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+              />
+              <label htmlFor="attach-pdf" className="text-sm font-medium cursor-pointer">Attach PDF</label>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium block mb-1.5">CC</label>
+              <Input
+                value={ccEmail}
+                onChange={e => setCcEmail(e.target.value)}
+                className="rounded-lg border-border/60"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium block mb-1.5">Preview Template</label>
+              <div className="border border-border/50 rounded-xl overflow-hidden">
+                <div className="flex items-center gap-4 px-3 py-2 border-b border-border/40 bg-muted/30 text-xs text-muted-foreground">
+                  {["File", "Edit", "View", "Insert", "Format", "Tools", "Table"].map(m => (
+                    <span key={m} className="cursor-pointer hover:text-foreground">{m}</span>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40 bg-muted/20 text-xs text-muted-foreground">
+                  <span className="border border-border/40 rounded px-2 py-0.5">System Font</span>
+                  <span className="border border-border/40 rounded px-2 py-0.5">12pt</span>
+                </div>
+                <textarea
+                  rows={8}
+                  className="w-full p-4 text-sm resize-none focus:outline-none bg-background"
+                  defaultValue={`Dear {contact_name}\n\nPlease find our attached estimate.\n\nThis estimate is valid until: {estimate_expirydate}\nYou can view the estimate on the following link: {estimate_number}\n\nPlease don't hesitate to comment online if you have any questions.\n\nWe look forward to your communication.\n\nKind Regards,\n{email_signature}`}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" className="rounded-lg" onClick={() => setShowEmailDialog(false)}>Cancel</Button>
+              <Button className="rounded-lg">Send</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
 
 const Estimates = () => {
   const [estimateSearch, setEstimateSearch] = useState("");
   const [estimateItemsPerPage, setEstimateItemsPerPage] = useState("10");
+  const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
+  const [previewEstimate, setPreviewEstimate] = useState<any>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const navigate = useNavigate();
   const { can } = usePermissions();
   const queryClient = useQueryClient();
@@ -183,7 +664,14 @@ const Estimates = () => {
               ) : (
                 filtered.map((est: any) => (
                   <tr key={est._id || est.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4 font-bold text-primary">{est.number || (est._id || est.id)?.slice(-6).toUpperCase()}</td>
+                    <td className="px-6 py-4">
+                      <button
+                        className="font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer text-left"
+                        onClick={() => setSelectedEstimate(est)}
+                      >
+                        {est.number || (est._id || est.id)?.slice(-6).toUpperCase()}
+                      </button>
+                    </td>
                     <td className="px-6 py-4 font-medium text-foreground">{est.subject}</td>
                     <td className="px-6 py-4 text-muted-foreground">{est.contact_name || est.client_id?.company || est.rel_id || "N/A"}</td>
                     <td className="px-6 py-4 font-black text-foreground">${(est.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
@@ -214,7 +702,7 @@ const Estimates = () => {
                     </td>
                     <td className="px-6 py-4">
                       <TableActions
-                        onView={() => navigate(`/admin/estimates/edit/${est._id || est.id}`)}
+                        onView={() => setPreviewEstimate(est)}
                         onEdit={can("Estimates", "Edit") ? () => navigate(`/admin/estimates/edit/${est._id || est.id}`) : undefined}
                         onDelete={can("Estimates", "Delete") ? () => deleteMutation.mutate(est._id || est.id) : undefined}
                       />
@@ -238,6 +726,36 @@ const Estimates = () => {
           </div>
         </div>
       </div>
+
+      {/* Centered popup dialog */}
+      <Dialog open={!!selectedEstimate} onOpenChange={(open) => { if (!open) { setSelectedEstimate(null); setIsFullscreen(false); } }}>
+        <DialogContent className={cn("w-full p-0 overflow-hidden rounded-2xl transition-all", isFullscreen ? "max-w-[95vw]" : "max-w-3xl")}>
+          {selectedEstimate && (
+            <EstimateDetailPanel
+              estimate={selectedEstimate}
+              onClose={() => setSelectedEstimate(null)}
+              onView={() => {
+                setPreviewEstimate(selectedEstimate);
+                setSelectedEstimate(null);
+              }}
+              isFullscreen={isFullscreen}
+              setIsFullscreen={setIsFullscreen}
+              onEdit={() => {
+                navigate(`/admin/estimates/edit/${selectedEstimate._id || selectedEstimate.id}`);
+                setSelectedEstimate(null);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom preview dialog */}
+      <DocumentPreviewDialog
+        open={!!previewEstimate}
+        onOpenChange={(open) => { if (!open) setPreviewEstimate(null); }}
+        type="estimate"
+        data={previewEstimate}
+      />
     </DashboardLayout>
   );
 };

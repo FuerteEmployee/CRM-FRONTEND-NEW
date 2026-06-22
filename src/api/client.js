@@ -6,8 +6,10 @@ const BASE_URL = import.meta.env.VITE_API_URL;
 class ApiClient {
   async request(endpoint, options = {}) {
     const isFormData = options.body && typeof options.body.append === 'function';
+    const token = localStorage.getItem("crm_token");
     const headers = {
       ...(!isFormData && { "Content-Type": "application/json" }),
+      ...(token && { "Authorization": `Bearer ${token}` }),
       ...options.headers,
     };
 

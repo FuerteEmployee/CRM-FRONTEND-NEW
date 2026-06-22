@@ -3,9 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { FilePlus, Search, Download, FileText, Plus, Zap } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { Search, FileText, Plus, Zap, Mail, Eye, Maximize2, Pencil, ChevronDown } from "lucide-react";
 import { formatDate } from "@/lib/dateFormat";
 import { useQuery } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
@@ -17,10 +18,457 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { ExportButton } from "@/components/ui/export-button";
+import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
+
+const STATUS_MAP: Record<string, { label: string; className: string }> = {
+  "1": { label: "Draft",    className: "bg-muted text-muted-foreground" },
+  "2": { label: "Sent",     className: "bg-blue-500/10 text-blue-500" },
+  "3": { label: "Open",     className: "bg-primary/10 text-primary" },
+  "4": { label: "Revised",  className: "bg-orange-500/10 text-orange-500" },
+  "5": { label: "Declined", className: "bg-destructive/10 text-destructive" },
+  "6": { label: "Accepted", className: "bg-green-500/10 text-green-500" },
+};
+
+const getStatus = (status: any) => STATUS_MAP[String(status)] ?? { label: "Unknown", className: "bg-muted text-muted-foreground" };
+
+const DETAIL_TABS = ["Proposal", "Comments", "Reminders", "Tasks", "Notes", "Templates"];
+
+const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, setIsFullscreen }: {
+  proposal: any;
+  onClose: () => void;
+  onEdit: () => void;
+  onView: () => void;
+  isFullscreen: boolean;
+  setIsFullscreen: (v: boolean) => void;
+}) => {
+  const navigate = useNavigate();
+  const proposalNumber = (proposal._id || proposal.id)?.slice(-6).toUpperCase();
+  const status = getStatus(proposal.status);
+  const [activeTab, setActiveTab] = useState("Proposal");
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const updateStatusMutation = useMutation({
+    mutationFn: (status: string) => salesService.updateProposal(d._id || d.id, { status }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["proposals"] });
+      queryClient.invalidateQueries({ queryKey: ["proposal-detail", proposal._id || proposal.id] });
+      toast({ title: "Status Updated", description: "Proposal status updated successfully.", className: "bg-green-600 text-white font-bold rounded-2xl" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to update status.", variant: "destructive" });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => salesService.deleteProposal(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["proposals"] });
+      toast({ title: "Deleted", description: "Proposal deleted successfully.", className: "bg-green-600 text-white font-bold rounded-2xl" });
+      onClose();
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to delete proposal.", variant: "destructive" });
+    }
+  });
+
+  const handleCopy = () => {
+    const link = `${window.location.origin}/proposal/${d._id || d.id}`;
+    navigator.clipboard.writeText(link);
+    toast({
+      title: "Copied",
+      description: "Proposal link copied to clipboard!",
+      className: "bg-green-600 text-white font-bold rounded-2xl"
+    });
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      toast({
+        title: "File Attached",
+        description: `File "${file.name}" attached successfully (simulation).`,
+        className: "bg-green-600 text-white font-bold rounded-2xl"
+      });
+    }
+  };
+  const [ccEmail, setCcEmail] = useState("");
+  const [attachPdf, setAttachPdf] = useState(true);
+
+  const { data: detail, isLoading } = useQuery({
+    queryKey: ["proposal-detail", proposal._id || proposal.id],
+    queryFn: () => salesService.getProposalById(proposal._id || proposal.id).then((res: any) => res.data || res),
+    enabled: !!(proposal._id || proposal.id),
+  });
+
+  const d = detail || proposal;
+
+  return (
+    <>
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        style={{ display: "none" }}
+      />
+      <div className="flex flex-col">
+        {/* ── Tab header row ── */}
+        <div className="border-b border-border/50 px-4 pt-3 bg-background">
+          <div className="flex items-end justify-between">
+            <div className="flex items-end gap-0 overflow-x-auto">
+              {DETAIL_TABS.map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={cn(
+                    "px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors",
+                    activeTab === tab
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                  )}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+            {/* Icon tabs — right side */}
+            <div className="flex items-center gap-0.5 pb-1 ml-2 shrink-0">
+              <button
+                title="Emails Tracking"
+                onClick={() => setActiveTab("Emails Tracking")}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  activeTab === "Emails Tracking"
+                    ? "text-foreground bg-muted"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <Mail className="h-4 w-4" />
+              </button>
+              <button
+                title="View Tracking"
+                onClick={() => setActiveTab("View Tracking")}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  activeTab === "View Tracking"
+                    ? "text-foreground bg-muted"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                )}
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+              <button
+                title="Toggle full view"
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              >
+                <Maximize2 className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Action bar ── */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50 bg-background">
+          <Badge variant="outline" className={cn("text-xs font-semibold px-2.5 py-0.5 bg-transparent", status.className)}>
+            {status.label}
+          </Badge>
+          <div className="flex items-center gap-1.5">
+            {/* Edit */}
+            <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg" title="Edit" onClick={onEdit}>
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+
+            {/* PDF dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="h-8 px-2 rounded-lg gap-0.5 text-xs">
+                  <FileText className="h-3.5 w-3.5" />
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>View PDF</DropdownMenuItem>
+                <DropdownMenuItem>View PDF in New Tab</DropdownMenuItem>
+                <DropdownMenuItem>Download</DropdownMenuItem>
+                <DropdownMenuItem>Print</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Email — opens Send dialog */}
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-8 rounded-lg"
+              title="Send Email"
+              onClick={() => setShowEmailDialog(true)}
+            >
+              <Mail className="h-3.5 w-3.5" />
+            </Button>
+
+            {/* More dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline" className="h-8 px-2.5 rounded-lg gap-1 text-xs font-medium">
+                  More <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={onView}>View Proposal</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>Attach File</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleCopy}>Copy</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("2")}>Mark as Sent</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("3")}>Mark as Open</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("4")}>Mark as Revised</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("5")}>Mark as Declined</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("6")}>Mark as Accepted</DropdownMenuItem>
+                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => deleteMutation.mutate(d._id || d.id)}>Delete</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Convert dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" className="h-8 px-3 rounded-lg gap-1 text-xs font-bold bg-green-600 hover:bg-green-700 text-white">
+                  Convert <ChevronDown className="h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => navigate("/admin/estimates/create", { state: { prepopulate: d } })}>
+                  Estimate
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate("/admin/invoices/create", { state: { prepopulate: d } })}>
+                  Invoice
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* ── Tab content ── */}
+        <div className="px-6 py-5 overflow-y-auto max-h-[60vh]">
+          {/* Proposal tab */}
+          {activeTab === "Proposal" && (
+            isLoading ? (
+              <div className="space-y-3">
+                {Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-5 w-full" />)}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Header card */}
+                <div className="border border-border/40 rounded-xl p-5">
+                  <div className="flex justify-between items-start gap-4">
+                    <div>
+                      <p className="text-base font-bold text-primary">PRO-{proposalNumber}</p>
+                      <p className="text-sm font-semibold text-muted-foreground mt-0.5">{d.subject || d.title}</p>
+                      {d.company && <p className="text-sm font-bold text-foreground mt-3">{d.company}</p>}
+                      {d.address && <p className="text-xs text-muted-foreground">{d.address}</p>}
+                      {(d.city || d.state) && (
+                        <p className="text-xs text-muted-foreground">{[d.city, d.state, d.zip].filter(Boolean).join(" ")}</p>
+                      )}
+                      {d.country && <p className="text-xs text-muted-foreground">{d.country}</p>}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-xs text-muted-foreground mb-0.5">To:</p>
+                      <p className="text-sm font-semibold text-primary">{d.proposal_to || d.rel_id || d.customer || "—"}</p>
+                      {d.phone && <p className="text-xs text-primary mt-2">{d.phone}</p>}
+                      {d.email && <p className="text-xs text-primary">{d.email}</p>}
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-border/30 text-right">
+                    <button className="text-xs text-primary hover:underline">Available merge fields</button>
+                  </div>
+                </div>
+
+                {/* Items / proposal body */}
+                <div className="border border-border/40 rounded-xl p-5 min-h-[100px]">
+                  {d.items?.length > 0 ? (
+                    <>
+                      <table className="w-full text-xs mb-4">
+                        <thead className="bg-red-600 text-white text-[10px] font-black uppercase tracking-widest">
+                          <tr>
+                            <th className="px-3 py-2.5 text-left w-12">#</th>
+                            <th className="px-3 py-2.5 text-left">Item</th>
+                            <th className="px-3 py-2.5 text-left w-16">Qty</th>
+                            <th className="px-3 py-2.5 text-left w-24">Rate</th>
+                            <th className="px-3 py-2.5 text-left w-16">Tax</th>
+                            <th className="px-3 py-2.5 text-left w-28">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/30">
+                          {d.items.map((item: any, i: number) => (
+                            <tr key={i} className="hover:bg-muted/20">
+                              <td className="px-3 py-2.5 text-foreground font-medium">{i + 1}</td>
+                              <td className="px-3 py-2.5 text-foreground align-top">
+                                <div className="font-bold">{item.description || item.name || "—"}</div>
+                                {item.long_description && <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.long_description}</div>}
+                              </td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.qty || item.quantity || 1}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">${Number(item.rate || item.price || 0).toFixed(2)}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</td>
+                              <td className="px-3 py-2.5 font-bold text-foreground align-top">${Number((item.qty || 1) * (item.rate || item.price || 0)).toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="flex flex-col items-end gap-1.5 pt-2 border-t border-border/30">
+                        {d.subtotal !== undefined && (
+                          <div className="flex gap-4 text-xs">
+                            <span className="text-muted-foreground font-medium">Sub Total:</span>
+                            <span className="font-bold">${Number(d.subtotal).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {d.discount_percent > 0 && (
+                          <div className="flex gap-4 text-xs text-destructive">
+                            <span className="font-medium">Discount ({d.discount_percent}%):</span>
+                            <span className="font-bold">-${Number(d.subtotal * (d.discount_percent / 100)).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {d.total_tax > 0 && (
+                          <div className="flex gap-4 text-xs">
+                            <span className="text-muted-foreground font-medium">Total Tax:</span>
+                            <span className="font-bold">${Number(d.total_tax).toFixed(2)}</span>
+                          </div>
+                        )}
+                        {d.adjustment !== 0 && d.adjustment !== undefined && (
+                          <div className="flex gap-4 text-xs">
+                            <span className="text-muted-foreground font-medium">Adjustment:</span>
+                            <span className="font-bold">${Number(d.adjustment).toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="text-right mt-1 pt-1 border-t border-border/20 w-40">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total</p>
+                          <p className="text-lg font-black text-foreground">
+                            ${Number(d.total || d.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground font-mono">{"{proposal_items}"}</p>
+                  )}
+                </div>
+
+                {/* Tags */}
+                {d.tags?.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {d.tags.map((tag: string, i: number) => (
+                      <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          )}
+
+          {/* Comments tab */}
+          {activeTab === "Comments" && (
+            <div className="space-y-3 pt-2">
+              <textarea
+                value={commentText}
+                onChange={e => setCommentText(e.target.value)}
+                rows={5}
+                className="w-full rounded-xl border border-border/50 p-3 text-sm resize-y focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+              />
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  className="bg-slate-800 hover:bg-slate-900 text-white font-semibold px-4 h-9 rounded-lg text-xs"
+                  onClick={() => setCommentText("")}
+                >
+                  Add Comment
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "Reminders" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No reminders set.</p>
+          )}
+          {activeTab === "Tasks" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No tasks linked.</p>
+          )}
+          {activeTab === "Notes" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No notes added.</p>
+          )}
+          {activeTab === "Templates" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No templates available.</p>
+          )}
+          {activeTab === "Emails Tracking" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No tracked emails sent.</p>
+          )}
+          {activeTab === "View Tracking" && (
+            <p className="text-sm text-muted-foreground italic text-center py-10">No views tracked yet.</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── Send Proposal Email Dialog ── */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent className="max-w-2xl p-6">
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold text-foreground">Send Proposal to Email</h2>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="attach-pdf"
+                checked={attachPdf}
+                onChange={e => setAttachPdf(e.target.checked)}
+                className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+              />
+              <label htmlFor="attach-pdf" className="text-sm font-medium cursor-pointer">Attach PDF</label>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium block mb-1.5">CC</label>
+              <Input
+                value={ccEmail}
+                onChange={e => setCcEmail(e.target.value)}
+                className="rounded-lg border-border/60"
+              />
+            </div>
+
+            <div>
+              <label className="text-sm font-medium block mb-1.5">Preview Template</label>
+              <div className="border border-border/50 rounded-xl overflow-hidden">
+                <div className="flex items-center gap-4 px-3 py-2 border-b border-border/40 bg-muted/30 text-xs text-muted-foreground">
+                  {["File", "Edit", "View", "Insert", "Format", "Tools", "Table"].map(m => (
+                    <span key={m} className="cursor-pointer hover:text-foreground">{m}</span>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40 bg-muted/20 text-xs text-muted-foreground">
+                  <span className="border border-border/40 rounded px-2 py-0.5">System Font</span>
+                  <span className="border border-border/40 rounded px-2 py-0.5">12pt</span>
+                </div>
+                <textarea
+                  rows={8}
+                  className="w-full p-4 text-sm resize-none focus:outline-none bg-background"
+                  defaultValue={`Dear {proposal_proposal_to}\n\nPlease find our attached proposal.\n\nThis proposal is valid until: {proposal_open_till}\nYou can view the proposal on the following link: {proposal_number}\n\nPlease don't hesitate to comment online if you have any questions.\n\nWe look forward to your communication.\n\nKind Regards,\n{email_signature}`}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" className="rounded-lg" onClick={() => setShowEmailDialog(false)}>Cancel</Button>
+              <Button className="rounded-lg">Send</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
 
 const Proposals = () => {
   const [proposalSearch, setProposalSearch] = useState("");
   const [proposalItemsPerPage, setProposalItemsPerPage] = useState("10");
+  const [selectedProposal, setSelectedProposal] = useState<any>(null);
+  const [previewProposal, setPreviewProposal] = useState<any>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const navigate = useNavigate();
   const { can } = usePermissions();
   const queryClient = useQueryClient();
@@ -42,7 +490,7 @@ const Proposals = () => {
     }
   });
 
-  const filtered = (Array.isArray(proposals) ? proposals : []).filter((p: any) => 
+  const filtered = (Array.isArray(proposals) ? proposals : []).filter((p: any) =>
     (p.subject || p.title || "").toLowerCase().includes(proposalSearch.toLowerCase())
   );
 
@@ -97,9 +545,9 @@ const Proposals = () => {
               <Zap className="h-3.5 w-3.5 text-primary" />
               Bulk Actions
             </Button>
-            <ExportButton 
-              data={filtered} 
-              filename="proposals" 
+            <ExportButton
+              data={filtered}
+              filename="proposals"
               columns={[
                 { header: "Proposal #", key: (p) => p.number || p._id },
                 { header: "Subject", key: "subject" },
@@ -107,7 +555,7 @@ const Proposals = () => {
                 { header: "Total", key: (p) => p.total || p.amount || "0" },
                 { header: "Date", key: "date" },
                 { header: "Status", key: "status" }
-              ]} 
+              ]}
             />
           </div>
           <div className="relative w-full md:w-64">
@@ -143,52 +591,52 @@ const Proposals = () => {
                   </td>
                 </tr>
               ) : (
-                filtered.map((prop: any) => (
-                  <tr key={prop._id || prop.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4 font-bold text-primary">{(prop._id || prop.id)?.slice(-6).toUpperCase()}</td>
-                    <td className="px-6 py-4 font-medium text-foreground">{prop.subject || prop.title}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{prop.rel_id || prop.customer || "N/A"}</td>
-                    <td className="px-6 py-4 font-black text-foreground">${(prop.total || prop.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{prop.date ? formatDate(prop.date) : "-"}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{prop.open_till ? formatDate(prop.open_till) : "-"}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {prop.tags?.map((tag: string, i: number) => (
-                          <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-muted-foreground">{prop.createdAt ? formatDate(prop.createdAt) : "-"}</td>
-                    <td className="px-6 py-4">
-                      <Badge className={cn(
-                        "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
-                        String(prop.status) === "1" ? "bg-muted text-muted-foreground" :
-                          String(prop.status) === "2" ? "bg-blue-500/10 text-blue-500" :
-                            String(prop.status) === "3" ? "bg-primary/10 text-primary" :
-                              String(prop.status) === "4" ? "bg-orange-500/10 text-orange-500" :
-                                String(prop.status) === "5" ? "bg-destructive/10 text-destructive" :
-                                  String(prop.status) === "6" ? "bg-green-500/10 text-green-500" :
-                                    "bg-muted text-muted-foreground"
-                      )}>
-                        {String(prop.status) === "1" ? "Draft" :
-                          String(prop.status) === "2" ? "Sent" :
-                            String(prop.status) === "3" ? "Open" :
-                              String(prop.status) === "4" ? "Revised" :
-                                String(prop.status) === "5" ? "Declined" :
-                                  String(prop.status) === "6" ? "Accepted" : "Unknown"}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4">
-                      <TableActions
-                        onView={() => navigate(`/admin/proposals/edit/${prop._id || prop.id}`)}
-                        onEdit={can("Proposals", "Edit") ? () => navigate(`/admin/proposals/edit/${prop._id || prop.id}`) : undefined}
-                        onDelete={can("Proposals", "Delete") ? () => deleteMutation.mutate(prop._id || prop.id) : undefined}
-                      />
-                    </td>
-                  </tr>
-                ))
+                filtered.map((prop: any) => {
+                  const status = getStatus(prop.status);
+                  const proposalNum = (prop._id || prop.id)?.slice(-6).toUpperCase();
+                  return (
+                    <tr
+                      key={prop._id || prop.id}
+                      className="hover:bg-muted/30 transition-colors"
+                    >
+                      <td className="px-6 py-4">
+                        <button
+                          className="font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer"
+                          onClick={() => setSelectedProposal(prop)}
+                        >
+                          {proposalNum}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 font-medium text-foreground">{prop.subject || prop.title}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{prop.rel_id || prop.customer || "N/A"}</td>
+                      <td className="px-6 py-4 font-black text-foreground">${(prop.total || prop.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{prop.date ? formatDate(prop.date) : "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{prop.open_till ? formatDate(prop.open_till) : "-"}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap gap-1">
+                          {prop.tags?.map((tag: string, i: number) => (
+                            <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground">{prop.createdAt ? formatDate(prop.createdAt) : "-"}</td>
+                      <td className="px-6 py-4">
+                        <Badge className={cn("text-[10px] font-black uppercase tracking-widest border-none px-3 py-1", status.className)}>
+                          {status.label}
+                        </Badge>
+                      </td>
+                      <td className="px-6 py-4">
+                        <TableActions
+                          onView={() => setPreviewProposal(prop)}
+                          onEdit={can("Proposals", "Edit") ? () => navigate(`/admin/proposals/edit/${prop._id || prop.id}`) : undefined}
+                          onDelete={can("Proposals", "Delete") ? () => deleteMutation.mutate(prop._id || prop.id) : undefined}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -206,6 +654,36 @@ const Proposals = () => {
           </div>
         </div>
       </div>
+
+      {/* Centered popup dialog */}
+      <Dialog open={!!selectedProposal} onOpenChange={(open) => { if (!open) { setSelectedProposal(null); setIsFullscreen(false); } }}>
+        <DialogContent className={cn("w-full p-0 overflow-hidden rounded-2xl transition-all", isFullscreen ? "max-w-[95vw]" : "max-w-3xl")}>
+          {selectedProposal && (
+            <ProposalDetailPanel
+              proposal={selectedProposal}
+              onClose={() => setSelectedProposal(null)}
+              onView={() => {
+                setPreviewProposal(selectedProposal);
+                setSelectedProposal(null);
+              }}
+              isFullscreen={isFullscreen}
+              setIsFullscreen={setIsFullscreen}
+              onEdit={() => {
+                navigate(`/admin/proposals/edit/${selectedProposal._id || selectedProposal.id}`);
+                setSelectedProposal(null);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom preview dialog */}
+      <DocumentPreviewDialog
+        open={!!previewProposal}
+        onOpenChange={(open) => { if (!open) setPreviewProposal(null); }}
+        type="proposal"
+        data={previewProposal}
+      />
     </DashboardLayout>
   );
 };
