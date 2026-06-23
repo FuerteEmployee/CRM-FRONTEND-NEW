@@ -24,6 +24,8 @@ import {
   Bell,
   ListTodo,
   ClipboardList,
+  Loader2,
+  ArrowRight,
 } from "lucide-react";
 import {
   AreaChart,
@@ -73,18 +75,77 @@ const OverviewSection = ({ title, icon: Icon, items }: { title: string; icon: Re
   </div>
 );
 
+const PlanExpiredModal = ({ plan }: { plan: any }) => {
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+      <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+        <div className="p-8 space-y-6">
+          <div className="flex items-center gap-4 text-red-600">
+            <div className="p-3.5 bg-red-50 dark:bg-red-950/30 rounded-2xl flex-shrink-0">
+              <AlertTriangle className="h-8 w-8" />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-gray-900 dark:text-zinc-50 tracking-tight">Subscription Expired</h2>
+              <p className="text-sm text-muted-foreground mt-1 font-medium">
+                Your plan has expired. Please renew your subscription to reactivate your dashboard and CRM services.
+              </p>
+            </div>
+          </div>
+
+          {/* Plan Details Card */}
+          {plan ? (
+            <div className="bg-gray-50 dark:bg-zinc-800/30 rounded-2xl p-5 border border-gray-100 dark:border-zinc-800/80 flex justify-between items-center">
+              <div>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Your Plan</span>
+                <h3 className="text-lg font-black text-gray-800 dark:text-zinc-200 mt-0.5">{plan.name}</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Billing cycle: <span className="font-semibold capitalize">{plan.billing_cycle || "Monthly"}</span>
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="text-3xl font-black text-gray-900 dark:text-zinc-50">${plan.price}</span>
+                <span className="text-xs text-muted-foreground">/{plan.billing_cycle === 'yearly' ? 'yr' : plan.billing_cycle === 'lifetime' ? 'life' : 'mo'}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-gray-50 dark:bg-zinc-800/30 rounded-2xl p-5 border border-gray-100 dark:border-zinc-800/80 text-center">
+              <p className="text-sm text-muted-foreground font-medium">No active plan information found.</p>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100 dark:border-zinc-800/80">
+            <Button
+              onClick={() => window.location.href = '/admin/pricing'}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl flex items-center gap-2 shadow-lg shadow-blue-500/20"
+            >
+              Renew Plan
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Dashboard = () => {
   const { user, isModuleEnabled, canView } = usePermissionContext();
 
   const getDaysRemaining = () => {
     if (!user?.tenant) return null;
-    const endDate = user.tenant.billing_cycle_end || user.tenant.trial_ends_at;
+    const endDate = user.tenant.billing_cycle_end || user.tenant.trial_ends_at || 
+      (user.tenant.status === "trial" 
+        ? new Date(new Date(user.tenant.createdAt).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
+        : new Date(new Date(user.tenant.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      );
     if (!endDate) return null;
     const diff = new Date(endDate).getTime() - new Date().getTime();
     return Math.ceil(diff / (1000 * 3600 * 24));
   };
 
   const daysRemaining = getDaysRemaining();
+  const isExpired = !user?.is_superadmin && (user?.tenant?.status === "expired" || (daysRemaining !== null && daysRemaining <= 0));
 
   // 1. Fetching all dynamic datasets from backend APIs
   const { data: invoicesList = [], isLoading } = useQuery({
@@ -93,7 +154,7 @@ const Dashboard = () => {
       const res = await salesService.getInvoices();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: isModuleEnabled("finance")
+    enabled: !isExpired && isModuleEnabled("finance")
   });
 
   const { data: estimatesList = [] } = useQuery({
@@ -102,7 +163,7 @@ const Dashboard = () => {
       const res = await estimateService.getEstimates();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: isModuleEnabled("estimates")
+    enabled: !isExpired && isModuleEnabled("estimates")
   });
 
   const { data: proposalsList = [] } = useQuery({
@@ -111,7 +172,7 @@ const Dashboard = () => {
       const res = await salesService.getProposals();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: isModuleEnabled("proposals")
+    enabled: !isExpired && isModuleEnabled("proposals")
   });
 
   const { data: tasksList = [] } = useQuery({
@@ -120,7 +181,7 @@ const Dashboard = () => {
       const res = await taskService.getAll();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: isModuleEnabled("tasks")
+    enabled: !isExpired && isModuleEnabled("tasks")
   });
 
   const { data: projectsList = [] } = useQuery({
@@ -129,7 +190,7 @@ const Dashboard = () => {
       const res = await projectService.getAll();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: isModuleEnabled("projects")
+    enabled: !isExpired && isModuleEnabled("projects")
   });
 
   const { data: ticketsList = [] } = useQuery({
@@ -138,7 +199,7 @@ const Dashboard = () => {
       const res = await supportService.getTickets();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: isModuleEnabled("support")
+    enabled: !isExpired && isModuleEnabled("support")
   });
 
   const { data: announcementsList = [] } = useQuery({
@@ -147,7 +208,7 @@ const Dashboard = () => {
       const res = await utilityService.getAnnouncements();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: isModuleEnabled("announcements")
+    enabled: !isExpired && isModuleEnabled("announcements")
   });
 
   const { data: leadsList = [] } = useQuery({
@@ -156,7 +217,7 @@ const Dashboard = () => {
       const res = await leadService.getAll();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: isModuleEnabled("leads")
+    enabled: !isExpired && isModuleEnabled("leads")
   });
 
   const { data: todosList = [], refetch: refetchTodos } = useQuery({
@@ -164,7 +225,8 @@ const Dashboard = () => {
     queryFn: async () => {
       const res = await utilityService.getTodos();
       return Array.isArray(res) ? res : res?.data || [];
-    }
+    },
+    enabled: !isExpired
   });
 
   const { data: expensesList = [] } = useQuery({
@@ -173,7 +235,7 @@ const Dashboard = () => {
       const res = await salesService.getExpenses();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: isModuleEnabled("expenses")
+    enabled: !isExpired && isModuleEnabled("expenses")
   });
 
   const { data: activityLogsList = [] } = useQuery({
@@ -181,7 +243,8 @@ const Dashboard = () => {
     queryFn: async () => {
       const res = await utilityService.getActivityLogs();
       return Array.isArray(res) ? res : res?.data || [];
-    }
+    },
+    enabled: !isExpired
   });
 
   const { data: clientsRes = [] } = useQuery({
@@ -189,7 +252,8 @@ const Dashboard = () => {
     queryFn: async () => {
       const res = await customerService.getAll();
       return Array.isArray(res) ? res : res?.data || [];
-    }
+    },
+    enabled: !isExpired
   });
 
   // Fetch reminders for the first client if available
@@ -201,7 +265,7 @@ const Dashboard = () => {
       const res = await customerService.getReminders(firstClientId);
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !!firstClientId
+    enabled: !isExpired && !!firstClientId
   });
 
   // mutations for Todo
@@ -710,6 +774,23 @@ const Dashboard = () => {
   };
 
   const showSkeleton = useMinimumLoading(isLoading);
+
+  if (isExpired) {
+    return (
+      <DashboardLayout>
+        <div className="h-[60vh] w-full flex flex-col items-center justify-center relative overflow-hidden">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-10 w-10 text-primary animate-spin" />
+            <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary/60 animate-pulse">
+              Subscription Expired
+            </span>
+          </div>
+          <PlanExpiredModal plan={user?.tenant?.plan_id} />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   if (showSkeleton) return <DashboardLayout><AdminDashboardSkeleton /></DashboardLayout>;
 
   return (
@@ -742,7 +823,7 @@ const Dashboard = () => {
                 </p>
               </div>
             </div>
-            <Button variant={daysRemaining <= 0 ? "destructive" : "default"} size="sm" onClick={() => window.location.href = '/admin/settings'} className="font-semibold shadow-md whitespace-nowrap">
+            <Button variant={daysRemaining <= 0 ? "destructive" : "default"} size="sm" onClick={() => window.location.href = '/admin/pricing'} className="font-semibold shadow-md whitespace-nowrap">
               Renew Plan
             </Button>
           </div>

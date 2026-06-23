@@ -32,6 +32,8 @@ interface Tenant {
   plan_id: SaasPlan | null;
   owner_id: Owner | null;
   status: "active" | "inactive" | "trial" | "expired";
+  trial_ends_at?: string;
+  billing_cycle_end?: string;
   createdAt: string;
 }
 
@@ -276,7 +278,31 @@ export default function SuperAdminCompanies() {
                     </td>
                     {/* Status */}
                     <td className="px-6 py-4">
-                      <StatusBadge status={tenant.status} />
+                      <div className="flex flex-col gap-1">
+                        <StatusBadge status={tenant.status} />
+                        {tenant.status === "trial" && (() => {
+                          const trialEnd = tenant.trial_ends_at || new Date(new Date(tenant.createdAt).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
+                          const days = Math.ceil((new Date(trialEnd).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+                          if (days > 0) {
+                            return <span className="text-[11px] text-gray-500 font-medium">{days} day{days !== 1 ? "s" : ""} left</span>;
+                          } else {
+                            return <span className="text-[11px] text-red-500 font-semibold">Trial ended</span>;
+                          }
+                        })()}
+                        {tenant.status === "active" && (() => {
+                          const cycleDays = tenant.plan_id && (tenant.plan_id as any).billing_cycle === "yearly" ? 365 : 30;
+                          const billingEnd = tenant.billing_cycle_end || new Date(new Date(tenant.createdAt).getTime() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
+                          const days = Math.ceil((new Date(billingEnd).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+                          if (days > 0) {
+                            if (days <= 7) {
+                              return <span className="text-[11px] text-amber-600 font-semibold">{days} day{days !== 1 ? "s" : ""} left</span>;
+                            }
+                            return <span className="text-[11px] text-gray-500 font-medium">{days} day{days !== 1 ? "s" : ""} left</span>;
+                          } else {
+                            return <span className="text-[11px] text-red-500 font-semibold">Expired</span>;
+                          }
+                        })()}
+                      </div>
                     </td>
                     {/* Joined */}
                     <td className="px-6 py-4 text-sm text-gray-500">
