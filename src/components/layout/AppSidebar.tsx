@@ -72,6 +72,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useSettings } from "@/context/SettingsContext";
 import { Badge } from "@/components/ui/badge";
 import { useNotificationContext } from "@/context/NotificationContext";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const fallbackNav = [
   { title: "Dashboard", url: "/admin/dashboard", icon: "LayoutDashboard", group: "Main" },
@@ -178,7 +179,7 @@ export function AppSidebar() {
   const { state, setOpenMobile, isMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { isAdmin, canView, isModuleEnabled } = usePermissions();
+  const { user, isAdmin, canView, isModuleEnabled } = usePermissions();
   const { getSetting } = useSettings();
   const { chatUnreadCount } = useNotificationContext();
 
@@ -199,6 +200,21 @@ export function AppSidebar() {
 
   // The Setup button is ONLY visible when the user has Settings > View permission (or is admin)
   const hasSetupAccess = isAdmin || canView("Settings");
+
+  const getDaysRemaining = () => {
+    if (!user?.tenant) return null;
+    const endDate = user.tenant.billing_cycle_end || user.tenant.trial_ends_at || 
+      (user.tenant.status === "trial" 
+        ? new Date(new Date(user.tenant.createdAt).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
+        : new Date(new Date(user.tenant.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      );
+    if (!endDate) return null;
+    const diff = new Date(endDate).getTime() - new Date().getTime();
+    return Math.ceil(diff / (1000 * 3600 * 24));
+  };
+
+  const daysRemaining = getDaysRemaining();
+  const isExpired = !user?.is_superadmin && (user?.tenant?.status === "expired" || (daysRemaining !== null && daysRemaining <= 0));
 
   const [menuMode, setMenuMode] = useState<"main" | "setup">(
     () =>
@@ -449,7 +465,18 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="px-2">
-        {menuMode === "main" ? (
+        {isExpired ? (
+          <SidebarGroup className="py-2 space-y-4">
+            <div className="px-3 py-2 space-y-3">
+              {Array.from({ length: 12 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 py-1.5">
+                  <Skeleton className="h-4.5 w-4.5 rounded shrink-0 bg-sidebar-foreground/10" />
+                  <Skeleton className="h-4 flex-1 max-w-[120px] rounded bg-sidebar-foreground/10" />
+                </div>
+              ))}
+            </div>
+          </SidebarGroup>
+        ) : menuMode === "main" ? (
           <SidebarGroup className="py-2">
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">

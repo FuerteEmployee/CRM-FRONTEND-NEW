@@ -147,6 +147,17 @@ const Dashboard = () => {
   const daysRemaining = getDaysRemaining();
   const isExpired = !user?.is_superadmin && (user?.tenant?.status === "expired" || (daysRemaining !== null && daysRemaining <= 0));
 
+  const [showExpiredPopup, setShowExpiredPopup] = useState(false);
+
+  React.useEffect(() => {
+    if (isExpired) {
+      const timer = setTimeout(() => {
+        setShowExpiredPopup(true);
+      }, 2500); // 2.5 seconds loading/skeleton duration before showing modal
+      return () => clearTimeout(timer);
+    }
+  }, [isExpired]);
+
   // 1. Fetching all dynamic datasets from backend APIs
   const { data: invoicesList = [], isLoading } = useQuery({
     queryKey: ["dashboard-invoices"],
@@ -777,15 +788,10 @@ const Dashboard = () => {
 
   if (isExpired) {
     return (
-      <DashboardLayout>
-        <div className="h-[60vh] w-full flex flex-col items-center justify-center relative overflow-hidden">
-          <div className="flex flex-col items-center gap-4">
-            <Loader2 className="h-10 w-10 text-primary animate-spin" />
-            <span className="text-xs font-bold tracking-[0.3em] uppercase text-primary/60 animate-pulse">
-              Subscription Expired
-            </span>
-          </div>
-          <PlanExpiredModal plan={user?.tenant?.plan_id} />
+      <DashboardLayout hideSidebar={showExpiredPopup}>
+        <div className="relative">
+          <AdminDashboardSkeleton />
+          {showExpiredPopup && <PlanExpiredModal plan={user?.tenant?.plan_id} />}
         </div>
       </DashboardLayout>
     );
@@ -808,23 +814,23 @@ const Dashboard = () => {
         </div>
 
         {/* Subscription Alert */}
-        {daysRemaining !== null && daysRemaining <= 30 && (
-          <div className={`px-4 py-3 rounded-lg flex items-center justify-between shadow-sm border ${daysRemaining <= 0 ? 'bg-destructive/15 border-destructive text-destructive' : 'bg-yellow-500/15 border-yellow-500 text-yellow-700 dark:text-yellow-500'}`}>
+        {daysRemaining !== null && daysRemaining > 0 && daysRemaining <= 7 && (
+          <div className="px-4 py-3 rounded-lg flex items-center justify-between shadow-sm border bg-yellow-500/15 border-yellow-500 text-yellow-700 dark:text-yellow-500">
             <div className="flex items-center gap-3">
               <AlertTriangle className="h-5 w-5" />
               <div>
                 <p className="font-semibold text-sm">
-                  {daysRemaining <= 0 ? 'Subscription Expired' : 'Subscription expiring soon'}
+                  {user?.tenant?.status === "trial" ? 'Trial period ending soon' : 'Subscription expiring soon'}
                 </p>
                 <p className="text-xs opacity-90">
-                  {daysRemaining <= 0 
-                    ? 'Your subscription has expired. Please renew to continue using the CRM.'
+                  {user?.tenant?.status === "trial"
+                    ? `You have ${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'} remaining on your free trial. Upgrade now to avoid interruption.`
                     : `You have ${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'} remaining on your current plan.`}
                 </p>
               </div>
             </div>
-            <Button variant={daysRemaining <= 0 ? "destructive" : "default"} size="sm" onClick={() => window.location.href = '/admin/pricing'} className="font-semibold shadow-md whitespace-nowrap">
-              Renew Plan
+            <Button variant="default" size="sm" onClick={() => window.location.href = '/admin/pricing'} className="font-semibold shadow-md whitespace-nowrap">
+              {user?.tenant?.status === "trial" ? 'Upgrade Plan' : 'Renew Plan'}
             </Button>
           </div>
         )}
