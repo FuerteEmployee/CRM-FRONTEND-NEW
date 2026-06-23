@@ -39,6 +39,7 @@ import {
   Rocket,
   Pencil,
   X,
+  Save,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -83,12 +84,25 @@ export default function EstimateRequestFormSetup() {
   const { data: staffList = [] } = useQuery({ queryKey: ["staff"], queryFn: () => [] });
   const { data: roles = [] } = useQuery({ queryKey: ["roles"], queryFn: () => [] });
 
+  const saveMutation = useMutation({
+    mutationFn: (data: any) =>
+      isEdit ? estimateService.updateEstimateRequestForm(id, data) : estimateService.createEstimateRequestForm(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["estimate-request-forms"] });
+      toast({ title: "Success", description: "Form configuration saved successfully", className: "bg-emerald-600 text-white" });
+      navigate("/admin/estimate-request");
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to save form", variant: "destructive" });
+    }
+  });
+
   const handleSave = () => {
     if (!formData.name) {
       toast({ title: "Error", description: "Form Name is required", variant: "destructive" });
       return;
     }
-    toast({ title: "Success", description: "Form configuration saved successfully" });
+    saveMutation.mutate(formData);
   };
 
   const FIELD_TYPES = [
@@ -118,8 +132,8 @@ export default function EstimateRequestFormSetup() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-             <Button onClick={handleSave} className="h-10 rounded-xl px-6 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 transition-all hover:scale-105">
-                <Save className="mr-2 h-4 w-4" />
+             <Button onClick={handleSave} disabled={saveMutation.isPending} className="h-10 rounded-xl px-6 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 transition-all hover:scale-105">
+                {saveMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
                 Save Configuration
              </Button>
           </div>

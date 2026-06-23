@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
   Plus,
@@ -61,16 +62,29 @@ export default function EstimateRequest() {
   const [selectedRequest, setSelectedRequest] =
     useState<EstimateRequestRecord | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("submissions");
 
   // Fetch Data
   const {
     data: requests = [],
-    isLoading,
-    refetch,
+    isLoading: isLoadingRequests,
+    refetch: refetchRequests,
   } = useQuery({
     queryKey: ["estimate-requests"],
     queryFn: async () => {
       const response = await estimateService.getRequests();
+      return Array.isArray(response) ? response : response?.data || [];
+    },
+  });
+
+  const {
+    data: forms = [],
+    isLoading: isLoadingForms,
+    refetch: refetchForms,
+  } = useQuery({
+    queryKey: ["estimate-request-forms"],
+    queryFn: async () => {
+      const response = await estimateService.getEstimateRequestForms();
       return Array.isArray(response) ? response : response?.data || [];
     },
   });
@@ -167,6 +181,38 @@ export default function EstimateRequest() {
     },
   ];
 
+  const formColumns: DataTableColumn<any>[] = [
+    {
+      key: "name",
+      label: "Form Name",
+      className: "font-medium text-slate-800",
+      render: (row) => <span className="font-bold text-sm">{row.name}</span>,
+    },
+    {
+      key: "language",
+      label: "Language",
+      render: (row) => <span className="text-slate-600 text-sm">{row.language || "English"}</span>,
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (row) => (
+        <Badge variant="outline" className="bg-slate-50 text-slate-500 border-slate-200">
+          {row.status || "Pending"}
+        </Badge>
+      ),
+    },
+    {
+      key: "createdAt",
+      label: "Created",
+      render: (row) => (
+        <span className="text-slate-400 text-sm">
+          {row.createdAt ? new Date(row.createdAt).toLocaleDateString() : "—"}
+        </span>
+      ),
+    },
+  ];
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -185,50 +231,80 @@ export default function EstimateRequest() {
             onClick={() =>
               navigate("/admin/setup/estimate-request/form-fields/new")
             }
-            className="  flex items-center gap-2 h-10 px-5 rounded-lg shadow-sm"
+            className="flex items-center gap-2 h-10 px-5 rounded-lg shadow-sm bg-primary text-white font-bold"
           >
             <Plus className="h-4 w-4" />
             <span className="font-semibold text-sm">New Form Builder</span>
           </Button>
         </div>
 
-        <DataTable
-          columns={columns}
-          data={requests}
-          isLoading={isLoading}
-          onRefresh={refetch}
-          showIdColumn={true}
-          enableBulkActions={true}
-          onBulkDelete={handleBulkDelete}
-          renderCustomActions={(row) => (
-            <div className="flex items-center gap-1">
-              <Button
-                onClick={() => handleViewDetails(row)}
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-primary/5"
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-              <Button
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "Are you sure you want to delete this request?",
-                    )
-                  ) {
-                    deleteMutation.mutate(row._id);
-                  }
-                }}
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        />
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="bg-slate-100 p-1 rounded-xl mb-6">
+            <TabsTrigger value="submissions" className="rounded-lg px-6 font-bold">Submissions</TabsTrigger>
+            <TabsTrigger value="forms" className="rounded-lg px-6 font-bold">Forms</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="submissions" className="mt-0">
+            <DataTable
+              columns={columns}
+              data={requests}
+              isLoading={isLoadingRequests}
+              onRefresh={refetchRequests}
+              showIdColumn={true}
+              enableBulkActions={true}
+              onBulkDelete={handleBulkDelete}
+              renderCustomActions={(row) => (
+                <div className="flex items-center gap-1">
+                  <Button
+                    onClick={() => handleViewDetails(row)}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-primary/5"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "Are you sure you want to delete this request?",
+                        )
+                      ) {
+                        deleteMutation.mutate(row._id);
+                      }
+                    }}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            />
+          </TabsContent>
+
+          <TabsContent value="forms" className="mt-0">
+            <DataTable
+              columns={formColumns}
+              data={forms}
+              isLoading={isLoadingForms}
+              onRefresh={refetchForms}
+              renderCustomActions={(row) => (
+                <div className="flex items-center gap-1">
+                  <Button
+                    onClick={() => navigate(`/admin/setup/estimate-request/form-fields/${row._id}`)}
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-slate-400 hover:text-primary hover:bg-primary/5"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Structured Detail Viewer Modal */}
