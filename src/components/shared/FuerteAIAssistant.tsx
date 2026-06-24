@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Bot, Mic, X } from "lucide-react";
+import { usePermissionContext } from "@/context/PermissionContext";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 
 // ─── Route map: keyword phrases → route paths ───────────────────────────────
@@ -48,6 +49,8 @@ export function FuerteAIAssistant() {
   const awakeTimerRef           = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const navigate    = useNavigate();
+  const { isStaff } = usePermissionContext();
+  const basePath = isStaff ? "/staff" : "/admin";
   const { toast }   = useToast();
 
   const { transcript, listening, resetTranscript, browserSupportsSpeechRecognition } =
@@ -85,15 +88,18 @@ export function FuerteAIAssistant() {
     }
   };
 
-    // ─── Strip action prefixes and match a command ──────────────────────────
+  // ─── Strip action prefixes and match a command ──────────────────────────
   const matchCommand = (cmd: string): { route: string; label: string } | null => {
+    // Remove punctuation like commas and periods
+    const cleanCmd = cmd.replace(/[.,!?]/g, "").trim();
+    
     // Remove leading action words so "open task" / "go to task" both hit "task"
-    const stripped = cmd
+    const stripped = cleanCmd
       .replace(/^(open up|open|go to|navigate to|take me to|show me|show|visit|launch|load)\s+/i, "")
       .trim();
 
     for (const { keywords, route, label } of COMMAND_MAP) {
-      if (keywords.some((k) => cmd.includes(k) || stripped.includes(k))) {
+      if (keywords.some((k) => cleanCmd.includes(k) || stripped.includes(k) || cleanCmd.includes(k.replace(" ", "")) || cleanCmd.replace(" ", "").includes(k))) {
         return { route, label };
       }
     }
@@ -121,7 +127,7 @@ export function FuerteAIAssistant() {
             if (match.section) {
               window.dispatchEvent(new CustomEvent("fuerte:open-section", { detail: { section: match.section } }));
             }
-            navigate(match.route);
+            navigate(match.route.replace("/admin", basePath));
             changeState("listening");
             return;
           }
@@ -148,7 +154,7 @@ export function FuerteAIAssistant() {
       if (match.section) {
         window.dispatchEvent(new CustomEvent("fuerte:open-section", { detail: { section: match.section } }));
       }
-      navigate(match.route);
+      navigate(match.route.replace("/admin", basePath));
       changeState("listening");
       resetTranscript();
       if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);

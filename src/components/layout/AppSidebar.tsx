@@ -179,7 +179,15 @@ export function AppSidebar() {
   const { state, setOpenMobile, isMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { user, isAdmin, canView, isModuleEnabled } = usePermissions();
+  const { user, isAdmin, isStaff, canView, isModuleEnabled } = usePermissions();
+  const basePath = isStaff ? "/staff" : "/admin";
+
+  const getUrl = (url: string | undefined) => {
+    if (!url) return "";
+    if (url.startsWith("http")) return url;
+    if (url.startsWith("/admin")) return url.replace("/admin", basePath);
+    return url;
+  };
   const { getSetting } = useSettings();
   const { chatUnreadCount } = useNotificationContext();
 
@@ -324,14 +332,14 @@ export function AppSidebar() {
       .filter((item: any) => !item.permission || canView(item.permission))
       .filter((item: any) => {
         // Hide modules disabled in the tenant's plan
-        const moduleKey = URL_MODULE_MAP[item.url];
+        const moduleKey = URL_MODULE_MAP[getUrl(item.url)];
         return !moduleKey || isModuleEnabled(moduleKey);
       })
       .map((item: any) => {
         const isActive =
-          location.pathname === item.url ||
-          location.pathname.startsWith(item.url + "/");
-        const isExternal = item.url?.startsWith("http");
+          location.pathname === getUrl(item.url) ||
+          location.pathname.startsWith(getUrl(item.url) + "/");
+        const isExternal = getUrl(item.url)?.startsWith("http");
         const IconComponent = (Icons as any)[item.icon] || Icons.Circle;
 
         return (
@@ -339,7 +347,7 @@ export function AppSidebar() {
             <SidebarMenuButton asChild isActive={!isExternal && isActive}>
               {isExternal ? (
                 <a
-                  href={item.url}
+                  href={getUrl(item.url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={handleClick}
@@ -359,7 +367,7 @@ export function AppSidebar() {
                 </a>
               ) : (
                 <NavLink
-                  to={item.url}
+                  to={getUrl(item.url)}
                   end
                   onClick={handleClick}
                   className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
@@ -404,8 +412,8 @@ export function AppSidebar() {
     const open = !!openSections[label];
     const isAnyChildActive = visibleItems.some(
       (item) =>
-        location.pathname === item.url ||
-        location.pathname.startsWith(item.url + "/"),
+        location.pathname === getUrl(item.url) ||
+        location.pathname.startsWith(getUrl(item.url) + "/"),
     );
     return (
       <Collapsible open={open} onOpenChange={() => toggleSection(label)}>
@@ -551,8 +559,8 @@ export function AppSidebar() {
                       const isOpen = !!openSections[item.title];
                       const isAnyChildActive = item.subItems.some(
                         (sub: any) =>
-                          location.pathname === sub.url ||
-                          location.pathname.startsWith(sub.url + "/"),
+                          location.pathname === getUrl(sub.url) ||
+                          location.pathname.startsWith(getUrl(sub.url) + "/"),
                       );
 
                       return (
@@ -593,15 +601,15 @@ export function AppSidebar() {
                                 <SidebarMenu className="gap-0.5">
                                   {item.subItems.map((sub: any) => {
                                     const isSubActive =
-                                      location.pathname === sub.url ||
+                                      location.pathname === getUrl(sub.url) ||
                                       location.pathname.startsWith(
-                                        sub.url + "/",
+                                        getUrl(sub.url) + "/",
                                       );
                                     return (
                                       <SidebarMenuItem key={sub.title}>
                                         <SidebarMenuButton asChild isActive={isSubActive}>
                                           <NavLink
-                                            to={sub.url}
+                                            to={getUrl(sub.url)}
                                             end
                                             onClick={() => {
                                               if (isMobile)
@@ -629,16 +637,16 @@ export function AppSidebar() {
                       );
                     }
 
-                    const isActive = location.pathname === item.url || location.pathname.startsWith(item.url + "/");
+                    const isActive = location.pathname === getUrl(item.url) || location.pathname.startsWith(getUrl(item.url) + "/");
 
-                    const isExternal = item.url?.startsWith("http");
+                    const isExternal = getUrl(item.url)?.startsWith("http");
 
                     return (
                       <SidebarMenuItem key={item.title}>
                         <SidebarMenuButton asChild isActive={!isExternal && isActive}>
                           {isExternal ? (
                             <a
-                              href={item.url}
+                              href={getUrl(item.url)}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={() => isMobile && setOpenMobile(false)}
@@ -654,7 +662,7 @@ export function AppSidebar() {
                           ) : (
                             <NavLink
                               id={item.title === "Settings" ? "tour-settings" : undefined}
-                              to={item.url!}
+                              to={getUrl(item.url)!}
                               end
                               onClick={() => isMobile && setOpenMobile(false)}
                               className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
