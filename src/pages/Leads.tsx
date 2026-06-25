@@ -1,4 +1,5 @@
-import { useState } from "react"; 
+import { useState } from "react";
+import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { Plus, Search, ChevronDown, Download, FileSpreadsheet, FileJson, FileType, Printer, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, ArrowRight, X, Trash2, CheckCircle2, Clock, Flame, Snowflake, Sun, Ghost, MapPin, ClipboardList, Users, UserMinus, Edit, Eye, Upload } from "lucide-react";
 import Papa from "papaparse";
 
@@ -57,6 +58,7 @@ const Leads = () => {
   const queryClient = useQueryClient();
   const { can } = usePermissions();
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
+  useOpenCreateModal(() => setIsNewLeadOpen(true));
   const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);

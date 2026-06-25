@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -125,6 +126,8 @@ const Customers = () => {
   });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false);
+  useOpenCreateModal(() => setIsNewCustomerOpen(true));
   const [importState, setImportState] = useState({
     file: null as File | null,
     group: "",
@@ -313,6 +316,7 @@ const Customers = () => {
     }
     createMutation.mutate(newCustomer);
     setNewCustomer({ company: "", active: true });
+    setIsNewCustomerOpen(false);
   };
 
   return (
@@ -376,7 +380,7 @@ const Customers = () => {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex gap-2">
             {can("Customers", "Create") && (
-              <Dialog>
+              <Dialog open={isNewCustomerOpen} onOpenChange={setIsNewCustomerOpen}>
                 <DialogTrigger asChild>
                   <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                     <Plus className="mr-2 h-4 w-4" />

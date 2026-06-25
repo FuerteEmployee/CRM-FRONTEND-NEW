@@ -156,7 +156,7 @@ export default function SetupSupportDepartments() {
 
   const handleBulkSave = () => {
     if (!bulkNames.trim()) {
-      toast({ title: "Error", variant: "destructive", description: "Please enter at least one item" });
+      toast.error("Please enter at least one item");
       return;
     }
     const names = bulkNames.split(/[\n,]+/).map(n => n.trim()).filter(n => n);
@@ -230,7 +230,7 @@ export default function SetupSupportDepartments() {
               {editingId ? "Edit Department" : "New Department"}
             </DialogTitle>
           </DialogHeader>
-          <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+          <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
             {/* Basic Info */}
             <div className="space-y-4">
               <div className="space-y-2">
@@ -452,18 +452,18 @@ export default function SetupSupportDepartments() {
             </div>
           </div>
 
-          <DialogFooter className="px-6 py-5 bg-slate-50/50 border-t gap-3 sm:gap-0">
+          <DialogFooter className="px-6 py-4 bg-slate-50/50 border-t flex items-center justify-end gap-3">
             <Button
               type="button"
               variant="outline"
               onClick={closeModal}
-              className="px-6 h-11 border-slate-200 hover:bg-white hover:border-slate-300 text-foreground font-semibold rounded-xl transition-all shadow-sm"
+              className="px-6 h-10 border-slate-200 hover:bg-white hover:border-slate-300 text-foreground font-semibold rounded-xl transition-all shadow-sm"
             >
               Close
             </Button>
             <Button
-              onClick={handleSave}
-              className="px-8 h-11 font-bold rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98] min-w-[100px]"
+              onClick={() => handleSave(true)}
+              className="px-8 h-10 font-bold rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98] min-w-[100px]"
               disabled={
                 createMutation.isPending ||
                 updateMutation.isPending ||
@@ -510,7 +510,7 @@ export default function SetupSupportDepartments() {
               onClick={() => setIsBulkModalOpen(false)}
               className="bg-white border-gray-300 text-foreground hover:bg-gray-100 px-6 h-10 font-medium"
             >
-              Close
+              Cancel
             </Button>
             <Button
               onClick={handleBulkSave}

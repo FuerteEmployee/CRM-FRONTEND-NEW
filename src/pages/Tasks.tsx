@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -117,6 +118,7 @@ const Tasks = () => {
   const [editorFontSize, setEditorFontSize] = useState("11");
   const [showAttachment, setShowAttachment] = useState(false);
   const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
+  useOpenCreateModal(() => setIsNewTaskModalOpen(true));
   const [editingTask, setEditingTask] = useState<any>(null);
   const [selectedViewTask, setSelectedViewTask] = useState<any>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);

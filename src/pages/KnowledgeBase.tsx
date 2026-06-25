@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
   Card,
@@ -50,6 +51,7 @@ const KnowledgeBase = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isAddGroupModalOpen, setIsAddGroupModalOpen] = useState(false);
   const [isNewArticleModalOpen, setIsNewArticleModalOpen] = useState(false);
+  useOpenCreateModal(() => setIsNewArticleModalOpen(true));
   const queryClient = useQueryClient();
 
   const [newArticleData, setNewArticleData] = useState({
@@ -248,7 +250,7 @@ const KnowledgeBase = () => {
                 </div>
                 <BookOpen className="h-8 w-8 text-primary" />
               </div>
-              <div className="p-8 space-y-6 max-h-[75vh] overflow-y-auto no-scrollbar bg-white">
+              <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto no-scrollbar bg-white">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Subject *</Label>
                   <Input
@@ -316,13 +318,21 @@ const KnowledgeBase = () => {
                   </div>
                 </div>
               </div>
-              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsNewArticleModalOpen(false)}
+                  className="px-6 h-10 border-slate-200 hover:bg-white hover:border-slate-300 text-foreground font-semibold rounded-xl transition-all shadow-sm"
+                >
+                  Close
+                </Button>
                 <Button
                   onClick={() => createArticleMutation.mutate(newArticleData)}
                   disabled={!newArticleData.subject || !newArticleData.group || createArticleMutation.isPending}
-                  className="rounded-xl font-black uppercase text-[10px] tracking-widest h-10 px-8 shadow-lg shadow-primary/20"
+                  className="rounded-xl font-bold text-sm h-10 px-8 shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
                 >
-                  {createArticleMutation.isPending ? "Saving..." : (editingArticleId ? "Update and Close" : "Save and Close")}
+                  {createArticleMutation.isPending ? "Saving..." : "Save"}
                 </Button>
               </div>
             </DialogContent>

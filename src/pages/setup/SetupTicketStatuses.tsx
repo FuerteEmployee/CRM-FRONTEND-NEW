@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { DataTablePage } from "@/components/shared/DataTablePage";
 import {
   Dialog,
@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supportService } from "@/api/services/support.service";
 import { toast } from "sonner";
-import { useRef } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Loader2, Zap } from "lucide-react";
 
@@ -227,40 +226,27 @@ export default function SetupTicketStatuses() {
                 }
               />
             </div>
+            
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">
                 Pick Color
               </label>
-              <div className="flex gap-2 relative">
+              <div className="flex gap-2">
                 <Input
+                  type="color"
+                  className="h-10 w-12 p-1 rounded-xl border-slate-200 cursor-pointer"
                   value={formData.color}
-                  onChange={(e) =>
-                    setFormData({ ...formData, color: e.target.value })
-                  }
-                  className="h-10 border-gray-300 focus:ring-1 focus:ring-primary text-gray-800 font-mono"
-                  placeholder="#000000"
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
                 />
-                <div
-                  className="w-10 h-10 rounded-md border border-gray-300 shadow-sm shrink-0 cursor-pointer hover:ring-2 hover:ring-primary/20 transition-all flex items-center justify-center overflow-hidden"
-                  style={{ backgroundColor: formData.color }}
-                  onClick={() => colorInputRef.current?.click()}
-                >
-                  <input
-                    ref={colorInputRef}
-                    type="color"
-                    value={
-                      formData.color.startsWith("#")
-                        ? formData.color
-                        : "#757575"
-                    }
-                    onChange={(e) =>
-                      setFormData({ ...formData, color: e.target.value })
-                    }
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                  />
-                </div>
+                <Input
+                  placeholder="#000000"
+                  className="h-10 flex-1 rounded-xl border-slate-200 font-mono text-sm"
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                />
               </div>
             </div>
+
             <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">
                 Status Order
