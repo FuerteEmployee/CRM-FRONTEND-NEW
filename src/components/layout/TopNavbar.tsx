@@ -1,4 +1,6 @@
-import { useState } from "react";
+import "regenerator-runtime/runtime";
+import { useState, useEffect } from "react";
+import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import {
   Bell,
   Search,
@@ -51,6 +53,8 @@ import { usePermissionContext } from "@/context/PermissionContext";
 import { useNavigate } from "react-router-dom";
 import { authService } from "@/api/services/auth.service";
 import { useNotificationContext } from "@/context/NotificationContext";
+import { useToast } from "@/hooks/use-toast";
+import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
 
 export function TopNavbar() {
   const [search, setSearch] = useState("");
@@ -67,8 +71,67 @@ export function TopNavbar() {
     { label: "Ticket", icon: Headphones, path: "/admin/support/create", color: "text-pink-500 bg-pink-50 dark:bg-pink-500/10" },
     { label: "Event", icon: CalendarPlus, path: "/admin/calendar", color: "text-teal-500 bg-teal-50 dark:bg-teal-500/10" },
   ];
-  const { user, logout } = usePermissionContext();
+  const { user, logout, isStaff } = usePermissionContext();
   const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotificationContext();
+  const { toast } = useToast();
+
+  // ─── Global search → command routing (typed or via voice mic) ─────────────
+  const [isMicOn, setIsMicOn] = useState(false);
+  const { transcript, listening, resetTranscript, browserSupportsSpeechRecognition } =
+    useSpeechRecognition();
+
+  // While the search mic is on, mirror the live transcript into the search box.
+  useEffect(() => {
+    if (isMicOn && transcript) setSearch(transcript);
+  }, [transcript, isMicOn]);
+
+  // Resolve the current text to a CRM page and navigate there.
+  const runSearch = (raw: string) => {
+    const text = raw.trim();
+    if (!text) return;
+    const match = resolveCommand(text);
+    if (match) {
+      if (match.section) {
+        window.dispatchEvent(
+          new CustomEvent("fuerte:open-section", { detail: { section: match.section } }),
+        );
+      }
+      navigate(applyBasePath(match.route, isStaff));
+      setSearch("");
+    } else {
+      toast({ title: "Search", description: `No matching page for "${text}".` });
+    }
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (listening) SpeechRecognition.stopListening();
+      setIsMicOn(false);
+      runSearch(search);
+    }
+  };
+
+  // Toggle one-shot voice dictation into the search box.
+  const toggleSearchMic = () => {
+    if (!browserSupportsSpeechRecognition) {
+      toast({
+        title: "Voice search unavailable",
+        description: "Your browser doesn't support speech recognition. Try Chrome or Edge.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (listening) {
+      SpeechRecognition.stopListening();
+      setIsMicOn(false);
+    } else {
+      resetTranscript();
+      setSearch("");
+      setIsMicOn(true);
+      SpeechRecognition.startListening({ continuous: false, language: "en-US" });
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -129,11 +192,24 @@ export function TopNavbar() {
       <div className="flex-1 max-w-sm md:max-w-md flex items-center gap-2">
         <div className="relative animate-fade-in group flex-1">
           <Input
-            placeholder="Search..."
+            placeholder={listening ? "Listening… speak a page name" : "Search or say a page… (press Enter)"}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-4 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl transition-all w-full"
+            onKeyDown={handleSearchKeyDown}
+            className="pl-4 pr-9 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl transition-all w-full"
           />
+          <button
+            type="button"
+            onClick={toggleSearchMic}
+            title={listening ? "Stop voice search" : "Search by voice"}
+            className={`absolute right-1.5 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+              listening
+                ? "bg-primary text-primary-foreground animate-pulse"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            <Mic className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Quick Create Dropdown */}

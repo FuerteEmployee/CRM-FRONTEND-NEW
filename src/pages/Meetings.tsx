@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ import { ExportButton } from "@/components/ui/export-button";
 
 export default function Meetings() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  useOpenCreateModal(() => setIsModalOpen(true));
   const [editingMeeting, setEditingMeeting] = useState<any>(null);
   const [search, setSearch] = useState("");
   const { toast } = useToast();

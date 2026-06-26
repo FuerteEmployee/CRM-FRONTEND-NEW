@@ -23,6 +23,7 @@ interface PermissionContextType {
   permissions: Record<string, Record<string, boolean>>;
   planModules: Record<string, boolean> | null;
   isAdmin: boolean;
+  isStaff: boolean;
   can: (feature: string, capability: string) => boolean;
   canView: (feature: string) => boolean;
   isModuleEnabled: (moduleKey: string) => boolean;
@@ -100,7 +101,8 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
     syncPermissions();
   }, []);
 
-  const isAdmin = user?.admin === true;
+  const isAdmin = user?.admin === true || user?.admin === 1 || user?.admin === "1" || user?.admin === "true";
+  const isStaff = user !== null && !isAdmin && !user?.is_superadmin;
 
   const can = (feature: string, capability: string): boolean => {
     if (isAdmin) return true;
@@ -175,6 +177,7 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
         permissions,
         planModules,
         isAdmin,
+        isStaff,
         can,
         canView,
         isModuleEnabled,

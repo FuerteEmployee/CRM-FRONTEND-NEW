@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 const Items = () => {
   const [search, setSearch] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  useOpenCreateModal(() => setIsCreateOpen(true));
   const [viewItem, setViewItem] = useState<any>(null);
   const [editItem, setEditItem] = useState<any>(null);
   const [itemsPerPage, setItemsPerPage] = useState("10");

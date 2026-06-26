@@ -31,7 +31,7 @@ const features = [
   { icon: CheckCircle2, label: "Smart Task Management" },
 ];
 
-const Login = () => {
+const StaffLogin = () => {
   const navigate = useNavigate();
   const { setFromLoginResponse } = usePermissionContext();
   const { settings } = useSettings();
@@ -160,10 +160,10 @@ const Login = () => {
           {/* Header */}
           <div className="space-y-1">
             <h2 className="text-2xl font-bold tracking-tight text-foreground">
-              Welcome back
+              Staff Portal Login
             </h2>
             <p className="text-sm text-muted-foreground">
-              Sign in to your account to continue
+              Sign in to access your staff dashboard
             </p>
           </div>
 
@@ -191,7 +191,7 @@ const Login = () => {
                   Password
                 </Label>
                 <Link
-                  to="/admin/forgot-password"
+                  to="/staff/forgot-password"
                   className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
                 >
                   Forgot password?
@@ -265,4 +265,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default StaffLogin;

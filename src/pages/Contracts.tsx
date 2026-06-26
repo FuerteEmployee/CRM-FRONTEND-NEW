@@ -25,6 +25,7 @@ import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
+import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { usePermissions } from "@/hooks/usePermissions";
 import { contractService } from "@/api/services/contract.service";
 import { customerService } from "@/api/services/customer.service";
@@ -46,6 +47,7 @@ const Contracts = () => {
   const [viewItem, setViewItem] = useState<any | null>(null);
   const [editItem, setEditItem] = useState<any | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  useOpenCreateModal(() => setIsAddOpen(true));
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState("10");
   const { toast } = useToast();

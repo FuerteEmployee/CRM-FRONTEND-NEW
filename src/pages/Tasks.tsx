@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useNavigate, Link } from "react-router-dom";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { customerService } from "@/api/services/customer.service";
+import { TaskViewModal } from "@/components/tasks/TaskViewModal";
 
 const taskStatusConfig = [
   { id: 1, label: "Not Started", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" },
@@ -116,7 +118,10 @@ const Tasks = () => {
   const [editorFontSize, setEditorFontSize] = useState("11");
   const [showAttachment, setShowAttachment] = useState(false);
   const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
+  useOpenCreateModal(() => setIsNewTaskModalOpen(true));
   const [editingTask, setEditingTask] = useState<any>(null);
+  const [selectedViewTask, setSelectedViewTask] = useState<any>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
   const [bulkState, setBulkState] = useState({
@@ -382,7 +387,8 @@ const Tasks = () => {
   };
 
   const handleView = (task: any) => {
-    handleEdit(task); // For now, viewing is just editing without save? Or maybe just open modal.
+    setSelectedViewTask(task);
+    setIsViewModalOpen(true);
   };
 
   const handleInlineUpdate = (task: any, field: string, value: any) => {
@@ -423,6 +429,12 @@ const Tasks = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <TaskViewModal
+          isOpen={isViewModalOpen}
+          onClose={() => setIsViewModalOpen(false)}
+          task={selectedViewTask}
+          staffOptions={staffOptions}
+        />
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
             <h1 className="text-2xl font-bold">Tasks</h1>
@@ -952,7 +964,7 @@ const Tasks = () => {
                           <td className="p-4">
                             <div className="flex flex-col">
                               <span 
-                                onClick={() => navigate(`/admin/tasks/edit/${task._id}`)}
+                                onClick={() => handleView(task)}
                                 className="font-semibold text-primary hover:underline cursor-pointer"
                               >
                                 {task.name}

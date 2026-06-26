@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
   Card,
@@ -16,6 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,6 +51,7 @@ const KnowledgeBase = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isAddGroupModalOpen, setIsAddGroupModalOpen] = useState(false);
   const [isNewArticleModalOpen, setIsNewArticleModalOpen] = useState(false);
+  useOpenCreateModal(() => setIsNewArticleModalOpen(true));
   const queryClient = useQueryClient();
 
   const [newArticleData, setNewArticleData] = useState({
@@ -243,18 +246,18 @@ const KnowledgeBase = () => {
               <div className="bg-white px-8 py-6 text-slate-900 flex items-center justify-between border-b border-slate-100">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Article Management</p>
-                  <h2 className="text-2xl font-black tracking-tight">{editingArticleId ? "Edit Article" : "Create New Article"}</h2>
+                  <DialogTitle className="text-2xl font-black tracking-tight">{editingArticleId ? "Edit Article" : "Create New Article"}</DialogTitle>
                 </div>
                 <BookOpen className="h-8 w-8 text-primary" />
               </div>
-              <div className="p-8 space-y-6 max-h-[75vh] overflow-y-auto no-scrollbar bg-white">
+              <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto no-scrollbar bg-white">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Subject *</Label>
-                  <Input 
-                    placeholder="Enter article subject..." 
+                  <Input
+                    placeholder="Enter article subject..."
                     className="h-11 rounded-xl border-slate-200 bg-slate-50/50 font-bold focus:bg-white transition-all"
                     value={newArticleData.subject}
-                    onChange={(e) => setNewArticleData({...newArticleData, subject: e.target.value})}
+                    onChange={(e) => setNewArticleData({ ...newArticleData, subject: e.target.value })}
                   />
                 </div>
 
@@ -265,14 +268,14 @@ const KnowledgeBase = () => {
                       <SearchableSelect
                         options={groups.map((g: any) => ({ label: g.name, value: g._id }))}
                         value={newArticleData.group}
-                        onValueChange={(val) => setNewArticleData({...newArticleData, group: val})}
+                        onValueChange={(val) => setNewArticleData({ ...newArticleData, group: val })}
                         placeholder="Select or search group..."
                         className="h-11 rounded-xl border-slate-200 bg-slate-50/50 font-bold"
                       />
                     </div>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
+                    <Button
+                      type="button"
+                      variant="outline"
                       onClick={() => setIsAddGroupModalOpen(true)}
                       className="h-11 w-11 rounded-xl border-slate-200 bg-slate-50/50 hover:bg-primary/5 hover:text-primary transition-all border-dashed"
                     >
@@ -283,20 +286,20 @@ const KnowledgeBase = () => {
 
                 <div className="flex items-center gap-6 p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
                   <div className="flex items-center gap-3">
-                    <Checkbox 
-                      id="internal" 
-                      className="rounded-md border-slate-300" 
+                    <Checkbox
+                      id="internal"
+                      className="rounded-md border-slate-300"
                       checked={newArticleData.internal}
-                      onCheckedChange={(val) => setNewArticleData({...newArticleData, internal: !!val})}
+                      onCheckedChange={(val) => setNewArticleData({ ...newArticleData, internal: !!val })}
                     />
                     <Label htmlFor="internal" className="text-[10px] font-black uppercase text-slate-600 tracking-widest cursor-pointer">Internal Article</Label>
                   </div>
                   <div className="flex items-center gap-3">
-                    <Checkbox 
-                      id="disabled" 
-                      className="rounded-md border-slate-300" 
+                    <Checkbox
+                      id="disabled"
+                      className="rounded-md border-slate-300"
                       checked={newArticleData.disabled}
-                      onCheckedChange={(val) => setNewArticleData({...newArticleData, disabled: !!val})}
+                      onCheckedChange={(val) => setNewArticleData({ ...newArticleData, disabled: !!val })}
                     />
                     <Label htmlFor="disabled" className="text-[10px] font-black uppercase text-slate-600 tracking-widest cursor-pointer">Disabled</Label>
                   </div>
@@ -310,18 +313,26 @@ const KnowledgeBase = () => {
                       placeholder="Write article content..."
                       className="min-h-[250px] border-none focus-visible:ring-0 text-sm leading-relaxed p-6 font-medium"
                       value={newArticleData.description}
-                      onChange={(e) => setNewArticleData({...newArticleData, description: e.target.value})}
+                      onChange={(e) => setNewArticleData({ ...newArticleData, description: e.target.value })}
                     />
                   </div>
                 </div>
               </div>
-              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-                <Button 
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsNewArticleModalOpen(false)}
+                  className="px-6 h-10 border-slate-200 hover:bg-white hover:border-slate-300 text-foreground font-semibold rounded-xl transition-all shadow-sm"
+                >
+                  Close
+                </Button>
+                <Button
                   onClick={() => createArticleMutation.mutate(newArticleData)}
                   disabled={!newArticleData.subject || !newArticleData.group || createArticleMutation.isPending}
-                  className="rounded-xl font-black uppercase text-[10px] tracking-widest px-8 shadow-lg shadow-primary/20"
+                  className="rounded-xl font-bold text-sm h-10 px-8 shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
                 >
-                  {createArticleMutation.isPending ? "Saving..." : (editingArticleId ? "Update Article" : "Save Article")}
+                  {createArticleMutation.isPending ? "Saving..." : "Save"}
                 </Button>
               </div>
             </DialogContent>
@@ -333,7 +344,7 @@ const KnowledgeBase = () => {
               <div className="bg-white px-8 py-6 text-slate-900 flex items-center justify-between border-b border-slate-100">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Configuration</p>
-                  <h2 className="text-2xl font-black tracking-tight">Add New Group</h2>
+                  <DialogTitle className="text-2xl font-black tracking-tight">Add New Group</DialogTitle>
                 </div>
                 <div className="h-10 w-10 bg-primary/10 rounded-xl flex items-center justify-center">
                   <Plus className="h-6 w-6 text-primary" />
@@ -343,27 +354,27 @@ const KnowledgeBase = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Group Name *</Label>
-                    <Input 
-                      placeholder="e.g. Technical Support" 
+                    <Input
+                      placeholder="e.g. Technical Support"
                       className="h-11 rounded-xl border-slate-200 font-bold"
                       value={newGroupData.name}
-                      onChange={(e) => setNewGroupData({...newGroupData, name: e.target.value})}
+                      onChange={(e) => setNewGroupData({ ...newGroupData, name: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Color</Label>
                     <div className="flex gap-2">
-                      <Input 
-                        type="color" 
+                      <Input
+                        type="color"
                         className="h-11 w-12 p-1 rounded-xl border-slate-200 cursor-pointer"
                         value={newGroupData.color}
-                        onChange={(e) => setNewGroupData({...newGroupData, color: e.target.value})}
+                        onChange={(e) => setNewGroupData({ ...newGroupData, color: e.target.value })}
                       />
-                      <Input 
-                        placeholder="#000000" 
+                      <Input
+                        placeholder="#000000"
                         className="h-11 flex-1 rounded-xl border-slate-200 font-mono text-sm"
                         value={newGroupData.color}
-                        onChange={(e) => setNewGroupData({...newGroupData, color: e.target.value})}
+                        onChange={(e) => setNewGroupData({ ...newGroupData, color: e.target.value })}
                       />
                     </div>
                   </div>
@@ -373,11 +384,11 @@ const KnowledgeBase = () => {
                   <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Short Description</Label>
                   <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
                     <RichToolbar />
-                    <Textarea 
-                      placeholder="Brief description of this group..." 
+                    <Textarea
+                      placeholder="Brief description of this group..."
                       className="min-h-[120px] border-none focus-visible:ring-0 text-sm p-4 font-medium"
                       value={newGroupData.description}
-                      onChange={(e) => setNewGroupData({...newGroupData, description: e.target.value})}
+                      onChange={(e) => setNewGroupData({ ...newGroupData, description: e.target.value })}
                     />
                   </div>
                 </div>
@@ -385,20 +396,20 @@ const KnowledgeBase = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Order</Label>
-                    <Input 
-                      type="number" 
+                    <Input
+                      type="number"
                       className="h-11 rounded-xl border-slate-200 font-bold"
                       value={newGroupData.order}
-                      onChange={(e) => setNewGroupData({...newGroupData, order: parseInt(e.target.value)})}
+                      onChange={(e) => setNewGroupData({ ...newGroupData, order: parseInt(e.target.value) })}
                     />
                   </div>
                   <div className="flex flex-col justify-end gap-2 pb-1">
                     <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                      <Checkbox 
-                        id="group-disabled" 
+                      <Checkbox
+                        id="group-disabled"
                         className="rounded-md border-slate-300"
                         checked={newGroupData.disabled}
-                        onCheckedChange={(val) => setNewGroupData({...newGroupData, disabled: !!val})}
+                        onCheckedChange={(val) => setNewGroupData({ ...newGroupData, disabled: !!val })}
                       />
                       <Label htmlFor="group-disabled" className="text-[10px] font-black uppercase text-slate-600 tracking-widest cursor-pointer">Disabled</Label>
                     </div>
@@ -408,7 +419,7 @@ const KnowledgeBase = () => {
               </div>
               <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
                 <Button variant="outline" onClick={() => setIsAddGroupModalOpen(false)} className="rounded-xl font-black uppercase text-[10px] tracking-widest h-10 px-6">Close</Button>
-                <Button 
+                <Button
                   onClick={() => createGroupMutation.mutate(newGroupData)}
                   disabled={!newGroupData.name || createGroupMutation.isPending}
                   className="rounded-xl font-black uppercase text-[10px] tracking-widest h-10 px-8 shadow-lg shadow-primary/20"
@@ -460,17 +471,17 @@ const KnowledgeBase = () => {
                     </DialogHeader>
                     <div className="space-y-5 pt-4">
                       <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id="massDelete" 
+                        <Checkbox
+                          id="massDelete"
                           className="border-red-500 data-[state=checked]:bg-red-500"
                           checked={bulkState.massDelete}
-                          onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                          onCheckedChange={(checked) => setBulkState({ ...bulkState, massDelete: checked as boolean })}
                         />
                         <Label htmlFor="massDelete" className="text-red-600 font-bold">Mass Delete</Label>
                       </div>
-                      <Button 
-                        onClick={handleBulkAction} 
-                        disabled={!bulkState.massDelete || isBulkLoading} 
+                      <Button
+                        onClick={handleBulkAction}
+                        disabled={!bulkState.massDelete || isBulkLoading}
                         className="w-full bg-primary hover:bg-primary/90 text-white font-bold tracking-widest uppercase text-xs h-12"
                       >
                         {isBulkLoading ? "Processing..." : "Confirm"}
@@ -527,10 +538,10 @@ const KnowledgeBase = () => {
                 <thead>
                   <tr className="border-b text-left text-[11px] text-muted-foreground uppercase tracking-wider bg-zinc-50/50">
                     <th className="p-3 font-semibold w-8">
-                      <Checkbox 
+                      <Checkbox
                         checked={selectedArticles.length > 0 && selectedArticles.length === paginatedArticles.length}
                         onCheckedChange={handleSelectAll}
-                        className="rounded border-zinc-300" 
+                        className="rounded border-zinc-300"
                       />
                     </th>
                     <th className="p-3 font-semibold w-10">#</th>
@@ -559,13 +570,13 @@ const KnowledgeBase = () => {
                     paginatedArticles.map((article: any, index) => (
                       <tr key={article._id} className="border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer">
                         <td className="p-3">
-                          <Checkbox 
+                          <Checkbox
                             checked={selectedArticles.includes(article._id)}
                             onCheckedChange={(checked) => {
                               if (checked) setSelectedArticles([...selectedArticles, article._id]);
                               else setSelectedArticles(selectedArticles.filter(id => id !== article._id));
                             }}
-                            className="rounded border-zinc-300" 
+                            className="rounded border-zinc-300"
                           />
                         </td>
                         <td className="p-3 text-xs text-muted-foreground" onClick={() => openEditModal(article)}>
@@ -580,7 +591,7 @@ const KnowledgeBase = () => {
                         </td>
                         <td className="p-3" onClick={() => openEditModal(article)}>
                           <Badge variant="secondary" className="text-[10px] px-1.5 h-5 font-bold uppercase tracking-wider">
-                            {article.group_name || "General"}
+                            {article.group_name || groups.find((g: any) => g._id === article.group)?.name || "General"}
                           </Badge>
                         </td>
                         <td className="p-3 text-xs text-zinc-600" onClick={() => openEditModal(article)}>
@@ -624,15 +635,15 @@ const KnowledgeBase = () => {
                 </tbody>
               </table>
             </div>
-            
+
             <div className="p-3 border-t border-slate-100 flex items-center justify-between bg-white">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
                 Showing {startEntry} to {endEntry} of {totalEntries} entries
               </span>
               <div className="flex items-center gap-4">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="h-8 px-2 font-bold text-xs hover:bg-slate-50 text-slate-400 hover:text-slate-900 transition-colors"
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
@@ -642,9 +653,9 @@ const KnowledgeBase = () => {
                 <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary text-white font-black text-xs shadow-sm shadow-primary/20">
                   {currentPage}
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="h-8 px-2 font-bold text-xs hover:bg-slate-50 text-slate-400 hover:text-slate-900 transition-colors"
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
