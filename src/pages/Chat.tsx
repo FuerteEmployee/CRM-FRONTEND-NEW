@@ -173,12 +173,19 @@ const Chat = () => {
     };
   }, [currentUser]);
 
-  // Fetch contacts on mount
+  // Fetch contacts on mount — polls every 10 s so newly added staff appear automatically.
   useEffect(() => {
     const fetchContacts = async () => {
       try {
         const data = await chatService.getContacts();
-        setContacts(data || []);
+        // Dedup by _id in case the backend somehow returns the same person twice.
+        const seen = new Set<string>();
+        const unique = (data || []).filter((c: ChatContact) => {
+          if (seen.has(c._id)) return false;
+          seen.add(c._id);
+          return true;
+        });
+        setContacts(unique);
       } catch (error) {
         console.error("Failed to fetch contacts:", error);
       } finally {
@@ -458,6 +465,7 @@ const Chat = () => {
                       }}
                       userInfo={{
                         displayName: `${currentUser?.firstname} ${currentUser?.lastname}`,
+                        email: currentUser?.email || "",
                       }}
                       getIFrameRef={(iframeRef) => {
                         iframeRef.style.height = '100%';

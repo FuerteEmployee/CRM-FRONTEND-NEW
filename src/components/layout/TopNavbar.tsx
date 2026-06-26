@@ -1,9 +1,6 @@
-import "regenerator-runtime/runtime";
-import { useState, useEffect } from "react";
-import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
+import { useState } from "react";
 import {
   Bell,
-  Search,
   Moon,
   Sun,
   Settings,
@@ -15,9 +12,7 @@ import {
   Edit,
   Globe,
   LogOut,
-  ChevronRight,
   MoreVertical,
-  Mic,
   Palette,
   Plus,
   Target,
@@ -51,7 +46,6 @@ import { useTheme } from "@/hooks/useTheme";
 import { NavLink } from "@/components/NavLink";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useNavigate } from "react-router-dom";
-import { authService } from "@/api/services/auth.service";
 import { useNotificationContext } from "@/context/NotificationContext";
 import { useToast } from "@/hooks/use-toast";
 import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
@@ -61,29 +55,20 @@ export function TopNavbar() {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
 
-  const quickCreateItems = [
-    { label: "Estimate", icon: ClipboardList, path: "/admin/estimates/create", color: "text-violet-500 bg-violet-50 dark:bg-violet-500/10" },
-    { label: "Proposal", icon: FileText, path: "/admin/proposals/create", color: "text-blue-500 bg-blue-50 dark:bg-blue-500/10" },
-    { label: "Customer", icon: Users, path: "/admin/customers", color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10" },
-    { label: "Task", icon: CheckSquare, path: "/admin/tasks", color: "text-amber-500 bg-amber-50 dark:bg-amber-500/10" },
-    { label: "Expense", icon: Receipt, path: "/admin/expenses/create", color: "text-rose-500 bg-rose-50 dark:bg-rose-500/10" },
-    { label: "Goal", icon: Target, path: "/admin/goals/new", color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10" },
-    { label: "Ticket", icon: Headphones, path: "/admin/support/create", color: "text-pink-500 bg-pink-50 dark:bg-pink-500/10" },
-    { label: "Event", icon: CalendarPlus, path: "/admin/calendar", color: "text-teal-500 bg-teal-50 dark:bg-teal-500/10" },
-  ];
   const { user, logout, isStaff } = usePermissionContext();
+  const base = isStaff ? "/staff" : "/admin";
+  const quickCreateItems = [
+    { label: "Estimate", icon: ClipboardList, path: `${base}/estimates/create`, color: "text-violet-500 bg-violet-50 dark:bg-violet-500/10" },
+    { label: "Proposal", icon: FileText, path: `${base}/proposals/create`, color: "text-blue-500 bg-blue-50 dark:bg-blue-500/10" },
+    { label: "Customer", icon: Users, path: `${base}/customers`, color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10" },
+    { label: "Task", icon: CheckSquare, path: `${base}/tasks`, color: "text-amber-500 bg-amber-50 dark:bg-amber-500/10" },
+    { label: "Expense", icon: Receipt, path: `${base}/expenses/create`, color: "text-rose-500 bg-rose-50 dark:bg-rose-500/10" },
+    { label: "Goal", icon: Target, path: `${base}/goals/new`, color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10" },
+    { label: "Ticket", icon: Headphones, path: `${base}/support/create`, color: "text-pink-500 bg-pink-50 dark:bg-pink-500/10" },
+    { label: "Event", icon: CalendarPlus, path: `${base}/calendar`, color: "text-teal-500 bg-teal-50 dark:bg-teal-500/10" },
+  ];
   const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotificationContext();
   const { toast } = useToast();
-
-  // ─── Global search → command routing (typed or via voice mic) ─────────────
-  const [isMicOn, setIsMicOn] = useState(false);
-  const { transcript, listening, resetTranscript, browserSupportsSpeechRecognition } =
-    useSpeechRecognition();
-
-  // While the search mic is on, mirror the live transcript into the search box.
-  useEffect(() => {
-    if (isMicOn && transcript) setSearch(transcript);
-  }, [transcript, isMicOn]);
 
   // Resolve the current text to a CRM page and navigate there.
   const runSearch = (raw: string) => {
@@ -106,30 +91,7 @@ export function TopNavbar() {
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      if (listening) SpeechRecognition.stopListening();
-      setIsMicOn(false);
       runSearch(search);
-    }
-  };
-
-  // Toggle one-shot voice dictation into the search box.
-  const toggleSearchMic = () => {
-    if (!browserSupportsSpeechRecognition) {
-      toast({
-        title: "Voice search unavailable",
-        description: "Your browser doesn't support speech recognition. Try Chrome or Edge.",
-        variant: "destructive",
-      });
-      return;
-    }
-    if (listening) {
-      SpeechRecognition.stopListening();
-      setIsMicOn(false);
-    } else {
-      resetTranscript();
-      setSearch("");
-      setIsMicOn(true);
-      SpeechRecognition.startListening({ continuous: false, language: "en-US" });
     }
   };
 
@@ -192,24 +154,12 @@ export function TopNavbar() {
       <div className="flex-1 max-w-sm md:max-w-md flex items-center gap-2">
         <div className="relative animate-fade-in group flex-1">
           <Input
-            placeholder={listening ? "Listening… speak a page name" : "Search or say a page… (press Enter)"}
+            placeholder="Search or say a page… (press Enter)"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={handleSearchKeyDown}
-            className="pl-4 pr-9 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl transition-all w-full"
+            className="pl-4 pr-4 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl transition-all w-full"
           />
-          <button
-            type="button"
-            onClick={toggleSearchMic}
-            title={listening ? "Stop voice search" : "Search by voice"}
-            className={`absolute right-1.5 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
-              listening
-                ? "bg-primary text-primary-foreground animate-pulse"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
-            }`}
-          >
-            <Mic className="h-4 w-4" />
-          </button>
         </div>
 
         {/* Quick Create Dropdown */}
@@ -247,7 +197,7 @@ export function TopNavbar() {
       {/* Quick Action Icons */}
       <div className="flex items-center gap-0.5 md:gap-1 ml-auto">
         {/* Settings - visible on md and up with text, always icon */}
-        <NavLink to="/admin/setup" className="inline-flex">
+        <NavLink to={`${base}/setup`} className="inline-flex">
           <Button
             variant="ghost"
             size="sm"
@@ -274,7 +224,7 @@ export function TopNavbar() {
           </Button>
 
           {/* Tasks */}
-          <NavLink to="/admin/tasks" className="inline-flex">
+          <NavLink to={`${base}/tasks`} className="inline-flex">
             <Button
               variant="ghost"
               size="icon"
@@ -286,7 +236,7 @@ export function TopNavbar() {
           </NavLink>
 
           {/* Time Tracking */}
-          <NavLink to="/admin/time-tracking" className="inline-flex">
+          <NavLink to={`${base}/time-tracking`} className="inline-flex">
             <Button
               variant="ghost"
               size="icon"
@@ -315,11 +265,11 @@ export function TopNavbar() {
                 <Share2 className="mr-2 h-4 w-4 text-muted-foreground" />
                 <span>Share</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/admin/tasks")}>
+              <DropdownMenuItem onClick={() => navigate(`${base}/tasks`)}>
                 <CheckSquare className="mr-2 h-4 w-4 text-muted-foreground" />
                 <span>Tasks</span>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate("/admin/time-tracking")}>
+              <DropdownMenuItem onClick={() => navigate(`${base}/time-tracking`)}>
                 <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
                 <span>Time Tracking</span>
               </DropdownMenuItem>
@@ -468,7 +418,7 @@ export function TopNavbar() {
 
             <DropdownMenuItem
               className="gap-3 px-4 py-2.5 cursor-pointer"
-              onClick={() => navigate("/admin/profile")}
+              onClick={() => navigate(`${base}/profile`)}
             >
               <User className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">My Profile</span>
@@ -476,7 +426,7 @@ export function TopNavbar() {
 
             <DropdownMenuItem
               className="gap-3 px-4 py-2.5 cursor-pointer"
-              onClick={() => navigate("/admin/time-tracking")}
+              onClick={() => navigate(`${base}/time-tracking`)}
             >
               <ClipboardList className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">My Timesheets</span>
@@ -484,7 +434,7 @@ export function TopNavbar() {
 
             <DropdownMenuItem
               className="gap-3 px-4 py-2.5 cursor-pointer"
-              onClick={() => navigate("/admin/profile")}
+              onClick={() => navigate(`${base}/profile`)}
             >
               <Edit className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm">Edit Profile</span>

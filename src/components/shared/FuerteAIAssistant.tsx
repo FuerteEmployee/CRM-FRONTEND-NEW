@@ -9,6 +9,55 @@ import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
 
 const WAKE_WORDS = ["fuerte", "for the ai", "forty", "forte", "four tay", "for tay"];
 
+// Mirrors AppSidebar's URL_MODULE_MAP — route prefix → plan module key
+const ROUTE_MODULE_MAP: Record<string, string> = {
+  "/admin/invoices": "finance",
+  "/admin/payments": "finance",
+  "/admin/credit-notes": "finance",
+  "/admin/items": "finance",
+  "/admin/tasks": "tasks",
+  "/admin/projects": "projects",
+  "/admin/support": "support",
+  "/admin/leads": "leads",
+  "/admin/contracts": "contracts",
+  "/admin/chat": "chat",
+  "/admin/meetings": "meetings",
+  "/admin/subscriptions": "subscriptions",
+  "/admin/expenses": "expenses",
+  "/admin/proposals": "proposals",
+  "/admin/estimates": "estimates",
+  "/admin/knowledge-base": "knowledge_base",
+  "/admin/time-tracking": "time_tracking",
+  "/admin/goals": "goals",
+  "/admin/announcements": "announcements",
+  "/admin/calendar": "calendar",
+  "/admin/reports": "reports",
+};
+
+// Route prefix → permission feature key used in canView()
+const ROUTE_PERMISSION_MAP: Record<string, string> = {
+  "/admin/leads": "leads",
+  "/admin/customers": "customers",
+  "/admin/contacts": "contacts",
+  "/admin/tasks": "tasks",
+  "/admin/projects": "projects",
+  "/admin/invoices": "invoices",
+  "/admin/payments": "payments",
+  "/admin/expenses": "expenses",
+  "/admin/estimates": "estimates",
+  "/admin/proposals": "proposals",
+  "/admin/credit-notes": "credit_notes",
+  "/admin/contracts": "contracts",
+  "/admin/support": "support",
+  "/admin/reports": "reports",
+  "/admin/knowledge-base": "knowledge_base",
+  "/admin/meetings": "meetings",
+  "/admin/subscriptions": "subscriptions",
+  "/admin/goals": "goals",
+  "/admin/announcements": "announcements",
+  "/admin/setup/staff": "staff",
+};
+
 type AIState = "sleeping" | "listening" | "awake";
 
 export function FuerteAIAssistant() {
@@ -18,8 +67,19 @@ export function FuerteAIAssistant() {
   const awakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const navigate = useNavigate();
-  const { isStaff } = usePermissionContext();
+  const { isStaff, isModuleEnabled, canView } = usePermissionContext();
   const { toast } = useToast();
+
+  // Returns true if the user's plan includes the module AND they have view permission.
+  const canAccessRoute = (route: string): boolean => {
+    // Strip query string and /create|/new suffixes to get the base route.
+    const base = route.replace(/\?.*$/, "").replace(/\/(create|new)$/, "");
+    const moduleKey = ROUTE_MODULE_MAP[base];
+    if (moduleKey && !isModuleEnabled(moduleKey)) return false;
+    const permKey = ROUTE_PERMISSION_MAP[base];
+    if (permKey && !canView(permKey)) return false;
+    return true;
+  };
 
   const { transcript, listening, resetTranscript, browserSupportsSpeechRecognition } = useSpeechRecognition();
 
@@ -83,6 +143,11 @@ const handleTranscript = (cmd: string) => {
       if (afterWake.length > 2) {
         const match = matchCommand(afterWake);
         if (match) {
+          if (!canAccessRoute(match.route)) {
+            toast({ title: "Fuerte AI", description: `You don't have access to ${match.label}.`, variant: "destructive" });
+            changeState("listening");
+            return;
+          }
           toast({ title: "Fuerte AI", description: `Opening ${match.label}…` });
           if (match.section) {
             window.dispatchEvent(new CustomEvent("fuerte:open-section", { detail: { section: match.section } }));
@@ -110,11 +175,18 @@ const handleTranscript = (cmd: string) => {
   // Step 3 — keyword matcher: phrases → route
   const match = matchCommand(cmd);
   if (match) {
+    if (!canAccessRoute(match.route)) {
+      toast({ title: "Fuerte AI", description: `You don't have access to ${match.label}.`, variant: "destructive" });
+      changeState("listening");
+      resetTranscript();
+      if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
+      return;
+    }
     toast({ title: "Fuerte AI", description: `Opening ${match.label}…` });
     if (match.section) {
       window.dispatchEvent(new CustomEvent("fuerte:open-section", { detail: { section: match.section } }));
     }
-    navigate(match.route.replace("/admin", basePath));
+    navigate(applyBasePath(match.route, isStaff));
     changeState("listening");
     resetTranscript();
     if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);

@@ -14,55 +14,78 @@ interface ExportButtonProps {
   columns?: { header: string; key: string | ((row: any) => string | number) }[];
 }
 
+const buildRows = (
+  data: any[],
+  columns?: ExportButtonProps["columns"],
+): { headers: string[]; rows: string[][] } => {
+  if (columns && columns.length > 0) {
+    return {
+      headers: columns.map(c => c.header),
+      rows: data.map(item =>
+        columns.map(c => {
+          if (typeof c.key === "function") return String(c.key(item));
+          const value = c.key.split(".").reduce((obj: any, k) => (obj || {})[k], item);
+          return String(value ?? "");
+        }),
+      ),
+    };
+  }
+  const headers = Object.keys(data[0]).filter(k => k !== "_id" && k !== "__v");
+  return { headers, rows: data.map(item => headers.map(k => String(item[k] ?? ""))) };
+};
+
+const downloadBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
 export function ExportButton({ data, filename, columns }: ExportButtonProps) {
+  const dated = `${filename}_${new Date().toISOString().split("T")[0]}`;
+
   const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
     if (!data || data.length === 0) {
       toast.error("No data available to export");
       return;
     }
 
-    if (type === "csv" || type === "xlsx") {
-      try {
-        let headers: string[] = [];
-        let rows: string[][] = [];
+    try {
+      if (type === "csv") {
+        const { headers, rows } = buildRows(data, columns);
+        const csv = [
+          headers.join(","),
+          ...rows.map(r => r.map(v => `"${v.replace(/"/g, '""')}"`).join(",")),
+        ].join("\n");
+        // UTF-8 BOM so Excel opens it correctly
+        downloadBlob(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }), `${dated}.csv`);
+        toast.success(`Exported ${data.length} records as CSV`);
 
-        if (columns && columns.length > 0) {
-          headers = columns.map(c => c.header);
-          rows = data.map(item => 
-            columns.map(c => {
-              if (typeof c.key === 'function') {
-                return String(c.key(item));
-              }
-              const value = c.key.split('.').reduce((obj, k) => (obj || {})[k], item);
-              return String(value ?? "");
-            })
-          );
-        } else {
-          headers = Object.keys(data[0]).filter(k => k !== '_id' && k !== '__v');
-          rows = data.map(item => headers.map(k => String(item[k] ?? "")));
-        }
+      } else if (type === "xlsx") {
+        const { headers, rows } = buildRows(data, columns);
+        // Tab-separated values with .xlsx extension — Excel opens natively without add-ins
+        const tsv = [
+          headers.join("\t"),
+          ...rows.map(r => r.map(v => v.replace(/[\t\n\r]/g, " ")).join("\t")),
+        ].join("\n");
+        // UTF-8 BOM required for Excel to detect encoding
+        downloadBlob(new Blob(["﻿" + tsv], { type: "application/vnd.ms-excel;charset=utf-8;" }), `${dated}.xls`);
+        toast.success(`Exported ${data.length} records as Excel`);
 
-        const csvData = [headers.join(","), ...rows.map(r => r.map(v => `"${v.replace(/"/g, '""')}"`).join(","))].join("\n");
-        const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `${filename}_${new Date().toISOString().split('T')[0]}.${type}`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-        
-        toast.success(`Exported ${data.length} records successfully as ${type.toUpperCase()}!`);
-      } catch (error) {
-        console.error(error);
-        toast.error("Failed to generate export file");
+      } else if (type === "print") {
+        window.print();
+
+      } else if (type === "pdf") {
+        toast.info("Select 'Save as PDF' in the print dialog");
+        window.print();
       }
-    } else if (type === "print") {
-      window.print();
-    } else if (type === "pdf") {
-      toast.info("Ready to save - choose Save as PDF in print options");
-      window.print();
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to generate export file");
     }
   };
 

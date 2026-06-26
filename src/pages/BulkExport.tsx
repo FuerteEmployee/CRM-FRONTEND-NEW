@@ -88,14 +88,15 @@ const BulkExport = () => {
       } else if (exportType === "payments") {
         const response = await salesService.getPayments();
         data = response || [];
-        headers = ["Payment ID", "Invoice Number", "Payment Mode", "Transaction ID", "Amount", "Date"];
+        headers = ["Payment ID", "Invoice Number", "Payment Mode", "Transaction ID", "Amount", "Date", "Status"];
         rows = data.map((p: any) => [
           p._id || p.id || "-",
           p.invoice_number || "-",
           p.payment_mode || "-",
           p.transaction_id || "-",
           p.amount || 0,
-          p.date ? p.date.split("T")[0] : "-"
+          p.date ? p.date.split("T")[0] : "-",
+          p.status || "Completed"
         ]);
       } else if (exportType === "credit_notes") {
         const response = await salesService.getCreditNotes();
@@ -137,20 +138,37 @@ const BulkExport = () => {
         ]);
       }
 
-      // Filter rows based on fromDate, toDate, selectedStatuses
+      // Date column index differs per export type
+      const dateIdx =
+        exportType === "payments" ? 5 :
+        exportType === "proposals" ? 3 : 2;
+
+      // Status column index per export type
+      const statusIdx =
+        exportType === "expenses" ? 7 :
+        exportType === "payments" ? 6 :
+        exportType === "proposals" ? 6 :
+        exportType === "estimates" ? 5 :
+        exportType === "invoices" ? 6 : 4;
+
+      // Filter rows based on fromDate, toDate, selectedStatuses, paymentMode
       let filteredRows = rows;
       if (fromDate) {
-        filteredRows = filteredRows.filter(r => r[2] >= fromDate);
+        filteredRows = filteredRows.filter(r => String(r[dateIdx]) >= fromDate);
       }
       if (toDate) {
-        filteredRows = filteredRows.filter(r => r[2] <= toDate);
+        filteredRows = filteredRows.filter(r => String(r[dateIdx]) <= toDate);
       }
       if (selectedStatuses.length > 0) {
-        const statusIdx = exportType === "expenses" ? 7 : (exportType === "payments" ? 2 : (exportType === "proposals" ? 6 : (exportType === "estimates" ? 5 : (exportType === "invoices" ? 6 : 4))));
         filteredRows = filteredRows.filter(r => {
           const rowStatus = String(r[statusIdx]).toLowerCase();
           return selectedStatuses.some(s => s.toLowerCase() === rowStatus);
         });
+      }
+      if (exportType === "payments" && paymentMode) {
+        filteredRows = filteredRows.filter(r =>
+          String(r[2]).toLowerCase() === paymentMode.toLowerCase()
+        );
       }
 
       if (filteredRows.length === 0) {

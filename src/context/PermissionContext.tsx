@@ -12,7 +12,8 @@ interface User {
   firstname: string;
   lastname: string;
   email: string;
-  admin: boolean;
+  // Backend returns this as boolean, 0/1, or "0"/"1"/"true" depending on version
+  admin: any;
   is_superadmin?: boolean;
   role?: any;
   tenant?: any;
@@ -101,7 +102,17 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
     syncPermissions();
   }, []);
 
-  const isAdmin = user?.admin === true || user?.admin === 1 || user?.admin === "1" || user?.admin === "true";
+  // Staff members always have a `role` assigned; tenant admins do not.
+  // Use this to break the ambiguity when the backend sets admin: 1 for all CRM users.
+  const hasRole = !!user?.role && (
+    typeof user.role === "object"
+      ? !!(user.role._id || user.role.name)
+      : true
+  );
+  const isAdmin =
+    !hasRole &&
+    !user?.is_superadmin &&
+    (user?.admin === true || user?.admin === 1 || user?.admin === "1" || user?.admin === "true");
   const isStaff = user !== null && !isAdmin && !user?.is_superadmin;
 
   const can = (feature: string, capability: string): boolean => {
@@ -156,6 +167,8 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
     permsData: Record<string, Record<string, boolean>>,
     planModulesData?: Record<string, boolean> | null,
   ) => {
+    // Clear any previous admin's cached query data before loading the new admin's session.
+    queryClient.clear();
     setUser(userData);
     localStorage.setItem("crm_user", JSON.stringify(userData));
     setPermissions(permsData || {});

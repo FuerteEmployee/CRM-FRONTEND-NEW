@@ -51,13 +51,10 @@ const StaffLogin = () => {
       } else {
         toast.success("Welcome back!");
         setFromLoginResponse(response.user, response.permissions, response.plan_modules);
-        const userAdmin = response.user?.admin;
-        const isAdmin = userAdmin === true || userAdmin === 1 || userAdmin === "1" || userAdmin === "true";
         if (response.user?.is_superadmin) {
           navigate("/super-admin/dashboard");
-        } else if (isAdmin) {
-          navigate("/admin/dashboard");
         } else {
+          // Staff login always targets /staff — the route guard handles misdirected admins
           navigate("/staff/dashboard");
         }
       }
