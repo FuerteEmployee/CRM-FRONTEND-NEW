@@ -112,6 +112,19 @@ export default function SetupLeadsStatuses() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: LeadStatus[]) => {
+      await Promise.all(items.map((item) => leadService.deleteStatus(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-statuses"] });
+      toast({ title: "Deleted", description: "Selected items deleted successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleAdd = () => {
     setCurrentStatus(null);
     setFormData({
@@ -189,6 +202,8 @@ export default function SetupLeadsStatuses() {
         onAdd={can("Leads", "Create") ? handleAdd : undefined}
         onEdit={can("Leads", "Edit") ? handleEdit : undefined}
         onDelete={can("Leads", "Delete") ? handleDelete : undefined}
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items as LeadStatus[])}
         columns={[
           {
             key: "name",

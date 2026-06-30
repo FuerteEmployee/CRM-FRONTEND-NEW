@@ -3,10 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Search, Download, FileText, Target, Printer, Zap, Mail, Eye, Maximize2, Pencil, ChevronDown } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { useState, useMemo, useRef } from "react";
 import { formatDate } from "@/lib/dateFormat";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -502,10 +504,47 @@ const Estimates = () => {
   const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
   const [previewEstimate, setPreviewEstimate] = useState<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const navigate = useNavigate();
   const { can } = usePermissions();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({ massDelete: false, status: "" });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = (items: any[]) => {
+    setSelectedIds(prev => prev.length === items.length ? [] : items.map(i => i._id || i.id));
+  };
+
+  const handleBulkAction = async () => {
+    if (selectedIds.length === 0) {
+      toast({ title: "Error", description: "No items selected.", variant: "destructive" });
+      return;
+    }
+    setIsBulkLoading(true);
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedIds.map(id => estimateService.deleteEstimate(id)));
+        toast({ title: "Success", description: `Deleted ${selectedIds.length} items.` });
+      } else if (bulkState.status) {
+        await Promise.all(selectedIds.map(id => estimateService.updateEstimate(id, { status: bulkState.status })));
+        toast({ title: "Success", description: `Updated ${selectedIds.length} items.` });
+      }
+      queryClient.invalidateQueries({ queryKey: ["estimates"] });
+      setSelectedIds([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false, status: "" });
+    } catch {
+      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
 
   const { data: allData = [], isLoading: isLoadingEstimates } = useQuery({
     queryKey: ["estimates"],
@@ -607,15 +646,57 @@ const Estimates = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest border-border/50 shadow-sm hover:bg-muted/50"
-              onClick={() => toast({ title: "Bulk Actions", description: "Select items first to apply bulk actions." })}
-            >
-              <Zap className="h-3.5 w-3.5 text-primary" />
-              Bulk Actions
-            </Button>
+            <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+              if (open && selectedIds.length === 0) {
+                toast({ title: "Error", description: "Please select at least one item first.", variant: "destructive" });
+                return;
+              }
+              setBulkActionOpen(open);
+            }}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700">
+                  <Zap className="h-3.5 w-3.5 text-primary" />
+                  Bulk Actions
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md bg-white">
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-bold">Bulk Actions</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="mass_delete"
+                      className="border-red-200 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
+                      checked={bulkState.massDelete}
+                      onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                    />
+                    <Label htmlFor="mass_delete" className="text-sm font-semibold text-red-600">Mass Delete</Label>
+                  </div>
+                  <div className="space-y-1.5 pt-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Change Status</Label>
+                    <Select value={bulkState.status} onValueChange={(val) => setBulkState({...bulkState, status: val})} disabled={bulkState.massDelete}>
+                      <SelectTrigger className="h-10 bg-slate-50/50 border-slate-200 rounded-lg">
+                        <SelectValue placeholder="Select Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="sent">Sent</SelectItem>
+                        <SelectItem value="declined">Declined</SelectItem>
+                        <SelectItem value="accepted">Accepted</SelectItem>
+                        <SelectItem value="expired">Expired</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="ghost" onClick={() => setBulkActionOpen(false)} className="font-bold uppercase tracking-widest text-[10px]">Close</Button>
+                  <Button onClick={handleBulkAction} disabled={isBulkLoading} className="font-bold uppercase tracking-widest text-[10px]">
+                    {isBulkLoading ? "Processing..." : "Confirm"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <ExportButton 
               data={filtered} 
               filename="estimates" 
@@ -645,6 +726,17 @@ const Estimates = () => {
           <table className="w-full text-sm text-left">
             <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
               <tr>
+                <th className="w-10 px-3 py-4">
+                  {(() => {
+                    const pageData = filtered.slice(0, estimateItemsPerPage === "All" ? filtered.length : parseInt(estimateItemsPerPage));
+                    return (
+                      <Checkbox
+                        checked={selectedIds.length === pageData.length && pageData.length > 0}
+                        onCheckedChange={() => toggleSelectAll(pageData)}
+                      />
+                    );
+                  })()}
+                </th>
                 {["Estimate #", "Subject", "To", "Total", "Date", "Open Till", "Tags", "Date Created", "Status", "Actions"].map(h => (
                   <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
                 ))}
@@ -653,17 +745,23 @@ const Estimates = () => {
             <tbody className="divide-y divide-border/50">
               {isLoadingEstimates ? (
                 Array(3).fill(0).map((_, i) => (
-                  <tr key={i}><td colSpan={10} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={11} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-12 text-center text-muted-foreground italic">
+                  <td colSpan={11} className="px-6 py-12 text-center text-muted-foreground italic">
                     No estimates found.
                   </td>
                 </tr>
               ) : (
                 filtered.map((est: any) => (
-                  <tr key={est._id || est.id} className="hover:bg-muted/30 transition-colors">
+                  <tr key={est._id || est.id} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(est._id || est.id) ? 'bg-primary/5' : ''}`}>
+                    <td className="px-3 py-2">
+                      <Checkbox
+                        checked={selectedIds.includes(est._id || est.id)}
+                        onCheckedChange={() => toggleSelect(est._id || est.id)}
+                      />
+                    </td>
                     <td className="px-6 py-4">
                       <button
                         className="font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer text-left"

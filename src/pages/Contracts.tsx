@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
@@ -52,6 +53,10 @@ const Contracts = () => {
   const [itemsPerPage, setItemsPerPage] = useState("10");
   const { toast } = useToast();
   const { can } = usePermissions();
+  const [selectedContracts, setSelectedContracts] = useState<string[]>([]);
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({ massDelete: false });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
 
   const filtered = useMemo(() => {
     return contracts.filter((c: any) =>
@@ -59,6 +64,34 @@ const Contracts = () => {
       (c.client?.company || "").toLowerCase().includes(search.toLowerCase())
     );
   }, [contracts, search]);
+
+  const handleSelectAll = (checked: boolean) => {
+    const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
+    if (checked) setSelectedContracts(pageData.map((item: any) => item._id));
+    else setSelectedContracts([]);
+  };
+
+  const handleBulkAction = async () => {
+    if (selectedContracts.length === 0) {
+      toast({ title: "Error", description: "No items selected.", variant: "destructive" });
+      return;
+    }
+    setIsBulkLoading(true);
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedContracts.map(id => contractService.deleteContract(id)));
+        toast({ title: "Success", description: `Deleted ${selectedContracts.length} items.` });
+        setContracts(prev => prev.filter(c => !selectedContracts.includes(c._id)));
+      }
+      setSelectedContracts([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false });
+    } catch {
+      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
 
   // Form State
   const [formData, setFormData] = useState({
@@ -254,15 +287,42 @@ const Contracts = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest border-border/50 shadow-sm hover:bg-muted/50"
-              onClick={() => toast({ title: "Bulk Actions", description: "Select items first to apply bulk actions." })}
-            >
-              <Zap className="h-3.5 w-3.5 text-primary" />
-              Bulk Actions
-            </Button>
+            <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+              if (open && selectedContracts.length === 0) {
+                toast({ title: "Error", description: "Please select at least one item first.", variant: "destructive" });
+                return;
+              }
+              setBulkActionOpen(open);
+            }}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700">
+                  <Zap className="h-3.5 w-3.5 text-primary" />
+                  Bulk Actions
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md bg-white">
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-bold">Bulk Actions</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="mass_delete"
+                      className="border-red-200 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
+                      checked={bulkState.massDelete}
+                      onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                    />
+                    <Label htmlFor="mass_delete" className="text-sm font-semibold text-red-600">Mass Delete</Label>
+                  </div>
+                </div>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="ghost" onClick={() => setBulkActionOpen(false)} className="font-bold uppercase tracking-widest text-[10px]">Close</Button>
+                  <Button onClick={handleBulkAction} disabled={isBulkLoading} className="font-bold uppercase tracking-widest text-[10px]">
+                    {isBulkLoading ? "Processing..." : "Confirm"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <ExportButton 
               data={filtered} 
               filename="contracts" 
@@ -292,6 +352,17 @@ const Contracts = () => {
               <table className="w-full min-w-[800px]">
                 <thead>
                   <tr className="border-b text-left text-xs text-muted-foreground">
+                    <th className="p-3 font-medium w-8">
+                      <input
+                        type="checkbox"
+                        className="rounded border-border"
+                        checked={(() => {
+                          const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
+                          return pageData.length > 0 && selectedContracts.length === pageData.length;
+                        })()}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                      />
+                    </th>
                     <th className="p-3 font-medium">Title</th>
                     <th className="p-3 font-medium">Customer</th>
                     <th className="p-3 font-medium">Value</th>
@@ -303,14 +374,25 @@ const Contracts = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={7} className="text-center p-4">Loading...</td></tr>
+                    <tr><td colSpan={8} className="text-center p-4">Loading...</td></tr>
                   ) : filtered.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center p-4">No contracts found.</td></tr>
+                    <tr><td colSpan={8} className="text-center p-4">No contracts found.</td></tr>
                   ) : filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage)).map((c) => (
                     <tr
                       key={c._id}
-                      className="border-b last:border-0 hover:bg-muted/50"
+                      className={`border-b last:border-0 hover:bg-muted/50 ${selectedContracts.includes(c._id) ? 'bg-primary/5' : ''}`}
                     >
+                      <td className="p-3">
+                        <input
+                          type="checkbox"
+                          className="rounded border-border"
+                          checked={selectedContracts.includes(c._id)}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedContracts(prev => [...prev, c._id]);
+                            else setSelectedContracts(prev => prev.filter(id => id !== c._id));
+                          }}
+                        />
+                      </td>
                       <td className="p-3 text-sm font-medium">{c.subject}</td>
                       <td className="p-3 text-sm">{c.client?.company || c.client?.firstname || "Unknown"}</td>
                       <td className="p-3 text-sm font-medium">

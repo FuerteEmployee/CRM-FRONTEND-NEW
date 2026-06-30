@@ -92,6 +92,19 @@ export default function SetupContractTypes() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: ContractType[]) => {
+      await Promise.all(items.map((item) => financeService.deleteContractType(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["contract-types"] });
+      toast({ title: "Deleted", description: "Selected items deleted successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleAdd = () => {
     setCurrentType(null);
     setFormData({ name: "" });
@@ -136,6 +149,8 @@ export default function SetupContractTypes() {
         onAdd={can("Contracts", "Create") ? handleAdd : undefined}
         onEdit={can("Contracts", "Edit") ? handleEdit : undefined}
         onDelete={can("Contracts", "Delete") ? handleDelete : undefined}
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items as ContractType[])}
         columns={[{ key: "name", label: "Name" }]}
         data={types}
         isLoading={isLoading}

@@ -122,6 +122,19 @@ export default function SetupPaymentModes() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: PaymentMode[]) => {
+      await Promise.all(items.map((item) => financeService.deletePaymentMode(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payment-modes"] });
+      toast({ title: "Deleted", description: "Selected items deleted successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleAdd = () => {
     setCurrentMode(null);
     setFormData({
@@ -207,6 +220,8 @@ export default function SetupPaymentModes() {
         onAdd={can("Settings", "Edit") ? handleAdd : undefined}
         onEdit={can("Settings", "Edit") ? handleEdit : undefined}
         onDelete={can("Settings", "Edit") ? handleDelete : undefined}
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items as PaymentMode[])}
         columns={[
           { key: "name", label: "Payment Mode Name" },
           { key: "description", label: "Bank Accounts / Description" },

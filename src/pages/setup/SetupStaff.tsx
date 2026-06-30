@@ -57,6 +57,19 @@ export default function SetupStaff() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: StaffMember[]) => {
+      await Promise.all(items.map((item) => staffService.delete(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
+      toast({ title: "Deleted", description: "Selected items deleted successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleAdd = () => {
     navigate("/admin/setup/staff/new");
   };
@@ -79,6 +92,8 @@ export default function SetupStaff() {
       onAdd={can("Staff", "Create") ? handleAdd : undefined}
       onEdit={can("Staff", "Edit") ? handleEdit : undefined}
       onDelete={can("Staff", "Delete") ? handleDelete : undefined}
+      enableBulkActions={true}
+      onBulkDelete={(items) => bulkDeleteMutation.mutate(items as StaffMember[])}
       columns={[
         {
           key: "name",

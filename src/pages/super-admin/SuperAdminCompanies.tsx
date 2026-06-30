@@ -16,6 +16,8 @@ interface SaasPlan {
   _id: string;
   name: string;
   price: number;
+  billing_cycle?: "monthly" | "yearly" | "lifetime";
+  trial_days?: number;
 }
 
 interface Owner {
@@ -33,6 +35,7 @@ interface Tenant {
   owner_id: Owner | null;
   status: "active" | "inactive" | "trial" | "expired";
   trial_ends_at?: string;
+  billing_cycle_start?: string;
   billing_cycle_end?: string;
   createdAt: string;
 }
@@ -281,32 +284,42 @@ export default function SuperAdminCompanies() {
                       <div className="flex flex-col gap-1">
                         <StatusBadge status={tenant.status} />
                         {tenant.status === "trial" && (() => {
-                          const trialEnd = tenant.trial_ends_at || new Date(new Date(tenant.createdAt).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString();
-                          const days = Math.ceil((new Date(trialEnd).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+                          const trialDays = tenant.plan_id?.trial_days ?? 14;
+                          const trialEnd = tenant.trial_ends_at
+                            || new Date(new Date(tenant.createdAt).getTime() + trialDays * 24 * 60 * 60 * 1000).toISOString();
+                          const days = Math.ceil((new Date(trialEnd).getTime() - Date.now()) / (1000 * 3600 * 24));
                           if (days > 0) {
-                            return <span className="text-[11px] text-gray-500 font-medium">{days} day{days !== 1 ? "s" : ""} left</span>;
-                          } else {
-                            return <span className="text-[11px] text-red-500 font-semibold">Trial ended</span>;
+                            return <span className={`text-[11px] font-semibold ${days <= 3 ? "text-red-500" : days <= 7 ? "text-amber-600" : "text-gray-500"}`}>{days} day{days !== 1 ? "s" : ""} left in trial</span>;
                           }
+                          return <span className="text-[11px] text-red-500 font-semibold">Trial ended</span>;
                         })()}
                         {tenant.status === "active" && (() => {
-                          const cycleDays = tenant.plan_id && (tenant.plan_id as any).billing_cycle === "yearly" ? 365 : 30;
-                          const billingEnd = tenant.billing_cycle_end || new Date(new Date(tenant.createdAt).getTime() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
-                          const days = Math.ceil((new Date(billingEnd).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+                          const cycle = tenant.plan_id?.billing_cycle;
+                          const cycleDays = cycle === "yearly" ? 365 : cycle === "lifetime" ? 99999 : 30;
+                          const startDate = tenant.billing_cycle_start || tenant.createdAt;
+                          const billingEnd = tenant.billing_cycle_end
+                            || new Date(new Date(startDate).getTime() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
+                          const days = Math.ceil((new Date(billingEnd).getTime() - Date.now()) / (1000 * 3600 * 24));
                           if (days > 0) {
-                            if (days <= 7) {
-                              return <span className="text-[11px] text-amber-600 font-semibold">{days} day{days !== 1 ? "s" : ""} left</span>;
-                            }
-                            return <span className="text-[11px] text-gray-500 font-medium">{days} day{days !== 1 ? "s" : ""} left</span>;
-                          } else {
-                            return <span className="text-[11px] text-red-500 font-semibold">Expired</span>;
+                            return <span className={`text-[11px] font-semibold ${days <= 3 ? "text-red-500" : days <= 7 ? "text-amber-600" : "text-gray-500"}`}>{days} day{days !== 1 ? "s" : ""} left</span>;
                           }
+                          return <span className="text-[11px] text-red-500 font-semibold">Expired</span>;
                         })()}
+                        {tenant.status === "expired" && (
+                          <span className="text-[11px] text-red-500 font-semibold">Plan ended</span>
+                        )}
                       </div>
                     </td>
                     {/* Joined */}
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {format(new Date(tenant.createdAt), "MMM d, yyyy")}
+                      <div className="flex flex-col gap-0.5">
+                        <span>{format(new Date(tenant.billing_cycle_start || tenant.createdAt), "MMM d, yyyy")}</span>
+                        {(tenant.trial_ends_at || tenant.billing_cycle_end) && (
+                          <span className="text-[11px] text-gray-400">
+                            Expires: {format(new Date(tenant.billing_cycle_end || tenant.trial_ends_at!), "MMM d, yyyy")}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     {/* Actions */}
                     <td className="px-6 py-4 text-right">

@@ -82,6 +82,17 @@ export default function SetupTicketPriority() {
     onError: () => toast.error("Failed to delete priority"),
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: any[]) => {
+      await Promise.all(items.map((item) => supportService.deletePriority(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ticket-priorities"] });
+      toast.success("Selected items deleted successfully.");
+    },
+    onError: () => toast.error("Failed to delete selected items"),
+  });
+
   const openModal = (priority?: any) => {
     if (priority) {
       setEditingId(priority._id);
@@ -163,6 +174,8 @@ export default function SetupTicketPriority() {
               }
             : undefined
         }
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items)}
         columns={[
           {
             key: "name",

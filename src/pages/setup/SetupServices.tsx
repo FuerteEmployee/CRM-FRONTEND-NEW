@@ -97,6 +97,19 @@ export default function SetupServices() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: Service[]) => {
+      await Promise.all(items.map((item) => serviceService.delete(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["services"] });
+      toast({ title: "Deleted", description: "Selected items deleted successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleAdd = () => {
     setCurrentService(null);
     setFormData({ name: "", description: "" });
@@ -167,6 +180,8 @@ export default function SetupServices() {
         onAdd={can("Support", "Create") ? handleAdd : undefined}
         onEdit={can("Support", "Edit") ? handleEdit : undefined}
         onDelete={can("Support", "Delete") ? handleDelete : undefined}
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items as Service[])}
         columns={[{ key: "name", label: "Service Name" }]}
         data={services}
         isLoading={isLoading}

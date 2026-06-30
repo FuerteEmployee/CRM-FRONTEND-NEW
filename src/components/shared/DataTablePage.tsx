@@ -22,6 +22,9 @@ interface DataTablePageProps<T> {
   renderCustomActions?: (item: T) => React.ReactNode;
   headerActions?: React.ReactNode;
   toolbarActions?: React.ReactNode;
+  enableBulkActions?: boolean;
+  onBulkDelete?: (items: T[]) => void;
+  bulkActions?: { label: string; value: string; action: (items: T[]) => void }[];
 }
 
 export function DataTablePage<T extends Record<string, any>>({
@@ -42,6 +45,9 @@ export function DataTablePage<T extends Record<string, any>>({
   renderCustomActions,
   headerActions,
   toolbarActions,
+  enableBulkActions,
+  onBulkDelete,
+  bulkActions,
 }: DataTablePageProps<T>) {
   return (
     <DashboardLayout>
@@ -82,6 +88,9 @@ export function DataTablePage<T extends Record<string, any>>({
           showIdColumn={showIdColumn}
           renderCustomActions={renderCustomActions}
           toolbarActions={toolbarActions}
+          enableBulkActions={enableBulkActions}
+          onBulkDelete={onBulkDelete}
+          bulkActions={bulkActions}
         >
           {children}
         </DataTable>

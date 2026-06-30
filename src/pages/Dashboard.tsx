@@ -132,31 +132,38 @@ const PlanExpiredModal = ({ plan }: { plan: any }) => {
 const Dashboard = () => {
   const { user, isModuleEnabled, canView } = usePermissionContext();
 
-  const getDaysRemaining = () => {
+  const getDaysRemaining = (): number | null => {
+    console.log("[Dashboard] user.tenant =", user?.tenant);
     if (!user?.tenant) return null;
-    const endDate = user.tenant.billing_cycle_end || user.tenant.trial_ends_at || 
-      (user.tenant.status === "trial" 
-        ? new Date(new Date(user.tenant.createdAt).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
-        : new Date(new Date(user.tenant.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      );
-    if (!endDate) return null;
-    const diff = new Date(endDate).getTime() - new Date().getTime();
-    return Math.ceil(diff / (1000 * 3600 * 24));
+    const t = user.tenant as any;
+
+    // Prefer explicit dates set by the backend
+    const explicit = t.billing_cycle_end || t.trial_ends_at;
+    if (explicit) {
+      const ms = new Date(explicit).getTime();
+      if (!isNaN(ms)) return Math.ceil((ms - Date.now()) / (1000 * 3600 * 24));
+    }
+
+    // Fallback: use billing_cycle_start or createdAt + plan days
+    const startStr = t.billing_cycle_start || t.createdAt;
+    if (!startStr) return null;
+    const startMs = new Date(startStr).getTime();
+    if (isNaN(startMs)) return null;
+
+    const trialDays = t.plan_id?.trial_days ?? 14;
+    const spanDays = t.status === "trial" ? trialDays : 30;
+    const endMs = startMs + spanDays * 24 * 60 * 60 * 1000;
+    return Math.ceil((endMs - Date.now()) / (1000 * 3600 * 24));
   };
 
   const daysRemaining = getDaysRemaining();
-  const isExpired = !user?.is_superadmin && (user?.tenant?.status === "expired" || (daysRemaining !== null && daysRemaining <= 0));
+  const isExpired = !user?.is_superadmin && (
+    user?.tenant?.status === "expired" || (daysRemaining !== null && daysRemaining <= 0)
+  );
 
-  const [showExpiredPopup, setShowExpiredPopup] = useState(false);
-
-  React.useEffect(() => {
-    if (isExpired) {
-      const timer = setTimeout(() => {
-        setShowExpiredPopup(true);
-      }, 2500); // 2.5 seconds loading/skeleton duration before showing modal
-      return () => clearTimeout(timer);
-    }
-  }, [isExpired]);
+  // Show expired popup immediately on every page load when expired — no delay, no dismiss state.
+  // useState initialises directly from isExpired so it's true on first render when expired.
+  const [showExpiredPopup] = useState(() => isExpired);
 
   // 1. Fetching all dynamic datasets from backend APIs
   const { data: invoicesList = [], isLoading } = useQuery({
@@ -813,25 +820,51 @@ const Dashboard = () => {
           </Button>
         </div>
 
-        {/* Subscription Alert */}
-        {daysRemaining !== null && daysRemaining > 0 && daysRemaining <= 7 && (
-          <div className="px-4 py-3 rounded-lg flex items-center justify-between shadow-sm border bg-yellow-500/15 border-yellow-500 text-yellow-700 dark:text-yellow-500">
+        {/* Subscription notification — always shown for admins with a linked plan */}
+        {!user?.is_superadmin && user?.tenant && daysRemaining !== null && daysRemaining > 0 && (
+          <div className={`px-4 py-3 rounded-lg flex items-center justify-between shadow-sm border ${
+            daysRemaining <= 3
+              ? "bg-red-500/10 border-red-500 text-red-700 dark:text-red-400"
+              : daysRemaining <= 7
+              ? "bg-orange-500/10 border-orange-500 text-orange-700 dark:text-orange-400"
+              : daysRemaining <= 30
+              ? "bg-yellow-500/10 border-yellow-500 text-yellow-700 dark:text-yellow-500"
+              : "bg-blue-500/10 border-blue-500 text-blue-700 dark:text-blue-400"
+          }`}>
             <div className="flex items-center gap-3">
-              <AlertTriangle className="h-5 w-5" />
+              <AlertTriangle className={`h-5 w-5 flex-shrink-0 ${daysRemaining > 30 ? "opacity-60" : ""}`} />
               <div>
                 <p className="font-semibold text-sm">
-                  {user?.tenant?.status === "trial" ? 'Trial period ending soon' : 'Subscription expiring soon'}
+                  {user?.tenant?.status === "trial"
+                    ? daysRemaining <= 30 ? "Trial period ending soon" : "Free trial active"
+                    : daysRemaining <= 30 ? "Subscription expiring soon" : "Subscription active"}
                 </p>
                 <p className="text-xs opacity-90">
                   {user?.tenant?.status === "trial"
-                    ? `You have ${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'} remaining on your free trial. Upgrade now to avoid interruption.`
-                    : `You have ${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'} remaining on your current plan.`}
+                    ? `You have ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"} remaining on your free trial.${daysRemaining <= 30 ? " Upgrade now to avoid interruption." : ""}`
+                    : `Your plan expires in ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"}.${daysRemaining <= 30 ? " Renew now to keep your CRM running." : ""}`}
                 </p>
               </div>
             </div>
-            <Button variant="default" size="sm" onClick={() => window.location.href = '/admin/pricing'} className="font-semibold shadow-md whitespace-nowrap">
-              {user?.tenant?.status === "trial" ? 'Upgrade Plan' : 'Renew Plan'}
-            </Button>
+            <div className="flex items-center gap-4 shrink-0">
+              <div className="hidden sm:flex flex-col items-end gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">Days Left</span>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-24 h-1.5 rounded-full bg-current/20 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-current transition-all"
+                      style={{ width: `${Math.min(100, Math.max(2, (Math.min(daysRemaining, 365) / 365) * 100))}%` }}
+                    />
+                  </div>
+                  <span className="text-sm font-black">{daysRemaining}</span>
+                </div>
+              </div>
+              {daysRemaining <= 30 && (
+                <Button variant="default" size="sm" onClick={() => window.location.href = '/admin/pricing'} className="font-semibold shadow-md whitespace-nowrap">
+                  {user?.tenant?.status === "trial" ? "Upgrade Plan" : "Renew Plan"}
+                </Button>
+              )}
+            </div>
           </div>
         )}
 

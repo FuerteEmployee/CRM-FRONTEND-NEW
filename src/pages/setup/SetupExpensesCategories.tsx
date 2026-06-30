@@ -108,6 +108,19 @@ export default function SetupExpensesCategories() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: ExpenseCategory[]) => {
+      await Promise.all(items.map((item) => financeService.deleteExpenseCategory(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["expense-categories"] });
+      toast({ title: "Deleted", description: "Selected items deleted successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleAdd = () => {
     setCurrentCategory(null);
     setFormData({ name: "", description: "" });
@@ -182,6 +195,8 @@ export default function SetupExpensesCategories() {
         onAdd={can("Expenses", "Create") ? handleAdd : undefined}
         onEdit={can("Expenses", "Edit") ? handleEdit : undefined}
         onDelete={can("Expenses", "Delete") ? handleDelete : undefined}
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items as ExpenseCategory[])}
         columns={[
           { key: "name", label: "Name" },
           { key: "description", label: "Description" },
