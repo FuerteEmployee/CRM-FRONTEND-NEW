@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -9,6 +9,8 @@ import {
   LogOut,
   User,
   ChevronDown,
+  Menu,
+  X,
 } from "lucide-react";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useSettings } from "@/context/SettingsContext";
@@ -31,6 +33,7 @@ export function SuperAdminLayout() {
   const { getSetting } = useSettings();
   const companyName = getSetting("companyName", "FuerteCRM");
   const [profileOpen, setProfileOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const initials = user
@@ -55,11 +58,22 @@ export function SuperAdminLayout() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-gray-50 font-sans">
-      <aside className="flex-shrink-0 flex flex-col bg-white border-r border-gray-200" style={{ width: "260px" }}>
+    <div className="flex h-screen w-full bg-gray-50 font-sans overflow-hidden">
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex-shrink-0 flex flex-col bg-white border-r border-gray-200 transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:z-auto ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+        style={{ width: "260px" }}
+      >
 
         {/* Logo */}
-        <div className="h-14 flex items-center px-4 border-b border-gray-100">
+        <div className="h-14 flex items-center justify-between px-4 border-b border-gray-100">
           <div className="flex items-center gap-2.5">
             <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
               {companyName.charAt(0).toUpperCase()}
@@ -73,6 +87,12 @@ export function SuperAdminLayout() {
               </span>
             </div>
           </div>
+          <button
+            className="md:hidden p-1.5 rounded-md text-gray-500 hover:bg-gray-100 transition-colors"
+            onClick={() => setSidebarOpen(false)}
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
 
         {/* Nav */}
@@ -85,6 +105,7 @@ export function SuperAdminLayout() {
               <Link
                 key={item.path}
                 to={item.path}
+                onClick={() => setSidebarOpen(false)}
                 className={`group flex items-center gap-2.5 px-3 py-2 rounded-md transition-all duration-200 relative text-[13px] font-medium
                   ${isActive
                     ? "bg-gray-100 text-gray-900 font-semibold"
@@ -118,6 +139,7 @@ export function SuperAdminLayout() {
               <Link
                 key={item.path}
                 to={item.path}
+                onClick={() => setSidebarOpen(false)}
                 className={`group flex items-center gap-2.5 px-3 py-2 rounded-md transition-all duration-200 relative text-[13px] font-medium
                   ${isActive
                     ? "bg-gray-100 text-gray-900 font-semibold"
@@ -152,9 +174,16 @@ export function SuperAdminLayout() {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top Header */}
-        <header className="h-14 flex-shrink-0 bg-white border-b border-gray-200 flex items-center justify-end px-6">
+        <header className="h-14 flex-shrink-0 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-6">
+          <button
+            className="md:hidden p-1.5 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <div className="flex-1 md:flex-none" />
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setProfileOpen((o) => !o)}
