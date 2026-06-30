@@ -114,7 +114,7 @@ const Chat = () => {
   useEffect(() => {
     socketRef.current = io(import.meta.env.VITE_SOCKET_URL || (import.meta.env.MODE === "development"
       ? "http://localhost:5000"
-      : "https://rosybrown-bat-931514.hostingersite.com"), {
+      : "https://crm-backend.beontimeofficial.com"), {
       withCredentials: true,
     });
 
