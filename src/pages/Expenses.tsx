@@ -149,7 +149,7 @@ const Expenses = () => {
                     {card.title}
                   </p>
                   <p className="text-2xl font-black text-foreground">
-                    ${card.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    ₹{card.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                 </div>
               </CardContent>
@@ -310,7 +310,7 @@ const Expenses = () => {
                         </td>
                         <td className="px-6 py-5">
                           <span className="text-sm font-black text-foreground">
-                            ${(e.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            ₹{(e.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                           </span>
                         </td>
                         <td className="px-6 py-5">
