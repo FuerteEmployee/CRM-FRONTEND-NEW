@@ -29,7 +29,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
   const isInvoice = type === "invoice";
 
   // Currency helper
-  const currencySymbol = isInvoice ? "₹" : "$";
+  const currencySymbol = isInvoice ? "₹" : "₹";
 
   // Document Number extraction
   let num = "";

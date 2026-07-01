@@ -507,7 +507,7 @@ export default function SuperAdminCompanies() {
                           <span className="flex items-center gap-2">
                             <Package className="h-3.5 w-3.5 text-gray-400" />
                             <span>{p.name}</span>
-                            <span className="text-gray-400 text-xs">— ${p.price}/mo</span>
+                            <span className="text-gray-400 text-xs">— ₹{p.price}/mo</span>
                           </span>
                         </SelectItem>
                       ))}
@@ -619,7 +619,7 @@ export default function SuperAdminCompanies() {
                           <span className="flex items-center gap-2">
                             <Package className="h-3.5 w-3.5 text-gray-400" />
                             <span>{p.name}</span>
-                            <span className="text-gray-400 text-xs">— ${p.price}/mo</span>
+                            <span className="text-gray-400 text-xs">— ₹{p.price}/mo</span>
                           </span>
                         </SelectItem>
                       ))}

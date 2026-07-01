@@ -1017,7 +1017,7 @@ export const ReportExpenses = () => {
     link.click();
   };
 
-  const activeCurrencySymbol = currenciesList.find((c: any) => c.name === currency)?.symbol || "$";
+  const activeCurrencySymbol = currenciesList.find((c: any) => c.name === currency)?.symbol || "₹";
 
   return (
     <DashboardLayout>
@@ -1505,7 +1505,7 @@ export const ReportExpensesVsIncome = () => {
                     <YAxis 
                       domain={[0, 40000]} 
                       ticks={[0, 10000, 20000, 30000, 40000]} 
-                      tickFormatter={(val) => "$" + val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
+                      tickFormatter={(val) => "₹" + val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
                       stroke="#9ca3af" 
                       fontSize={11} 
                       fontWeight={500}
@@ -1535,7 +1535,7 @@ export const ReportExpensesVsIncome = () => {
                     
                     <Tooltip 
                       formatter={(value: any, name: any) => [
-                        "$" + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                        "₹" + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                         name
                       ]}
                       contentStyle={{ 
