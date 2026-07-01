@@ -133,7 +133,6 @@ const Dashboard = () => {
   const { user, isModuleEnabled, canView } = usePermissionContext();
 
   const getDaysRemaining = (): number | null => {
-    console.log("[Dashboard] user.tenant =", user?.tenant);
     if (!user?.tenant) return null;
     const t = user.tenant as any;
 
@@ -151,12 +150,26 @@ const Dashboard = () => {
     if (isNaN(startMs)) return null;
 
     const trialDays = t.plan_id?.trial_days ?? 14;
-    const spanDays = t.status === "trial" ? trialDays : 30;
+    const cycleDays = t.plan_id?.billing_cycle === "yearly" ? 365 : t.plan_id?.billing_cycle === "lifetime" ? 36500 : 30;
+    const spanDays = t.status === "trial" ? trialDays : cycleDays;
     const endMs = startMs + spanDays * 24 * 60 * 60 * 1000;
     return Math.ceil((endMs - Date.now()) / (1000 * 3600 * 24));
   };
 
   const daysRemaining = getDaysRemaining();
+
+  // How many days before expiry the banner starts showing — set per-plan in Super Admin.
+  // Falls back to 30 days if the plan field is not set.
+  const bannerWarningDays: number = (user?.tenant as any)?.plan_id?.banner_warning_days ?? 30;
+
+  // Banner is visible only within the warning window defined on the plan.
+  const bannerVisible =
+    !user?.is_superadmin &&
+    user?.tenant &&
+    daysRemaining !== null &&
+    daysRemaining > 0 &&
+    daysRemaining <= bannerWarningDays;
+
   const isExpired = !user?.is_superadmin && (
     user?.tenant?.status === "expired" || (daysRemaining !== null && daysRemaining <= 0)
   );
@@ -820,8 +833,8 @@ const Dashboard = () => {
           </Button>
         </div>
 
-        {/* Subscription notification — always shown for admins with a linked plan */}
-        {!user?.is_superadmin && user?.tenant && daysRemaining !== null && daysRemaining > 0 && (
+        {/* Subscription notification — shown within the plan's banner_warning_days window */}
+        {bannerVisible && daysRemaining !== null && (
           <div className={`px-4 py-3 rounded-lg flex items-center justify-between shadow-sm border ${
             daysRemaining <= 3
               ? "bg-red-500/10 border-red-500 text-red-700 dark:text-red-400"
@@ -836,13 +849,13 @@ const Dashboard = () => {
               <div>
                 <p className="font-semibold text-sm">
                   {user?.tenant?.status === "trial"
-                    ? daysRemaining <= 30 ? "Trial period ending soon" : "Free trial active"
-                    : daysRemaining <= 30 ? "Subscription expiring soon" : "Subscription active"}
+                    ? daysRemaining <= 7 ? "Trial ending very soon" : "Free trial active"
+                    : daysRemaining <= 7 ? "Subscription expiring soon" : "Subscription expiring"}
                 </p>
                 <p className="text-xs opacity-90">
                   {user?.tenant?.status === "trial"
-                    ? `You have ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"} remaining on your free trial.${daysRemaining <= 30 ? " Upgrade now to avoid interruption." : ""}`
-                    : `Your plan expires in ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"}.${daysRemaining <= 30 ? " Renew now to keep your CRM running." : ""}`}
+                    ? `You have ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"} remaining on your free trial. Upgrade now to avoid interruption.`
+                    : `Your plan expires in ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"}. Renew now to keep your CRM running.`}
                 </p>
               </div>
             </div>
@@ -853,17 +866,15 @@ const Dashboard = () => {
                   <div className="w-24 h-1.5 rounded-full bg-current/20 overflow-hidden">
                     <div
                       className="h-full rounded-full bg-current transition-all"
-                      style={{ width: `${Math.min(100, Math.max(2, (Math.min(daysRemaining, 365) / 365) * 100))}%` }}
+                      style={{ width: `${Math.min(100, Math.max(2, (daysRemaining / bannerWarningDays) * 100))}%` }}
                     />
                   </div>
                   <span className="text-sm font-black">{daysRemaining}</span>
                 </div>
               </div>
-              {daysRemaining <= 30 && (
-                <Button variant="default" size="sm" onClick={() => window.location.href = '/admin/pricing'} className="font-semibold shadow-md whitespace-nowrap">
-                  {user?.tenant?.status === "trial" ? "Upgrade Plan" : "Renew Plan"}
-                </Button>
-              )}
+              <Button variant="default" size="sm" onClick={() => window.location.href = '/admin/pricing'} className="font-semibold shadow-md whitespace-nowrap">
+                {user?.tenant?.status === "trial" ? "Upgrade Plan" : "Renew Plan"}
+              </Button>
             </div>
           </div>
         )}

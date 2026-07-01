@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   Building2, Plus, Search, Activity, Trash2,
   Package, CheckCircle2, XCircle, Settings, Clock,
-  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit
+  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -18,6 +18,7 @@ interface SaasPlan {
   price: number;
   billing_cycle?: "monthly" | "yearly" | "lifetime";
   trial_days?: number;
+  banner_warning_days?: number;
 }
 
 interface Owner {
@@ -242,6 +243,7 @@ export default function SuperAdminCompanies() {
                   <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Company Name</th>
                   <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email ID</th>
                   <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Plan</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Banner Shows</th>
                   <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Joined</th>
                   <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Actions</th>
@@ -279,6 +281,26 @@ export default function SuperAdminCompanies() {
                         </span>
                       </div>
                     </td>
+                    {/* Banner Shows */}
+                    <td className="px-6 py-4">
+                      {tenant.plan_id?.banner_warning_days ? (() => {
+                        const d = tenant.plan_id.banner_warning_days!;
+                        const label = d === 7 ? "7 days" : d === 30 ? "1 month" : d === 90 ? "3 months" : d === 180 ? "6 months" : `${d} days`;
+                        const cls = d <= 7
+                          ? "bg-red-50 text-red-600 border-red-200"
+                          : d <= 30
+                          ? "bg-amber-50 text-amber-600 border-amber-200"
+                          : "bg-blue-50 text-blue-600 border-blue-200";
+                        return (
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${cls}`}>
+                            <Bell className="h-3 w-3" />
+                            {label} before expiry
+                          </span>
+                        );
+                      })() : (
+                        <span className="text-xs text-gray-400 italic">Not set</span>
+                      )}
+                    </td>
                     {/* Status */}
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
@@ -312,14 +334,59 @@ export default function SuperAdminCompanies() {
                     </td>
                     {/* Joined */}
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      <div className="flex flex-col gap-0.5">
-                        <span>{format(new Date(tenant.billing_cycle_start || tenant.createdAt), "MMM d, yyyy")}</span>
-                        {(tenant.trial_ends_at || tenant.billing_cycle_end) && (
-                          <span className="text-[11px] text-gray-400">
-                            Expires: {format(new Date(tenant.billing_cycle_end || tenant.trial_ends_at!), "MMM d, yyyy")}
-                          </span>
-                        )}
-                      </div>
+                      {(() => {
+                        const joinedDate = new Date(tenant.billing_cycle_start || tenant.createdAt);
+
+                        // Calculate expiry: prefer stored date, fallback to start + billing days
+                        let expiryDate: Date | null = null;
+                        if (tenant.status === "trial") {
+                          const trialDays = tenant.plan_id?.trial_days ?? 14;
+                          expiryDate = tenant.trial_ends_at
+                            ? new Date(tenant.trial_ends_at)
+                            : new Date(new Date(tenant.createdAt).getTime() + trialDays * 86400000);
+                        } else if (tenant.status === "active") {
+                          const cycle = tenant.plan_id?.billing_cycle;
+                          const cycleDays = cycle === "yearly" ? 365 : cycle === "lifetime" ? 36500 : 30;
+                          expiryDate = tenant.billing_cycle_end
+                            ? new Date(tenant.billing_cycle_end)
+                            : new Date(joinedDate.getTime() + cycleDays * 86400000);
+                        } else if (tenant.billing_cycle_end || tenant.trial_ends_at) {
+                          expiryDate = new Date(tenant.billing_cycle_end || tenant.trial_ends_at!);
+                        }
+
+                        const daysLeft = expiryDate
+                          ? Math.ceil((expiryDate.getTime() - Date.now()) / 86400000)
+                          : null;
+
+                        const expiryColor = daysLeft === null
+                          ? "text-gray-400"
+                          : daysLeft <= 3
+                          ? "text-red-500 font-semibold"
+                          : daysLeft <= 7
+                          ? "text-orange-500 font-semibold"
+                          : daysLeft <= 30
+                          ? "text-amber-600 font-medium"
+                          : "text-gray-400";
+
+                        return (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm text-gray-700">
+                              {format(joinedDate, "MMM d, yyyy")}
+                            </span>
+                            {expiryDate && (
+                              <span className={`text-[11px] ${expiryColor}`}>
+                                Expires: {format(expiryDate, "MMM d, yyyy")}
+                                {daysLeft !== null && daysLeft > 0 && (
+                                  <span className="ml-1 opacity-75">({daysLeft}d left)</span>
+                                )}
+                                {daysLeft !== null && daysLeft <= 0 && (
+                                  <span className="ml-1 text-red-500"> (expired)</span>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     {/* Actions */}
                     <td className="px-6 py-4 text-right">
