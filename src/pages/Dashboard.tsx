@@ -103,7 +103,7 @@ const PlanExpiredModal = ({ plan }: { plan: any }) => {
                 </p>
               </div>
               <div className="text-right">
-                <span className="text-3xl font-black text-gray-900 dark:text-zinc-50">${plan.price}</span>
+                <span className="text-3xl font-black text-gray-900 dark:text-zinc-50">₹{plan.price}</span>
                 <span className="text-xs text-muted-foreground">/{plan.billing_cycle === 'yearly' ? 'yr' : plan.billing_cycle === 'lifetime' ? 'life' : 'mo'}</span>
               </div>
             </div>

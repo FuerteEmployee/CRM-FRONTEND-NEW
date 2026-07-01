@@ -56,7 +56,7 @@ export default function SuperAdminDashboard() {
     },
     {
       title: "Monthly Revenue",
-      value: metrics?.revenue_summary || "$0.00",
+      value: metrics?.revenue_summary || "₹0.00",
       icon: TrendingUp,
       trend: "+18%",
       color: "from-orange-500 to-red-500",
@@ -115,7 +115,7 @@ export default function SuperAdminDashboard() {
             {[
               { time: "Just now", action: "Tenant 'Acme Corp' upgraded to Enterprise Plan", icon: Building2, color: "text-blue-600 bg-blue-50" },
               { time: "2 hours ago", action: "Super Admin 'John' suspended 'StartUp LLC'", icon: ShieldCheck, color: "text-orange-600 bg-orange-50" },
-              { time: "5 hours ago", action: "New subscription payment received ($299.00)", icon: CreditCard, color: "text-emerald-600 bg-emerald-50" },
+              { time: "5 hours ago", action: "New subscription payment received (₹299.00)", icon: CreditCard, color: "text-emerald-600 bg-emerald-50" },
             ].map((log, i) => (
               <div key={i} className="flex gap-3 items-start p-3 rounded-lg hover:bg-gray-50 transition-colors">
                 <div className={`mt-0.5 p-2 rounded-lg ${log.color}`}>
