@@ -83,6 +83,17 @@ export default function SetupEstimateStatus() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: EstimateStatus[]) => {
+      await Promise.all(items.map((item) => estimateService.deleteEstimateStatus(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["estimate-statuses"] });
+      toast.success("Selected items deleted successfully.");
+    },
+    onError: () => toast.error("Failed to delete selected items"),
+  });
+
   const handleAdd = () => {
     setCurrentStatus(null);
     setFormData({
@@ -135,6 +146,8 @@ export default function SetupEstimateStatus() {
         onAdd={can("Estimates", "Create") ? handleAdd : undefined}
         onEdit={can("Estimates", "Edit") ? handleEdit : undefined}
         onDelete={can("Estimates", "Delete") ? handleDelete : undefined}
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items as EstimateStatus[])}
         columns={[
           {
             key: "name",

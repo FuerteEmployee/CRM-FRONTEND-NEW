@@ -218,6 +218,19 @@ export default function SetupRoles() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: Role[]) => {
+      await Promise.all(items.map((item) => staffService.deleteRole(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["roles"] });
+      toast({ title: "Deleted", description: "Selected items deleted successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to delete selected items", variant: "destructive" });
+    },
+  });
+
   const handleAdd = () => {
     setCurrentRole(null);
     setFormData({ name: "", permissions: {} });
@@ -413,6 +426,8 @@ export default function SetupRoles() {
       onAdd={can("Staff Roles", "Create") ? handleAdd : undefined}
       onEdit={can("Staff Roles", "Edit") ? handleEdit : undefined}
       onDelete={can("Staff Roles", "Delete") ? handleDelete : undefined}
+      enableBulkActions={true}
+      onBulkDelete={(items) => bulkDeleteMutation.mutate(items as Role[])}
       columns={[
         {
           key: "name",

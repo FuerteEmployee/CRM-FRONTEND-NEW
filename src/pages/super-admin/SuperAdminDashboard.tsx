@@ -1,67 +1,92 @@
 import React, { useEffect, useState } from "react";
-import { Users, Building2, Package, TrendingUp, Activity, CreditCard, ShieldCheck } from "lucide-react";
+import {
+  Building2, Package, TrendingUp, Activity,
+  ShieldCheck, Clock, AlertTriangle, CheckCircle2, RefreshCw,
+} from "lucide-react";
 import { apiClient as api } from "@/api/client";
 import { SuperAdminDashboardSkeleton } from "@/components/ui/page-skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
+import { formatDistanceToNow } from "date-fns";
 
 interface DashboardMetrics {
   active_customers: number;
+  trial_customers: number;
+  expired_customers: number;
+  total_customers: number;
   active_plans: number;
   admin_count: number;
-  revenue_summary: string;
+  new_this_month: number;
+  expiring_soon: number;
+  monthly_revenue: string;
+  recent_logs: Array<{
+    _id: string;
+    action: string;
+    description: string;
+    module: string;
+    createdAt: string;
+    admin_id?: { firstname: string; lastname: string; email: string } | null;
+  }>;
 }
+
+const LOG_ICON: Record<string, { icon: React.ElementType; color: string }> = {
+  "Created Customer":  { icon: Building2,   color: "text-blue-600 bg-blue-50" },
+  "Updated Customer":  { icon: Building2,   color: "text-indigo-600 bg-indigo-50" },
+  "Deleted Customer":  { icon: AlertTriangle, color: "text-red-600 bg-red-50" },
+  "Created Plan":      { icon: Package,     color: "text-emerald-600 bg-emerald-50" },
+  "Updated Plan":      { icon: Package,     color: "text-teal-600 bg-teal-50" },
+  "Deleted Plan":      { icon: Package,     color: "text-orange-600 bg-orange-50" },
+};
 
 export default function SuperAdminDashboard() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const fetchMetrics = async () => {
-      try {
-        const response = await api.get("/super-admin/dashboard");
-        setMetrics(response);
-      } catch (error) {
-        console.error("Failed to fetch super admin metrics", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchMetrics();
-  }, []);
+  const fetchMetrics = async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+    try {
+      const response = await api.get("/super-admin/dashboard");
+      setMetrics(response);
+    } catch (error) {
+      console.error("Failed to fetch super admin metrics", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  useEffect(() => { fetchMetrics(); }, []);
 
   const cards = [
     {
       title: "Active Customers",
-      value: metrics?.active_customers || 0,
-      icon: Building2,
-      trend: "+12%",
+      value: metrics?.active_customers ?? 0,
+      sub: `${metrics?.total_customers ?? 0} total`,
+      icon: CheckCircle2,
       color: "from-blue-500 to-cyan-500",
-      shadow: "shadow-blue-500/20"
     },
     {
-      title: "Active SaaS Plans",
-      value: metrics?.active_plans || 0,
+      title: "On Trial",
+      value: metrics?.trial_customers ?? 0,
+      sub: metrics?.expiring_soon ? `${metrics.expiring_soon} expiring in 7d` : "all healthy",
+      icon: Clock,
+      color: "from-amber-400 to-orange-500",
+    },
+    {
+      title: "Active Plans",
+      value: metrics?.active_plans ?? 0,
+      sub: `${metrics?.admin_count ?? 0} admins`,
       icon: Package,
-      trend: "+2%",
       color: "from-indigo-500 to-purple-500",
-      shadow: "shadow-indigo-500/20"
     },
     {
-      title: "System Admins",
-      value: metrics?.admin_count || 0,
-      icon: Users,
-      trend: "+5%",
-      color: "from-emerald-500 to-teal-500",
-      shadow: "shadow-emerald-500/20"
-    },
-    {
-      title: "Monthly Revenue",
-      value: metrics?.revenue_summary || "₹0.00",
+      title: "Est. Monthly Revenue",
+      value: metrics?.monthly_revenue ?? "₹0.00",
+      sub: `${metrics?.new_this_month ?? 0} new this month`,
       icon: TrendingUp,
-      trend: "+18%",
-      color: "from-orange-500 to-red-500",
-      shadow: "shadow-orange-500/20"
-    }
+      color: "from-emerald-500 to-teal-500",
+    },
   ];
 
   const showSkeleton = useMinimumLoading(loading);
@@ -73,98 +98,115 @@ export default function SuperAdminDashboard() {
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">Super Admin Overview</h1>
-          <p className="text-gray-500 text-sm mt-1">Monitor your entire SaaS ecosystem from a single pane of glass.</p>
+          <p className="text-gray-500 text-sm mt-1">Real-time metrics across your entire SaaS platform.</p>
         </div>
+        <button
+          onClick={() => fetchMetrics(true)}
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-colors"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
       </div>
 
+      {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
         {cards.map((card, i) => {
           const Icon = card.icon;
           return (
-            <div
-              key={i}
-              className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow"
-            >
-              <div className="flex justify-between items-start mb-4">
+            <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex justify-between items-start mb-3">
                 <div className={`p-2.5 rounded-lg bg-gradient-to-br ${card.color} text-white`}>
                   <Icon className="h-5 w-5" />
                 </div>
-                <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
-                  <TrendingUp className="h-3 w-3" />
-                  {card.trend}
-                </span>
               </div>
               <h3 className="text-3xl font-bold text-gray-900 tracking-tight mb-0.5">{card.value}</h3>
-              <p className="text-sm text-gray-500">{card.title}</p>
+              <p className="text-sm text-gray-500 font-medium">{card.title}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{card.sub}</p>
             </div>
           );
         })}
       </div>
 
+      {/* Tenant Status Breakdown + Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Recent Activity Feed */}
+
+        {/* Activity Feed — real audit log */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
               <Activity className="h-4 w-4 text-blue-600" />
-              Live System Activity
+              Recent Activity
             </h2>
-            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">View Audit Log</button>
+            <span className="text-xs text-gray-400">Live from audit log</span>
           </div>
-          <div className="space-y-2">
-            {[
-              { time: "Just now", action: "Tenant 'Acme Corp' upgraded to Enterprise Plan", icon: Building2, color: "text-blue-600 bg-blue-50" },
-              { time: "2 hours ago", action: "Super Admin 'John' suspended 'StartUp LLC'", icon: ShieldCheck, color: "text-orange-600 bg-orange-50" },
-              { time: "5 hours ago", action: "New subscription payment received (₹299.00)", icon: CreditCard, color: "text-emerald-600 bg-emerald-50" },
-            ].map((log, i) => (
-              <div key={i} className="flex gap-3 items-start p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                <div className={`mt-0.5 p-2 rounded-lg ${log.color}`}>
-                  <log.icon className="h-4 w-4" />
+          {metrics?.recent_logs?.length ? (
+            <div className="space-y-1.5">
+              {metrics.recent_logs.map((log) => {
+                const meta = LOG_ICON[log.action] ?? { icon: ShieldCheck, color: "text-gray-600 bg-gray-100" };
+                const Icon = meta.icon;
+                const who = log.admin_id
+                  ? `${log.admin_id.firstname} ${log.admin_id.lastname}`
+                  : "Super Admin";
+                return (
+                  <div key={log._id} className="flex gap-3 items-start p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className={`mt-0.5 p-2 rounded-lg ${meta.color} shrink-0`}>
+                      <Icon className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-gray-700 leading-snug">{log.description}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {who} · {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true })}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-10 text-center text-gray-400 text-sm">No activity yet.</div>
+          )}
+        </div>
+
+        {/* Customer Breakdown */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5">
+          <h2 className="text-base font-semibold text-gray-900">Customer Breakdown</h2>
+          {[
+            { label: "Active",   value: metrics?.active_customers  ?? 0, color: "bg-emerald-500", text: "text-emerald-700 bg-emerald-50" },
+            { label: "On Trial", value: metrics?.trial_customers   ?? 0, color: "bg-amber-400",   text: "text-amber-700 bg-amber-50" },
+            { label: "Expired",  value: metrics?.expired_customers ?? 0, color: "bg-red-400",     text: "text-red-700 bg-red-50" },
+          ].map(({ label, value, color, text }) => {
+            const total = metrics?.total_customers || 1;
+            const pct = Math.round((value / total) * 100);
+            return (
+              <div key={label}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-sm text-gray-600">{label}</span>
+                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${text}`}>{value}</span>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-700">{log.action}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{log.time}</p>
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
                 </div>
               </div>
-            ))}
+            );
+          })}
+
+          {(metrics?.expiring_soon ?? 0) > 0 && (
+            <div className="mt-2 flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+              <p className="text-xs text-amber-700 font-medium">
+                {metrics!.expiring_soon} customer{metrics!.expiring_soon > 1 ? "s" : ""} expiring within 7 days
+              </p>
+            </div>
+          )}
+
+          <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
+            <span className="text-sm text-gray-500">New this month</span>
+            <span className="text-sm font-bold text-gray-900">{metrics?.new_this_month ?? 0}</span>
           </div>
         </div>
 
-        {/* System Health */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-          <h2 className="text-base font-semibold text-gray-900 mb-5">System Health</h2>
-          <div className="space-y-5">
-            <div>
-              <div className="flex justify-between text-sm mb-1.5">
-                <span className="text-gray-500">Database Storage</span>
-                <span className="text-gray-900 font-semibold">45%</span>
-              </div>
-              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full w-[45%] bg-blue-600 rounded-full" />
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-sm mb-1.5">
-                <span className="text-gray-500">Server CPU</span>
-                <span className="text-gray-900 font-semibold">12%</span>
-              </div>
-              <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div className="h-full w-[12%] bg-emerald-500 rounded-full" />
-              </div>
-            </div>
-            <div className="pt-4 mt-1 border-t border-gray-100">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-500">Status</span>
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600 border border-emerald-200">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  All Systems Operational
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
-
     </div>
   );
 }

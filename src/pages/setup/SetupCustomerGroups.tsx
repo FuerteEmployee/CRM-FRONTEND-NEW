@@ -86,6 +86,17 @@ export default function SetupCustomerGroups() {
     onError: () => toast.error("Failed to delete customer group"),
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: any[]) => {
+      await Promise.all(items.map((item) => customerService.deleteGroup(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customer-groups"] });
+      toast.success("Selected items deleted successfully.");
+    },
+    onError: () => toast.error("Failed to delete selected items"),
+  });
+
   const handleSave = () => {
     if (!newGroupName.trim()) {
       toast.error("Group name is required");
@@ -165,6 +176,8 @@ export default function SetupCustomerGroups() {
               }
             : undefined
         }
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items)}
         columns={[
           {
             key: "name",

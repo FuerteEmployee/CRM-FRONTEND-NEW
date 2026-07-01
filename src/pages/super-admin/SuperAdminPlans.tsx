@@ -18,6 +18,7 @@ interface SaasPlan {
   price: number;
   billing_cycle: "monthly" | "yearly" | "lifetime";
   trial_days: number;
+  banner_warning_days: number;
   active: boolean;
   features: {
     max_users: number;
@@ -71,12 +72,20 @@ const MODULE_META: { key: keyof SaasPlan["module_access"]; label: string; icon: 
   { key: "bookmarks",        label: "Bookmarks",        icon: Bookmark,      color: "text-amber-600" },
 ];
 
+const BANNER_PRESETS = [
+  { label: "7 Days",   days: 7 },
+  { label: "1 Month",  days: 30 },
+  { label: "3 Months", days: 90 },
+  { label: "6 Months", days: 180 },
+];
+
 const DEFAULT_PLAN: Partial<SaasPlan> = {
   name: "",
   description: "",
   price: 0,
   billing_cycle: "monthly",
   trial_days: 14,
+  banner_warning_days: 30,
   active: true,
   features: { max_users: 1, max_storage_gb: 1, max_customers: -1 },
   module_access: {
@@ -210,6 +219,15 @@ export default function SuperAdminPlans() {
                 </div>
                 {plan.trial_days > 0 && (
                   <p className="text-xs text-blue-500 font-medium mt-1">{plan.trial_days}-day free trial</p>
+                )}
+                {plan.banner_warning_days > 0 && (
+                  <p className="text-xs text-amber-600 font-medium mt-0.5">
+                    Banner shows {plan.banner_warning_days === 7 ? "7 days" :
+                     plan.banner_warning_days === 30 ? "1 month" :
+                     plan.banner_warning_days === 90 ? "3 months" :
+                     plan.banner_warning_days === 180 ? "6 months" :
+                     `${plan.banner_warning_days} days`} before expiry
+                  </p>
                 )}
               </div>
 
@@ -358,6 +376,45 @@ export default function SuperAdminPlans() {
                         {formData.active ? "Active" : "Inactive"}
                       </button>
                     </div>
+                  </div>
+
+                  {/* Banner Warning Days */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-semibold text-gray-600 flex items-center gap-1">
+                      Show Banner Before Expiry
+                      <span className="text-[10px] font-normal text-gray-400">(admin dashboard)</span>
+                    </label>
+                    <div className="flex flex-wrap gap-1.5 mb-1">
+                      {BANNER_PRESETS.map(preset => {
+                        const active = formData.banner_warning_days === preset.days;
+                        return (
+                          <button
+                            key={preset.days}
+                            type="button"
+                            onClick={() => setFormData({ ...formData, banner_warning_days: preset.days })}
+                            className={`px-2.5 py-1 text-xs font-semibold rounded-md border transition-all ${
+                              active
+                                ? "bg-amber-500 text-white border-amber-500"
+                                : "bg-white text-gray-600 border-gray-300 hover:border-amber-400 hover:text-amber-600"
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number" min="1"
+                        value={formData.banner_warning_days ?? 30}
+                        onChange={(e) => setFormData({ ...formData, banner_warning_days: parseInt(e.target.value) || 30 })}
+                        className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                      />
+                      <span className="text-xs text-gray-500">days before expiry</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400">
+                      The renewal banner appears in the admin's dashboard this many days before their subscription expires. Colors: 🔵 healthy → 🟡 ≤30d → 🟠 ≤7d → 🔴 ≤3d.
+                    </p>
                   </div>
 
                   {/* Usage Limits — hidden */}

@@ -104,6 +104,17 @@ export default function SetupSupportDepartments() {
     onError: () => toast.error("Failed to delete department"),
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: any[]) => {
+      await Promise.all(items.map((item) => supportService.deleteDepartment(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["support-departments"] });
+      toast.success("Selected items deleted successfully.");
+    },
+    onError: () => toast.error("Failed to delete selected items"),
+  });
+
   const openModal = (dept?: any) => {
     if (dept) {
       setEditingId(dept._id);
@@ -204,6 +215,8 @@ export default function SetupSupportDepartments() {
               }
             : undefined
         }
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items)}
         columns={[
           {
             key: "name",

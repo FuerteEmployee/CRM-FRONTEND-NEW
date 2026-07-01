@@ -85,6 +85,17 @@ export default function SetupTicketStatuses() {
     onError: () => toast.error("Failed to delete ticket status"),
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: any[]) => {
+      await Promise.all(items.map((item) => supportService.deleteTicketStatus(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ticket-statuses"] });
+      toast.success("Selected items deleted successfully.");
+    },
+    onError: () => toast.error("Failed to delete selected items"),
+  });
+
   const openModal = (status?: any) => {
     if (status) {
       setEditingId(status._id);
@@ -170,6 +181,8 @@ export default function SetupTicketStatuses() {
               }
             : undefined
         }
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items)}
         columns={[
           {
             key: "name",

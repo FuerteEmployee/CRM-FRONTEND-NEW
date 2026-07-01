@@ -97,6 +97,19 @@ export default function SetupTaxRates() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: Tax[]) => {
+      await Promise.all(items.map((item) => financeService.deleteTax(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["taxes"] });
+      toast({ title: "Deleted", description: "Selected items deleted successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleAdd = () => {
     setCurrentTax(null);
     setFormData({ name: "", taxrate: 0 });
@@ -166,6 +179,8 @@ export default function SetupTaxRates() {
         onAdd={can("Settings", "Edit") ? handleAdd : undefined}
         onEdit={can("Settings", "Edit") ? handleEdit : undefined}
         onDelete={can("Settings", "Edit") ? handleDelete : undefined}
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items as Tax[])}
         columns={[
           { key: "name", label: "Tax Name" },
           { key: "taxrate", label: "Rate (percent)" },

@@ -1,4 +1,6 @@
 import { useState, useMemo, useRef } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +12,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -500,10 +504,48 @@ const Invoices = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [previewInvoice, setPreviewInvoice] = useState<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({ massDelete: false, status: "" });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = (items: any[]) => {
+    setSelectedIds(prev => prev.length === items.length ? [] : items.map(i => i._id));
+  };
+
+  const handleBulkAction = async () => {
+    if (selectedIds.length === 0) {
+      toast({ title: "Error", description: "No items selected.", variant: "destructive" });
+      return;
+    }
+    setIsBulkLoading(true);
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedIds.map(id => salesService.deleteInvoice(id)));
+        toast({ title: "Success", description: `Deleted ${selectedIds.length} items.` });
+      } else if (bulkState.status) {
+        await Promise.all(selectedIds.map(id => salesService.updateInvoice(id, { status: Number(bulkState.status) })));
+        toast({ title: "Success", description: `Updated ${selectedIds.length} items.` });
+      }
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      setSelectedIds([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false, status: "" });
+    } catch {
+      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
 
   const { data: invoices = [], isLoading } = useQuery<any[]>({
     queryKey: ["invoices"],
@@ -674,15 +716,58 @@ const Invoices = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest border-border/50 shadow-sm hover:bg-muted/50"
-              onClick={() => toast({ title: "Bulk Actions", description: "Select items first to apply bulk actions." })}
-            >
-              <Zap className="h-3.5 w-3.5 text-primary" />
-              Bulk Actions
-            </Button>
+            <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+              if (open && selectedIds.length === 0) {
+                toast({ title: "Error", description: "Please select at least one item first.", variant: "destructive" });
+                return;
+              }
+              setBulkActionOpen(open);
+            }}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700">
+                  <Zap className="h-3.5 w-3.5 text-primary" />
+                  Bulk Actions
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md bg-white">
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-bold">Bulk Actions</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="mass_delete"
+                      className="border-red-200 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
+                      checked={bulkState.massDelete}
+                      onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                    />
+                    <Label htmlFor="mass_delete" className="text-sm font-semibold text-red-600">Mass Delete</Label>
+                  </div>
+                  <div className="space-y-1.5 pt-2">
+                    <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Change Status</Label>
+                    <Select value={bulkState.status} onValueChange={(val) => setBulkState({...bulkState, status: val})} disabled={bulkState.massDelete}>
+                      <SelectTrigger className="h-10 bg-slate-50/50 border-slate-200 rounded-lg">
+                        <SelectValue placeholder="Select Status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">Draft</SelectItem>
+                        <SelectItem value="2">Sent</SelectItem>
+                        <SelectItem value="3">Paid</SelectItem>
+                        <SelectItem value="4">Partially Paid</SelectItem>
+                        <SelectItem value="5">Overdue</SelectItem>
+                        <SelectItem value="6">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="ghost" onClick={() => setBulkActionOpen(false)} className="font-bold uppercase tracking-widest text-[10px]">Close</Button>
+                  <Button onClick={handleBulkAction} disabled={isBulkLoading} className="font-bold uppercase tracking-widest text-[10px]">
+                    {isBulkLoading ? "Processing..." : "Confirm"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <ExportButton 
               data={filtered} 
               filename="invoices" 
@@ -713,6 +798,17 @@ const Invoices = () => {
           <table className="w-full text-sm text-left">
             <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
               <tr>
+                <th className="w-10 px-3 py-4">
+                  {(() => {
+                    const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
+                    return (
+                      <Checkbox
+                        checked={selectedIds.length === pageData.length && pageData.length > 0}
+                        onCheckedChange={() => toggleSelectAll(pageData)}
+                      />
+                    );
+                  })()}
+                </th>
                 {["Invoice #", "Customer", "Amount", "Total Tax", "Date", "Due Date", "Status", "Actions"].map((h) => (
                   <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
                     {h}
@@ -726,14 +822,14 @@ const Invoices = () => {
                   .fill(0)
                   .map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={8} className="p-4">
+                      <td colSpan={9} className="p-4">
                         <Skeleton className="h-10 w-full" />
                       </td>
                     </tr>
                   ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
+                  <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground italic">
                     No invoices found.
                   </td>
                 </tr>
@@ -743,7 +839,13 @@ const Invoices = () => {
                   .map((inv: any) => {
                     const status = statusMap[inv.status] || statusMap[1];
                     return (
-                      <tr key={inv._id} className="hover:bg-muted/30 transition-colors">
+                      <tr key={inv._id} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(inv._id) ? 'bg-primary/5' : ''}`}>
+                        <td className="px-3 py-2">
+                          <Checkbox
+                            checked={selectedIds.includes(inv._id)}
+                            onCheckedChange={() => toggleSelect(inv._id)}
+                          />
+                        </td>
                         <td className="px-6 py-4">
                           <button
                             className="font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer text-left"

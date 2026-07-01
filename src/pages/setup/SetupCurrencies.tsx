@@ -116,6 +116,19 @@ export default function SetupCurrencies() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: Currency[]) => {
+      await Promise.all(items.map((item) => financeService.deleteCurrency(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["currencies"] });
+      toast({ title: "Deleted", description: "Selected items deleted successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleAdd = () => {
     setCurrentCurrency(null);
     setFormData({
@@ -206,6 +219,8 @@ export default function SetupCurrencies() {
         onAdd={can("Settings", "Edit") ? handleAdd : undefined}
         onEdit={can("Settings", "Edit") ? handleEdit : undefined}
         onDelete={can("Settings", "Edit") ? handleDelete : undefined}
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items as Currency[])}
         renderCustomActions={(currency: Currency) =>
           !currency.isdefault &&
           can("Settings", "Edit") && (

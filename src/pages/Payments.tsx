@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,6 +10,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -31,7 +35,7 @@ import {
   CreditCard,
   Zap,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
@@ -44,8 +48,43 @@ const Payments = () => {
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState("10");
   const [viewItem, setViewItem] = useState<any>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { toast } = useToast();
   const { can } = usePermissions();
+  const queryClient = useQueryClient();
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({ massDelete: false });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAll = (items: any[]) => {
+    setSelectedIds(prev => prev.length === items.length ? [] : items.map(i => i._id));
+  };
+
+  const handleBulkAction = async () => {
+    if (selectedIds.length === 0) {
+      toast({ title: "Error", description: "No items selected.", variant: "destructive" });
+      return;
+    }
+    setIsBulkLoading(true);
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedIds.map(id => salesService.deletePayment(id)));
+        toast({ title: "Success", description: `Deleted ${selectedIds.length} items.` });
+      }
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      setSelectedIds([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false });
+    } catch {
+      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
 
   const { data: payments = [], isLoading } = useQuery<any[]>({
     queryKey: ["payments"],
@@ -175,15 +214,42 @@ const Payments = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest border-border/50 shadow-sm hover:bg-muted/50"
-              onClick={() => toast({ title: "Bulk Actions", description: "Select items first to apply bulk actions." })}
-            >
-              <Zap className="h-3.5 w-3.5 text-primary" />
-              Bulk Actions
-            </Button>
+            <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+              if (open && selectedIds.length === 0) {
+                toast({ title: "Error", description: "Please select at least one item first.", variant: "destructive" });
+                return;
+              }
+              setBulkActionOpen(open);
+            }}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700">
+                  <Zap className="h-3.5 w-3.5 text-primary" />
+                  Bulk Actions
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md bg-white">
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-bold">Bulk Actions</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="mass_delete"
+                      className="border-red-200 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
+                      checked={bulkState.massDelete}
+                      onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                    />
+                    <Label htmlFor="mass_delete" className="text-sm font-semibold text-red-600">Mass Delete</Label>
+                  </div>
+                </div>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="ghost" onClick={() => setBulkActionOpen(false)} className="font-bold uppercase tracking-widest text-[10px]">Close</Button>
+                  <Button onClick={handleBulkAction} disabled={isBulkLoading} className="font-bold uppercase tracking-widest text-[10px]">
+                    {isBulkLoading ? "Processing..." : "Confirm"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <ExportButton 
               data={filtered} 
               filename="payments" 
@@ -214,6 +280,17 @@ const Payments = () => {
           <table className="w-full text-sm text-left">
             <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
               <tr>
+                <th className="w-10 px-3 py-4">
+                  {(() => {
+                    const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
+                    return (
+                      <Checkbox
+                        checked={selectedIds.length === pageData.length && pageData.length > 0}
+                        onCheckedChange={() => toggleSelectAll(pageData)}
+                      />
+                    );
+                  })()}
+                </th>
                 {["Payment #", "Invoice #", "Customer", "Payment Mode", "Transaction ID", "Amount", "Date", "Actions"].map((h) => (
                   <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
                     {h}
@@ -227,14 +304,14 @@ const Payments = () => {
                   .fill(0)
                   .map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={8} className="p-4">
+                      <td colSpan={9} className="p-4">
                         <Skeleton className="h-10 w-full" />
                       </td>
                     </tr>
                   ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
+                  <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground italic">
                     No payments found.
                   </td>
                 </tr>
@@ -242,7 +319,13 @@ const Payments = () => {
                 filtered
                   .slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage))
                   .map((p: any) => (
-                    <tr key={p._id} className="hover:bg-muted/30 transition-colors">
+                    <tr key={p._id} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(p._id) ? 'bg-primary/5' : ''}`}>
+                      <td className="px-3 py-2">
+                        <Checkbox
+                          checked={selectedIds.includes(p._id)}
+                          onCheckedChange={() => toggleSelect(p._id)}
+                        />
+                      </td>
                       <td
                         className="px-6 py-4 font-bold text-primary cursor-pointer hover:underline"
                         onClick={() => setViewItem(p)}

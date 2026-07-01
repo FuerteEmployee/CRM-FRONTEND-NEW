@@ -106,6 +106,19 @@ export default function SetupLeadsSources() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: LeadSource[]) => {
+      await Promise.all(items.map((item) => leadService.deleteSource(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-sources"] });
+      toast({ title: "Deleted", description: "Selected items deleted successfully." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   const handleAdd = () => {
     setCurrentSource(null);
     setFormData({ name: "" });
@@ -175,6 +188,8 @@ export default function SetupLeadsSources() {
         onAdd={can("Leads", "Create") ? handleAdd : undefined}
         onEdit={can("Leads", "Edit") ? handleEdit : undefined}
         onDelete={can("Leads", "Delete") ? handleDelete : undefined}
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items as LeadSource[])}
         columns={[
           {
             key: "name",

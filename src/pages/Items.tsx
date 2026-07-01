@@ -11,8 +11,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -41,6 +43,11 @@ const Items = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkState, setBulkState] = useState({ massDelete: false });
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
 
   const [createForm, setCreateForm] = useState({
     description: "",
@@ -156,6 +163,34 @@ const Items = () => {
         (i.group || "").toLowerCase().includes(search.toLowerCase())
     );
   }, [items, search]);
+
+  const handleSelectAll = (checked: boolean) => {
+    const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
+    if (checked) setSelectedItems(pageData.map((item: any) => item._id));
+    else setSelectedItems([]);
+  };
+
+  const handleBulkAction = async () => {
+    if (selectedItems.length === 0) {
+      toast({ title: "Error", description: "No items selected.", variant: "destructive" });
+      return;
+    }
+    setIsBulkLoading(true);
+    try {
+      if (bulkState.massDelete) {
+        await Promise.all(selectedItems.map(id => itemService.delete(id)));
+        toast({ title: "Success", description: `Deleted ${selectedItems.length} items.` });
+      }
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+      setSelectedItems([]);
+      setBulkActionOpen(false);
+      setBulkState({ massDelete: false });
+    } catch {
+      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+    } finally {
+      setIsBulkLoading(false);
+    }
+  };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -320,15 +355,42 @@ const Items = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest border-border/50 shadow-sm hover:bg-muted/50"
-              onClick={() => toast({ title: "Bulk Actions", description: "Select items first to apply bulk actions." })}
-            >
-              <Zap className="h-3.5 w-3.5 text-primary" />
-              Bulk Actions
-            </Button>
+            <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+              if (open && selectedItems.length === 0) {
+                toast({ title: "Error", description: "Please select at least one item first.", variant: "destructive" });
+                return;
+              }
+              setBulkActionOpen(open);
+            }}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700">
+                  <Zap className="h-3.5 w-3.5 text-primary" />
+                  Bulk Actions
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md bg-white">
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-bold">Bulk Actions</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="mass_delete"
+                      className="border-red-200 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
+                      checked={bulkState.massDelete}
+                      onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                    />
+                    <Label htmlFor="mass_delete" className="text-sm font-semibold text-red-600">Mass Delete</Label>
+                  </div>
+                </div>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button variant="ghost" onClick={() => setBulkActionOpen(false)} className="font-bold uppercase tracking-widest text-[10px]">Close</Button>
+                  <Button onClick={handleBulkAction} disabled={isBulkLoading} className="font-bold uppercase tracking-widest text-[10px]">
+                    {isBulkLoading ? "Processing..." : "Confirm"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
             <ExportButton 
               data={filtered} 
               filename="items" 
@@ -360,6 +422,17 @@ const Items = () => {
               <table className="w-full text-sm text-left">
                 <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
                   <tr>
+                    <th className="p-3 font-medium w-8">
+                      <input
+                        type="checkbox"
+                        className="rounded border-border"
+                        checked={(() => {
+                          const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
+                          return pageData.length > 0 && selectedItems.length === pageData.length;
+                        })()}
+                        onChange={(e) => handleSelectAll(e.target.checked)}
+                      />
+                    </th>
                     {["Item Name", "Group", "Description", "Rate", "Unit", "Tax", "Actions"].map((h) => (
                       <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
                         {h}
@@ -373,14 +446,14 @@ const Items = () => {
                       .fill(0)
                       .map((_, i) => (
                         <tr key={i}>
-                          <td colSpan={7} className="p-4">
+                          <td colSpan={8} className="p-4">
                             <Skeleton className="h-10 w-full" />
                           </td>
                         </tr>
                       ))
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground italic">
+                      <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
                         No database items found. Use "New Item" to populate the list.
                       </td>
                     </tr>
@@ -388,7 +461,18 @@ const Items = () => {
                     filtered
                       .slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage))
                       .map((item: any) => (
-                      <tr key={item._id} className="hover:bg-muted/30 transition-colors">
+                      <tr key={item._id} className={`hover:bg-muted/30 transition-colors ${selectedItems.includes(item._id) ? 'bg-primary/5' : ''}`}>
+                        <td className="p-3">
+                          <input
+                            type="checkbox"
+                            className="rounded border-border"
+                            checked={selectedItems.includes(item._id)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedItems(prev => [...prev, item._id]);
+                              else setSelectedItems(prev => prev.filter(id => id !== item._id));
+                            }}
+                          />
+                        </td>
                         <td className="px-6 py-4 font-bold text-slate-800">{item.description}</td>
                         <td className="px-6 py-4">
                           {item.group ? (

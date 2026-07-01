@@ -81,6 +81,17 @@ export default function SetupPredefinedReplies() {
     onError: () => toast({ title: "Error", description: "Failed to delete reply", variant: "destructive" }),
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (items: any[]) => {
+      await Promise.all(items.map((item) => supportService.deletePredefinedReply(item._id)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["predefined-replies"] });
+      toast({ title: "Deleted", description: "Selected items deleted successfully." });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to delete selected items", variant: "destructive" }),
+  });
+
   const openModal = (reply?: any) => {
     if (reply) {
       setEditingId(reply._id);
@@ -151,6 +162,8 @@ export default function SetupPredefinedReplies() {
             if (confirm("Are you sure you want to delete this reply?")) deleteMutation.mutate(p._id);
           } : undefined
         }
+        enableBulkActions={true}
+        onBulkDelete={(items) => bulkDeleteMutation.mutate(items)}
         columns={[
           { key: "name", label: "Reply Name", className: "font-medium text-foreground w-1/3" },
           { key: "message", label: "Message Preview" },
