@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  Users, Building2, Package, TrendingUp, Activity, CreditCard,
+  Building2, Package, TrendingUp, Activity,
   ShieldCheck, Clock, AlertTriangle, CheckCircle2, RefreshCw,
 } from "lucide-react";
 import { apiClient as api } from "@/api/client";
@@ -82,7 +82,7 @@ export default function SuperAdminDashboard() {
     },
     {
       title: "Est. Monthly Revenue",
-      value: metrics?.monthly_revenue ?? "$0.00",
+      value: metrics?.monthly_revenue ?? "₹0.00",
       sub: `${metrics?.new_this_month ?? 0} new this month`,
       icon: TrendingUp,
       color: "from-emerald-500 to-teal-500",
@@ -172,9 +172,9 @@ export default function SuperAdminDashboard() {
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-5">
           <h2 className="text-base font-semibold text-gray-900">Customer Breakdown</h2>
           {[
-            { label: "Active",  value: metrics?.active_customers  ?? 0, color: "bg-emerald-500", text: "text-emerald-700 bg-emerald-50" },
-            { label: "On Trial",value: metrics?.trial_customers   ?? 0, color: "bg-amber-400",   text: "text-amber-700 bg-amber-50" },
-            { label: "Expired", value: metrics?.expired_customers ?? 0, color: "bg-red-400",     text: "text-red-700 bg-red-50" },
+            { label: "Active",   value: metrics?.active_customers  ?? 0, color: "bg-emerald-500", text: "text-emerald-700 bg-emerald-50" },
+            { label: "On Trial", value: metrics?.trial_customers   ?? 0, color: "bg-amber-400",   text: "text-amber-700 bg-amber-50" },
+            { label: "Expired",  value: metrics?.expired_customers ?? 0, color: "bg-red-400",     text: "text-red-700 bg-red-50" },
           ].map(({ label, value, color, text }) => {
             const total = metrics?.total_customers || 1;
             const pct = Math.round((value / total) * 100);
