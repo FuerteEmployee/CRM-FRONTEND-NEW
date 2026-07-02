@@ -85,7 +85,7 @@ export default function SuperAdminBilling() {
   }, 0);
 
   const stats = [
-    { label: "Est. Monthly Revenue", value: `$${mrr.toFixed(2)}`, icon: DollarSign, color: "bg-blue-50 text-blue-600", sub: "From active subscriptions" },
+    { label: "Est. Monthly Revenue", value: `₹${mrr.toFixed(2)}`, icon: DollarSign, color: "bg-blue-50 text-blue-600", sub: "From active subscriptions" },
     { label: "Active Subscriptions", value: activeTenants.length.toString(), icon: CreditCard, color: "bg-emerald-50 text-emerald-600", sub: "Paying customers" },
     { label: "Trial Customers", value: trialTenants.length.toString(), icon: TrendingUp, color: "bg-indigo-50 text-indigo-600", sub: "Pending conversion" },
   ];
@@ -152,7 +152,7 @@ export default function SuperAdminBilling() {
                     </div>
                   </td>
                   <td className="px-5 py-3 font-semibold text-gray-900">
-                    ${t.plan_id && typeof t.plan_id === "object" ? t.plan_id.price.toFixed(2) : "0.00"}
+                    ₹{t.plan_id && typeof t.plan_id === "object" ? t.plan_id.price.toFixed(2) : "0.00"}
                     <span className="text-xs font-normal text-gray-400">/mo</span>
                   </td>
                   <td className="px-5 py-3">
