@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useCurrency } from "@/context/CurrencyContext";
 
 interface Currency {
   _id: string;
@@ -51,6 +52,7 @@ export default function SetupCurrencies() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const { refetch: refetchCurrency } = useCurrency();
 
   const { data: currencies = [], isLoading } = useQuery<Currency[]>({
     queryKey: ["currencies"],
@@ -72,13 +74,17 @@ export default function SetupCurrencies() {
     mutationFn: (data: any) => financeService.createCurrency(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["currencies"] });
+      refetchCurrency();
       toast({ title: "Success", description: "Currency created successfully" });
       setIsOpen(false);
     },
     onError: (error: any) => {
+      const isDuplicate = error.message?.includes("E11000") || error.message?.includes("duplicate key");
       toast({
         title: "Error",
-        description: error.message,
+        description: isDuplicate
+          ? `Currency "${formData.name}" already exists. Use the Edit button to update it instead.`
+          : error.message,
         variant: "destructive",
       });
     },
@@ -89,6 +95,7 @@ export default function SetupCurrencies() {
       financeService.updateCurrency(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["currencies"] });
+      refetchCurrency();
       toast({ title: "Success", description: "Currency updated successfully" });
       setIsOpen(false);
     },

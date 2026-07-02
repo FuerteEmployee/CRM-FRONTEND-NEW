@@ -44,6 +44,7 @@ import { formatDate } from "@/lib/dateFormat";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useCurrency } from "@/context/CurrencyContext";
 
 const Expenses = () => {
   const [search, setSearch] = useState("");
@@ -56,6 +57,7 @@ const Expenses = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { can } = usePermissions();
+  const { formatAmount } = useCurrency();
 
   const { data: expenses = [], isLoading } = useQuery<any[]>({
     queryKey: ["expenses"],
@@ -149,7 +151,7 @@ const Expenses = () => {
                     {card.title}
                   </p>
                   <p className="text-2xl font-black text-foreground">
-                    ₹{card.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {formatAmount(card.value)}
                   </p>
                 </div>
               </CardContent>
@@ -310,7 +312,7 @@ const Expenses = () => {
                         </td>
                         <td className="px-6 py-5">
                           <span className="text-sm font-black text-foreground">
-                            ₹{(e.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            {formatAmount(e.amount || 0)}
                           </span>
                         </td>
                         <td className="px-6 py-5">
