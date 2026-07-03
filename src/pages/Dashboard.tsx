@@ -54,6 +54,7 @@ import { utilityService } from "@/api/services/utility.service";
 import { leadService } from "@/api/services/lead.service";
 import { customerService } from "@/api/services/customer.service";
 import { formatDate } from "@/lib/dateFormat";
+import { useCurrency } from "@/context/CurrencyContext";
 
 const OverviewSection = ({ title, icon: Icon, items }: { title: string; icon: React.ElementType; items: { label: string; value: number; percentage: string; color?: string }[] }) => (
   <div className="space-y-3">
@@ -103,7 +104,7 @@ const PlanExpiredModal = ({ plan }: { plan: any }) => {
                 </p>
               </div>
               <div className="text-right">
-                <span className="text-3xl font-black text-gray-900 dark:text-zinc-50">${plan.price}</span>
+                <span className="text-3xl font-black text-gray-900 dark:text-zinc-50">{formatAmount(plan.price ?? 0)}</span>
                 <span className="text-xs text-muted-foreground">/{plan.billing_cycle === 'yearly' ? 'yr' : plan.billing_cycle === 'lifetime' ? 'life' : 'mo'}</span>
               </div>
             </div>
@@ -131,6 +132,7 @@ const PlanExpiredModal = ({ plan }: { plan: any }) => {
 
 const Dashboard = () => {
   const { user, isModuleEnabled, canView } = usePermissionContext();
+  const { symbol, formatAmount } = useCurrency();
 
   const getDaysRemaining = (): number | null => {
     if (!user?.tenant) return null;
@@ -985,19 +987,19 @@ const Dashboard = () => {
             <Card className="border-l-4 border-l-yellow-500">
                <CardContent className="p-4">
                 <p className="text-sm text-yellow-600 font-medium">Outstanding Invoices</p>
-                <p className="text-xl font-bold">₹{outstandingInvoicesTotal.toLocaleString()}</p>
+                <p className="text-xl font-bold">{formatAmount(outstandingInvoicesTotal)}</p>
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-destructive">
               <CardContent className="p-4">
                 <p className="text-sm text-destructive font-medium">Past Due Invoices</p>
-                <p className="text-xl font-bold">₹{overdueInvoicesTotal.toLocaleString()}</p>
+                <p className="text-xl font-bold">{formatAmount(overdueInvoicesTotal)}</p>
               </CardContent>
             </Card>
             <Card className="border-l-4 border-l-green-500">
               <CardContent className="p-4">
                 <p className="text-sm text-green-600 font-medium">Paid Invoices</p>
-                <p className="text-xl font-bold">₹{paidInvoicesTotal.toLocaleString()}</p>
+                <p className="text-xl font-bold">{formatAmount(paidInvoicesTotal)}</p>
               </CardContent>
             </Card>
           </div>
@@ -1292,14 +1294,14 @@ const Dashboard = () => {
                     <AreaChart data={dynamicRevenueData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                       <XAxis dataKey="month" className="text-xs" tick={{ fill: "hsl(215, 16%, 47%)" }} />
-                      <YAxis className="text-xs" tick={{ fill: "hsl(215, 16%, 47%)" }} tickFormatter={(v) => `₹${v / 1000}k`} />
+                      <YAxis className="text-xs" tick={{ fill: "hsl(215, 16%, 47%)" }} tickFormatter={(v) => `${symbol}${v / 1000}k`} />
                       <Tooltip
                         contentStyle={{
                           backgroundColor: "hsl(var(--card))",
                           border: "1px solid hsl(var(--border))",
                           borderRadius: "8px",
                         }}
-                        formatter={(value: number) => [`₹${value.toLocaleString()}`, undefined]}
+                        formatter={(value: number) => [formatAmount(value, 0), undefined]}
                       />
                       <Area type="monotone" dataKey="revenue" stroke="hsl(213, 44%, 25%)" fill="hsl(213, 44%, 25%)" fillOpacity={0.15} strokeWidth={2} />
                       <Area type="monotone" dataKey="expenses" stroke="hsl(215, 16%, 47%)" fill="hsl(215, 16%, 47%)" fillOpacity={0.08} strokeWidth={2} />

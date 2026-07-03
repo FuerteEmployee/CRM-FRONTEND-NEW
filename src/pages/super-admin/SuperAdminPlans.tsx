@@ -214,7 +214,7 @@ export default function SuperAdminPlans() {
                 <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
                 {plan.description && <p className="text-sm text-gray-500 mt-1 line-clamp-2">{plan.description}</p>}
                 <div className="mt-3 flex items-end gap-1">
-                  <span className="text-3xl font-extrabold text-gray-900">${plan.price}</span>
+                  <span className="text-3xl font-extrabold text-gray-900">₹{plan.price}</span>
                   <span className="text-gray-400 text-sm mb-1">/{plan.billing_cycle}</span>
                 </div>
                 {plan.trial_days > 0 && (
@@ -331,7 +331,7 @@ export default function SuperAdminPlans() {
 
                   <div className="grid grid-cols-2 gap-2">
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-semibold text-gray-600">Price ($)</label>
+                      <label className="text-xs font-semibold text-gray-600">Price (₹)</label>
                       <input
                         type="number" required min="0" step="0.01" value={formData.price}
                         onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}

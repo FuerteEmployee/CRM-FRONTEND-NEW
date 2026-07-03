@@ -5,6 +5,7 @@ import { Download, Send, FileText } from "lucide-react";
 import { useState } from "react";
 import { formatDate } from "@/lib/dateFormat";
 import { cn } from "@/lib/utils";
+import { useCurrency } from "@/context/CurrencyContext";
 
 interface DocumentPreviewDialogProps {
   open: boolean;
@@ -29,7 +30,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
   const isInvoice = type === "invoice";
 
   // Currency helper
-  const currencySymbol = isInvoice ? "₹" : "$";
+  const { symbol: currencySymbol } = useCurrency();
 
   // Document Number extraction
   let num = "";

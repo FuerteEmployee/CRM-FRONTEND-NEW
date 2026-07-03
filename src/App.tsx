@@ -412,20 +412,23 @@ const MainApp = () => {
 import { ThemeStyleProvider } from "@/context/ThemeContext";
 import { SettingsProvider } from "@/context/SettingsContext";
 import { NotificationProvider } from "@/context/NotificationContext";
+import { CurrencyProvider } from "@/context/CurrencyContext";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <PermissionProvider>
       <SettingsProvider>
-        <ThemeStyleProvider>
-          <NotificationProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <MainApp />
-            </TooltipProvider>
-          </NotificationProvider>
-        </ThemeStyleProvider>
+        <CurrencyProvider>
+          <ThemeStyleProvider>
+            <NotificationProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <MainApp />
+              </TooltipProvider>
+            </NotificationProvider>
+          </ThemeStyleProvider>
+        </CurrencyProvider>
       </SettingsProvider>
     </PermissionProvider>
   </QueryClientProvider>
