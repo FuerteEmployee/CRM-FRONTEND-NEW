@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search, Layers, AlertCircle, Edit, Trash2, Zap } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
+import { ImportButton } from "@/components/ui/import-button";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -134,6 +135,23 @@ const Items = () => {
       });
     },
   });
+
+  const importMutation = useMutation({
+    mutationFn: (rows: any[]) => itemService.import(rows),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+      const count = data?.data?.count ?? data?.count ?? 0;
+      const skipped = data?.data?.skipped ?? data?.skipped ?? 0;
+      toast({ title: count === 0 ? "No New Items" : "Import Successful", description: count === 0 ? "All items already exist." : `Imported ${count} item(s)${skipped ? `, skipped ${skipped} duplicate(s)` : ""}.`, variant: count === 0 ? "destructive" : "default" });
+    },
+    onError: (err: any) => toast({ title: "Import Failed", description: err?.response?.data?.message || err.message, variant: "destructive" }),
+  });
+
+  const handleImportData = (rows: Record<string, any>[]) => {
+    const valid = rows.filter(r => r["Item Name"] || r["description"] || r["Description"] || r["Name"]);
+    if (!valid.length) { toast({ title: "No valid rows", description: "Each row needs an 'Item Name' or 'description' column.", variant: "destructive" }); return; }
+    importMutation.mutate(valid as any);
+  };
 
   // Delete Mutation
   const deleteMutation = useMutation({
@@ -391,9 +409,9 @@ const Items = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            <ExportButton 
-              data={filtered} 
-              filename="items" 
+            <ExportButton
+              data={filtered}
+              filename="items"
               columns={[
                 { header: "Item Name", key: "description" },
                 { header: "Group", key: (i) => i.group || "-" },
@@ -401,8 +419,9 @@ const Items = () => {
                 { header: "Rate", key: "rate" },
                 { header: "Unit", key: (i) => i.unit || "item" },
                 { header: "Tax", key: (i) => i.tax ? (typeof i.tax === "object" ? `${i.tax.name} (${i.tax.taxrate}%)` : "Active Tax") : "-" }
-              ]} 
+              ]}
             />
+            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

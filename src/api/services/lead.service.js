@@ -11,7 +11,13 @@ export const leadService = {
   update: (id, data) => apiClient.put(`/leads/${id}`, data),
 
   delete: (id) => apiClient.delete(`/leads/${id}`),
-  
+
+  convertToCustomer: (id) => apiClient.post(`/leads/${id}/convert`),
+
+  markAsLost: (id) => apiClient.patch(`/leads/${id}/lost`),
+
+  markAsJunk: (id) => apiClient.patch(`/leads/${id}/junk`),
+
   importLeads: (data) => apiClient.post('/leads/import', data),
   
   // Lead Sources

@@ -20,6 +20,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { ExportButton } from "@/components/ui/export-button";
+import { ImportButton } from "@/components/ui/import-button";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
@@ -570,6 +571,23 @@ const Estimates = () => {
     }
   });
 
+  const importMutation = useMutation({
+    mutationFn: (rows: any[]) => estimateService.import(rows),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["estimates"] });
+      const count = data?.data?.count ?? data?.count ?? 0;
+      const skipped = data?.data?.skipped ?? data?.skipped ?? 0;
+      toast({ title: count === 0 ? "No New Estimates" : "Import Successful", description: count === 0 ? "All estimates already exist." : `Imported ${count} estimate(s)${skipped ? `, skipped ${skipped} duplicate(s)` : ""}.`, variant: count === 0 ? "destructive" : "default" });
+    },
+    onError: (err: any) => toast({ title: "Import Failed", description: err?.response?.data?.message || err.message, variant: "destructive" }),
+  });
+
+  const handleImportData = (rows: Record<string, any>[]) => {
+    const valid = rows.filter(r => r["subject"] || r["Subject"] || r["company"] || r["Company"] || r["total"] || r["Total"] || r["Estimate #"] || r["To"]);
+    if (!valid.length) { toast({ title: "No valid rows", description: "Rows need at least a subject or company column.", variant: "destructive" }); return; }
+    importMutation.mutate(valid as any);
+  };
+
   const filtered = estimates.filter((e: any) => 
     (e.subject || e.number || "").toLowerCase().includes(estimateSearch.toLowerCase())
   );
@@ -697,9 +715,9 @@ const Estimates = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            <ExportButton 
-              data={filtered} 
-              filename="estimates" 
+            <ExportButton
+              data={filtered}
+              filename="estimates"
               columns={[
                 { header: "Estimate #", key: (e) => e.number || e._id },
                 { header: "Subject", key: "subject" },
@@ -707,8 +725,9 @@ const Estimates = () => {
                 { header: "Total", key: "total" },
                 { header: "Date", key: "date" },
                 { header: "Status", key: "status" }
-              ]} 
+              ]}
             />
+            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

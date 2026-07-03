@@ -51,4 +51,11 @@ export const salesService = {
   // ─────────────────────────────────────────────
   getCreditNotes: (params) => apiClient.get("/credit-notes", { params }),
   getCreditNotesByCustomer: (clientId) => apiClient.get(`/credit-notes/customer/${clientId}`),
+
+  // ─────────────────────────────────────────────
+  // Imports
+  // ─────────────────────────────────────────────
+  importInvoices: (data) => apiClient.post("/invoices/import", data),
+  importProposals: (data) => apiClient.post("/proposals/import", data),
+  importPayments: (data) => apiClient.post("/payments/import", data),
 };

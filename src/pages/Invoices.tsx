@@ -53,6 +53,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/ui/export-button";
+import { ImportButton } from "@/components/ui/import-button";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
 
 const statusMap: Record<number, { label: string; color: string }> = {
@@ -94,6 +95,8 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
   const [ccEmail, setCcEmail] = useState("");
   const [attachPdf, setAttachPdf] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const updateStatusMutation = useMutation({
     mutationFn: (status: number) => salesService.updateInvoice(d._id || d.id, { status }),
@@ -555,6 +558,23 @@ const Invoices = () => {
     },
   });
 
+  const importMutation = useMutation({
+    mutationFn: (rows: any[]) => salesService.importInvoices(rows),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      const count = data?.data?.count ?? data?.count ?? 0;
+      const skipped = data?.data?.skipped ?? data?.skipped ?? 0;
+      toast({ title: count === 0 ? "No New Invoices" : "Import Successful", description: count === 0 ? "All invoices already exist." : `Imported ${count} invoice(s)${skipped ? `, skipped ${skipped} duplicate(s)` : ""}.`, variant: count === 0 ? "destructive" : "default" });
+    },
+    onError: (err: any) => toast({ title: "Import Failed", description: err?.response?.data?.message || err.message, variant: "destructive" }),
+  });
+
+  const handleImportData = (rows: Record<string, any>[]) => {
+    const valid = rows.filter(r => r["company"] || r["Company"] || r["number"] || r["Invoice #"] || r["total"] || r["Total"] || r["Amount"] || r["Customer"]);
+    if (!valid.length) { toast({ title: "No valid rows", description: "Rows need at least a company or invoice number column.", variant: "destructive" }); return; }
+    importMutation.mutate(valid as any);
+  };
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => salesService.deleteInvoice(id),
     onSuccess: () => {
@@ -768,9 +788,9 @@ const Invoices = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            <ExportButton 
-              data={filtered} 
-              filename="invoices" 
+            <ExportButton
+              data={filtered}
+              filename="invoices"
               columns={[
                 { header: "Invoice #", key: (inv) => inv.number || `INV-${inv._id?.substring(0, 6)}` },
                 { header: "Customer", key: (inv) => inv.client?.company || "N/A" },
@@ -779,8 +799,9 @@ const Invoices = () => {
                 { header: "Date", key: "date" },
                 { header: "Due Date", key: "duedate" },
                 { header: "Status", key: (inv) => statusMap[inv.status]?.label || "Unpaid" }
-              ]} 
+              ]}
             />
+            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

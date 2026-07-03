@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -299,6 +301,61 @@ const Customers = () => {
       });
     },
   });
+
+  const importFileRef = useRef<HTMLInputElement>(null);
+
+  const importMutation = useMutation({
+    mutationFn: (data: any) => customerService.importClients(data),
+    onSuccess: async (data: any) => {
+      await queryClient.invalidateQueries({ queryKey: ["customers"] });
+      await queryClient.refetchQueries({ queryKey: ["customers"] });
+      setIsImportOpen(false);
+      toast({
+        title: data.count === 0 ? "No New Customers" : "Import Successful",
+        description: data.message || "Customers imported",
+        variant: data.count === 0 ? "destructive" : "default",
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Import Failed", description: err.response?.data?.message || err.message, variant: "destructive" });
+    },
+  });
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+
+    const processRows = (rows: any[]) => {
+      const valid = rows.filter(r => r.company || r.Company || r["Company Name"] || r.name || r.Name);
+      if (valid.length === 0) {
+        toast({ title: "Error", description: "No valid rows found. Ensure a 'company' or 'Company' column exists.", variant: "destructive" });
+        return;
+      }
+      importMutation.mutate(valid as any);
+    };
+
+    if (ext === "xlsx" || ext === "xls") {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const wb = XLSX.read(new Uint8Array(evt.target?.result as ArrayBuffer), { type: "array" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          processRows(XLSX.utils.sheet_to_json(ws, { defval: "" }));
+        } catch {
+          toast({ title: "Parsing Error", description: "Could not read Excel file.", variant: "destructive" });
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (res) => processRows(res.data as any[]),
+      });
+    }
+    e.target.value = "";
+  };
 
   const [newCustomer, setNewCustomer] = useState<any>({
     company: "",
@@ -685,96 +742,24 @@ const Customers = () => {
               </Dialog>
             )}
             {can("Customers", "Create") && (
-              <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="rounded-xl font-black gap-2 shadow-lg px-6 h-11 uppercase text-xs tracking-widest">
-                    <Upload className="h-4 w-4" />
-                    Import Customers
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-xl">
-                  <DialogHeader>
-                    <DialogTitle>Import Customers</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-6 py-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase tracking-widest text-slate-500">Choose CSV File <span className="text-destructive">*</span></Label>
-                      <Input 
-                        type="file" 
-                        accept=".csv"
-                        className="h-11 rounded-xl"
-                        onChange={(e) => setImportState({...importState, file: e.target.files ? e.target.files[0] : null})}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase tracking-widest text-slate-500">Groups</Label>
-                      <Select value={importState.group} onValueChange={(val) => setImportState({...importState, group: val})}>
-                        <SelectTrigger className="h-11 rounded-xl">
-                          <SelectValue placeholder="Select Group" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {groups.map(g => (
-                            <SelectItem key={g._id} value={g._id}>{g.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-xs font-bold uppercase tracking-widest text-slate-500">Default password for all contacts</Label>
-                      <div className="relative">
-                        <Input 
-                          type={showPassword ? "text" : "password"}
-                          placeholder="Enter default password"
-                          className="h-11 rounded-xl pr-10"
-                          value={importState.defaultPassword}
-                          onChange={(e) => setImportState({...importState, defaultPassword: e.target.value})}
-                        />
-                        <button
-                          type="button"
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">If empty, passwords will be generated automatically and sent via email (if configured).</p>
-                    </div>
-                  </div>
-                  <DialogFooter className="gap-2 sm:gap-0">
-                    <Button 
-                      variant="outline" 
-                      className="rounded-xl font-bold uppercase text-[10px] tracking-widest"
-                      onClick={() => {
-                        if (!importState.file) {
-                          toast({ title: "Error", description: "Please choose a CSV file.", variant: "destructive" });
-                          return;
-                        }
-                        toast({ title: "Simulating", description: "Simulating import... (no data saved)" });
-                      }}
-                    >
-                      Simulate Import
-                    </Button>
-                    <Button 
-                      className="rounded-xl font-bold uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20"
-                      onClick={() => {
-                        if (!importState.file) {
-                          toast({ title: "Error", description: "Please choose a CSV file.", variant: "destructive" });
-                          return;
-                        }
-                        toast({ title: "Importing", description: "Import process started..." });
-                        setTimeout(() => {
-                           setIsImportOpen(false);
-                           setImportState({ file: null, group: "", defaultPassword: "" });
-                        }, 1000);
-                      }}
-                    >
-                      Import
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <div>
+                <input
+                  ref={importFileRef}
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  className="hidden"
+                  onChange={handleImportFile}
+                />
+                <Button
+                  variant="outline"
+                  className="rounded-xl font-black gap-2 shadow-lg px-6 h-11 uppercase text-xs tracking-widest"
+                  disabled={importMutation.isPending}
+                  onClick={() => importFileRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                  {importMutation.isPending ? "Importing..." : "Import Customers"}
+                </Button>
+              </div>
             )}
           </div>
           <Button

@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Download, ChevronDown, FileSpreadsheet, FileJson, FileType, Printer } from "lucide-react";
 import { toast } from "sonner";
+import * as XLSX from "xlsx";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,13 +68,11 @@ export function ExportButton({ data, filename, columns }: ExportButtonProps) {
 
       } else if (type === "xlsx") {
         const { headers, rows } = buildRows(data, columns);
-        // Tab-separated values with .xlsx extension — Excel opens natively without add-ins
-        const tsv = [
-          headers.join("\t"),
-          ...rows.map(r => r.map(v => v.replace(/[\t\n\r]/g, " ")).join("\t")),
-        ].join("\n");
-        // UTF-8 BOM required for Excel to detect encoding
-        downloadBlob(new Blob(["﻿" + tsv], { type: "application/vnd.ms-excel;charset=utf-8;" }), `${dated}.xls`);
+        const wsData = [headers, ...rows];
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
+        XLSX.writeFile(wb, `${dated}.xlsx`);
         toast.success(`Exported ${data.length} records as Excel`);
 
       } else if (type === "print") {

@@ -59,6 +59,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/ui/export-button";
+import { ImportButton } from "@/components/ui/import-button";
 
 const statusMap: Record<number, { label: string; color: string }> = {
   1: { label: "Open", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
@@ -82,6 +83,23 @@ const CreditNotes = () => {
       return Array.isArray(response) ? response : response?.data || [];
     },
   });
+
+  const importMutation = useMutation({
+    mutationFn: (rows: any[]) => creditNoteService.import(rows),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["creditNotes"] });
+      const count = data?.data?.count ?? data?.count ?? 0;
+      const skipped = data?.data?.skipped ?? data?.skipped ?? 0;
+      toast({ title: count === 0 ? "No New Credit Notes" : "Import Successful", description: count === 0 ? "All credit notes already exist." : `Imported ${count} credit note(s)${skipped ? `, skipped ${skipped} duplicate(s)` : ""}.`, variant: count === 0 ? "destructive" : "default" });
+    },
+    onError: (err: any) => toast({ title: "Import Failed", description: err?.response?.data?.message || err.message, variant: "destructive" }),
+  });
+
+  const handleImportData = (rows: Record<string, any>[]) => {
+    const valid = rows.filter(r => r["company"] || r["Company"] || r["number"] || r["Credit Note #"] || r["total"] || r["Total"] || r["Amount"] || r["Customer"]);
+    if (!valid.length) { toast({ title: "No valid rows", description: "Each row needs at least a company or credit note number.", variant: "destructive" }); return; }
+    importMutation.mutate(valid as any);
+  };
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => creditNoteService.delete(id),
@@ -225,9 +243,9 @@ const CreditNotes = () => {
             >
               Bulk Actions
             </Button>
-            <ExportButton 
-              data={filtered} 
-              filename="credit_notes" 
+            <ExportButton
+              data={filtered}
+              filename="credit_notes"
               columns={[
                 { header: "Credit Note #", key: (cn) => cn.number || `CN-${cn._id?.substring(0, 6)}` },
                 { header: "Customer", key: (cn) => cn.client?.company || "N/A" },
@@ -236,8 +254,9 @@ const CreditNotes = () => {
                 { header: "Reference", key: (cn) => cn.reference || "-" },
                 { header: "Amount", key: "total" },
                 { header: "Remaining Amount", key: (cn) => cn.remaining_amount ?? cn.total ?? 0 }
-              ]} 
+              ]}
             />
+            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

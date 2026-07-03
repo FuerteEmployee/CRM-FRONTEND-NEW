@@ -6,4 +6,5 @@ export const creditNoteService = {
   create: (data) => apiClient.post("/credit-notes", data),
   update: (id, data) => apiClient.put(`/credit-notes/${id}`, data),
   delete: (id) => apiClient.delete(`/credit-notes/${id}`),
+  import: (data) => apiClient.post("/credit-notes/import", data),
 };

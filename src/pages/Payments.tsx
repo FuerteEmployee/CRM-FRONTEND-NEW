@@ -35,7 +35,7 @@ import {
   CreditCard,
   Zap,
 } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
@@ -43,6 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ExportButton } from "@/components/ui/export-button";
+import { ImportButton } from "@/components/ui/import-button";
 
 const Payments = () => {
   const [search, setSearch] = useState("");
@@ -94,6 +95,23 @@ const Payments = () => {
     },
   });
 
+  const importMutation = useMutation({
+    mutationFn: (rows: any[]) => salesService.importPayments(rows),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      const count = data?.data?.count ?? data?.count ?? 0;
+      const skipped = data?.data?.skipped ?? data?.skipped ?? 0;
+      toast({ title: count === 0 ? "No New Payments" : "Import Successful", description: count === 0 ? "All payments already exist." : `Imported ${count} payment(s)${skipped ? `, skipped ${skipped} duplicate(s)` : ""}.`, variant: count === 0 ? "destructive" : "default" });
+    },
+    onError: (err: any) => toast({ title: "Import Failed", description: err?.response?.data?.message || err.message, variant: "destructive" }),
+  });
+
+  const handleImportData = (rows: Record<string, any>[]) => {
+    const valid = rows.filter(r => r["amount"] || r["Amount"] || r["invoice"] || r["Invoice #"]);
+    if (!valid.length) { toast({ title: "No valid rows", description: "Each row needs at least an 'amount' or 'Invoice #' column.", variant: "destructive" }); return; }
+    importMutation.mutate(valid as any);
+  };
+
   const filtered = useMemo(() => {
     return payments.filter((p: any) => {
       const matchSearch =
@@ -102,7 +120,7 @@ const Payments = () => {
         (p.invoice?.client?.company || "").toLowerCase().includes(search.toLowerCase()) ||
         (p.transactionid || "").toLowerCase().includes(search.toLowerCase()) ||
         (p.paymentmode || "").toLowerCase().includes(search.toLowerCase());
-      
+
       return matchSearch;
     });
   }, [payments, search]);
@@ -250,9 +268,9 @@ const Payments = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            <ExportButton 
-              data={filtered} 
-              filename="payments" 
+            <ExportButton
+              data={filtered}
+              filename="payments"
               columns={[
                 { header: "Payment #", key: (p) => p._id?.substring(0, 8) || "" },
                 { header: "Invoice #", key: (p) => p.invoice?.number || "N/A" },
@@ -261,8 +279,9 @@ const Payments = () => {
                 { header: "Transaction ID", key: (p) => p.transactionid || "-" },
                 { header: "Amount", key: "amount" },
                 { header: "Date", key: "date" }
-              ]} 
+              ]}
             />
+            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

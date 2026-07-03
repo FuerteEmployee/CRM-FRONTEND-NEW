@@ -11,6 +11,10 @@ export const customerService = {
   update: (id, data) => apiClient.put(`/clients/${id}`, data),
 
   delete: (id) => apiClient.delete(`/clients/${id}`),
+
+  importClients: (data) => apiClient.post("/clients/import", data),
+
+  importContacts: (data) => apiClient.post("/clients/contacts/import", data),
   getStatement: (id, params) => apiClient.get(`/clients/${id}/statement`, { params }),
 
   // Contacts

@@ -68,4 +68,5 @@ export const estimateService = {
   deleteRequest: (id) => apiClient.delete(`/estimate-requests/${id}`),
 
   convertToInvoice: (id) => apiClient.post(`/estimates/${id}/convert-to-invoice`),
+  import: (data) => apiClient.post("/estimates/import", data),
 };

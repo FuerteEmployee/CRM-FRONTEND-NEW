@@ -5,4 +5,5 @@ export const itemService = {
   create: (data) => apiClient.post('/items', data),
   update: (id, data) => apiClient.put(`/items/${id}`, data),
   delete: (id) => apiClient.delete(`/items/${id}`),
+  import: (data) => apiClient.post('/items/import', data),
 };

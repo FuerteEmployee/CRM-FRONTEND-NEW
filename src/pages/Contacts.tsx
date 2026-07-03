@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,6 +52,7 @@ import { Label } from "@/components/ui/label";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/api/client";
+import { customerService } from "@/api/services/customer.service";
 import { formatDate } from "@/lib/dateFormat";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
@@ -105,6 +108,63 @@ const Contacts = () => {
       });
     },
   });
+
+  const importFileRef = useRef<HTMLInputElement>(null);
+
+  const importMutation = useMutation({
+    mutationFn: (data: any) => customerService.importContacts(data),
+    onSuccess: async (data: any) => {
+      await queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
+      await queryClient.refetchQueries({ queryKey: ["all-contacts"] });
+      toast({
+        title: data.count === 0 ? "No New Contacts" : "Import Successful",
+        description: data.message || "Contacts imported",
+        variant: data.count === 0 ? "destructive" : "default",
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Import Failed", description: err.response?.data?.message || err.message, variant: "destructive" });
+    },
+  });
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+
+    const processRows = (rows: any[]) => {
+      const valid = rows.filter(r =>
+        (r.firstname || r["First Name"] || r.first_name) &&
+        (r.email || r.Email)
+      );
+      if (valid.length === 0) {
+        toast({ title: "Error", description: "No valid rows. Needs columns: firstname (or 'First Name'), email, company.", variant: "destructive" });
+        return;
+      }
+      importMutation.mutate(valid as any);
+    };
+
+    if (ext === "xlsx" || ext === "xls") {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const wb = XLSX.read(new Uint8Array(evt.target?.result as ArrayBuffer), { type: "array" });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          processRows(XLSX.utils.sheet_to_json(ws, { defval: "" }));
+        } catch {
+          toast({ title: "Parsing Error", description: "Could not read Excel file.", variant: "destructive" });
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (res) => processRows(res.data as any[]),
+      });
+    }
+    e.target.value = "";
+  };
 
   const handlePermissionChange = (permission: string, type: "permissions" | "email_notifications") => {
     setEditContact((prev: any) => {
@@ -195,6 +255,18 @@ const Contacts = () => {
                     <SelectItem value="50">50</SelectItem>
                   </SelectContent>
                 </Select>
+                {/* Import contacts from Excel / CSV */}
+                <input ref={importFileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-2 text-xs font-bold uppercase tracking-wider"
+                  disabled={importMutation.isPending}
+                  onClick={() => importFileRef.current?.click()}
+                >
+                  <RefreshCcw className="h-3.5 w-3.5" />
+                  {importMutation.isPending ? "Importing..." : "Import"}
+                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="h-8 gap-2 text-xs font-bold uppercase tracking-wider">

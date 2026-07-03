@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
-import { Plus, Search, ChevronDown, Download, FileSpreadsheet, FileJson, FileType, Printer, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, ArrowRight, X, Trash2, CheckCircle2, Clock, Flame, Snowflake, Sun, Ghost, MapPin, ClipboardList, Users, UserMinus, Edit, Eye, Upload } from "lucide-react";
+import { Plus, Search, ChevronDown, Download, FileSpreadsheet, FileJson, FileType, Printer, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, ArrowRight, X, Trash2, CheckCircle2, Clock, Flame, Snowflake, Sun, Ghost, MapPin, ClipboardList, Users, UserMinus, Edit, Eye, Upload, UserCheck, AlertTriangle, AlertOctagon } from "lucide-react";
 import Papa from "papaparse";
+import * as XLSX from "xlsx";
 
 import { cn } from "@/lib/utils";
 
@@ -175,59 +176,124 @@ const Leads = () => {
     }
   });
 
+  const convertToCustomerMutation = useMutation({
+    mutationFn: (id: string) => leadService.convertToCustomer(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      setIsNewLeadOpen(false);
+      SonnerToast.success("Lead converted to customer successfully");
+    },
+    onError: (err: any) => {
+      SonnerToast.error(err.response?.data?.message || err.message || "Failed to convert lead");
+    },
+  });
+
+  const markAsLostMutation = useMutation({
+    mutationFn: (id: string) => leadService.markAsLost(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      setIsNewLeadOpen(false);
+      SonnerToast.success("Lead marked as lost");
+    },
+    onError: (err: any) => {
+      SonnerToast.error(err.response?.data?.message || err.message || "Failed to mark as lost");
+    },
+  });
+
+  const markAsJunkMutation = useMutation({
+    mutationFn: (id: string) => leadService.markAsJunk(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      setIsNewLeadOpen(false);
+      SonnerToast.success("Lead marked as junk");
+    },
+    onError: (err: any) => {
+      SonnerToast.error(err.response?.data?.message || err.message || "Failed to mark as junk");
+    },
+  });
+
   const importLeadsMutation = useMutation({
     mutationFn: leadService.importLeads,
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["leads"] });
-      toast({ title: "Import Successful", description: data.message || `Imported leads` });
+    onSuccess: async (data: any) => {
+      setStatusFilter("all");
+      setSearch("");
+      setCurrentPage(1);
+      await queryClient.invalidateQueries({ queryKey: ["leads"] });
+      await queryClient.refetchQueries({ queryKey: ["leads"] });
+      toast({
+        title: data.count === 0 ? "No New Leads" : "Import Successful",
+        description: data.message || `Imported leads`,
+        variant: data.count === 0 ? "destructive" : "default",
+      });
     },
     onError: (err: any) => {
       toast({ title: "Import Failed", description: err.response?.data?.message || err.message, variant: "destructive" });
     }
   });
 
+  const processLeadRows = (rows: any[]) => {
+    const defaultStatusId = statuses.length > 0 ? statuses[0]._id : undefined;
+    const defaultSourceId = sources.length > 0 ? sources[0]._id : undefined;
+
+    const leadsData = rows.map((row: any) => ({
+      name: row.name || row.Name || "",
+      email: row.email || row.Email || "",
+      company: row.company || row.Company || "",
+      phonenumber: row.phonenumber || row.phone || row.Phone || "",
+      position: row.position || row.Position || row.title || row.Title || "",
+      lead_value: Number(row.lead_value || row.leadValue || row.Value || 0) || 0,
+      address: row.address || row.Address || "",
+      city: row.city || row.City || "",
+      state: row.state || row.State || "",
+      country: row.country || row.Country || "",
+      zip: row.zip || row.Zip || "",
+      status: defaultStatusId,
+      source: defaultSourceId,
+    }));
+
+    const validLeads = leadsData.filter(l => l.name);
+    if (validLeads.length === 0) {
+      toast({ title: "Error", description: "No valid leads found. Make sure a 'name' or 'Name' column exists.", variant: "destructive" });
+      return;
+    }
+    importLeadsMutation.mutate(validLeads as any);
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        if (results.errors.length > 0) {
-          toast({ title: "Parsing Error", description: "There was an error parsing the CSV file.", variant: "destructive" });
-          return;
-        }
-        
-        const defaultStatusId = statuses.length > 0 ? statuses[0]._id : undefined;
-        const defaultSourceId = sources.length > 0 ? sources[0]._id : undefined;
+    const ext = file.name.split(".").pop()?.toLowerCase();
 
-        const leadsData = results.data.map((row: any) => ({
-           name: row.name || row.Name || "",
-           email: row.email || row.Email || "",
-           company: row.company || row.Company || "",
-           phonenumber: row.phonenumber || row.phone || row.Phone || "",
-           position: row.position || row.Position || row.title || row.Title || "",
-           lead_value: Number(row.lead_value || row.leadValue || row.Value || 0),
-           address: row.address || row.Address || "",
-           city: row.city || row.City || "",
-           state: row.state || row.State || "",
-           country: row.country || row.Country || "",
-           zip: row.zip || row.Zip || "",
-           status: defaultStatusId,
-           source: defaultSourceId,
-        }));
-        
-        const validLeads = leadsData.filter(l => l.name);
-        
-        if (validLeads.length === 0) {
-          toast({ title: "Error", description: "No valid leads found in CSV. Make sure 'name' or 'Name' column exists.", variant: "destructive" });
-          return;
+    if (ext === "xlsx" || ext === "xls") {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: "array" });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+          processLeadRows(rows);
+        } catch {
+          toast({ title: "Parsing Error", description: "Could not read the Excel file.", variant: "destructive" });
         }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (results.errors.length > 0) {
+            toast({ title: "Parsing Error", description: "There was an error parsing the CSV file.", variant: "destructive" });
+            return;
+          }
+          processLeadRows(results.data as any[]);
+        },
+      });
+    }
 
-        importLeadsMutation.mutate(validLeads);
-      }
-    });
     e.target.value = '';
   };
 
@@ -261,24 +327,17 @@ const Leads = () => {
     }
     
     // Sanitize payload to avoid CastError for empty ObjectIds
-    const payload = { ...leadForm };
+    const payload: any = { ...leadForm };
     if (!payload.assigned) delete payload.assigned;
-    if (payload.lead_value === "") payload.lead_value = 0;
-    
-    // Map position to title for backend consistency
-    if (payload.position) {
-      payload.title = payload.position;
-    }
+    if (payload.lead_value === "" || payload.lead_value === undefined) payload.lead_value = 0;
 
-    // Ensure tags is sent as a string (which is what the backend model expects)
-    if (typeof payload.tags !== 'string') {
-      if (Array.isArray(payload.tags)) {
-        payload.tags = payload.tags.join(",");
-      } else {
-        payload.tags = "";
-      }
-    }
-    
+    // Map position to title for backend consistency
+    if (payload.position) payload.title = payload.position;
+
+    // Ensure tags is always a string
+    if (Array.isArray(payload.tags)) payload.tags = payload.tags.join(",");
+    else if (typeof payload.tags !== "string") payload.tags = "";
+
     if (modalMode === "create") createLeadMutation.mutate(payload);
     else updateLeadMutation.mutate(payload);
   };
@@ -330,6 +389,65 @@ const Leads = () => {
   const countries = ["United States", "United Kingdom", "Canada", "Australia", "India", "Germany", "France", "Japan", "China", "Brazil"];
   const languages = ["English", "Spanish", "French", "German", "Chinese", "Hindi", "Arabic", "Portuguese"];
 
+  const getExportRows = () =>
+    filtered.map((l) => ({
+      Name: l.name || "",
+      Email: l.email || "",
+      Company: l.company || "",
+      Phone: l.phonenumber || "",
+      Status: typeof l.status === "object" ? l.status?.name : (statuses.find((s) => s._id === l.status)?.name || ""),
+      Source: sources.find((s) => s._id === l.source)?.name || "",
+      "Lead Value": l.lead_value || "",
+      Address: l.address || "",
+      City: l.city || "",
+      State: l.state || "",
+      Country: l.country || "",
+      Zip: l.zip || "",
+      Website: l.website || "",
+      "Created At": l.createdAt ? new Date(l.createdAt).toLocaleDateString() : "",
+    }));
+
+  const handleExportExcel = () => {
+    const rows = getExportRows();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Leads");
+    XLSX.writeFile(wb, "leads.xlsx");
+  };
+
+  const handleExportCSV = () => {
+    const rows = getExportRows();
+    const csv = Papa.unparse(rows);
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "leads.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportJSON = () => {
+    const blob = new Blob([JSON.stringify(getExportRows(), null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "leads.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrint = () => {
+    const rows = getExportRows();
+    const headers = Object.keys(rows[0] || {});
+    const tableRows = rows
+      .map((r) => `<tr>${headers.map((h) => `<td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${(r as any)[h]}</td>`).join("")}</tr>`)
+      .join("");
+    const html = `<html><head><title>Leads</title><style>body{font-family:sans-serif}table{border-collapse:collapse;width:100%}th{background:#f1f5f9;border:1px solid #ccc;padding:8px 10px;font-size:12px;text-align:left}</style></head><body><h2 style="margin-bottom:12px">Leads</h2><table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${tableRows}</tbody></table></body></html>`;
+    const win = window.open("", "_blank");
+    if (win) { win.document.write(html); win.document.close(); win.print(); }
+  };
+
   const filtered = leads.filter((l) => {
     const matchSearch =
       (l.name || "").toLowerCase().includes(search.toLowerCase()) ||
@@ -377,7 +495,7 @@ const Leads = () => {
           {can("Leads", "Create") && (
             <div className="flex gap-2 items-center">
               <div>
-                <input type="file" id="import-csv" accept=".csv" className="hidden" onChange={handleFileUpload} />
+                <input type="file" id="import-csv" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileUpload} />
                 <Label htmlFor="import-csv">
                   <div className="cursor-pointer flex items-center justify-center rounded-xl font-black gap-2 shadow-sm border border-slate-200 px-4 h-11 uppercase text-xs tracking-widest transition-all hover:bg-slate-50 text-slate-700">
                     <Upload className="h-4 w-4 stroke-[3]" />
@@ -575,15 +693,93 @@ const Leads = () => {
                   </div>
 
                   {/* Footer buttons moved inside the scrollable area to prevent cutoff */}
-                  <div className="mt-8 flex justify-end gap-3 pt-6 border-t border-slate-100">
+                  <div className="mt-8 flex items-center justify-between gap-3 pt-6 border-t border-slate-100">
                     <DialogClose asChild>
                       <Button variant="ghost" className="h-9 rounded-xl px-6 font-black uppercase text-[10px] tracking-widest text-slate-500 hover:bg-slate-200 transition-all">Close</Button>
                     </DialogClose>
-                    {modalMode !== "view" && (
-                      <Button onClick={handleSaveLead} disabled={createLeadMutation.isPending || updateLeadMutation.isPending} className="h-9 rounded-xl px-6 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 transition-all hover:scale-105">
-                        {createLeadMutation.isPending || updateLeadMutation.isPending ? "Saving..." : modalMode === "create" ? "Save Lead" : "Update Lead"}
-                      </Button>
-                    )}
+
+                    <div className="flex items-center gap-2">
+                      {/* View-mode action buttons — guard on modalMode only; null-check lead inside handlers */}
+                      {modalMode === "view" && (
+                        <>
+                          {/* More dropdown */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className="h-9 rounded-xl px-4 font-black uppercase text-[10px] tracking-widest border-slate-200 hover:bg-slate-50 gap-1.5"
+                              >
+                                More <ChevronDown className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44 rounded-2xl p-2 border-slate-100 shadow-2xl">
+                              <DropdownMenuItem
+                                className="rounded-xl h-10 font-bold text-xs cursor-pointer text-amber-600 hover:bg-amber-50 focus:bg-amber-50 focus:text-amber-700 gap-2"
+                                onClick={() => {
+                                  if (!selectedLead) return;
+                                  if (window.confirm("Mark this lead as lost?")) {
+                                    markAsLostMutation.mutate(selectedLead._id);
+                                  }
+                                }}
+                                disabled={markAsLostMutation.isPending}
+                              >
+                                <AlertTriangle className="h-4 w-4" />
+                                Mark as lost
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="rounded-xl h-10 font-bold text-xs cursor-pointer text-slate-500 hover:bg-slate-50 focus:bg-slate-50 gap-2"
+                                onClick={() => {
+                                  if (!selectedLead) return;
+                                  if (window.confirm("Mark this lead as junk?")) {
+                                    markAsJunkMutation.mutate(selectedLead._id);
+                                  }
+                                }}
+                                disabled={markAsJunkMutation.isPending}
+                              >
+                                <AlertOctagon className="h-4 w-4" />
+                                Mark as junk
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="rounded-xl h-10 font-bold text-xs cursor-pointer text-red-600 hover:bg-red-50 focus:bg-red-50 focus:text-red-700 gap-2"
+                                onClick={() => {
+                                  if (!selectedLead) return;
+                                  if (window.confirm("Delete this lead? This cannot be undone.")) {
+                                    deleteLeadMutation.mutate(selectedLead._id);
+                                    setIsNewLeadOpen(false);
+                                  }
+                                }}
+                                disabled={deleteLeadMutation.isPending}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                Delete Lead
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+
+                          {/* Convert to Customer */}
+                          <Button
+                            onClick={() => {
+                              if (!selectedLead) return;
+                              if (window.confirm(`Convert "${selectedLead.name}" to a customer? A new customer record will be created.`)) {
+                                convertToCustomerMutation.mutate(selectedLead._id);
+                              }
+                            }}
+                            disabled={convertToCustomerMutation.isPending}
+                            className="h-9 rounded-xl px-5 font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 gap-2"
+                          >
+                            <UserCheck className="h-4 w-4" />
+                            {convertToCustomerMutation.isPending ? "Converting..." : "Convert to Customer"}
+                          </Button>
+                        </>
+                      )}
+
+                      {/* Create / Edit save button */}
+                      {modalMode !== "view" && (
+                        <Button onClick={handleSaveLead} disabled={createLeadMutation.isPending || updateLeadMutation.isPending} className="h-9 rounded-xl px-6 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 transition-all hover:scale-105">
+                          {createLeadMutation.isPending || updateLeadMutation.isPending ? "Saving..." : modalMode === "create" ? "Save Lead" : "Update Lead"}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </DialogContent>
@@ -654,10 +850,10 @@ const Leads = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" className="w-44 rounded-2xl p-2 border-slate-100 shadow-2xl">
-                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer"><FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" /> Excel</DropdownMenuItem>
-                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer"><FileType className="mr-2 h-4 w-4 text-rose-600" /> PDF</DropdownMenuItem>
-                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer"><FileJson className="mr-2 h-4 w-4 text-blue-600" /> JSON</DropdownMenuItem>
-                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer"><Printer className="mr-2 h-4 w-4 text-slate-600" /> Print</DropdownMenuItem>
+                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer" onClick={handleExportExcel}><FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" /> Excel (.xlsx)</DropdownMenuItem>
+                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer" onClick={handleExportCSV}><FileType className="mr-2 h-4 w-4 text-rose-600" /> CSV</DropdownMenuItem>
+                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer" onClick={handleExportJSON}><FileJson className="mr-2 h-4 w-4 text-blue-600" /> JSON</DropdownMenuItem>
+                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer" onClick={handlePrint}><Printer className="mr-2 h-4 w-4 text-slate-600" /> Print</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
