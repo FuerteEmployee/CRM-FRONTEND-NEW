@@ -53,12 +53,14 @@ import { itemService } from "@/api/services/item.service";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useCurrency } from "@/context/CurrencyContext";
 
 export default function InvoiceCreate() {
   const { clientId, id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { symbol } = useCurrency();
 
   const { data: invoice } = useQuery({
     queryKey: ["invoice", id],
@@ -124,8 +126,22 @@ export default function InvoiceCreate() {
 
   const { data: currencies = [] } = useQuery({
     queryKey: ["currencies"],
-    queryFn: () => financeService.getCurrencies().then((res: any) => res.data || res)
+    queryFn: () => financeService.getCurrencies().then((res: any) => res.data || res),
+    staleTime: 5 * 60 * 1000,
   });
+
+  const activeCurrency = currencies.find((c: any) => c.name === formData.currency) || currencies.find((c: any) => c.isdefault) || null;
+  const activeSymbol = activeCurrency?.symbol ?? symbol;
+  const formatDocAmount = (value: number, fractionDigits = 2): string => {
+    const placement = activeCurrency?.placement ?? "before";
+    const decimalSeparator = activeCurrency?.decimal_separator ?? ".";
+    const thousandSeparator = activeCurrency?.thousand_separator ?? ",";
+    const parts = Math.abs(value || 0).toFixed(fractionDigits).split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator);
+    const formatted = parts.join(decimalSeparator);
+    const signed = (value || 0) < 0 ? `-${formatted}` : formatted;
+    return placement === "before" ? `${activeSymbol}${signed}` : `${signed}${activeSymbol}`;
+  };
 
   const { data: paymentModes = [] } = useQuery({
     queryKey: ["payment-modes"],
@@ -137,13 +153,13 @@ export default function InvoiceCreate() {
     queryFn: () => itemService.getAll().then((res: any) => res.data || res)
   });
 
-  const { data: taxes = [] } = useQuery({
+  const { data: taxes = [], isFetched: taxesFetched } = useQuery({
     queryKey: ["taxes"],
     queryFn: () => financeService.getTaxes().then((res: any) => res.data || res)
   });
 
   useEffect(() => {
-    if (invoice && taxes.length > 0) {
+    if (invoice && taxesFetched) {
       setFormData({
         client: (invoice.client?._id || invoice.client || "").toString(),
         project: (invoice.project?._id || invoice.project || "").toString(),
@@ -470,15 +486,15 @@ export default function InvoiceCreate() {
                     <span className="text-destructive text-lg leading-none">*</span>
                   </div>
                   <Select 
-                    value={formData.currency || currencies.find((c: any) => c.isdefault)?._id} 
+                    value={formData.currency || currencies.find((c: any) => c.isdefault)?.name}
                     onValueChange={(v) => setFormData(p => ({ ...p, currency: v }))}
                   >
                     <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
-                      <SelectValue placeholder="USD $" />
+                      <SelectValue placeholder={`Default (${symbol})`} />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-border/50 shadow-xl">
                       {currencies.map((c: any) => (
-                        <SelectItem key={c._id} value={c._id}>{c.name} ({c.symbol})</SelectItem>
+                        <SelectItem key={c._id} value={c.name}>{c.name} ({c.symbol})</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -692,7 +708,7 @@ export default function InvoiceCreate() {
                       </Select>
                     </td>
                     <td className="p-4 align-top text-sm font-black text-foreground">
-                      ${(newItem.qty * newItem.rate).toFixed(2)}
+                      {formatDocAmount(newItem.qty * newItem.rate)}
                     </td>
                     <td className="p-4 align-top text-right">
                       <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
@@ -707,11 +723,11 @@ export default function InvoiceCreate() {
                       <td className="p-4 align-top font-bold text-xs">{item.description}</td>
                       <td className="p-4 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
                       <td className="p-4 align-top text-xs font-bold">{item.qty} {item.unit}</td>
-                      <td className="p-4 align-top text-xs font-bold">${item.rate.toFixed(2)}</td>
+                      <td className="p-4 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
                       <td className="p-4 align-top text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                         {taxes.find(t => t._id === item.tax)?.name || "No Tax"}
                       </td>
-                      <td className="p-4 align-top text-sm font-black text-primary">${(item.qty * item.rate).toFixed(2)}</td>
+                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.qty * item.rate)}</td>
                       <td className="p-4 align-top text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
@@ -751,7 +767,7 @@ export default function InvoiceCreate() {
               <div className="space-y-4 bg-muted/10 p-8 rounded-[2.5rem] border border-border/50 h-fit self-end">
                 <div className="flex justify-between items-center text-sm font-bold text-muted-foreground border-b border-border/30 pb-4">
                   <span>Sub Total :</span>
-                  <span className="text-foreground">${calculations.subTotal.toFixed(2)}</span>
+                  <span className="text-foreground">{formatDocAmount(calculations.subTotal)}</span>
                 </div>
                 
                 <div className="flex justify-between items-center py-2">
@@ -773,7 +789,7 @@ export default function InvoiceCreate() {
                       </SelectContent>
                     </Select>
                     <span className="text-sm font-bold text-destructive min-w-[60px] text-right">
-                      -${calculations.discountAmount.toFixed(2)}
+                      -{formatDocAmount(calculations.discountAmount)}
                     </span>
                   </div>
                 </div>
@@ -781,7 +797,7 @@ export default function InvoiceCreate() {
                 <div className="flex justify-between items-center py-2">
                   <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
                   <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                    ${calculations.totalTax.toFixed(2)}
+                    {formatDocAmount(calculations.totalTax)}
                   </span>
                 </div>
 
@@ -795,14 +811,14 @@ export default function InvoiceCreate() {
                       onChange={(e) => setAdjustmentValue(Number(e.target.value))}
                     />
                     <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                      ${Number(adjustmentValue).toFixed(2)}
+                      {formatDocAmount(Number(adjustmentValue))}
                     </span>
                   </div>
                 </div>
 
                 <div className="flex justify-between items-center pt-6 border-t-2 border-primary/20">
                   <span className="text-lg font-black uppercase tracking-widest text-primary">Total :</span>
-                  <span className="text-2xl font-black text-primary">${calculations.total.toFixed(2)}</span>
+                  <span className="text-2xl font-black text-primary">{formatDocAmount(calculations.total)}</span>
                 </div>
               </div>
             </div>

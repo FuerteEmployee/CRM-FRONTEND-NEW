@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast as SonnerToast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useCurrency } from "@/context/CurrencyContext";
 import { staffService } from "@/api/services/staff.service";
 import { Textarea } from "@/components/ui/textarea";
 import { 
@@ -58,6 +59,7 @@ const Leads = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const { symbol, formatAmount } = useCurrency();
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
   useOpenCreateModal(() => setIsNewLeadOpen(true));
   const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
@@ -619,7 +621,7 @@ const Leads = () => {
                     {/* Right Column */}
                     <div className="space-y-6">
                       <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Lead value ₹</Label>
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Lead value {symbol}</Label>
                         <Input readOnly={modalMode === "view"} type="number" value={leadForm.lead_value} onChange={(e) => setLeadForm(prev => ({ ...prev, lead_value: e.target.value }))} className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white" />
                       </div>
 
@@ -1063,7 +1065,7 @@ const Leads = () => {
                                 </div>
                             ) : "-"}
                         </td>
-                        <td className="p-4 font-black text-slate-900 text-xs">₹{l.lead_value || "0.00"}</td>
+                        <td className="p-4 font-black text-slate-900 text-xs">{formatAmount(l.lead_value || 0)}</td>
                         <td className="p-4">
                             <div className="flex flex-wrap gap-1">
                                 {l.tags ? l.tags.split(",").map((t: string) => <Badge key={t} className="bg-slate-50 text-slate-500 border-none rounded-md text-[8px] font-black uppercase px-1.5 h-4 tracking-tight">{t.trim()}</Badge>) : "-"}

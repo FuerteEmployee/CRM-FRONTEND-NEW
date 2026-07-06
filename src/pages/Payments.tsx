@@ -42,6 +42,7 @@ import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useCurrency } from "@/context/CurrencyContext";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
 
@@ -52,6 +53,7 @@ const Payments = () => {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { toast } = useToast();
   const { can } = usePermissions();
+  const { symbol } = useCurrency();
   const queryClient = useQueryClient();
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
   const [bulkState, setBulkState] = useState({ massDelete: false });
@@ -147,7 +149,7 @@ const Payments = () => {
         p.invoice?.client?.company || "N/A",
         p.paymentmode || "Bank Transfer",
         p.transactionid || "-",
-        `INR ${p.amount || 0}`,
+        `${symbol}${p.amount || 0}`,
         p.date ? formatDate(p.date) : "-",
       ]);
 

@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService } from "@/api/services/customer.service";
+import { financeService } from "@/api/services/finance.service";
 import { Link, useNavigate } from "react-router-dom";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
@@ -143,6 +144,12 @@ const Customers = () => {
   } = useQuery<any[]>({
     queryKey: ["customers"],
     queryFn: customerService.getAll,
+  });
+
+  const { data: currencies = [] } = useQuery<any[]>({
+    queryKey: ["currencies"],
+    queryFn: financeService.getCurrencies,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: groups = [] } = useQuery<any[]>({
@@ -550,11 +557,9 @@ const Customers = () => {
                               <SelectValue placeholder="Select currency" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="USD">$ USD</SelectItem>
-                              <SelectItem value="EUR">€ EUR</SelectItem>
-                              <SelectItem value="GBP">£ GBP</SelectItem>
-                              <SelectItem value="INR">₹ INR</SelectItem>
-                              <SelectItem value="AUD">A$ AUD</SelectItem>
+                              {currencies.map((c: any) => (
+                                <SelectItem key={c._id} value={c.name}>{c.symbol} {c.name}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>

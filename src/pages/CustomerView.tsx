@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService } from "@/api/services/customer.service";
+import { financeService } from "@/api/services/finance.service";
 import { staffService } from "@/api/services/staff.service";
 import { noteService } from "@/api/services/note.service";
 import { salesService } from "@/api/services/sales.service";
@@ -88,6 +89,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/context/SettingsContext";
+import { useCurrency } from "@/context/CurrencyContext";
 import {
   ChevronDown,
   FileSpreadsheet,
@@ -423,6 +425,12 @@ export function VoiceInput({ value, onChange, className, placeholder, name, type
 export default function CustomerView() {
   const { getSetting } = useSettings();
   const companyName = getSetting("companyName", "Fuerte CRM");
+  const { formatAmount } = useCurrency();
+  const { data: currencies = [] } = useQuery<any[]>({
+    queryKey: ["currencies"],
+    queryFn: financeService.getCurrencies,
+    staleTime: 5 * 60 * 1000,
+  });
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -1149,7 +1157,7 @@ export default function CustomerView() {
               ${invoices.map((inv: any) => `
                 <tr>
                   <td>${inv.number}</td>
-                  <td style="font-weight: 600;">₹${inv.total?.toLocaleString()}</td>
+                  <td style="font-weight: 600;">${formatAmount(inv.total || 0)}</td>
                   <td>${formatDate(inv.date)}</td>
                   <td>${formatDate(inv.duedate)}</td>
                   <td class="status">${inv.status}</td>
@@ -1298,7 +1306,7 @@ export default function CustomerView() {
                 ${invoices.map((inv: any) => `
                   <tr>
                     <td style="font-weight: 700; color: #0f172a;">${inv.number}</td>
-                    <td style="font-weight: 800; color: #0f172a;">₹${inv.total?.toLocaleString()}</td>
+                    <td style="font-weight: 800; color: #0f172a;">${formatAmount(inv.total || 0)}</td>
                     <td style="color: #64748b;">${formatDate(inv.date)}</td>
                     <td style="color: #64748b;">${formatDate(inv.duedate)}</td>
                     <td><span class="pdf-status">${inv.status}</span></td>
@@ -1424,10 +1432,10 @@ export default function CustomerView() {
 
             <div class="summary-table-container">
               <div class="summary-table">
-                <div class="summary-row"><span>Beginning Balance:</span> <span>₹${(finalStatementData.beginningBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-                <div class="summary-row"><span>Invoiced Amount:</span> <span>₹${(finalStatementData.totalInvoiced || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-                <div class="summary-row"><span>Amount Paid:</span> <span>₹${(finalStatementData.totalPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-                <div class="summary-row total"><span>Balance Due:</span> <span>₹${(finalStatementData.balanceDue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+                <div class="summary-row"><span>Beginning Balance:</span> <span>${formatAmount(finalStatementData.beginningBalance || 0)}</span></div>
+                <div class="summary-row"><span>Invoiced Amount:</span> <span>${formatAmount(finalStatementData.totalInvoiced || 0)}</span></div>
+                <div class="summary-row"><span>Amount Paid:</span> <span>${formatAmount(finalStatementData.totalPaid || 0)}</span></div>
+                <div class="summary-row total"><span>Balance Due:</span> <span>${formatAmount(finalStatementData.balanceDue || 0)}</span></div>
               </div>
             </div>
 
@@ -1451,20 +1459,20 @@ export default function CustomerView() {
                   <td class="font-bold">Beginning Balance</td>
                   <td class="text-right">0.00</td>
                   <td class="text-right">0.00</td>
-                  <td class="text-right">₹${(finalStatementData.beginningBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  <td class="text-right">${formatAmount(finalStatementData.beginningBalance || 0)}</td>
                 </tr>
                 ${finalStatementData.entries.map((entry: any) => `
                   <tr>
                     <td>${formatDate(entry.date)}</td>
                     <td>${entry.details}</td>
-                    <td class="text-right">${entry.amount > 0 ? entry.amount.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00'}</td>
-                    <td class="text-right">${entry.payments > 0 ? entry.payments.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00'}</td>
-                    <td class="text-right">₹${entry.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td class="text-right">${entry.amount > 0 ? formatAmount(entry.amount) : '0.00'}</td>
+                    <td class="text-right">${entry.payments > 0 ? formatAmount(entry.payments) : '0.00'}</td>
+                    <td class="text-right">${formatAmount(entry.balance)}</td>
                   </tr>
                 `).join('')}
                 <tr>
                   <td colspan="4" class="text-right font-bold" style="padding-top: 20px; border-bottom: none;">Balance Due</td>
-                  <td class="text-right font-bold" style="padding-top: 20px; border-bottom: none;">₹${(finalStatementData.balanceDue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  <td class="text-right font-bold" style="padding-top: 20px; border-bottom: none;">${formatAmount(finalStatementData.balanceDue || 0)}</td>
                 </tr>
               </tbody>
             </table>
@@ -1518,10 +1526,10 @@ export default function CustomerView() {
 
       <div style="display: flex; justify-content: flex-end; margin-bottom: 40px;">
         <div style="width: 320px; border-top: 1px solid #ccc; border-bottom: 1px solid #ccc; padding: 10px 0;">
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;"><span>Beginning Balance:</span> <span>₹${(finalStatementData.beginningBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;"><span>Invoiced Amount:</span> <span>₹${(finalStatementData.totalInvoiced || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;"><span>Amount Paid:</span> <span>₹${(finalStatementData.totalPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; font-weight: 700; color: #000; margin-top: 5px;"><span>Balance Due:</span> <span>₹${(finalStatementData.balanceDue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;"><span>Beginning Balance:</span> <span>${formatAmount(finalStatementData.beginningBalance || 0)}</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;"><span>Invoiced Amount:</span> <span>${formatAmount(finalStatementData.totalInvoiced || 0)}</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;"><span>Amount Paid:</span> <span>${formatAmount(finalStatementData.totalPaid || 0)}</span></div>
+          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; font-weight: 700; color: #000; margin-top: 5px;"><span>Balance Due:</span> <span>${formatAmount(finalStatementData.balanceDue || 0)}</span></div>
         </div>
       </div>
 
@@ -1545,20 +1553,20 @@ export default function CustomerView() {
             <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; font-weight: 700;">Beginning Balance</td>
             <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">0.00</td>
             <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">0.00</td>
-            <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">₹${(finalStatementData.beginningBalance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">${formatAmount(finalStatementData.beginningBalance || 0)}</td>
           </tr>
           ${finalStatementData.entries.map((entry: any) => `
             <tr>
               <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee;">${formatDate(entry.date)}</td>
               <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee;">${entry.details}</td>
-              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">${entry.amount > 0 ? entry.amount.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00'}</td>
-              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">${entry.payments > 0 ? entry.payments.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00'}</td>
-              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">₹${entry.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">${entry.amount > 0 ? formatAmount(entry.amount) : '0.00'}</td>
+              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">${entry.payments > 0 ? formatAmount(entry.payments) : '0.00'}</td>
+              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">${formatAmount(entry.balance)}</td>
             </tr>
           `).join('')}
           <tr>
             <td colspan="4" style="text-align: right; font-weight: 700; padding: 20px 12px 10px;">Balance Due</td>
-            <td style="text-align: right; font-weight: 700; padding: 20px 12px 10px;">₹${(finalStatementData.balanceDue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <td style="text-align: right; font-weight: 700; padding: 20px 12px 10px;">${formatAmount(finalStatementData.balanceDue || 0)}</td>
           </tr>
         </tbody>
       </table>
@@ -1940,10 +1948,9 @@ export default function CustomerView() {
                                     <Select value={formData.currency} onValueChange={(v) => handleSelectChange("currency", v)}>
                                       <SelectTrigger className="h-9"><SelectValue placeholder="Currency" /></SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="USD">$ USD</SelectItem>
-                                        <SelectItem value="EUR">€ EUR</SelectItem>
-                                        <SelectItem value="GBP">£ GBP</SelectItem>
-                                        <SelectItem value="INR">₹ INR</SelectItem>
+                                        {currencies.map((c: any) => (
+                                          <SelectItem key={c._id} value={c.name}>{c.symbol} {c.name}</SelectItem>
+                                        ))}
                                       </SelectContent>
                                     </Select>
                                   </div>
@@ -2900,7 +2907,7 @@ export default function CustomerView() {
                                 <div key={i} className="flex justify-between items-center text-sm">
                                   <span className="font-medium text-muted-foreground">{item.label}</span>
                                   <span className={cn("font-bold", item.bold && "text-destructive font-black")}>
-                                    ₹{item.value?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                    {formatAmount(item.value || 0)}
                                   </span>
                                 </div>
                               ))}
@@ -2930,7 +2937,7 @@ export default function CustomerView() {
                                     <td className="px-6 py-4 text-right">-</td>
                                     <td className="px-6 py-4 text-right">-</td>
                                     <td className="px-6 py-4 text-right font-bold">
-                                      ₹{finalStatementData?.beginningBalance?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                      {formatAmount(finalStatementData?.beginningBalance || 0)}
                                     </td>
                                   </tr>
                                   {finalStatementData?.entries.map((entry: any, i: number) => (
@@ -2938,20 +2945,20 @@ export default function CustomerView() {
                                       <td className="px-6 py-4 text-muted-foreground">{formatDate(entry.date)}</td>
                                       <td className="px-6 py-4 font-medium">{entry.details}</td>
                                       <td className="px-6 py-4 text-right text-primary font-bold">
-                                        {entry.amount > 0 ? `₹${entry.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "-"}
+                                        {entry.amount > 0 ? formatAmount(entry.amount) : "-"}
                                       </td>
                                       <td className="px-6 py-4 text-right text-green-500 font-bold">
-                                        {entry.payments > 0 ? `₹${entry.payments.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : "-"}
+                                        {entry.payments > 0 ? formatAmount(entry.payments) : "-"}
                                       </td>
                                       <td className="px-6 py-4 text-right font-bold">
-                                        ₹{entry.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        {formatAmount(entry.balance)}
                                       </td>
                                     </tr>
                                   ))}
                                   <tr className="bg-primary/[0.03] font-black">
                                     <td colSpan={4} className="px-6 py-5 text-right uppercase tracking-widest text-[10px] text-primary">Balance Due</td>
                                     <td className="px-6 py-5 text-right text-lg text-destructive">
-                                      ₹{finalStatementData?.balanceDue?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                      {formatAmount(finalStatementData?.balanceDue || 0)}
                                     </td>
                                   </tr>
                                 </tbody>
@@ -2991,19 +2998,19 @@ export default function CustomerView() {
                         {[
                           {
                             label: "Outstanding Invoices",
-                            value: `₹${invoices.reduce((acc: number, inv: any) => (inv.status === "unpaid" || inv.status === "partially_paid") ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                            value: formatAmount(invoices.reduce((acc: number, inv: any) => (inv.status === "unpaid" || inv.status === "partially_paid") ? acc + inv.total : acc, 0)),
                             color: "text-orange-500",
                             bg: "bg-orange-500/5"
                           },
                           {
                             label: "Past Due Invoices",
-                            value: `₹${invoices.reduce((acc: number, inv: any) => (inv.status !== "paid" && new Date(inv.duedate) < new Date()) ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                            value: formatAmount(invoices.reduce((acc: number, inv: any) => (inv.status !== "paid" && new Date(inv.duedate) < new Date()) ? acc + inv.total : acc, 0)),
                             color: "text-destructive",
                             bg: "bg-destructive/5"
                           },
                           {
                             label: "Paid Invoices",
-                            value: `₹${invoices.reduce((acc: number, inv: any) => inv.status === "paid" ? acc + inv.total : acc, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                            value: formatAmount(invoices.reduce((acc: number, inv: any) => inv.status === "paid" ? acc + inv.total : acc, 0)),
                             color: "text-green-500",
                             bg: "bg-green-500/5"
                           }
@@ -3097,8 +3104,8 @@ export default function CustomerView() {
                               invoices.map((inv: any) => (
                                 <tr key={inv._id} className="hover:bg-muted/30 transition-colors">
                                   <td className="px-6 py-4 font-bold text-primary">{inv.number}</td>
-                                  <td className="px-6 py-4 font-black text-foreground">₹{inv.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">₹{inv.total_tax?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 font-black text-foreground">{formatAmount(inv.total || 0)}</td>
+                                  <td className="px-6 py-4 text-muted-foreground">{formatAmount(inv.total_tax || 0)}</td>
                                   <td className="px-6 py-4 text-muted-foreground">{formatDate(inv.date)}</td>
                                   <td className="px-6 py-4 text-muted-foreground">{inv.project?.name || "-"}</td>
                                   <td className="px-6 py-4">
@@ -3180,7 +3187,7 @@ export default function CustomerView() {
                             <Receipt className="h-6 w-6 text-primary" />
                           </div>
                           <div>
-                            <p className="text-xl font-black text-foreground">${creditNotes.reduce((acc: number, cn: any) => acc + (cn.remaining_amount ?? cn.total), 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} credits available.</p>
+                            <p className="text-xl font-black text-foreground">{formatAmount(creditNotes.reduce((acc: number, cn: any) => acc + (cn.remaining_amount ?? cn.total), 0))} credits available.</p>
                             <p className="text-[10px] font-bold text-primary uppercase tracking-widest mt-1">Available balance to apply to invoices</p>
                           </div>
                         </div>
@@ -3287,8 +3294,8 @@ export default function CustomerView() {
                                   </td>
                                   <td className="px-6 py-4 text-muted-foreground">{note.project?.name || "-"}</td>
                                   <td className="px-6 py-4 font-mono text-[11px]">{note.reference || "-"}</td>
-                                  <td className="px-6 py-4 font-black text-foreground">₹{note.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                  <td className="px-6 py-4 font-black text-primary">₹{(note.remaining_amount ?? note.total)?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 font-black text-foreground">{formatAmount(note.total || 0)}</td>
+                                  <td className="px-6 py-4 font-black text-primary">{formatAmount(note.remaining_amount ?? note.total ?? 0)}</td>
                                 </tr>
                               ))
                             )}
@@ -3400,7 +3407,7 @@ export default function CustomerView() {
                                   <td className="px-6 py-4 font-medium text-foreground">{pay.invoice?.number || "-"}</td>
                                   <td className="px-6 py-4 uppercase text-[10px] font-black tracking-widest text-muted-foreground">{pay.paymentmode}</td>
                                   <td className="px-6 py-4 font-mono text-[11px]">{pay.transactionid || "-"}</td>
-                                  <td className="px-6 py-4 font-black text-green-600">₹{pay.amount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 font-black text-green-600">{formatAmount(pay.amount || 0)}</td>
                                   <td className="px-6 py-4 text-muted-foreground">{formatDate(pay.date)}</td>
                                 </tr>
                               ))
@@ -3507,7 +3514,7 @@ export default function CustomerView() {
                                 <tr key={prop._id} className="hover:bg-muted/30 transition-colors">
                                   <td className="px-6 py-4 font-bold text-primary">{prop._id.slice(-6).toUpperCase()}</td>
                                   <td className="px-6 py-4 font-medium text-foreground">{prop.subject}</td>
-                                  <td className="px-6 py-4 font-black text-foreground">${prop.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 font-black text-foreground">{prop.total != null ? formatAmount(prop.total) : ""}</td>
                                   <td className="px-6 py-4 text-muted-foreground">{formatDate(prop.date)}</td>
                                   <td className="px-6 py-4 text-muted-foreground">{prop.open_till ? formatDate(prop.open_till) : "-"}</td>
                                   <td className="px-6 py-4">
@@ -3606,7 +3613,7 @@ export default function CustomerView() {
                                   <div className="flex items-baseline justify-between mt-2">
                                     <span className="text-xl font-black text-slate-900">{count}</span>
                                     <span className="text-[11px] font-bold text-slate-500">
-                                      ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                      {formatAmount(total)}
                                     </span>
                                   </div>
                                 </div>
@@ -3690,7 +3697,7 @@ export default function CustomerView() {
                                 <tr key={est._id} className="hover:bg-muted/30 transition-colors">
                                   <td className="px-6 py-4 font-bold text-primary">{est.number || est._id.slice(-6).toUpperCase()}</td>
                                   <td className="px-6 py-4 font-medium text-foreground">{est.subject}</td>
-                                  <td className="px-6 py-4 font-black text-foreground">${est.total?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 font-black text-foreground">{est.total != null ? formatAmount(est.total) : ""}</td>
                                   <td className="px-6 py-4 text-muted-foreground">{formatDate(est.date)}</td>
                                   <td className="px-6 py-4 text-muted-foreground">{est.open_till ? formatDate(est.open_till) : "-"}</td>
                                   <td className="px-6 py-4">
@@ -3906,7 +3913,7 @@ export default function CustomerView() {
                                   {card.title}
                                 </p>
                                 <p className="text-lg font-black text-foreground">
-                                  ₹{card.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                  {formatAmount(card.value)}
                                 </p>
                               </div>
                             </CardContent>
@@ -3991,7 +3998,7 @@ export default function CustomerView() {
                                       {exp.category || "General"}
                                     </Badge>
                                   </td>
-                                  <td className="px-6 py-4 font-black text-foreground">₹{(exp.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                  <td className="px-6 py-4 font-black text-foreground">{formatAmount(exp.amount || 0)}</td>
                                   <td className="px-6 py-4 text-muted-foreground font-medium">{exp.expense_name || "-"}</td>
                                   <td className="px-6 py-4">
                                     {exp.receipt ? (
@@ -4187,7 +4194,7 @@ export default function CustomerView() {
                                       {c.contract_type || "N/A"}
                                     </Badge>
                                   </td>
-                                  <td className="px-6 py-4 font-black text-foreground">₹{(c.contract_value || 0).toLocaleString()}</td>
+                                  <td className="px-6 py-4 font-black text-foreground">{formatAmount(c.contract_value || 0)}</td>
                                   <td className="px-6 py-4 text-muted-foreground">{c.datestart ? formatDate(c.datestart) : "-"}</td>
                                   <td className="px-6 py-4 text-muted-foreground">{c.dateend ? formatDate(c.dateend) : "-"}</td>
                                   <td className="px-6 py-4 text-muted-foreground italic">{c.project?.name || "-"}</td>

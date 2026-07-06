@@ -29,6 +29,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { useCurrency } from "@/context/CurrencyContext";
 
 const TaskCreate = () => {
   const { id } = useParams();
@@ -39,6 +40,7 @@ const TaskCreate = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isEditing = !!id;
+  const { symbol } = useCurrency();
 
   const [formData, setFormData] = useState<any>({
     name: "",
@@ -229,7 +231,7 @@ const TaskCreate = () => {
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Hourly Rate</Label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
                     <Input 
                       type="number" 
                       name="hourly_rate" 

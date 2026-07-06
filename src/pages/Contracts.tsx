@@ -31,6 +31,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { contractService } from "@/api/services/contract.service";
 import { customerService } from "@/api/services/customer.service";
 import { ExportButton } from "@/components/ui/export-button";
+import { useCurrency } from "@/context/CurrencyContext";
 
 const statusColors: Record<string, string> = {
   Active:
@@ -53,6 +54,7 @@ const Contracts = () => {
   const [itemsPerPage, setItemsPerPage] = useState("10");
   const { toast } = useToast();
   const { can } = usePermissions();
+  const { formatAmount } = useCurrency();
   const [selectedContracts, setSelectedContracts] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
   const [bulkState, setBulkState] = useState({ massDelete: false });
@@ -396,7 +398,7 @@ const Contracts = () => {
                       <td className="p-3 text-sm font-medium">{c.subject}</td>
                       <td className="p-3 text-sm">{c.client?.company || c.client?.firstname || "Unknown"}</td>
                       <td className="p-3 text-sm font-medium">
-                        ${(c.contract_value || 0).toLocaleString()}
+                        {formatAmount(c.contract_value || 0)}
                       </td>
                       <td className="p-3">
                         <Badge variant="outline" className={statusColors[getStatus(c)] || statusColors.Active}>
@@ -454,7 +456,7 @@ const Contracts = () => {
           {viewItem && (<div className="space-y-3 pt-2"><div className="grid grid-cols-2 gap-4">
             <div><p className="text-xs text-muted-foreground">Title</p><p className="text-sm font-medium">{viewItem.subject}</p></div>
             <div><p className="text-xs text-muted-foreground">Customer</p><p className="text-sm">{viewItem.client?.company || "Unknown"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Value</p><p className="text-sm font-medium">${(viewItem.contract_value || 0).toLocaleString()}</p></div>
+            <div><p className="text-xs text-muted-foreground">Value</p><p className="text-sm font-medium">{formatAmount(viewItem.contract_value || 0)}</p></div>
             <div><p className="text-xs text-muted-foreground">Status</p><Badge variant="outline" className={statusColors[getStatus(viewItem)]}>{getStatus(viewItem)}</Badge></div>
             <div><p className="text-xs text-muted-foreground">Start Date</p><p className="text-sm">{viewItem.datestart ? formatDate(viewItem.datestart) : "-"}</p></div>
             <div><p className="text-xs text-muted-foreground">End Date</p><p className="text-sm">{viewItem.dateend ? formatDate(viewItem.dateend) : "-"}</p></div>

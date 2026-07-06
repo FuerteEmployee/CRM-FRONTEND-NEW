@@ -22,6 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
+import { useCurrency } from "@/context/CurrencyContext";
+import { financeService } from "@/api/services/finance.service";
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
   "1": { label: "Draft",    className: "bg-muted text-muted-foreground" },
@@ -45,6 +47,24 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
   setIsFullscreen: (v: boolean) => void;
 }) => {
   const navigate = useNavigate();
+  const { formatAmount, symbol } = useCurrency();
+  const { data: currencies = [] } = useQuery({
+    queryKey: ["currencies"],
+    queryFn: financeService.getCurrencies,
+    staleTime: 5 * 60 * 1000,
+  });
+  const formatRowAmount = (row: any, value: number, fractionDigits = 2): string => {
+    const cur = currencies.find((c: any) => c.name === row?.currency) || currencies.find((c: any) => c.isdefault) || null;
+    const sym = cur?.symbol ?? symbol;
+    const placement = cur?.placement ?? "before";
+    const decimalSeparator = cur?.decimal_separator ?? ".";
+    const thousandSeparator = cur?.thousand_separator ?? ",";
+    const parts = Math.abs(value || 0).toFixed(fractionDigits).split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator);
+    const formatted = parts.join(decimalSeparator);
+    const signed = (value || 0) < 0 ? `-${formatted}` : formatted;
+    return placement === "before" ? `${sym}${signed}` : `${signed}${sym}`;
+  };
   const proposalNumber = (proposal._id || proposal.id)?.slice(-6).toUpperCase();
   const status = getStatus(proposal.status);
   const [activeTab, setActiveTab] = useState("Proposal");
@@ -308,9 +328,9 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
                                 {item.long_description && <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.long_description}</div>}
                               </td>
                               <td className="px-3 py-2.5 text-muted-foreground align-top">{item.qty || item.quantity || 1}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">${Number(item.rate || item.price || 0).toFixed(2)}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
                               <td className="px-3 py-2.5 text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</td>
-                              <td className="px-3 py-2.5 font-bold text-foreground align-top">${Number((item.qty || 1) * (item.rate || item.price || 0)).toFixed(2)}</td>
+                              <td className="px-3 py-2.5 font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -319,31 +339,31 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
                         {d.subtotal !== undefined && (
                           <div className="flex gap-4 text-xs">
                             <span className="text-muted-foreground font-medium">Sub Total:</span>
-                            <span className="font-bold">${Number(d.subtotal).toFixed(2)}</span>
+                            <span className="font-bold">{formatRowAmount(d, Number(d.subtotal))}</span>
                           </div>
                         )}
                         {d.discount_percent > 0 && (
                           <div className="flex gap-4 text-xs text-destructive">
                             <span className="font-medium">Discount ({d.discount_percent}%):</span>
-                            <span className="font-bold">-${Number(d.subtotal * (d.discount_percent / 100)).toFixed(2)}</span>
+                            <span className="font-bold">-{formatRowAmount(d, Number(d.subtotal * (d.discount_percent / 100)))}</span>
                           </div>
                         )}
                         {d.total_tax > 0 && (
                           <div className="flex gap-4 text-xs">
                             <span className="text-muted-foreground font-medium">Total Tax:</span>
-                            <span className="font-bold">${Number(d.total_tax).toFixed(2)}</span>
+                            <span className="font-bold">{formatRowAmount(d, Number(d.total_tax))}</span>
                           </div>
                         )}
                         {d.adjustment !== 0 && d.adjustment !== undefined && (
                           <div className="flex gap-4 text-xs">
                             <span className="text-muted-foreground font-medium">Adjustment:</span>
-                            <span className="font-bold">${Number(d.adjustment).toFixed(2)}</span>
+                            <span className="font-bold">{formatRowAmount(d, Number(d.adjustment))}</span>
                           </div>
                         )}
                         <div className="text-right mt-1 pt-1 border-t border-border/20 w-40">
                           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total</p>
                           <p className="text-lg font-black text-foreground">
-                            ${Number(d.total || d.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            {formatRowAmount(d, Number(d.total || d.amount || 0))}
                           </p>
                         </div>
                       </div>
@@ -474,6 +494,24 @@ const Proposals = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const navigate = useNavigate();
   const { can } = usePermissions();
+  const { formatAmount, symbol } = useCurrency();
+  const { data: currencies = [] } = useQuery({
+    queryKey: ["currencies"],
+    queryFn: financeService.getCurrencies,
+    staleTime: 5 * 60 * 1000,
+  });
+  const formatRowAmount = (row: any, value: number, fractionDigits = 2): string => {
+    const cur = currencies.find((c: any) => c.name === row?.currency) || currencies.find((c: any) => c.isdefault) || null;
+    const sym = cur?.symbol ?? symbol;
+    const placement = cur?.placement ?? "before";
+    const decimalSeparator = cur?.decimal_separator ?? ".";
+    const thousandSeparator = cur?.thousand_separator ?? ",";
+    const parts = Math.abs(value || 0).toFixed(fractionDigits).split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator);
+    const formatted = parts.join(decimalSeparator);
+    const signed = (value || 0) < 0 ? `-${formatted}` : formatted;
+    return placement === "before" ? `${sym}${signed}` : `${signed}${sym}`;
+  };
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [selectedProposals, setSelectedProposals] = useState<string[]>([]);
@@ -730,7 +768,7 @@ const Proposals = () => {
                       </td>
                       <td className="px-6 py-4 font-medium text-foreground">{prop.subject || prop.title}</td>
                       <td className="px-6 py-4 text-muted-foreground">{prop.rel_id || prop.customer || "N/A"}</td>
-                      <td className="px-6 py-4 font-black text-foreground">${(prop.total || prop.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td className="px-6 py-4 font-black text-foreground">{formatRowAmount(prop, prop.total || prop.amount || 0)}</td>
                       <td className="px-6 py-4 text-muted-foreground">{prop.date ? formatDate(prop.date) : "-"}</td>
                       <td className="px-6 py-4 text-muted-foreground">{prop.open_till ? formatDate(prop.open_till) : "-"}</td>
                       <td className="px-6 py-4">

@@ -60,6 +60,8 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
+import { useCurrency } from "@/context/CurrencyContext";
+import { financeService } from "@/api/services/finance.service";
 
 const statusMap: Record<number, { label: string; color: string }> = {
   1: { label: "Open", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
@@ -75,6 +77,7 @@ const CreditNotes = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const { symbol, formatAmount } = useCurrency();
 
   const { data: creditNotes = [], isLoading } = useQuery<any[]>({
     queryKey: ["creditNotes"],
@@ -83,6 +86,25 @@ const CreditNotes = () => {
       return Array.isArray(response) ? response : response?.data || [];
     },
   });
+
+  const { data: currencies = [] } = useQuery<any[]>({
+    queryKey: ["currencies"],
+    queryFn: financeService.getCurrencies,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const formatRowAmount = (row: any, value: number, fractionDigits = 2): string => {
+    const cur = currencies.find((c: any) => c.name === row?.currency) || currencies.find((c: any) => c.isdefault) || null;
+    const sym = cur?.symbol ?? symbol;
+    const placement = cur?.placement ?? "before";
+    const decimalSeparator = cur?.decimal_separator ?? ".";
+    const thousandSeparator = cur?.thousand_separator ?? ",";
+    const parts = Math.abs(value || 0).toFixed(fractionDigits).split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator);
+    const formatted = parts.join(decimalSeparator);
+    const signed = (value || 0) < 0 ? `-${formatted}` : formatted;
+    return placement === "before" ? `${sym}${signed}` : `${signed}${sym}`;
+  };
 
   const importMutation = useMutation({
     mutationFn: (rows: any[]) => creditNoteService.import(rows),
@@ -156,8 +178,8 @@ const CreditNotes = () => {
         cn.date ? formatDate(cn.date) : "-",
         statusMap[cn.status]?.label || "Open",
         cn.reference || "-",
-        `INR ${cn.total || 0}`,
-        `INR ${cn.remaining_amount ?? cn.total ?? 0}`,
+        formatRowAmount(cn, cn.total || 0),
+        formatRowAmount(cn, cn.remaining_amount ?? cn.total ?? 0),
       ]);
 
       const csvContent =
@@ -211,7 +233,7 @@ const CreditNotes = () => {
             </div>
             <div>
               <p className="text-xl font-black text-foreground">
-                ₹{totalCreditsAvailable.toLocaleString(undefined, { minimumFractionDigits: 2 })} credits available.
+                {formatAmount(totalCreditsAvailable)} credits available.
               </p>
               <p className="text-[10px] font-bold text-primary uppercase tracking-widest mt-1">
                 Available balance to apply to invoices
@@ -326,10 +348,10 @@ const CreditNotes = () => {
                           {note.reference || "-"}
                         </td>
                         <td className="px-6 py-4 font-black text-foreground">
-                          ₹{(note.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          {formatRowAmount(note, note.total || 0)}
                         </td>
                         <td className="px-6 py-4 font-black text-primary">
-                          ₹{(note.remaining_amount ?? note.total ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          {formatRowAmount(note, note.remaining_amount ?? note.total ?? 0)}
                         </td>
                         <td className="px-6 py-4">
                           <TableActions
@@ -394,6 +416,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
   const [reminderSearch, setReminderSearch] = useState("");
   const [reminderItemsPerPage, setReminderItemsPerPage] = useState("10");
   const { toast } = useToast();
+  const { symbol } = useCurrency();
 
   const { data: fullData, isLoading } = useQuery({
     queryKey: ["creditNoteFull", viewItem?._id],
@@ -401,11 +424,31 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
     enabled: !!viewItem?._id,
   });
 
+  const { data: currencies = [] } = useQuery<any[]>({
+    queryKey: ["currencies"],
+    queryFn: financeService.getCurrencies,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const item = fullData || viewItem;
-  
+
   if (!item) return null;
 
   const status = statusMap[item.status] || statusMap[1];
+
+  // This view only ever renders ONE credit note (`item`), so its currency is fixed for the whole component.
+  const activeCurrency = currencies.find((c: any) => c.name === item?.currency) || currencies.find((c: any) => c.isdefault) || null;
+  const activeSymbol = activeCurrency?.symbol ?? symbol;
+  const formatAmount = (value: number, fractionDigits = 2): string => {
+    const placement = activeCurrency?.placement ?? "before";
+    const decimalSeparator = activeCurrency?.decimal_separator ?? ".";
+    const thousandSeparator = activeCurrency?.thousand_separator ?? ",";
+    const parts = Math.abs(value || 0).toFixed(fractionDigits).split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator);
+    const formatted = parts.join(decimalSeparator);
+    const signed = (value || 0) < 0 ? `-${formatted}` : formatted;
+    return placement === "before" ? `${activeSymbol}${signed}` : `${signed}${activeSymbol}`;
+  };
 
   const handleSaveReminder = () => {
     toast({ title: "Reminder Set", description: "Your reminder has been saved successfully.", className: "bg-emerald-600 text-white border-none" });
@@ -469,8 +512,8 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                 <tr>
                   <td><b>${i.description}</b></td>
                   <td>${i.qty}</td>
-                  <td>₹${i.rate?.toFixed(2)}</td>
-                  <td>₹${(i.qty * i.rate)?.toFixed(2)}</td>
+                  <td>${formatAmount(i.rate || 0)}</td>
+                  <td>${formatAmount((i.qty || 0) * (i.rate || 0))}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -479,11 +522,11 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
           <div class="totals">
             <div class="totals-row">
               <span>Subtotal</span>
-              <span>₹${item.subtotal?.toFixed(2) || '0.00'}</span>
+              <span>${formatAmount(item.subtotal || 0)}</span>
             </div>
             <div class="totals-row grand">
               <span>Total</span>
-              <span>₹${item.total?.toFixed(2) || '0.00'}</span>
+              <span>${formatAmount(item.total || 0)}</span>
             </div>
           </div>
         </body>
@@ -656,10 +699,10 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                               )}
                             </td>
                             <td className="py-4 px-4 font-semibold text-slate-700">{it.qty}</td>
-                            <td className="py-4 px-4 font-semibold text-slate-700">₹{it.rate?.toFixed(2)}</td>
+                            <td className="py-4 px-4 font-semibold text-slate-700">{formatAmount(it.rate || 0)}</td>
                             <td className="py-4 px-4 font-semibold text-slate-700">{it.tax_name || "0.00%"}</td>
                             <td className="py-4 px-4 text-right font-black text-slate-800">
-                              ₹{((it.qty || 0) * (it.rate || 0)).toFixed(2)}
+                              {formatAmount((it.qty || 0) * (it.rate || 0))}
                             </td>
                           </tr>
                         ))
@@ -679,26 +722,26 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                   <div className="w-72 space-y-3">
                     <div className="flex justify-between items-center text-[13px]">
                       <span className="font-bold text-slate-600">Sub Total:</span>
-                      <span className="font-semibold text-slate-800">₹{(item.subtotal || 0).toFixed(2)}</span>
+                      <span className="font-semibold text-slate-800">{formatAmount(item.subtotal || 0)}</span>
                     </div>
                     <div className="flex justify-between items-center text-[13px]">
                       <span className="font-bold text-slate-600">Total Tax:</span>
-                      <span className="font-semibold text-slate-800">₹{(item.total_tax || 0).toFixed(2)}</span>
+                      <span className="font-semibold text-slate-800">{formatAmount(item.total_tax || 0)}</span>
                     </div>
                     <div className="flex justify-between items-center pt-3 border-t border-slate-200">
                       <span className="font-black text-slate-900">Total:</span>
-                      <span className="font-black text-blue-600 text-lg">₹{(item.total || 0).toFixed(2)}</span>
+                      <span className="font-black text-blue-600 text-lg">{formatAmount(item.total || 0)}</span>
                     </div>
                     <div className="flex justify-between items-center pt-3 border-t border-slate-200">
                       <span className="font-bold text-slate-600">Credits Used:</span>
                       <span className="font-semibold text-slate-800">
-                        ₹{((item.total || 0) - (item.remaining_amount ?? item.total ?? 0)).toFixed(2)}
+                        {formatAmount((item.total || 0) - (item.remaining_amount ?? item.total ?? 0))}
                       </span>
                     </div>
                     <div className="flex justify-between items-center pt-3 border-t border-slate-200 bg-green-50 p-3 rounded-lg">
                       <span className="font-black text-green-700">Credits Remaining:</span>
                       <span className="font-black text-green-700 text-lg">
-                        ₹{(item.remaining_amount ?? item.total ?? 0).toFixed(2)}
+                        {formatAmount(item.remaining_amount ?? item.total ?? 0)}
                       </span>
                     </div>
                   </div>
@@ -732,7 +775,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                         {item.invoices_credited.map((inv: any, idx: number) => (
                           <tr key={idx}>
                             <td className="py-3 px-4 text-blue-600 font-bold hover:underline cursor-pointer">{inv.invoice_number}</td>
-                            <td className="py-3 px-4 font-semibold text-slate-700">₹{inv.amount?.toFixed(2)}</td>
+                            <td className="py-3 px-4 font-semibold text-slate-700">{formatAmount(inv.amount || 0)}</td>
                             <td className="py-3 px-4 text-slate-500">{formatDate(inv.date)}</td>
                           </tr>
                         ))}
@@ -763,7 +806,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                         {item.refunds.map((refund: any, idx: number) => (
                           <tr key={idx}>
                             <td className="py-3 px-4 text-slate-500">{formatDate(refund.date)}</td>
-                            <td className="py-3 px-4 font-semibold text-slate-700">₹{refund.amount?.toFixed(2)}</td>
+                            <td className="py-3 px-4 font-semibold text-slate-700">{formatAmount(refund.amount || 0)}</td>
                             <td className="py-3 px-4 text-slate-700">{refund.payment_mode || "-"}</td>
                           </tr>
                         ))}
@@ -955,7 +998,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                       <tr key={idx}>
                         <td className="py-3 px-4 font-bold text-blue-600">{inv.number}</td>
                         <td className="py-3 px-4 text-slate-600">{formatDate(inv.date)}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-700">₹{inv.total?.toFixed(2)}</td>
+                        <td className="py-3 px-4 font-semibold text-slate-700">{formatAmount(inv.total || 0)}</td>
                         <td className="py-3 px-4">
                            <Input type="number" placeholder="Amount" className="h-8 text-xs" />
                         </td>

@@ -33,8 +33,10 @@ import { itemService } from "@/api/services/item.service";
 import { financeService } from "@/api/services/finance.service";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCurrency } from "@/context/CurrencyContext";
 
 const Items = () => {
+  const { symbol } = useCurrency();
   const [search, setSearch] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   useOpenCreateModal(() => setIsCreateOpen(true));
@@ -303,7 +305,7 @@ const Items = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-700">Rate (INR) <span className="text-destructive">*</span></Label>
+                      <Label className="text-xs font-bold text-slate-700">Rate ({symbol}) <span className="text-destructive">*</span></Label>
                       <Input
                         type="number"
                         placeholder="0.00"
@@ -631,7 +633,7 @@ const Items = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-700">Rate (INR) <span className="text-destructive">*</span></Label>
+                  <Label className="text-xs font-bold text-slate-700">Rate ({symbol}) <span className="text-destructive">*</span></Label>
                   <Input
                     type="number"
                     placeholder="0.00"

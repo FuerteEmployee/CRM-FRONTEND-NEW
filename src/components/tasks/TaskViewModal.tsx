@@ -38,6 +38,7 @@ import { utilityService } from "@/api/services/utility.service";
 import { timeEntryService } from "@/api/services/time_entry.service";
 import { mediaService } from "@/api/services/media.service";
 import { useToast } from "@/hooks/use-toast";
+import { useCurrency } from "@/context/CurrencyContext";
 
 interface TaskViewModalProps {
   isOpen: boolean;
@@ -65,6 +66,7 @@ const priorityLabels: Record<number, string> = {
 export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewModalProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { symbol } = useCurrency();
   const [newChecklist, setNewChecklist] = useState("");
   const [newComment, setNewComment] = useState("");
   const [isEditingDesc, setIsEditingDesc] = useState(false);
@@ -450,7 +452,7 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
                   <span className="font-bold text-slate-800">{task.hourly_rate ? task.hourly_rate.toFixed(2) : "0.00"}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="w-6 flex justify-center"><div className="h-4 w-4 text-slate-400">$</div></div>
+                  <div className="w-6 flex justify-center"><div className="h-4 w-4 text-slate-400">{symbol}</div></div>
                   <span className="text-slate-500 font-medium w-24">Billable:</span>
                   <span className="font-bold text-slate-800">{task.billable ? "Billable" : "Billable (Not Billed)"}</span>
                 </div>

@@ -58,12 +58,14 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { COUNTRIES } from "@/constants/countries";
+import { useCurrency } from "@/context/CurrencyContext";
 
 export default function ProposalCreate() {
   const { clientId, id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { formatAmount, symbol } = useCurrency();
 
   const { data: proposal } = useQuery({
     queryKey: ["proposal", id],
@@ -129,15 +131,29 @@ export default function ProposalCreate() {
 
   const { data: currencies = [] } = useQuery({
     queryKey: ["currencies"],
-    queryFn: financeService.getCurrencies
+    queryFn: financeService.getCurrencies,
+    staleTime: 5 * 60 * 1000,
   });
+
+  const activeCurrency = currencies.find((c: any) => c.name === formData.currency) || currencies.find((c: any) => c.isdefault) || null;
+  const activeSymbol = activeCurrency?.symbol ?? symbol;
+  const formatDocAmount = (value: number, fractionDigits = 2): string => {
+    const placement = activeCurrency?.placement ?? "before";
+    const decimalSeparator = activeCurrency?.decimal_separator ?? ".";
+    const thousandSeparator = activeCurrency?.thousand_separator ?? ",";
+    const parts = Math.abs(value || 0).toFixed(fractionDigits).split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator);
+    const formatted = parts.join(decimalSeparator);
+    const signed = (value || 0) < 0 ? `-${formatted}` : formatted;
+    return placement === "before" ? `${activeSymbol}${signed}` : `${signed}${activeSymbol}`;
+  };
 
   const { data: availableItems = [] } = useQuery({
     queryKey: ["items"],
     queryFn: itemService.getAll
   });
 
-  const { data: taxes = [] } = useQuery({
+  const { data: taxes = [], isFetched: taxesFetched } = useQuery({
     queryKey: ["taxes"],
     queryFn: financeService.getTaxes
   });
@@ -187,7 +203,7 @@ export default function ProposalCreate() {
 
   // Sync for edit mode
   useEffect(() => {
-    if (proposal && taxes.length > 0) {
+    if (proposal && taxesFetched) {
       setFormData({
         subject: proposal.subject,
         rel_type: proposal.rel_type,
@@ -429,13 +445,13 @@ export default function ProposalCreate() {
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Currency</Label>
                     <span className="text-destructive text-lg leading-none">*</span>
                   </div>
-                  <Select value={formData.currency || currencies.find((c: any) => c.isdefault)?._id} onValueChange={(v) => setFormData(p => ({ ...p, currency: v }))}>
+                  <Select value={formData.currency || currencies.find((c: any) => c.isdefault)?.name} onValueChange={(v) => setFormData(p => ({ ...p, currency: v }))}>
                     <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50">
                       <SelectValue placeholder="USD $" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
                       {currencies.map((c: any) => (
-                        <SelectItem key={c._id} value={c._id}>{c.name} ({c.symbol})</SelectItem>
+                        <SelectItem key={c._id} value={c.name}>{c.name} ({c.symbol})</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -752,7 +768,7 @@ export default function ProposalCreate() {
                       </Select>
                     </td>
                     <td className="p-4 align-top text-sm font-black text-foreground">
-                      ${(newItem.qty * newItem.rate).toFixed(2)}
+                      {formatDocAmount(newItem.qty * newItem.rate)}
                     </td>
                     <td className="p-4 align-top text-right">
                       <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
@@ -766,11 +782,11 @@ export default function ProposalCreate() {
                       <td className="p-4 align-top font-bold text-xs">{item.description}</td>
                       <td className="p-4 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
                       <td className="p-4 align-top text-xs font-bold">{item.qty}</td>
-                      <td className="p-4 align-top text-xs font-bold">${item.rate.toFixed(2)}</td>
+                      <td className="p-4 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
                       <td className="p-4 align-top text-[10px] font-black uppercase text-muted-foreground">
                         {taxes.find(t => t._id === item.tax)?.name || "No Tax"}
                       </td>
-                      <td className="p-4 align-top text-sm font-black text-primary">${(item.qty * item.rate).toFixed(2)}</td>
+                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.qty * item.rate)}</td>
                       <td className="p-4 align-top text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
@@ -791,7 +807,7 @@ export default function ProposalCreate() {
               <div className="space-y-4 bg-muted/10 p-8 rounded-[2.5rem] border border-border/50 h-fit self-end shadow-inner">
                 <div className="flex justify-between items-center text-sm font-bold text-muted-foreground border-b border-border/30 pb-4">
                   <span>Sub Total :</span>
-                  <span className="text-foreground">${calculations.subTotal.toFixed(2)}</span>
+                  <span className="text-foreground">{formatDocAmount(calculations.subTotal)}</span>
                 </div>
                 
                 <div className="flex justify-between items-center py-2">
@@ -807,18 +823,18 @@ export default function ProposalCreate() {
                         <SelectItem value="fixed">Fixed Rate</SelectItem>
                       </SelectContent>
                     </Select>
-                    <span className="text-sm font-bold text-destructive min-w-[60px] text-right">-${calculations.discountAmount.toFixed(2)}</span>
+                    <span className="text-sm font-bold text-destructive min-w-[60px] text-right">-{formatDocAmount(calculations.discountAmount)}</span>
                   </div>
                 </div>
 
                 <div className="flex justify-between items-center py-2 border-t border-border/30 mt-4">
                   <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
-                  <span className="text-sm font-bold text-foreground">${calculations.totalTax.toFixed(2)}</span>
+                  <span className="text-sm font-bold text-foreground">{formatDocAmount(calculations.totalTax)}</span>
                 </div>
 
                 <div className="flex justify-between items-center pt-6 border-t-2 border-primary/20">
                   <span className="text-lg font-black uppercase tracking-widest text-primary">Total :</span>
-                  <span className="text-2xl font-black text-primary">${calculations.total.toFixed(2)}</span>
+                  <span className="text-2xl font-black text-primary">{formatDocAmount(calculations.total)}</span>
                 </div>
               </div>
             </div>

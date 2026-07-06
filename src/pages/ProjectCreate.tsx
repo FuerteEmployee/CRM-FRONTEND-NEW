@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { useCurrency } from "@/context/CurrencyContext";
 import {
   Select,
   SelectContent,
@@ -84,6 +85,7 @@ const ProjectCreate = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isEditing = !!id;
+  const { symbol } = useCurrency();
 
   const [formData, setFormData] = useState<any>({
     name: "",
@@ -399,7 +401,7 @@ const ProjectCreate = () => {
                     <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Total Rate</Label>
                       <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
                         <Input 
                           type="number" 
                           name="project_cost" 

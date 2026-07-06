@@ -27,6 +27,7 @@ import { contractService } from "@/api/services/contract.service";
 import { customerService } from "@/api/services/customer.service";
 import { ArrowLeft, Save, HelpCircle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCurrency } from "@/context/CurrencyContext";
 
 const ContractCreate = () => {
   const { id } = useParams();
@@ -36,6 +37,7 @@ const ContractCreate = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isEditing = !!id;
+  const { symbol } = useCurrency();
 
   const [formData, setFormData] = useState<any>({
     trash: false,
@@ -211,7 +213,7 @@ const ContractCreate = () => {
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500 ml-1">Contract Value</Label>
                   <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">$</span>
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
                     <Input 
                       type="number" 
                       name="contract_value" 

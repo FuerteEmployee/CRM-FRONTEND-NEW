@@ -22,6 +22,8 @@ import { useToast } from "@/hooks/use-toast";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
+import { useCurrency } from "@/context/CurrencyContext";
+import { financeService } from "@/api/services/finance.service";
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
   "draft": { label: "Draft", className: "bg-slate-100 text-slate-600" },
@@ -49,6 +51,26 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { formatAmount, symbol } = useCurrency();
+
+  const { data: currencies = [] } = useQuery({
+    queryKey: ["currencies"],
+    queryFn: financeService.getCurrencies,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const formatRowAmount = (row: any, value: number, fractionDigits = 2): string => {
+    const cur = currencies.find((c: any) => c.name === row?.currency) || currencies.find((c: any) => c.isdefault) || null;
+    const sym = cur?.symbol ?? symbol;
+    const placement = cur?.placement ?? "before";
+    const decimalSeparator = cur?.decimal_separator ?? ".";
+    const thousandSeparator = cur?.thousand_separator ?? ",";
+    const parts = Math.abs(value || 0).toFixed(fractionDigits).split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator);
+    const formatted = parts.join(decimalSeparator);
+    const signed = (value || 0) < 0 ? `-${formatted}` : formatted;
+    return placement === "before" ? `${sym}${signed}` : `${signed}${sym}`;
+  };
 
   const estimateNumber = estimate.number || (estimate._id || estimate.id)?.slice(-6).toUpperCase();
   const status = getStatus(estimate.status);
@@ -341,9 +363,9 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
                                 {item.long_description && <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.long_description}</div>}
                               </td>
                               <td className="px-3 py-2.5 text-muted-foreground align-top">{item.qty || item.quantity || 1}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">${Number(item.rate || item.price || 0).toFixed(2)}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
                               <td className="px-3 py-2.5 text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</td>
-                              <td className="px-3 py-2.5 font-bold text-foreground align-top">${Number((item.qty || 1) * (item.rate || item.price || 0)).toFixed(2)}</td>
+                              <td className="px-3 py-2.5 font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -352,31 +374,31 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
                         {d.subtotal !== undefined && (
                           <div className="flex gap-4 text-xs">
                             <span className="text-muted-foreground font-medium">Sub Total:</span>
-                            <span className="font-bold">${Number(d.subtotal).toFixed(2)}</span>
+                            <span className="font-bold">{formatRowAmount(d, Number(d.subtotal))}</span>
                           </div>
                         )}
                         {d.discount_percent > 0 && (
                           <div className="flex gap-4 text-xs text-destructive">
                             <span className="font-medium">Discount ({d.discount_percent}%):</span>
-                            <span className="font-bold">-${Number(d.subtotal * (d.discount_percent / 100)).toFixed(2)}</span>
+                            <span className="font-bold">-{formatRowAmount(d, Number(d.subtotal * (d.discount_percent / 100)))}</span>
                           </div>
                         )}
                         {d.total_tax > 0 && (
                           <div className="flex gap-4 text-xs">
                             <span className="text-muted-foreground font-medium">Total Tax:</span>
-                            <span className="font-bold">${Number(d.total_tax).toFixed(2)}</span>
+                            <span className="font-bold">{formatRowAmount(d, Number(d.total_tax))}</span>
                           </div>
                         )}
                         {d.adjustment !== 0 && d.adjustment !== undefined && (
                           <div className="flex gap-4 text-xs">
                             <span className="text-muted-foreground font-medium">Adjustment:</span>
-                            <span className="font-bold">${Number(d.adjustment).toFixed(2)}</span>
+                            <span className="font-bold">{formatRowAmount(d, Number(d.adjustment))}</span>
                           </div>
                         )}
                         <div className="text-right mt-1 pt-1 border-t border-border/20 w-40">
                           <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total</p>
                           <p className="text-lg font-black text-foreground">
-                            ${Number(d.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            {formatRowAmount(d, Number(d.total || 0))}
                           </p>
                         </div>
                       </div>
@@ -510,6 +532,27 @@ const Estimates = () => {
   const { can } = usePermissions();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { formatAmount, symbol } = useCurrency();
+
+  const { data: currencies = [] } = useQuery({
+    queryKey: ["currencies"],
+    queryFn: financeService.getCurrencies,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const formatRowAmount = (row: any, value: number, fractionDigits = 2): string => {
+    const cur = currencies.find((c: any) => c.name === row?.currency) || currencies.find((c: any) => c.isdefault) || null;
+    const sym = cur?.symbol ?? symbol;
+    const placement = cur?.placement ?? "before";
+    const decimalSeparator = cur?.decimal_separator ?? ".";
+    const thousandSeparator = cur?.thousand_separator ?? ",";
+    const parts = Math.abs(value || 0).toFixed(fractionDigits).split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator);
+    const formatted = parts.join(decimalSeparator);
+    const signed = (value || 0) < 0 ? `-${formatted}` : formatted;
+    return placement === "before" ? `${sym}${signed}` : `${signed}${sym}`;
+  };
+
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
   const [bulkState, setBulkState] = useState({ massDelete: false, status: "" });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
@@ -641,7 +684,7 @@ const Estimates = () => {
                     <div className="flex items-baseline justify-between mt-2">
                       <span className="text-xl font-black text-slate-900">{count}</span>
                       <span className="text-[11px] font-bold text-slate-500">
-                        ${total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {formatAmount(total)}
                       </span>
                     </div>
                   </div>
@@ -791,7 +834,7 @@ const Estimates = () => {
                     </td>
                     <td className="px-6 py-4 font-medium text-foreground">{est.subject}</td>
                     <td className="px-6 py-4 text-muted-foreground">{est.contact_name || est.client_id?.company || est.rel_id || "N/A"}</td>
-                    <td className="px-6 py-4 font-black text-foreground">${(est.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-6 py-4 font-black text-foreground">{formatRowAmount(est, est.total || 0)}</td>
                     <td className="px-6 py-4 text-muted-foreground">{est.date ? formatDate(est.date) : "-"}</td>
                     <td className="px-6 py-4 text-muted-foreground">{est.open_till ? formatDate(est.open_till) : "-"}</td>
                     <td className="px-6 py-4">
