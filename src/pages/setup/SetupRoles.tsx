@@ -112,7 +112,7 @@ const FEATURES_CONFIG = [
     name: "Estimate Request",
     caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
   },
-  { name: "Leads", caps: ["View(Global)", "Delete"] },
+  { name: "Leads", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "Goals", caps: ["View(Global)", "Create", "Edit", "Delete"] },
 ];
 

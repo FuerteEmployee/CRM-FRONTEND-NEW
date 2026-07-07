@@ -253,6 +253,31 @@ export default function EstimateRequest() {
               showIdColumn={true}
               enableBulkActions={true}
               onBulkDelete={handleBulkDelete}
+              exportFilename="estimate_requests"
+              getExportData={(filteredRequests) => {
+                return filteredRequests.map((req: any) => {
+                  const baseData: any = {
+                    Email: req.email,
+                    Status: req.status || "Pending",
+                    CreatedAt: req.createdAt ? new Date(req.createdAt).toLocaleString() : "",
+                  };
+                  
+                  if (req.form_data) {
+                    if (Array.isArray(req.form_data)) {
+                      req.form_data.forEach((item: any) => {
+                        const key = item.label || item.name || "Unknown Field";
+                        baseData[key] = typeof item.value === "object" ? JSON.stringify(item.value) : String(item.value || "");
+                      });
+                    } else {
+                      Object.entries(req.form_data).forEach(([key, value]) => {
+                        const formattedKey = key.replace(/_/g, " ").replace(/([A-Z])/g, " $1");
+                        baseData[formattedKey] = typeof value === "object" ? JSON.stringify(value) : String(value || "");
+                      });
+                    }
+                  }
+                  return baseData;
+                });
+              }}
               renderCustomActions={(row) => (
                 <div className="flex items-center gap-1">
                   <Button

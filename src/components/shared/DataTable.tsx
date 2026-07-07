@@ -17,6 +17,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import Papa from "papaparse";
+import {
   FileDown,
   RotateCcw,
   Pencil,
@@ -27,7 +37,10 @@ import {
   Mic,
   MicOff,
   CheckSquare,
-  Zap
+  Zap,
+  FileSpreadsheet,
+  FileType,
+  Printer
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -58,6 +71,8 @@ interface DataTableProps<T> {
   onBulkDelete?: (items: T[]) => void;
   bulkActions?: { label: string; value: string; action: (items: T[]) => void }[];
   toolbarActions?: React.ReactNode;
+  getExportData?: (data: T[]) => Record<string, any>[];
+  exportFilename?: string;
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -76,6 +91,8 @@ export function DataTable<T extends Record<string, any>>({
   onBulkDelete,
   bulkActions,
   toolbarActions,
+  getExportData,
+  exportFilename,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -142,40 +159,187 @@ export function DataTable<T extends Record<string, any>>({
     );
   };
 
-  const handleExport = () => {
-    if (sortedData.length === 0) return;
+  const getFormattedExportData = () => {
+    let rawData: Record<string, any>[] = [];
+    
+    if (getExportData) {
+      rawData = getExportData(sortedData);
+    } else {
+      rawData = sortedData.map((item, index) => {
+        const rowData: Record<string, any> = {};
+        columns.forEach((col) => {
+          let val = "";
+          if (col.key === idField) {
+            val = String(index + 1);
+          } else {
+            const rawVal =
+              typeof col.key === "string"
+                ? col.key.split(".").reduce((obj: any, k) => (obj || {})[k], item)
+                : item[col.key as keyof T];
+            val = rawVal !== undefined && rawVal !== null ? String(rawVal) : "";
+          }
+          rowData[col.label] = val;
+        });
+        return rowData;
+      });
+    }
 
-    const headers = columns.map((col) => col.label);
-    const rows = sortedData.map((item, index) =>
-      columns.map((col) => {
-        let val = "";
-        if (col.key === idField) {
-          val = String(index + 1);
-        } else {
-          const rawVal =
-            typeof col.key === "string"
-              ? col.key.split(".").reduce((obj: any, k) => (obj || {})[k], item)
-              : item[col.key as keyof T];
-          val = rawVal !== undefined && rawVal !== null ? String(rawVal) : "";
-        }
-        return val.replace(/"/g, '""');
-      })
+    const allHeaders = Array.from(
+      new Set(rawData.flatMap((row) => Object.keys(row)))
     );
 
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.map((v) => `"${v}"`).join(",")),
-    ].join("\n");
+    return rawData.map((row) => {
+      const normalizedRow: Record<string, any> = {};
+      allHeaders.forEach((h) => {
+        normalizedRow[h] = row[h] !== undefined && row[h] !== null ? row[h] : "";
+      });
+      return normalizedRow;
+    });
+  };
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `export_${new Date().toISOString().split("T")[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+  const handleExportCSV = () => {
+    if (sortedData.length === 0) {
+      toast({ title: "No Data", description: "There is no data to export.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const dataToExport = getFormattedExportData();
+      if (dataToExport.length === 0) return;
+
+      const csv = Papa.unparse(dataToExport);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${exportFilename || "export"}_${new Date().toISOString().split("T")[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast({ title: "Export Failed", description: err.message || "Could not export CSV.", variant: "destructive" });
+    }
+  };
+
+  const handleExportExcel = () => {
+    if (sortedData.length === 0) {
+      toast({ title: "No Data", description: "There is no data to export.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const dataToExport = getFormattedExportData();
+      if (dataToExport.length === 0) return;
+
+      const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
+      XLSX.writeFile(workbook, `${exportFilename || "export"}_${new Date().toISOString().split("T")[0]}.xlsx`);
+    } catch (err: any) {
+      toast({ title: "Export Failed", description: err.message || "Could not export Excel.", variant: "destructive" });
+    }
+  };
+
+  const handleExportPDF = () => {
+    if (sortedData.length === 0) {
+      toast({ title: "No Data", description: "There is no data to export.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const dataToExport = getFormattedExportData();
+      if (dataToExport.length === 0) return;
+
+      const headers = Object.keys(dataToExport[0]);
+      const body = dataToExport.map(row => headers.map(h => row[h] ? String(row[h]) : ""));
+
+      const doc = new jsPDF("landscape");
+      
+      doc.setFontSize(16);
+      const titleText = `${exportFilename || "Export Data"}`.replace(/_/g, " ").toUpperCase();
+      doc.text(titleText, 14, 15);
+      
+      doc.setFontSize(10);
+      doc.text(`Generated on ${new Date().toLocaleString()}`, 14, 22);
+
+      autoTable(doc, {
+        head: [headers],
+        body: body,
+        startY: 28,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [41, 128, 185], textColor: 255 },
+      });
+
+      doc.save(`${exportFilename || "export"}_${new Date().toISOString().split("T")[0]}.pdf`);
+    } catch (err: any) {
+      console.error(err);
+      toast({ title: "Export Failed", description: err.message || "Could not generate PDF.", variant: "destructive" });
+    }
+  };
+
+  const handlePrint = () => {
+    if (sortedData.length === 0) {
+      toast({ title: "No Data", description: "There is no data to print.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const dataToExport = getFormattedExportData();
+      if (dataToExport.length === 0) return;
+
+      const headers = Object.keys(dataToExport[0]);
+      
+      const html = `
+        <html>
+          <head>
+            <title>Print - ${exportFilename || "Export Data"}</title>
+            <style>
+              body { font-family: system-ui, -apple-system, sans-serif; padding: 20px; color: #333; }
+              h1 { font-size: 24px; margin-bottom: 5px; text-transform: capitalize; }
+              p { font-size: 12px; color: #666; margin-bottom: 20px; }
+              table { width: 100%; border-collapse: collapse; font-size: 12px; }
+              th, td { padding: 8px 12px; border: 1px solid #ddd; text-align: left; }
+              th { background-color: #f4f4f5; font-weight: 600; }
+              tr:nth-child(even) { background-color: #fafafa; }
+              @media print {
+                @page { size: landscape; margin: 10mm; }
+                body { padding: 0; }
+              }
+            </style>
+          </head>
+          <body>
+            <h1>${(exportFilename || "Export Data").replace(/_/g, " ")}</h1>
+            <p>Generated on ${new Date().toLocaleString()}</p>
+            <table>
+              <thead>
+                <tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr>
+              </thead>
+              <tbody>
+                ${dataToExport.map(row => `<tr>${headers.map(h => `<td>${row[h] ? String(row[h]).replace(/</g, "&lt;").replace(/>/g, "&gt;") : ""}</td>`).join("")}</tr>`).join("")}
+              </tbody>
+            </table>
+            <script>
+              window.onload = () => {
+                window.print();
+                setTimeout(() => window.close(), 500);
+              };
+            </script>
+          </body>
+        </html>
+      `;
+
+      const printWindow = window.open("", "_blank");
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+      } else {
+        toast({ title: "Error", description: "Please allow pop-ups to print the data.", variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: "Print Failed", description: err.message || "Could not prepare print data.", variant: "destructive" });
+    }
   };
 
   const handleVoiceSearch = () => {
@@ -258,14 +422,27 @@ export function DataTable<T extends Record<string, any>>({
               <SelectItem value="100">100</SelectItem>
             </SelectContent>
           </Select>
-          <Button
-            variant="outline"
-            onClick={handleExport}
-            className="flex items-center gap-2 h-11 px-6 rounded-xl border-border hover:border-primary/50 hover:bg-primary/5 text-muted-foreground hover:text-primary transition-all duration-200 font-black text-[10px] uppercase tracking-widest"
-          >
-            <FileDown className="h-4 w-4" />
-            Export
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-10 rounded-xl px-4 border-slate-200 bg-white font-black uppercase text-[10px] tracking-widest text-muted-foreground hover:text-primary hover:bg-slate-50 transition-all duration-200">
+                Export <ChevronDown className="ml-2 h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44 rounded-2xl p-2 border-slate-100 shadow-2xl">
+              <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer text-slate-700 hover:bg-slate-50 focus:bg-slate-50" onClick={handleExportExcel}>
+                <FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" /> Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer text-slate-700 hover:bg-slate-50 focus:bg-slate-50" onClick={handleExportCSV}>
+                <FileType className="mr-2 h-4 w-4 text-rose-600" /> CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer text-slate-700 hover:bg-slate-50 focus:bg-slate-50" onClick={handleExportPDF}>
+                <FileDown className="mr-2 h-4 w-4 text-blue-600" /> PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer text-slate-700 hover:bg-slate-50 focus:bg-slate-50" onClick={handlePrint}>
+                <Printer className="mr-2 h-4 w-4 text-slate-600" /> Print Data
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {toolbarActions}
           {onRefresh && (
             <Button

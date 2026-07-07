@@ -37,14 +37,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
-import { 
+import {
   Plus, Search, ChevronDown, Download, FileSpreadsheet, FileJson, FileType, Printer, HelpCircle,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Bold, Italic, Underline, Strikethrough,
   Highlighter, Link2, Image, Type,
   List, ListOrdered, CheckSquare,
-  Undo2, Redo2, MoreHorizontal, Paperclip
+  Undo2, Redo2, MoreHorizontal, Paperclip, Upload
 } from "lucide-react";
+import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { projectService } from "@/api/services/project.service";
 import { utilityService } from "@/api/services/utility.service";
@@ -208,29 +210,35 @@ const Tasks = () => {
       return;
     }
 
-    if (type === "csv" || type === "xlsx") {
-      const headers = ["Task Name", "Type", "Status", "Start Date", "Due Date", "Tags", "Priority"];
-      const rows = filteredTasks.map((t: any) => [
-        t.name || "",
-        t.isTodo ? "Personal Todo" : "Task",
-        taskStatusConfig.find(s => s.id === t.displayStatus)?.label || "Not Started",
-        t.startdate ? formatDate(t.startdate) : "-",
-        t.duedate ? formatDate(t.duedate) : "-",
-        t.tags ? t.tags.join(", ") : "",
-        priorityLabels[t.displayPriority] || "Medium"
-      ]);
+    const dateStamp = new Date().toISOString().split('T')[0];
+    const rows = filteredTasks.map((t: any) => ({
+      "Task Name": t.name || "",
+      "Type": t.isTodo ? "Personal Todo" : "Task",
+      "Status": taskStatusConfig.find(s => s.id === t.displayStatus)?.label || "Not Started",
+      "Start Date": t.startdate ? formatDate(t.startdate) : "-",
+      "Due Date": t.duedate ? formatDate(t.duedate) : "-",
+      "Tags": t.tags ? t.tags.join(", ") : "",
+      "Priority": priorityLabels[t.displayPriority] || "Medium",
+    }));
 
-      const csvData = [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+    if (type === "xlsx") {
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Tasks");
+      XLSX.writeFile(wb, `tasks_export_${dateStamp}.xlsx`);
+      toast({ title: "Success", description: "Exported successfully as XLSX" });
+    } else if (type === "csv") {
+      const csvData = Papa.unparse(rows);
       const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", `tasks_export_${new Date().toISOString().split('T')[0]}.${type}`);
+      link.setAttribute("download", `tasks_export_${dateStamp}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      toast({ title: "Success", description: `Exported successfully as ${type.toUpperCase()}` });
+      toast({ title: "Success", description: "Exported successfully as CSV" });
     } else if (type === "print") {
       window.print();
     } else if (type === "pdf") {
@@ -272,8 +280,103 @@ const Tasks = () => {
     }
   });
 
+  const importTasksMutation = useMutation({
+    mutationFn: taskService.importTasks,
+    onSuccess: async (data: any) => {
+      setActiveStatus("all");
+      setSearch("");
+      setCurrentPage(1);
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      await queryClient.refetchQueries({ queryKey: ["tasks"] });
+      toast({
+        title: data.count === 0 ? "No Tasks Imported" : "Import Successful",
+        description: data.message || "Imported tasks",
+        variant: data.count === 0 ? "destructive" : "default",
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Import Failed", description: err.response?.data?.message || err.message, variant: "destructive" });
+    }
+  });
+
+  const normalizeKey = (k: string) => k.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  const getField = (row: any, ...candidates: string[]) => {
+    const normalizedRow: Record<string, any> = {};
+    Object.keys(row).forEach((k) => { normalizedRow[normalizeKey(k)] = row[k]; });
+    for (const candidate of candidates) {
+      const val = normalizedRow[normalizeKey(candidate)];
+      if (val !== undefined && val !== null && String(val).trim() !== "") return val;
+    }
+    return "";
+  };
+
+  const processTaskRows = (rows: any[]) => {
+    const statusNameToId: Record<string, number> = {};
+    taskStatusConfig.forEach(s => { statusNameToId[s.label.toLowerCase()] = s.id; });
+    const priorityNameToId: Record<string, number> = {};
+    Object.entries(priorityLabels).forEach(([id, label]) => { priorityNameToId[String(label).toLowerCase()] = Number(id); });
+
+    const tasksData = rows.map((row: any) => {
+      const rawStatus = getField(row, "status");
+      const rawPriority = getField(row, "priority");
+      return {
+        name: getField(row, "name", "subject", "task", "taskname", "task name"),
+        description: getField(row, "description"),
+        status: statusNameToId[String(rawStatus).toLowerCase().trim()] ?? (Number(rawStatus) || 1),
+        priority: priorityNameToId[String(rawPriority).toLowerCase().trim()] ?? (Number(rawPriority) || 2),
+        startdate: getField(row, "startdate", "start date"),
+        duedate: getField(row, "duedate", "due date"),
+      };
+    });
+
+    const validTasks = tasksData.filter(t => t.name);
+    if (validTasks.length === 0) {
+      toast({ title: "Error", description: "No valid tasks found. Make sure a 'Name', 'Subject', or 'Task Name' column exists.", variant: "destructive" });
+      return;
+    }
+    importTasksMutation.mutate(validTasks as any);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ext = file.name.split(".").pop()?.toLowerCase();
+
+    if (ext === "xlsx" || ext === "xls") {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: "array" });
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+          processTaskRows(rows);
+        } catch {
+          toast({ title: "Parsing Error", description: "Could not read the Excel file.", variant: "destructive" });
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          if (results.errors.length > 0) {
+            toast({ title: "Parsing Error", description: "There was an error parsing the CSV file.", variant: "destructive" });
+            return;
+          }
+          processTaskRows(results.data as any[]);
+        },
+      });
+    }
+
+    e.target.value = '';
+  };
+
   const updateMutation = useMutation({
-    mutationFn: ({ id, isTodo, data }: { id: string; isTodo: boolean; data: any }) => 
+    mutationFn: ({ id, isTodo, data }: { id: string; isTodo: boolean; data: any }) =>
       isTodo ? utilityService.updateTodo(id, data) : taskService.update(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -440,7 +543,18 @@ const Tasks = () => {
             <h1 className="text-2xl font-bold">Tasks</h1>
             <Link to="/admin/tasks/overview" className="text-sm text-primary hover:underline font-medium">Tasks Overview</Link>
           </div>
-          <Dialog open={isNewTaskModalOpen} onOpenChange={setIsNewTaskModalOpen}>
+          {can("Tasks", "Create") && (
+            <div className="flex gap-2 items-center">
+              <div>
+                <input type="file" id="import-tasks" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileUpload} />
+                <Label htmlFor="import-tasks">
+                  <div className="cursor-pointer flex items-center justify-center rounded-xl font-black gap-2 shadow-sm border border-slate-200 px-4 h-11 uppercase text-xs tracking-widest transition-all hover:bg-slate-50 text-slate-700">
+                    <Upload className="h-4 w-4 stroke-[3]" />
+                    {importTasksMutation.isPending ? "Importing..." : "Import Tasks"}
+                  </div>
+                </Label>
+              </div>
+              <Dialog open={isNewTaskModalOpen} onOpenChange={setIsNewTaskModalOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setEditingTask(null)} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                 <Plus className="mr-2 h-4 w-4" />
@@ -709,7 +823,9 @@ const Tasks = () => {
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
+              </Dialog>
+            </div>
+          )}
         </div>
 
         {/* Real-time Status Cards */}
