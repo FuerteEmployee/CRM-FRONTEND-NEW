@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
-import { Plus, Search, ChevronDown, Download, FileSpreadsheet, FileJson, FileType, Printer, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, ArrowRight, X, Trash2, CheckCircle2, Clock, Flame, Snowflake, Sun, Ghost, MapPin, ClipboardList, Users, UserMinus, Edit, Eye, Upload, UserCheck, AlertTriangle, AlertOctagon } from "lucide-react";
+import { Plus, Search, ChevronDown, Download, FileSpreadsheet, FileJson, FileType, Printer, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, Upload, UserCheck, AlertTriangle, AlertOctagon } from "lucide-react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -471,19 +471,9 @@ const Leads = () => {
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
 
-  const statusCards = [
-    { id: "pending", label: "Pending", icon: Clock, color: "text-amber-500", bg: "bg-amber-50" },
-    { id: "followup", label: "Followup", icon: ArrowRight, color: "text-blue-500", bg: "bg-blue-50" },
-    { id: "hot", label: "Hot Lead", icon: Flame, color: "text-rose-500", bg: "bg-rose-50" },
-    { id: "cold", label: "Cold Lead", icon: Snowflake, color: "text-cyan-500", bg: "bg-cyan-50" },
-    { id: "warm", label: "Warm Lead", icon: Sun, color: "text-orange-500", bg: "bg-orange-50" },
-    { id: "dead", label: "Dead Lead", icon: Ghost, color: "text-slate-500", bg: "bg-slate-50" },
-    { id: "visit", label: "Visit", icon: MapPin, color: "text-indigo-500", bg: "bg-indigo-50" },
-    { id: "requirement", label: "Requirement", icon: ClipboardList, color: "text-emerald-500", bg: "bg-emerald-50" },
-    { id: "meeting", label: "Meeting", icon: Users, color: "text-purple-500", bg: "bg-purple-50" },
-    { id: "customer", label: "Customer", icon: CheckCircle2, color: "text-green-600", bg: "bg-green-50" },
-    { id: "lost", label: "Lost Leads", icon: UserMinus, color: "text-red-500", bg: "bg-red-50", percentage: "0.00%" },
-  ];
+  const statusCards = [...statuses]
+    .sort((a: any, b: any) => (a.statusorder ?? 0) - (b.statusorder ?? 0))
+    .map((s: any) => ({ id: s._id, label: s.name, color: s.color || "#757575" }));
 
   return (
     <DashboardLayout>
@@ -795,12 +785,7 @@ const Leads = () => {
           {statusCards.map((card) => {
             const count = leads.filter(l => {
                 const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
-                const lStatusName = (typeof l.status === 'object' ? l.status?.name : statuses.find(s => s._id === l.status)?.name) || "";
-                
-                const dbName = lStatusName.toLowerCase().replace(" lead", "").replace(" leads", "").trim();
-                const cId = card.id.toLowerCase();
-                
-                return dbName === cId || dbName.includes(cId) || String(lStatusId).toLowerCase() === cId;
+                return String(lStatusId) === String(card.id);
             }).length;
             const isActive = statusFilter === card.id;
 
@@ -816,10 +801,7 @@ const Leads = () => {
                 <div className="flex flex-col">
                   <p className="text-[9px] font-black uppercase tracking-tight text-slate-400 group-hover:text-slate-600 truncate">{card.label}</p>
                   <div className="flex items-center justify-between mt-0.5">
-                    <p className={cn("text-sm font-black", card.color)}>{count}</p>
-                    {card.percentage && (
-                      <span className="text-[8px] font-black text-slate-400">{card.percentage}</span>
-                    )}
+                    <p className="text-sm font-black" style={{ color: card.color }}>{count}</p>
                   </div>
                 </div>
               </button>

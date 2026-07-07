@@ -394,10 +394,10 @@ const Dashboard = () => {
   // - Invoices Awaiting Payment
   const unpaidInvoicesCount = invoicesList.filter((inv: any) => {
     const status = String(inv.status || "").toLowerCase();
-    return status === "unpaid" || status === "pending" || status === "1" || status === "overdue" || status === "4";
+    return status === "unpaid" || status === "pending" || status === "1" || status === "overdue" || status === "4" || status === "partially_paid" || status === "3";
   }).length;
   const totalInvoicesCount = invoicesList.length;
-  const invoicesProgress = totalInvoicesCount > 0 ? (unpaidInvoicesCount / totalInvoicesCount) * 100 : 60;
+  const invoicesProgress = totalInvoicesCount > 0 ? (unpaidInvoicesCount / totalInvoicesCount) * 100 : 0;
 
   // - Converted Leads
   const convertedLeadsCount = leadsList.filter((l: any) => {
@@ -405,7 +405,7 @@ const Dashboard = () => {
     return statusName.toLowerCase().includes("customer") || l.isConverted === true;
   }).length;
   const totalLeadsCount = leadsList.length;
-  const leadsProgress = totalLeadsCount > 0 ? (convertedLeadsCount / totalLeadsCount) * 100 : 50;
+  const leadsProgress = totalLeadsCount > 0 ? (convertedLeadsCount / totalLeadsCount) * 100 : 0;
 
   // - Projects In Progress
   const activeProjectsCount = projectsList.filter((p: any) => {
@@ -413,7 +413,7 @@ const Dashboard = () => {
     return status === 2 || String(p.status).toLowerCase().includes("active") || String(p.status).toLowerCase().includes("progress");
   }).length;
   const totalProjectsCount = projectsList.length;
-  const projectsProgress = totalProjectsCount > 0 ? (activeProjectsCount / totalProjectsCount) * 100 : 60;
+  const projectsProgress = totalProjectsCount > 0 ? (activeProjectsCount / totalProjectsCount) * 100 : 0;
 
   // - Tasks Not Finished
   const unfinishedTasksCount = tasksList.filter((t: any) => {
@@ -424,10 +424,10 @@ const Dashboard = () => {
   const tasksProgress = totalTasksCount > 0 ? (unfinishedTasksCount / totalTasksCount) * 100 : 0;
 
   const statCards = [
-    isModuleEnabled("finance") && canView("Invoices") && { label: "Invoices Awaiting Payment", value: totalInvoicesCount > 0 ? `${unpaidInvoicesCount} / ${totalInvoicesCount}` : "3 / 5", icon: FileText, progress: invoicesProgress },
-    isModuleEnabled("leads") && canView("Leads") && { label: "Converted Leads", value: totalLeadsCount > 0 ? `${convertedLeadsCount} / ${totalLeadsCount}` : "6 / 12", icon: TrendingUp, progress: leadsProgress },
-    isModuleEnabled("projects") && { label: "Projects In Progress", value: totalProjectsCount > 0 ? `${activeProjectsCount} / ${totalProjectsCount}` : "3 / 5", icon: FolderKanban, progress: projectsProgress },
-    isModuleEnabled("tasks") && { label: "Tasks Not Finished", value: totalTasksCount > 0 ? `${unfinishedTasksCount} / ${totalTasksCount}` : "7 / 10", icon: CheckSquare, progress: tasksProgress },
+    isModuleEnabled("finance") && canView("Invoices") && { label: "Invoices Awaiting Payment", value: `${unpaidInvoicesCount} / ${totalInvoicesCount}`, icon: FileText, progress: invoicesProgress },
+    isModuleEnabled("leads") && canView("Leads") && { label: "Converted Leads", value: `${convertedLeadsCount} / ${totalLeadsCount}`, icon: TrendingUp, progress: leadsProgress },
+    isModuleEnabled("projects") && { label: "Projects In Progress", value: `${activeProjectsCount} / ${totalProjectsCount}`, icon: FolderKanban, progress: projectsProgress },
+    isModuleEnabled("tasks") && { label: "Tasks Not Finished", value: `${unfinishedTasksCount} / ${totalTasksCount}`, icon: CheckSquare, progress: tasksProgress },
   ].filter(Boolean) as { label: string; value: string; icon: any; progress: number }[];
 
   // - Invoice Overview Section Items
