@@ -17,17 +17,18 @@ import {
 import {
   Plus,
   Search,
-  FileDown,
   Target,
   Calendar,
   User,
   Activity,
   MoreHorizontal,
   Eye,
+  Edit2,
   Trash2,
   Bell,
   Zap
 } from "lucide-react";
+import { ExportButton } from "@/components/ui/export-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -150,20 +151,19 @@ const Goals = () => {
                   </SelectContent>
                 </Select>
 
-                <Select>
-                  <SelectTrigger className="w-[120px] h-9 rounded-lg border-border/40 bg-background font-bold text-xs uppercase tracking-wider">
-                    <div className="flex items-center gap-2">
-                      <FileDown className="h-3.5 w-3.5 text-primary" />
-                      <span>Export</span>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pdf">PDF</SelectItem>
-                    <SelectItem value="csv">CSV</SelectItem>
-                    <SelectItem value="xlsx">Excel</SelectItem>
-                    <SelectItem value="print">Print</SelectItem>
-                  </SelectContent>
-                </Select>
+                <ExportButton
+                  data={filteredData}
+                  filename="goals"
+                  columns={[
+                    { header: "Subject", key: "subject" },
+                    { header: "Staff Member", key: (g) => `${g.staff_member?.firstname || ""} ${g.staff_member?.lastname || ""}`.trim() },
+                    { header: "Achievement", key: "achievement" },
+                    { header: "Start Date", key: (g) => g.start_date ? format(new Date(g.start_date), "yyyy-MM-dd") : "" },
+                    { header: "End Date", key: (g) => g.end_date ? format(new Date(g.end_date), "yyyy-MM-dd") : "" },
+                    { header: "Goal Type", key: "goal_type" },
+                    { header: "Progress", key: (g) => `${g.progress ?? 0}%` },
+                  ]}
+                />
 
                 <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                   if (open && selectedItems.length === 0) {

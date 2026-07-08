@@ -11,8 +11,11 @@ export const supportService = {
   // Knowledge Base
   getKBGroups: () => apiClient.get("/kb/groups"),
 
-  getKBArticles: (groupId) => {
-    const query = groupId ? `?group=${groupId}` : "";
+  getKBArticles: (groupId, includeInactive) => {
+    const params = new URLSearchParams();
+    if (groupId) params.set("group", groupId);
+    if (includeInactive) params.set("all", "true");
+    const query = params.toString() ? `?${params.toString()}` : "";
     return apiClient.get(`/kb/articles${query}`);
   },
   createKBGroup: (data) => apiClient.post("/kb/groups", data),

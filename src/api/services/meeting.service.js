@@ -6,4 +6,5 @@ export const meetingService = {
   createMeeting: (data) => apiClient.post('/meetings', data),
   updateMeeting: (id, data) => apiClient.put(`/meetings/${id}`, data),
   deleteMeeting: (id) => apiClient.delete(`/meetings/${id}`),
+  importMeetings: (rows) => apiClient.post('/meetings/import', rows),
 };

@@ -30,19 +30,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import {
   Calendar,
   Search,
-  Download,
-  Printer,
-  FileDown,
   Mail,
   Loader2,
   X,
@@ -52,6 +43,7 @@ import {
   Send,
   AlertTriangle
 } from "lucide-react";
+import { ExportButton } from "@/components/ui/export-button";
 import { useQuery } from "@tanstack/react-query";
 import { utilityService } from "@/api/services/utility.service";
 import { format } from "date-fns";
@@ -156,44 +148,6 @@ const TicketPipeLog = () => {
     return rangeWithDots;
   };
 
-  // Export handlers
-  const handleExport = (type: string) => {
-    if (filteredData.length === 0) {
-      toast.error("No data to export");
-      return;
-    }
-
-    if (type === "csv" || type === "xlsx") {
-      const headers = ["From Name", "Date", "To", "From Email", "Subject", "Message", "Status"];
-      const rows = filteredData.map((log: any) => [
-        log.from_name,
-        formatLogDate(log.date),
-        log.to,
-        log.from_email,
-        log.subject,
-        log.message,
-        log.status
-      ]);
-
-      const csvContent = "data:text/csv;charset=utf-8," 
-        + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
-      
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `ticket_pipe_logs_${new Date().toISOString().split('T')[0]}.${type === "xlsx" ? "xlsx" : "csv"}`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success(`Exported successfully as ${type.toUpperCase()}`);
-    } else if (type === "print") {
-      window.print();
-    } else if (type === "pdf") {
-      toast.success("Ready to save - choose Save as PDF in print options");
-      window.print();
-    }
-  };
-
   const clearDate = () => {
     setFilterDate("");
     setCurrentPage(1);
@@ -285,33 +239,19 @@ const TicketPipeLog = () => {
                   </SelectContent>
                 </Select>
 
-                {/* Export Dropdown Button */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-9 gap-1.5 text-xs font-semibold border-border/45 bg-background hover:bg-accent/40 rounded-lg">
-                      <Download className="h-3.5 w-3.5" />
-                      Export
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="rounded-xl border-border/50 shadow-md p-1 min-w-[120px]">
-                    <DropdownMenuItem onClick={() => handleExport("csv")} className="text-xs font-medium gap-2 py-1.5 cursor-pointer rounded-lg">
-                      <FileDown className="h-3.5 w-3.5 text-muted-foreground" />
-                      CSV
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleExport("xlsx")} className="text-xs font-medium gap-2 py-1.5 cursor-pointer rounded-lg">
-                      <FileDown className="h-3.5 w-3.5 text-muted-foreground" />
-                      Excel
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleExport("pdf")} className="text-xs font-medium gap-2 py-1.5 cursor-pointer rounded-lg">
-                      <FileDown className="h-3.5 w-3.5 text-muted-foreground" />
-                      PDF
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleExport("print")} className="text-xs font-medium gap-2 py-1.5 cursor-pointer rounded-lg">
-                      <Printer className="h-3.5 w-3.5 text-muted-foreground" />
-                      Print
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <ExportButton
+                  data={filteredData}
+                  filename="ticket_pipe_logs"
+                  columns={[
+                    { header: "From Name", key: "from_name" },
+                    { header: "Date", key: (log) => formatLogDate(log.date) },
+                    { header: "To", key: "to" },
+                    { header: "From Email", key: "from_email" },
+                    { header: "Subject", key: "subject" },
+                    { header: "Message", key: "message" },
+                    { header: "Status", key: "status" },
+                  ]}
+                />
               </div>
 
               {/* Live Search Input */}

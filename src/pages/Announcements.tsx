@@ -14,18 +14,18 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { 
-  Plus, 
-  Search, 
-  Megaphone, 
+import {
+  Plus,
+  Search,
+  Megaphone,
   Calendar,
-  FileDown,
   Eye,
   Edit2,
   Trash2,
   X,
   Zap
 } from "lucide-react";
+import { ExportButton } from "@/components/ui/export-button";
 import { 
   Dialog,
   DialogContent,
@@ -111,6 +111,8 @@ const Announcements = () => {
 
   const displayData = pageSize === "All" ? filteredData : filteredData.slice(0, parseInt(pageSize));
 
+  const stripHtml = (html: string) => (html || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+
   return (
     <DashboardLayout>
       <div className="space-y-6 animate-fade-in pb-10">
@@ -145,20 +147,15 @@ const Announcements = () => {
                   </SelectContent>
                 </Select>
                 
-                <Select>
-                  <SelectTrigger className="w-[120px] h-9 rounded-lg border-border/40 bg-background font-bold text-xs uppercase tracking-wider">
-                    <div className="flex items-center gap-2">
-                      <FileDown className="h-3.5 w-3.5 text-primary" />
-                      <span>Export</span>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pdf">PDF</SelectItem>
-                    <SelectItem value="csv">CSV</SelectItem>
-                    <SelectItem value="xlsx">Excel</SelectItem>
-                    <SelectItem value="print">Print</SelectItem>
-                  </SelectContent>
-                </Select>
+                <ExportButton
+                  data={filteredData}
+                  filename="announcements"
+                  columns={[
+                    { header: "Name", key: "name" },
+                    { header: "Message", key: (a) => stripHtml(a.message) },
+                    { header: "Date", key: (a) => a.dateadded ? format(new Date(a.dateadded), "yyyy-MM-dd") : "" },
+                  ]}
+                />
 
                 <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                   if (open && selectedItems.length === 0) {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -60,8 +60,28 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { utilityService } from "@/api/services/utility.service";
 import { financeService } from "@/api/services/finance.service";
-import { format } from "date-fns";
+import { supportService } from "@/api/services/support.service";
+import { staffService } from "@/api/services/staff.service";
+import { timeEntryService } from "@/api/services/time_entry.service";
+import { leadService } from "@/api/services/lead.service";
+import {
+  format,
+  startOfDay,
+  endOfDay,
+  startOfWeek,
+  endOfWeek,
+  subWeeks,
+  startOfMonth,
+  endOfMonth,
+  subMonths,
+  subDays,
+  addDays,
+  isSameDay,
+  isWithinInterval,
+  getDaysInMonth,
+} from "date-fns";
 import { toast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const salesData = [
   { month: "Jan", revenue: 12400, invoiced: 14000 }, { month: "Feb", revenue: 15800, invoiced: 17000 },
@@ -1581,10 +1601,34 @@ export const ReportExpensesVsIncome = () => {
 };
 
 export const ReportLeads = () => {
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const now0 = new Date();
+
   const [reportType, setReportType] = useState<"general" | "staff">("general");
-  const [selectedMonth, setSelectedMonth] = useState("May");
-  const [fromDate, setFromDate] = useState("2026-05-01");
-  const [toDate, setToDate] = useState("2026-05-31");
+  const [selectedMonth, setSelectedMonth] = useState(monthNames[now0.getMonth()]);
+  const [fromDate, setFromDate] = useState(format(startOfMonth(now0), "yyyy-MM-dd"));
+  const [toDate, setToDate] = useState(format(endOfMonth(now0), "yyyy-MM-dd"));
+
+  const { data: leadsData = [] } = useQuery({
+    queryKey: ["leads", "report"],
+    queryFn: leadService.getAll,
+  });
+
+  const { data: sourcesListData = [] } = useQuery({
+    queryKey: ["lead-sources", "report"],
+    queryFn: leadService.getSources,
+  });
+
+  const { data: staffListData = [] } = useQuery({
+    queryKey: ["staff", "leads-report"],
+    queryFn: staffService.getAll,
+  });
+
+  // A lead counts as "converted" once its status is literally named "Customer" —
+  // mirrors the rule the backend uses in lead_controller.convertToCustomer
+  const getStatusName = (status: any) => (typeof status === "object" ? status?.name : "") || "";
+  const isConvertedLead = (lead: any) => /^customer$/i.test(getStatusName(lead.status));
+  const getLeadDate = (lead: any) => lead.dateadded || lead.createdAt;
 
   const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
     if (type === "csv" || type === "xlsx") {
@@ -1620,65 +1664,69 @@ export const ReportLeads = () => {
     }
   };
 
-  const monthsList = [
-    { label: "January", value: "January", days: 31, code: "01" },
-    { label: "February", value: "February", days: 28, code: "02" },
-    { label: "March", value: "March", days: 31, code: "03" },
-    { label: "April", value: "April", days: 30, code: "04" },
-    { label: "May", value: "May", days: 31, code: "05" },
-    { label: "June", value: "June", days: 30, code: "06" },
-    { label: "July", value: "July", days: 31, code: "07" },
-    { label: "August", value: "August", days: 31, code: "08" },
-    { label: "September", value: "September", days: 30, code: "09" },
-    { label: "October", value: "October", days: 31, code: "10" },
-    { label: "November", value: "November", days: 30, code: "11" },
-    { label: "December", value: "December", days: 31, code: "12" }
-  ];
+  const monthsList = monthNames.map((label, i) => ({ label, value: label, monthIndex: i }));
 
+  // Monthly conversion-rate trend for the selected month — real leads created that day vs. converted that day
   const getDynamicMonthlyData = () => {
-    const monthObj = monthsList.find((m) => m.label === selectedMonth) || monthsList[4];
+    const monthIndex = monthsList.findIndex((m) => m.label === selectedMonth);
+    const idx = monthIndex === -1 ? now0.getMonth() : monthIndex;
+    const year = now0.getFullYear();
+    const daysInMonth = getDaysInMonth(new Date(year, idx, 1));
     const days = [];
-    for (let d = 1; d <= monthObj.days; d++) {
-      const dayStr = d < 10 ? `0${d}` : `${d}`;
-      days.push({
-        date: `2026-${monthObj.code}-${dayStr}`,
-        value: 0.0 // Flat bottom line matching the provided screenshot perfectly
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dayDate = new Date(year, idx, d);
+      const createdThatDay = (leadsData as any[]).filter((l) => {
+        const ld = getLeadDate(l);
+        return ld && isSameDay(new Date(ld), dayDate);
       });
+      const convertedThatDay = createdThatDay.filter(isConvertedLead).length;
+      const rate = createdThatDay.length > 0 ? convertedThatDay / createdThatDay.length : 0;
+      days.push({ date: format(dayDate, "yyyy-MM-dd"), value: rate });
     }
     return days;
   };
 
-  const weeklyData = [
-    { name: "Mon", value: 0 },
-    { name: "Tue", value: 0 },
-    { name: "Wed", value: 0 },
-    { name: "Thu", value: 0 },
-    { name: "Fri", value: 0 },
-    { name: "Sat", value: 0 },
-    { name: "Sun", value: 0 }
-  ];
+  // Real per-weekday lead-creation counts for the current week
+  const weekStart = startOfWeek(now0, { weekStartsOn: 1 });
+  const weekdayColors = ["#06b6d4", "#3b82f6", "#d946ef", "#9ca3af", "#a855f7", "#f43f5e", "#2563eb"];
+  const weeklyData = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((name, idx) => {
+    const dayDate = addDays(weekStart, idx);
+    const value = (leadsData as any[]).filter((l) => {
+      const ld = getLeadDate(l);
+      return ld && isSameDay(new Date(ld), dayDate);
+    }).length;
+    return { name, value };
+  });
 
-  const sourcesData = [
-    { name: "Facebook", value: 0.0 },
-    { name: "Field Visit", value: 0.0 },
-    { name: "Google", value: 0.0 },
-    { name: "Instagrame", value: 0.0 },
-    { name: "Just Dial", value: 0.0 },
-    { name: "Lead Gorilla", value: 0.0 },
-    { name: "Referral", value: 0.0 },
-    { name: "Senior Referral", value: 0.0 }
-  ];
+  // Real converted-lead counts per lead source
+  const sourcesData = (sourcesListData as any[]).map((s) => ({
+    name: s.name,
+    value: (leadsData as any[]).filter((l) => l.source?._id === s._id && isConvertedLead(l)).length,
+  }));
 
-  // Grouped Staff Comparison Bar Chart Data (Matches image perfectly!)
-  const staffData = [
-    { name: "Tirth Aghara", created: 0.0, lost: 0.0, converted: 0.0 },
-    { name: "Sales 2 Parekh", created: 0.0, lost: 0.0, converted: 0.0 },
-    { name: "Sales Person", created: 0.0, lost: 0.0, converted: 0.0 },
-    { name: "Pooja Gangwani", created: 1.0, lost: 0.0, converted: 0.0 }, // Tall blue bar reaching 1.0
-    { name: "Hardik Patel", created: 0.0, lost: 0.0, converted: 0.0 },
-    { name: "Bhavin Badiyani", created: 0.0, lost: 0.0, converted: 0.0 },
-    { name: "Aditya Prakash", created: 0.0, lost: 0.0, converted: 0.0 }
-  ];
+  // Grouped Staff Comparison Bar Chart Data — real created/lost/converted counts per staff, scoped to the selected date range
+  const rangeStart = fromDate ? new Date(fromDate) : null;
+  const rangeEnd = toDate ? new Date(`${toDate}T23:59:59`) : null;
+  const leadsInRange = (leadsData as any[]).filter((l) => {
+    const ld = getLeadDate(l);
+    if (!ld) return false;
+    const t = new Date(ld).getTime();
+    return (!rangeStart || t >= rangeStart.getTime()) && (!rangeEnd || t <= rangeEnd.getTime());
+  });
+
+  const staffData = (staffListData as any[]).map((st) => {
+    const staffLeads = leadsInRange.filter((l) => {
+      const assignedId = typeof l.assigned === "object" ? l.assigned?._id : l.assigned;
+      const createdById = typeof l.created_by === "object" ? l.created_by?._id : l.created_by;
+      return assignedId === st._id || createdById === st._id;
+    });
+    return {
+      name: `${st.firstname} ${st.lastname}`,
+      created: staffLeads.length,
+      lost: staffLeads.filter((l) => l.lost).length,
+      converted: staffLeads.filter(isConvertedLead).length,
+    };
+  });
 
   const monthlyChartData = getDynamicMonthlyData();
 
@@ -1805,19 +1853,18 @@ export const ReportLeads = () => {
                         dy={6}
                       />
                       
-                      <YAxis 
-                        domain={[0, 1.0]} 
-                        ticks={[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]} 
-                        tickFormatter={(val) => val.toFixed(1)}
-                        fontSize={10} 
+                      <YAxis
+                        domain={[0, (dataMax: number) => Math.max(4, Math.ceil(dataMax) + 1)]}
+                        allowDecimals={false}
+                        fontSize={10}
                         fontWeight={600}
-                        stroke="#9ca3af" 
-                        tickLine={false} 
+                        stroke="#9ca3af"
+                        tickLine={false}
                         axisLine={false}
                       />
-                      
-                      <Tooltip 
-                        formatter={(value: any, name: any) => [value.toFixed(2), name]}
+
+                      <Tooltip
+                        formatter={(value: any, name: any) => [value, name]}
                         contentStyle={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "10px", fontSize: "11px" }}
                       />
                       
@@ -1994,16 +2041,21 @@ export const ReportLeads = () => {
                         axisLine={false}
                         dy={6}
                       />
-                      <YAxis 
-                        domain={[0, 10]} 
-                        ticks={[0, 2, 4, 6, 8, 10]} 
-                        fontSize={10} 
+                      <YAxis
+                        domain={[0, (dataMax: number) => Math.max(10, Math.ceil(dataMax) + 2)]}
+                        allowDecimals={false}
+                        fontSize={10}
                         fontWeight={600}
-                        stroke="#9ca3af" 
-                        tickLine={false} 
+                        stroke="#9ca3af"
+                        tickLine={false}
                         axisLine={false}
                       />
-                      <Tooltip />
+                      <Tooltip formatter={(val: any) => [val, "Leads Created"]} />
+                      <Bar dataKey="value" radius={[4, 4, 0, 0]} barSize={36}>
+                        {weeklyData.map((_, idx) => (
+                          <Cell key={idx} fill={weekdayColors[idx]} />
+                        ))}
+                      </Bar>
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -2034,12 +2086,11 @@ export const ReportLeads = () => {
                         axisLine={false}
                         dy={10}
                       />
-                      <YAxis 
-                        domain={[0, 1.0]} 
-                        ticks={[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]} 
-                        tickFormatter={(val) => val.toFixed(1)}
-                        fontSize={10} 
-                        fontWeight={600} 
+                      <YAxis
+                        domain={[0, (dataMax: number) => Math.max(4, Math.ceil(dataMax) + 1)]}
+                        allowDecimals={false}
+                        fontSize={10}
+                        fontWeight={600}
                         stroke="#9ca3af"
                         tickLine={false}
                         axisLine={false}
@@ -2136,19 +2187,84 @@ export const ReportTimesheets = () => {
   const [viewMode, setViewMode] = useState<"overview" | "my-timesheets">("overview");
   const [period, setPeriod] = useState("Today");
   const [selectedStaff, setSelectedStaff] = useState("All Staff Members");
-  const [customerSearch, setCustomerSearch] = useState("");
+  const [taskSearch, setTaskSearch] = useState("");
   const [projectSearch, setProjectSearch] = useState("");
 
-  // Initial rich dataset for timesheets
-  const initialTimesheets = [
-    { id: 1, staff: "Tirth Aghara", customer: "Acme Corporation", project: "Web App Refactoring", date: "2026-05-18", startTime: "09:00", endTime: "17:00", duration: 8.0, durationStr: "08:00", status: "Approved" },
-    { id: 2, staff: "Pooja Gangwani", customer: "Beta Industries", project: "CRM Customization", date: "2026-05-18", startTime: "10:30", endTime: "14:15", duration: 3.75, durationStr: "03:45", status: "Approved" },
-    { id: 3, staff: "Hardik Patel", customer: "Omega Retail Group", project: "Inventory API Sync", date: "2026-05-18", startTime: "08:15", endTime: "12:00", duration: 3.75, durationStr: "03:45", status: "Pending" },
-    { id: 4, staff: "Sales 2 Parekh", customer: "Apex Global Solutions", project: "B2B Sales Campaign", date: "2026-05-18", startTime: "14:00", endTime: "18:00", duration: 4.0, durationStr: "04:00", status: "Approved" },
-    { id: 5, staff: "Tirth Aghara", customer: "Alpha Construction", project: "Client Portal Design", date: "2026-05-18", startTime: "14:00", endTime: "15:30", duration: 1.5, durationStr: "01:30", status: "Approved" }
-  ];
+  const { user } = usePermissions();
+  const currentStaffName = user ? `${(user as any).firstname || ""} ${(user as any).lastname || ""}`.trim() : "";
 
-  const [filteredTimesheets, setFilteredTimesheets] = useState(initialTimesheets);
+  const { data: staffData = [] } = useQuery({
+    queryKey: ["staff", "timesheet-report"],
+    queryFn: staffService.getAll,
+  });
+
+  const { data: timeEntriesData = [] } = useQuery({
+    queryKey: ["time-entries", "report"],
+    queryFn: timeEntryService.getTimeEntries,
+  });
+
+  const resolveStaffName = (entry: any) => {
+    if (entry.member) return entry.member;
+    const createdById = typeof entry.created_by === "object" ? entry.created_by?._id : entry.created_by;
+    const staffMember = (staffData as any[]).find((s) => s._id === createdById);
+    return staffMember ? `${staffMember.firstname} ${staffMember.lastname}` : "Unassigned";
+  };
+
+  // Real timesheet entries, mapped from the TimeEntry API
+  const allTimesheets = (timeEntriesData as any[]).map((e) => ({
+    id: e._id,
+    staff: resolveStaffName(e),
+    task: e.task || "-",
+    project: e.project || "-",
+    date: e.date,
+    hours: Number(e.hours) || 0,
+    billable: !!e.billable,
+  }));
+
+  const baseTimesheets = viewMode === "my-timesheets"
+    ? allTimesheets.filter(t => t.staff === currentStaffName)
+    : allTimesheets;
+
+  const getPeriodRange = (p: string): { start: Date; end: Date } => {
+    const now = new Date();
+    if (p === "Yesterday") {
+      const y = subDays(now, 1);
+      return { start: startOfDay(y), end: endOfDay(y) };
+    }
+    if (p === "This Week") {
+      return { start: startOfWeek(now, { weekStartsOn: 1 }), end: endOfWeek(now, { weekStartsOn: 1 }) };
+    }
+    if (p === "Last Week") {
+      const lastWeekNow = subWeeks(now, 1);
+      return { start: startOfWeek(lastWeekNow, { weekStartsOn: 1 }), end: endOfWeek(lastWeekNow, { weekStartsOn: 1 }) };
+    }
+    if (p === "This Month") {
+      return { start: startOfMonth(now), end: endOfMonth(now) };
+    }
+    return { start: startOfDay(now), end: endOfDay(now) }; // Today (default)
+  };
+
+  const filteredTimesheets = useMemo(() => {
+    let result = [...baseTimesheets];
+
+    if (viewMode === "overview" && selectedStaff !== "All Staff Members") {
+      result = result.filter(t => t.staff === selectedStaff);
+    }
+
+    const { start, end } = getPeriodRange(period);
+    result = result.filter(t => t.date && isWithinInterval(new Date(t.date), { start, end }));
+
+    if (taskSearch.trim() !== "") {
+      result = result.filter(t => t.task.toLowerCase().includes(taskSearch.toLowerCase()));
+    }
+
+    if (projectSearch.trim() !== "") {
+      result = result.filter(t => t.project.toLowerCase().includes(projectSearch.toLowerCase()));
+    }
+
+    return result;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseTimesheets, selectedStaff, period, taskSearch, projectSearch, viewMode]);
 
   const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
     if (filteredTimesheets.length === 0) {
@@ -2157,16 +2273,14 @@ export const ReportTimesheets = () => {
     }
 
     if (type === "csv" || type === "xlsx") {
-      const headers = ["Staff Member", "Customer", "Project", "Date", "Start Time", "End Time", "Duration (Hours)", "Status"];
+      const headers = ["Staff Member", "Task", "Project", "Date", "Duration (Hours)", "Billable"];
       const rows = filteredTimesheets.map(t => [
         t.staff,
-        t.customer,
+        t.task,
         t.project,
-        t.date,
-        t.startTime,
-        t.endTime,
-        t.durationStr,
-        t.status
+        t.date ? format(new Date(t.date), "yyyy-MM-dd") : "",
+        t.hours,
+        t.billable ? "Yes" : "No"
       ]);
       const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
       const encodedUri = encodeURI(csvContent);
@@ -2185,73 +2299,41 @@ export const ReportTimesheets = () => {
     }
   };
 
-  // Apply filters on click
-  const handleApplyFilters = () => {
-    let result = [...initialTimesheets];
+  // Filters are applied live via useMemo above — Apply just re-affirms the current selection for UX consistency
+  const handleApplyFilters = () => {};
 
-    // Force user filter when in "my-timesheets" mode
-    if (viewMode === "my-timesheets") {
-      result = result.filter(t => t.staff === "Tirth Aghara");
-    } else if (selectedStaff !== "All Staff Members") {
-      result = result.filter(t => t.staff === selectedStaff);
-    }
+  // Total duration of the currently filtered records — drives the overview chart bar
+  const totalHours = filteredTimesheets.reduce((acc, curr) => acc + curr.hours, 0);
 
-    // Search by Customer
-    if (customerSearch.trim() !== "") {
-      result = result.filter(t => 
-        t.customer.toLowerCase().includes(customerSearch.toLowerCase())
-      );
-    }
-
-    // Search by Project
-    if (projectSearch.trim() !== "") {
-      result = result.filter(t => 
-        t.project.toLowerCase().includes(projectSearch.toLowerCase())
-      );
-    }
-
-    setFilteredTimesheets(result);
-  };
-
-  // Synchronize initial list when swapping view modes
-  useEffect(() => {
-    let result = [...initialTimesheets];
-    if (viewMode === "my-timesheets") {
-      result = result.filter(t => t.staff === "Tirth Aghara");
-    }
-    setFilteredTimesheets(result);
-  }, [viewMode]);
-
-  // Compute total duration of filtered records to populate chart bar
-  const totalHours = filteredTimesheets.reduce((acc, curr) => acc + curr.duration, 0);
-  
-  // Cap the visual bar value to a very small fraction near zero (e.g. 0.02) to match the empty/minimal bar in the screenshot
   const chartData = [
-    {
-      name: "Today",
-      value: totalHours > 0 ? 0.02 : 0.0
-    }
+    { name: period, value: totalHours }
   ];
 
-  // Custom Weekly Logged Data for My Timesheets View Chart
-  const weeklyMyLoggedData = [
-    { day: "Mon", hours: 2.0 },
-    { day: "Tue", hours: 4.5 },
-    { day: "Wed", hours: 1.5 },
-    { day: "Thu", hours: 0.0 },
-    { day: "Fri", hours: 1.5 },
-    { day: "Sat", hours: 0.0 },
-    { day: "Sun", hours: 0.0 }
-  ];
+  // Real per-weekday hours for the current week, scoped to the logged-in staff member
+  const myTimesheets = allTimesheets.filter(t => t.staff === currentStaffName);
+  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+  const weeklyMyLoggedData = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, idx) => {
+    const dayDate = addDays(weekStart, idx);
+    const hours = myTimesheets
+      .filter(t => t.date && isSameDay(new Date(t.date), dayDate))
+      .reduce((sum, t) => sum + t.hours, 0);
+    return { day, hours };
+  });
 
-  // Custom formatter for the Y-Axis representing time from 00:00 to 01:00
+  // Metrics for the "My Timesheets" summary cards — all computed from real logged hours
+  const now = new Date();
+  const sumHoursInRange = (start: Date, end: Date) =>
+    myTimesheets.filter(t => t.date && isWithinInterval(new Date(t.date), { start, end })).reduce((sum, t) => sum + t.hours, 0);
+
+  const myTotalHours = myTimesheets.reduce((sum, t) => sum + t.hours, 0);
+  const myThisWeekHours = sumHoursInRange(startOfWeek(now, { weekStartsOn: 1 }), endOfWeek(now, { weekStartsOn: 1 }));
+  const myLastWeekHours = sumHoursInRange(startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 }), endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 }));
+  const myThisMonthHours = sumHoursInRange(startOfMonth(now), endOfMonth(now));
+  const myLastMonthHours = sumHoursInRange(startOfMonth(subMonths(now, 1)), endOfMonth(subMonths(now, 1)));
+
+  // Custom formatter for the Y-Axis (hours as "Xh")
   const formatTimeTick = (val: number) => {
-    const totalMinutes = Math.round(val * 60);
-    const hrs = Math.floor(totalMinutes / 60);
-    const mins = totalMinutes % 60;
-    const hrsStr = hrs < 10 ? `0${hrs}` : `${hrs}`;
-    const minsStr = mins < 10 ? `0${mins}` : `${mins}`;
-    return `${hrsStr}:${minsStr}`;
+    return `${val}h`;
   };
 
   if (viewMode === "my-timesheets") {
@@ -2326,31 +2408,31 @@ export const ReportTimesheets = () => {
               {/* Metric 1 */}
               <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
                 <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Total Logged Time</span>
-                <span className="text-xl font-extrabold text-gray-900 mt-2">24.5 Hrs</span>
+                <span className="text-xl font-extrabold text-gray-900 mt-2">{myTotalHours.toFixed(1)} Hrs</span>
               </Card>
 
               {/* Metric 2 */}
               <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
                 <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Last Month Logged Time</span>
-                <span className="text-xl font-extrabold text-gray-900 mt-2">80.0 Hrs</span>
+                <span className="text-xl font-extrabold text-gray-900 mt-2">{myLastMonthHours.toFixed(1)} Hrs</span>
               </Card>
 
               {/* Metric 3 */}
               <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
                 <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">This Month Logged Time</span>
-                <span className="text-xl font-extrabold text-gray-900 mt-2">32.5 Hrs</span>
+                <span className="text-xl font-extrabold text-gray-900 mt-2">{myThisMonthHours.toFixed(1)} Hrs</span>
               </Card>
 
               {/* Metric 4 */}
               <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
                 <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Last Week Logged Time</span>
-                <span className="text-xl font-extrabold text-gray-900 mt-2">18.0 Hrs</span>
+                <span className="text-xl font-extrabold text-gray-900 mt-2">{myLastWeekHours.toFixed(1)} Hrs</span>
               </Card>
 
               {/* Metric 5 */}
               <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
                 <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">This Week Logged Time</span>
-                <span className="text-xl font-extrabold text-gray-950 mt-2 text-indigo-650">9.5 Hrs</span>
+                <span className="text-xl font-extrabold text-gray-950 mt-2 text-indigo-650">{myThisWeekHours.toFixed(1)} Hrs</span>
               </Card>
             </div>
 
@@ -2375,13 +2457,13 @@ export const ReportTimesheets = () => {
                   </Select>
                 </div>
 
-                {/* Customer Input searchable */}
+                {/* Task Input searchable */}
                 <div className="space-y-1.5 text-left">
-                  <span className="text-gray-500 font-bold">Customer</span>
+                  <span className="text-gray-500 font-bold">Task</span>
                   <Input
-                    placeholder="Search Customer..."
-                    value={customerSearch}
-                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    placeholder="Search Task..."
+                    value={taskSearch}
+                    onChange={(e) => setTaskSearch(e.target.value)}
                     className="w-full h-9 rounded-lg border-border/50 text-xs shadow-none bg-background font-medium"
                   />
                 </div>
@@ -2427,14 +2509,14 @@ export const ReportTimesheets = () => {
                       axisLine={false}
                       dy={6}
                     />
-                    <YAxis 
-                      domain={[0, 8.0]} 
-                      ticks={[0, 1, 2, 3, 4, 5, 6, 7, 8]}
+                    <YAxis
+                      domain={[0, (dataMax: number) => Math.max(8, Math.ceil(dataMax) + 1)]}
+                      allowDecimals={false}
                       tickFormatter={(val) => `${val}h`}
-                      fontSize={10} 
+                      fontSize={10}
                       fontWeight={600}
-                      stroke="#9ca3af" 
-                      tickLine={false} 
+                      stroke="#9ca3af"
+                      tickLine={false}
                       axisLine={false}
                     />
                     <Tooltip 
@@ -2465,13 +2547,11 @@ export const ReportTimesheets = () => {
                     <TableHeader>
                       <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
                         <TableHead className="font-bold text-gray-700 text-xs py-3.5 pl-6">Staff Member</TableHead>
-                        <TableHead className="font-bold text-gray-700 text-xs py-3.5">Customer</TableHead>
+                        <TableHead className="font-bold text-gray-700 text-xs py-3.5">Task</TableHead>
                         <TableHead className="font-bold text-gray-700 text-xs py-3.5">Project</TableHead>
                         <TableHead className="font-bold text-gray-700 text-xs py-3.5">Date</TableHead>
-                        <TableHead className="font-bold text-gray-700 text-xs py-3.5">Start Time</TableHead>
-                        <TableHead className="font-bold text-gray-700 text-xs py-3.5">End Time</TableHead>
                         <TableHead className="font-bold text-gray-700 text-xs py-3.5">Duration</TableHead>
-                        <TableHead className="font-bold text-gray-700 text-xs py-3.5 pr-6 text-right">Status</TableHead>
+                        <TableHead className="font-bold text-gray-700 text-xs py-3.5 pr-6 text-right">Billable</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2479,28 +2559,26 @@ export const ReportTimesheets = () => {
                         filteredTimesheets.map((t) => (
                           <TableRow key={t.id} className="hover:bg-gray-50/30 transition-colors border-b border-gray-100">
                             <TableCell className="font-semibold text-gray-900 text-xs py-3.5 pl-6">{t.staff}</TableCell>
-                            <TableCell className="text-gray-600 text-xs py-3.5">{t.customer}</TableCell>
+                            <TableCell className="text-gray-600 text-xs py-3.5">{t.task}</TableCell>
                             <TableCell className="text-gray-600 text-xs py-3.5 font-medium">{t.project}</TableCell>
-                            <TableCell className="text-gray-600 text-xs py-3.5">{t.date}</TableCell>
-                            <TableCell className="text-gray-500 text-xs py-3.5">{t.startTime}</TableCell>
-                            <TableCell className="text-gray-500 text-xs py-3.5">{t.endTime}</TableCell>
-                            <TableCell className="font-bold text-gray-900 text-xs py-3.5">{t.durationStr}</TableCell>
+                            <TableCell className="text-gray-600 text-xs py-3.5">{t.date ? format(new Date(t.date), "yyyy-MM-dd") : "-"}</TableCell>
+                            <TableCell className="font-bold text-gray-900 text-xs py-3.5">{t.hours}h</TableCell>
                             <TableCell className="py-3.5 pr-6 text-right">
-                              <Badge 
+                              <Badge
                                 className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase tracking-wide border shadow-none ${
-                                  t.status === "Approved" 
-                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
-                                    : "bg-amber-50 text-amber-700 border-amber-200"
+                                  t.billable
+                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                    : "bg-gray-100 text-gray-600 border-gray-200"
                                 }`}
                               >
-                                {t.status}
+                                {t.billable ? "Yes" : "No"}
                               </Badge>
                             </TableCell>
                           </TableRow>
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={8} className="text-center py-10 text-muted-foreground font-medium text-xs">
+                          <TableCell colSpan={6} className="text-center py-10 text-muted-foreground font-medium text-xs">
                             No logged timesheet records match your filter criteria.
                           </TableCell>
                         </TableRow>
@@ -2603,21 +2681,22 @@ export const ReportTimesheets = () => {
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-border/40">
                     <SelectItem value="All Staff Members" className="text-xs font-medium">All Staff Members</SelectItem>
-                    <SelectItem value="Tirth Aghara" className="text-xs font-medium">Tirth Aghara</SelectItem>
-                    <SelectItem value="Pooja Gangwani" className="text-xs font-medium">Pooja Gangwani</SelectItem>
-                    <SelectItem value="Hardik Patel" className="text-xs font-medium">Hardik Patel</SelectItem>
-                    <SelectItem value="Sales 2 Parekh" className="text-xs font-medium">Sales 2 Parekh</SelectItem>
+                    {(staffData as any[]).map((s) => (
+                      <SelectItem key={s._id} value={`${s.firstname} ${s.lastname}`} className="text-xs font-medium">
+                        {s.firstname} {s.lastname}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Customer Input searchable */}
+              {/* Task Input searchable */}
               <div className="space-y-1.5 text-left">
-                <span className="text-gray-500 font-bold">Customer</span>
+                <span className="text-gray-500 font-bold">Task</span>
                 <Input
-                  placeholder="Search Customer..."
-                  value={customerSearch}
-                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  placeholder="Search Task..."
+                  value={taskSearch}
+                  onChange={(e) => setTaskSearch(e.target.value)}
                   className="w-full h-9 rounded-lg border-border/50 text-xs shadow-none bg-background font-medium"
                 />
               </div>
@@ -2646,11 +2725,11 @@ export const ReportTimesheets = () => {
           {/* Visual Time scale bar chart replicating the reference image precisely */}
           <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] rounded-2xl overflow-hidden p-6">
             
-            {/* Custom centered legend matching your screen capture */}
+            {/* Custom centered legend */}
             <div className="flex justify-center pb-6">
               <div className="flex items-center gap-1.5 text-[11px] font-bold font-sans">
                 <span className="h-3 w-7 bg-[#e5e7eb] border border-gray-300 rounded" />
-                <span className="text-gray-600">Today</span>
+                <span className="text-gray-600">{period}</span>
               </div>
             </div>
 
@@ -2658,29 +2737,29 @@ export const ReportTimesheets = () => {
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={chartData} margin={{ left: -10, right: 10, bottom: 5 }}>
                   <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-gray-100" />
-                  
-                  <XAxis 
-                    dataKey="name" 
-                    fontSize={11} 
+
+                  <XAxis
+                    dataKey="name"
+                    fontSize={11}
                     fontWeight={600}
-                    stroke="#9ca3af" 
-                    tickLine={false} 
+                    stroke="#9ca3af"
+                    tickLine={false}
                     axisLine={false}
                     dy={6}
                   />
-                  
-                  <YAxis 
-                    domain={[0, 1.0]} 
-                    ticks={[0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]} 
+
+                  <YAxis
+                    domain={[0, (dataMax: number) => Math.max(4, Math.ceil(dataMax) + 1)]}
+                    allowDecimals={false}
                     tickFormatter={formatTimeTick}
-                    fontSize={10} 
+                    fontSize={10}
                     fontWeight={600}
-                    stroke="#9ca3af" 
-                    tickLine={false} 
+                    stroke="#9ca3af"
+                    tickLine={false}
                     axisLine={false}
                   />
-                  
-                  <Tooltip 
+
+                  <Tooltip
                     formatter={(val: any) => [formatTimeTick(val), "Logged Time"]}
                     contentStyle={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "10px", fontSize: "11px" }}
                   />
@@ -2712,13 +2791,11 @@ export const ReportTimesheets = () => {
                   <TableHeader>
                     <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
                       <TableHead className="font-bold text-gray-700 text-xs py-3.5 pl-6">Staff Member</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5">Customer</TableHead>
+                      <TableHead className="font-bold text-gray-700 text-xs py-3.5">Task</TableHead>
                       <TableHead className="font-bold text-gray-700 text-xs py-3.5">Project</TableHead>
                       <TableHead className="font-bold text-gray-700 text-xs py-3.5">Date</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5">Start Time</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5">End Time</TableHead>
                       <TableHead className="font-bold text-gray-700 text-xs py-3.5">Duration</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5 pr-6 text-right">Status</TableHead>
+                      <TableHead className="font-bold text-gray-700 text-xs py-3.5 pr-6 text-right">Billable</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2726,28 +2803,26 @@ export const ReportTimesheets = () => {
                       filteredTimesheets.map((t) => (
                         <TableRow key={t.id} className="hover:bg-gray-50/30 transition-colors border-b border-gray-100">
                           <TableCell className="font-semibold text-gray-900 text-xs py-3.5 pl-6">{t.staff}</TableCell>
-                          <TableCell className="text-gray-600 text-xs py-3.5">{t.customer}</TableCell>
+                          <TableCell className="text-gray-600 text-xs py-3.5">{t.task}</TableCell>
                           <TableCell className="text-gray-600 text-xs py-3.5 font-medium">{t.project}</TableCell>
-                          <TableCell className="text-gray-600 text-xs py-3.5">{t.date}</TableCell>
-                          <TableCell className="text-gray-500 text-xs py-3.5">{t.startTime}</TableCell>
-                          <TableCell className="text-gray-500 text-xs py-3.5">{t.endTime}</TableCell>
-                          <TableCell className="font-bold text-gray-900 text-xs py-3.5">{t.durationStr}</TableCell>
+                          <TableCell className="text-gray-600 text-xs py-3.5">{t.date ? format(new Date(t.date), "yyyy-MM-dd") : "-"}</TableCell>
+                          <TableCell className="font-bold text-gray-900 text-xs py-3.5">{t.hours}h</TableCell>
                           <TableCell className="py-3.5 pr-6 text-right">
-                            <Badge 
+                            <Badge
                               className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase tracking-wide border shadow-none ${
-                                t.status === "Approved" 
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
-                                  : "bg-amber-50 text-amber-700 border-amber-200"
+                                t.billable
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  : "bg-gray-100 text-gray-600 border-gray-200"
                               }`}
                             >
-                              {t.status}
+                              {t.billable ? "Yes" : "No"}
                             </Badge>
                           </TableCell>
                         </TableRow>
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center py-10 text-muted-foreground font-medium text-xs">
+                        <TableCell colSpan={6} className="text-center py-10 text-muted-foreground font-medium text-xs">
                           No timesheet activity matches your filter criteria.
                         </TableCell>
                       </TableRow>
@@ -2767,6 +2842,16 @@ export const ReportKBArticles = () => {
   const [selectedGroup, setSelectedGroup] = useState("All Groups");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const { data: kbGroupsData = [] } = useQuery({
+    queryKey: ["kb-groups"],
+    queryFn: supportService.getKBGroups,
+  });
+
+  const { data: kbArticlesData = [] } = useQuery({
+    queryKey: ["kb-articles", "reports"],
+    queryFn: () => supportService.getKBArticles(undefined, true),
+  });
+
   const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
     if (filteredArticles.length === 0) {
       toast.error("No data to export");
@@ -2774,12 +2859,10 @@ export const ReportKBArticles = () => {
     }
 
     if (type === "csv" || type === "xlsx") {
-      const headers = ["Article Title", "Group Category", "Views", "Author", "Date Created", "Status"];
+      const headers = ["Article Title", "Group Category", "Date Created", "Status"];
       const rows = filteredArticles.map(art => [
         art.title,
         art.group,
-        art.views,
-        art.author,
         art.date,
         art.status
       ]);
@@ -2800,19 +2883,14 @@ export const ReportKBArticles = () => {
     }
   };
 
-  // Robust knowledge base dataset
-  const kbArticles = [
-    { id: 1, title: "How to setup auto-billing", group: "Billing & Invoices", views: 1250, status: "Published", author: "Tirth Aghara", date: "2026-04-12" },
-    { id: 2, title: "Refunding failed payments", group: "Billing & Invoices", views: 980, status: "Published", author: "Pooja Gangwani", date: "2026-04-20" },
-    { id: 3, title: "Updating credit card information", group: "Billing & Invoices", views: 2400, status: "Published", author: "Hardik Patel", date: "2026-05-02" },
-    { id: 4, title: "Resetting two-factor authentication", group: "Technical Support", views: 3200, status: "Published", author: "Sales 2 Parekh", date: "2026-03-15" },
-    { id: 5, title: "Configuring custom email domains", group: "Technical Support", views: 1850, status: "Published", author: "Bhavin Badiyani", date: "2026-04-18" },
-    { id: 6, title: "Troubleshooting webhook failures", group: "Technical Support", views: 720, status: "Draft", author: "Tirth Aghara", date: "2026-05-14" },
-    { id: 7, title: "Authenticating REST API requests", group: "API Integration", views: 4200, status: "Published", author: "Aditya Prakash", date: "2026-02-10" },
-    { id: 8, title: "Rate limiting guidelines", group: "API Integration", views: 1500, status: "Published", author: "Hardik Patel", date: "2026-03-22" },
-    { id: 9, title: "Adding staff members to dashboard", group: "General Settings", views: 1100, status: "Published", author: "Pooja Gangwani", date: "2026-01-05" },
-    { id: 10, title: "Customizing user notification preferences", group: "General Settings", views: 890, status: "Published", author: "Bhavin Badiyani", date: "2026-02-28" }
-  ];
+  // Real knowledge base articles fetched from the API, with the group populated server-side
+  const kbArticles = (kbArticlesData as any[]).map((a) => ({
+    id: a._id,
+    title: a.subject,
+    group: a.group?.name || "Uncategorized",
+    status: a.active ? "Published" : "Draft",
+    date: a.createdAt ? format(new Date(a.createdAt), "yyyy-MM-dd") : "-",
+  }));
 
   // Dynamic filtering based on Group Selection and Search string
   const filteredArticles = kbArticles.filter(art => {
@@ -2821,18 +2899,18 @@ export const ReportKBArticles = () => {
     return matchesGroup && matchesSearch;
   });
 
-  // Calculate live statistics
+  // Calculate live statistics from real data
   const totalArticles = filteredArticles.length;
-  const totalViews = filteredArticles.reduce((acc, curr) => acc + curr.views, 0);
-  const mostViewed = filteredArticles.length > 0 
-    ? [...filteredArticles].sort((a, b) => b.views - a.views)[0]
-    : null;
+  const publishedCount = filteredArticles.filter(a => a.status === "Published").length;
+  const draftCount = totalArticles - publishedCount;
 
-  // Prepare chart dataset
-  const chartData = filteredArticles.map(art => ({
-    name: art.title.length > 25 ? art.title.substring(0, 22) + "..." : art.title,
-    views: art.views
-  }));
+  // Prepare chart dataset — real article counts per group
+  const chartData = Object.entries(
+    filteredArticles.reduce((acc: Record<string, number>, art) => {
+      acc[art.group] = (acc[art.group] || 0) + 1;
+      return acc;
+    }, {})
+  ).map(([name, count]) => ({ name, count }));
 
   return (
     <DashboardLayout>
@@ -2891,10 +2969,9 @@ export const ReportKBArticles = () => {
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-border/40">
                     <SelectItem value="All Groups" className="text-xs font-medium">All Groups</SelectItem>
-                    <SelectItem value="Billing & Invoices" className="text-xs font-medium">Billing & Invoices</SelectItem>
-                    <SelectItem value="Technical Support" className="text-xs font-medium">Technical Support</SelectItem>
-                    <SelectItem value="API Integration" className="text-xs font-medium">API Integration</SelectItem>
-                    <SelectItem value="General Settings" className="text-xs font-medium">General Settings</SelectItem>
+                    {(kbGroupsData as any[]).map((g) => (
+                      <SelectItem key={g._id} value={g.name} className="text-xs font-medium">{g.name}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -2923,54 +3000,53 @@ export const ReportKBArticles = () => {
 
             {/* Metric 2 */}
             <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
-              <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Total Read Views</span>
-              <span className="text-xl font-extrabold text-gray-900 mt-2">{totalViews.toLocaleString()}</span>
+              <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Published Articles</span>
+              <span className="text-xl font-extrabold text-gray-900 mt-2">{publishedCount}</span>
             </Card>
 
             {/* Metric 3 */}
             <Card className="bg-white border border-border/30 rounded-xl p-4 flex flex-col justify-between shadow-[0_1px_4px_-1px_rgba(0,0,0,0.03)]">
-              <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Most Viewed Article</span>
-              <span className="text-xs font-extrabold text-gray-950 truncate mt-2">
-                {mostViewed ? `${mostViewed.title} (${mostViewed.views.toLocaleString()} views)` : "N/A"}
-              </span>
+              <span className="text-[10px] uppercase font-black text-gray-400 tracking-wider">Draft Articles</span>
+              <span className="text-xl font-extrabold text-gray-900 mt-2">{draftCount}</span>
             </Card>
           </div>
 
-          {/* Readership bar chart */}
+          {/* Articles per group bar chart */}
           {chartData.length > 0 && (
             <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] rounded-2xl overflow-hidden p-6">
               <CardHeader className="p-0 pb-6 text-left">
                 <CardTitle className="text-xs font-black text-gray-900 tracking-tight uppercase">
-                  Readership Views Breakdown
+                  Articles Per Group
                 </CardTitle>
               </CardHeader>
               <div className="h-[280px] w-full">
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={chartData} margin={{ left: -10, right: 10, bottom: 5 }}>
                     <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-gray-100" />
-                    <XAxis 
-                      dataKey="name" 
-                      fontSize={10} 
+                    <XAxis
+                      dataKey="name"
+                      fontSize={10}
                       fontWeight={600}
-                      stroke="#9ca3af" 
-                      tickLine={false} 
+                      stroke="#9ca3af"
+                      tickLine={false}
                       axisLine={false}
                       dy={6}
                     />
-                    <YAxis 
-                      fontSize={10} 
+                    <YAxis
+                      allowDecimals={false}
+                      fontSize={10}
                       fontWeight={600}
-                      stroke="#9ca3af" 
-                      tickLine={false} 
+                      stroke="#9ca3af"
+                      tickLine={false}
                       axisLine={false}
                     />
-                    <Tooltip 
-                      formatter={(val: any) => [`${val.toLocaleString()} views`, "Views"]}
+                    <Tooltip
+                      formatter={(val: any) => [`${val} article(s)`, "Count"]}
                       contentStyle={{ background: "#ffffff", border: "1px solid #e5e7eb", borderRadius: "10px", fontSize: "11px" }}
                     />
-                    <Bar 
-                      dataKey="views" 
-                      fill="#0ea5e9" 
+                    <Bar
+                      dataKey="count"
+                      fill="#0ea5e9"
                       radius={[4, 4, 0, 0]}
                       barSize={32}
                     />
@@ -2994,8 +3070,6 @@ export const ReportKBArticles = () => {
                     <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
                       <TableHead className="font-bold text-gray-700 text-xs py-3.5 pl-6">Article Title</TableHead>
                       <TableHead className="font-bold text-gray-700 text-xs py-3.5">Group Category</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5">Views</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5">Author</TableHead>
                       <TableHead className="font-bold text-gray-700 text-xs py-3.5">Date Created</TableHead>
                       <TableHead className="font-bold text-gray-700 text-xs py-3.5 pr-6 text-right">Status</TableHead>
                     </TableRow>
@@ -3006,14 +3080,12 @@ export const ReportKBArticles = () => {
                         <TableRow key={art.id} className="hover:bg-gray-50/30 transition-colors border-b border-gray-100">
                           <TableCell className="font-semibold text-gray-900 text-xs py-3.5 pl-6">{art.title}</TableCell>
                           <TableCell className="text-gray-600 text-xs py-3.5">{art.group}</TableCell>
-                          <TableCell className="font-bold text-gray-900 text-xs py-3.5">{art.views.toLocaleString()}</TableCell>
-                          <TableCell className="text-gray-500 text-xs py-3.5">{art.author}</TableCell>
                           <TableCell className="text-gray-500 text-xs py-3.5">{art.date}</TableCell>
                           <TableCell className="py-3.5 pr-6 text-right">
-                            <Badge 
+                            <Badge
                               className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase tracking-wide border shadow-none ${
-                                art.status === "Published" 
-                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                                art.status === "Published"
+                                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                   : "bg-gray-100 text-gray-600 border-gray-200"
                               }`}
                             >
@@ -3024,7 +3096,7 @@ export const ReportKBArticles = () => {
                       ))
                     ) : (
                       <TableRow>
-                        <TableCell colSpan={6} className="text-center py-10 text-muted-foreground font-medium text-xs">
+                        <TableCell colSpan={4} className="text-center py-10 text-muted-foreground font-medium text-xs">
                           No KB articles match the chosen group category.
                         </TableCell>
                       </TableRow>

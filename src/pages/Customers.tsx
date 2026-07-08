@@ -242,16 +242,25 @@ const Customers = () => {
         c.datecreated ? formatDate(c.datecreated) : "-"
       ]);
 
-      const csvData = [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
-      const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `customers_export_${new Date().toISOString().split('T')[0]}.${type}`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      const filenameBase = `customers_export_${new Date().toISOString().split('T')[0]}`;
+
+      if (type === "xlsx") {
+        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Customers");
+        XLSX.writeFile(wb, `${filenameBase}.xlsx`);
+      } else {
+        const csvData = [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+        const blob = new Blob(["﻿" + csvData], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `${filenameBase}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
       toast({ title: "Success", description: `Exported successfully as ${type.toUpperCase()}` });
     } else if (type === "print") {
       window.print();

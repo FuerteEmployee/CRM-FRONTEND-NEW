@@ -1,8 +1,6 @@
 import { useState } from "react";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
-import { Plus, Search, ChevronDown, Download, FileSpreadsheet, FileJson, FileType, Printer, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, Upload, UserCheck, AlertTriangle, AlertOctagon } from "lucide-react";
-import Papa from "papaparse";
-import * as XLSX from "xlsx";
+import { Plus, Search, ChevronDown, FileJson, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -18,8 +16,10 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useCurrency } from "@/context/CurrencyContext";
 import { staffService } from "@/api/services/staff.service";
 import { Textarea } from "@/components/ui/textarea";
-import { 
-  DropdownMenu, 
+import { ExportButton } from "@/components/ui/export-button";
+import { ImportButton } from "@/components/ui/import-button";
+import {
+  DropdownMenu,
   DropdownMenuContent, 
   DropdownMenuItem, 
   DropdownMenuTrigger 
@@ -262,43 +262,6 @@ const Leads = () => {
     importLeadsMutation.mutate(validLeads as any);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const ext = file.name.split(".").pop()?.toLowerCase();
-
-    if (ext === "xlsx" || ext === "xls") {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const data = new Uint8Array(evt.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: "array" });
-          const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-          processLeadRows(rows);
-        } catch {
-          toast({ title: "Parsing Error", description: "Could not read the Excel file.", variant: "destructive" });
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    } else {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          if (results.errors.length > 0) {
-            toast({ title: "Parsing Error", description: "There was an error parsing the CSV file.", variant: "destructive" });
-            return;
-          }
-          processLeadRows(results.data as any[]);
-        },
-      });
-    }
-
-    e.target.value = '';
-  };
-
   const createStatusMutation = useMutation({
     mutationFn: (name: string) => leadService.createStatus({ name, color: "#3b82f6", order: 0 }),
     onSuccess: () => {
@@ -409,26 +372,6 @@ const Leads = () => {
       "Created At": l.createdAt ? new Date(l.createdAt).toLocaleDateString() : "",
     }));
 
-  const handleExportExcel = () => {
-    const rows = getExportRows();
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Leads");
-    XLSX.writeFile(wb, "leads.xlsx");
-  };
-
-  const handleExportCSV = () => {
-    const rows = getExportRows();
-    const csv = Papa.unparse(rows);
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "leads.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleExportJSON = () => {
     const blob = new Blob([JSON.stringify(getExportRows(), null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -437,17 +380,6 @@ const Leads = () => {
     a.download = "leads.json";
     a.click();
     URL.revokeObjectURL(url);
-  };
-
-  const handlePrint = () => {
-    const rows = getExportRows();
-    const headers = Object.keys(rows[0] || {});
-    const tableRows = rows
-      .map((r) => `<tr>${headers.map((h) => `<td style="border:1px solid #ccc;padding:6px 10px;font-size:12px">${(r as any)[h]}</td>`).join("")}</tr>`)
-      .join("");
-    const html = `<html><head><title>Leads</title><style>body{font-family:sans-serif}table{border-collapse:collapse;width:100%}th{background:#f1f5f9;border:1px solid #ccc;padding:8px 10px;font-size:12px;text-align:left}</style></head><body><h2 style="margin-bottom:12px">Leads</h2><table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${tableRows}</tbody></table></body></html>`;
-    const win = window.open("", "_blank");
-    if (win) { win.document.write(html); win.document.close(); win.print(); }
   };
 
   const filtered = leads.filter((l) => {
@@ -486,15 +418,7 @@ const Leads = () => {
           </div>
           {can("Leads", "Create") && (
             <div className="flex gap-2 items-center">
-              <div>
-                <input type="file" id="import-csv" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileUpload} />
-                <Label htmlFor="import-csv">
-                  <div className="cursor-pointer flex items-center justify-center rounded-xl font-black gap-2 shadow-sm border border-slate-200 px-4 h-11 uppercase text-xs tracking-widest transition-all hover:bg-slate-50 text-slate-700">
-                    <Upload className="h-4 w-4 stroke-[3]" />
-                    {importLeadsMutation.isPending ? "Importing..." : "Import Leads"}
-                  </div>
-                </Label>
-              </div>
+              <ImportButton onData={processLeadRows} loading={importLeadsMutation.isPending} label="Import Leads" />
               <Dialog open={isNewLeadOpen} onOpenChange={setIsNewLeadOpen}>
                   <Button onClick={() => openModal("create")} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest transition-all hover:scale-105">
                     <Plus className="h-4 w-4 stroke-[3]" />
@@ -827,19 +751,35 @@ const Leads = () => {
                   </SelectContent>
                 </Select>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="h-10 rounded-xl px-4 border-slate-200 bg-white font-black uppercase text-[10px] tracking-widest">
-                      Export <ChevronDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-44 rounded-2xl p-2 border-slate-100 shadow-2xl">
-                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer" onClick={handleExportExcel}><FileSpreadsheet className="mr-2 h-4 w-4 text-green-600" /> Excel (.xlsx)</DropdownMenuItem>
-                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer" onClick={handleExportCSV}><FileType className="mr-2 h-4 w-4 text-rose-600" /> CSV</DropdownMenuItem>
-                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer" onClick={handleExportJSON}><FileJson className="mr-2 h-4 w-4 text-blue-600" /> JSON</DropdownMenuItem>
-                    <DropdownMenuItem className="rounded-xl h-10 font-bold text-xs cursor-pointer" onClick={handlePrint}><Printer className="mr-2 h-4 w-4 text-slate-600" /> Print</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <ExportButton
+                  data={filtered}
+                  filename="leads"
+                  columns={[
+                    { header: "Name", key: "name" },
+                    { header: "Email", key: "email" },
+                    { header: "Company", key: "company" },
+                    { header: "Phone", key: "phonenumber" },
+                    { header: "Status", key: (l) => typeof l.status === "object" ? l.status?.name : (statuses.find((s) => s._id === l.status)?.name || "") },
+                    { header: "Source", key: (l) => sources.find((s) => s._id === l.source)?.name || "" },
+                    { header: "Lead Value", key: "lead_value" },
+                    { header: "Address", key: "address" },
+                    { header: "City", key: "city" },
+                    { header: "State", key: "state" },
+                    { header: "Country", key: "country" },
+                    { header: "Zip", key: "zip" },
+                    { header: "Website", key: "website" },
+                    { header: "Created At", key: (l) => l.createdAt ? new Date(l.createdAt).toLocaleDateString() : "" },
+                  ]}
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-10 w-10 rounded-xl border-slate-200 bg-white"
+                  title="Export as JSON"
+                  onClick={handleExportJSON}
+                >
+                  <FileJson className="h-4 w-4 text-blue-600" />
+                </Button>
 
                 {/* Bulk Actions Modal */}
                 <Dialog open={bulkActionOpen} onOpenChange={setBulkActionOpen}>

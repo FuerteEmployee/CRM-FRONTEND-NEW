@@ -31,6 +31,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { contractService } from "@/api/services/contract.service";
 import { customerService } from "@/api/services/customer.service";
 import { ExportButton } from "@/components/ui/export-button";
+import { ImportButton } from "@/components/ui/import-button";
 import { useCurrency } from "@/context/CurrencyContext";
 
 const statusColors: Record<string, string> = {
@@ -59,6 +60,7 @@ const Contracts = () => {
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
   const [bulkState, setBulkState] = useState({ massDelete: false });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   const filtered = useMemo(() => {
     return contracts.filter((c: any) =>
@@ -124,6 +126,25 @@ const Contracts = () => {
       toast({ title: "Error", description: "Failed to load contracts.", variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleImportData = async (rows: Record<string, any>[]) => {
+    setIsImporting(true);
+    try {
+      const result: any = await contractService.importContracts(rows);
+      const count = result?.count ?? 0;
+      const skipped = result?.skipped ?? 0;
+      toast({
+        title: count === 0 ? "No Contracts Imported" : "Import Successful",
+        description: count === 0 ? "No rows matched an existing client and subject." : `Imported ${count} contract(s)${skipped ? `, skipped ${skipped} invalid row(s)` : ""}.`,
+        variant: count === 0 ? "destructive" : "default",
+      });
+      fetchData();
+    } catch (error: any) {
+      toast({ title: "Import Failed", description: error?.response?.data?.message || error.message, variant: "destructive" });
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -335,8 +356,9 @@ const Contracts = () => {
                 { header: "Status", key: getStatus },
                 { header: "Start", key: "datestart" },
                 { header: "End", key: "dateend" }
-              ]} 
+              ]}
             />
+            <ImportButton onData={handleImportData} loading={isImporting} />
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

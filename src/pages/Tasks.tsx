@@ -38,15 +38,15 @@ import {
 } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Plus, Search, ChevronDown, Download, FileSpreadsheet, FileJson, FileType, Printer, HelpCircle,
+  Plus, Search, HelpCircle,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Bold, Italic, Underline, Strikethrough,
   Highlighter, Link2, Image, Type,
   List, ListOrdered, CheckSquare,
-  Undo2, Redo2, MoreHorizontal, Paperclip, Upload
+  Undo2, Redo2, MoreHorizontal, Paperclip
 } from "lucide-react";
-import Papa from "papaparse";
-import * as XLSX from "xlsx";
+import { ExportButton } from "@/components/ui/export-button";
+import { ImportButton } from "@/components/ui/import-button";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { projectService } from "@/api/services/project.service";
 import { utilityService } from "@/api/services/utility.service";
@@ -204,49 +204,6 @@ const Tasks = () => {
     });
   }, [allTasks, search, activeStatus]);
 
-  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
-    if (filteredTasks.length === 0) {
-      toast({ title: "Error", description: "No data to export", variant: "destructive" });
-      return;
-    }
-
-    const dateStamp = new Date().toISOString().split('T')[0];
-    const rows = filteredTasks.map((t: any) => ({
-      "Task Name": t.name || "",
-      "Type": t.isTodo ? "Personal Todo" : "Task",
-      "Status": taskStatusConfig.find(s => s.id === t.displayStatus)?.label || "Not Started",
-      "Start Date": t.startdate ? formatDate(t.startdate) : "-",
-      "Due Date": t.duedate ? formatDate(t.duedate) : "-",
-      "Tags": t.tags ? t.tags.join(", ") : "",
-      "Priority": priorityLabels[t.displayPriority] || "Medium",
-    }));
-
-    if (type === "xlsx") {
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Tasks");
-      XLSX.writeFile(wb, `tasks_export_${dateStamp}.xlsx`);
-      toast({ title: "Success", description: "Exported successfully as XLSX" });
-    } else if (type === "csv") {
-      const csvData = Papa.unparse(rows);
-      const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `tasks_export_${dateStamp}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      toast({ title: "Success", description: "Exported successfully as CSV" });
-    } else if (type === "print") {
-      window.print();
-    } else if (type === "pdf") {
-      toast({ title: "Print Mode", description: "Ready to save - choose Save as PDF in print options" });
-      window.print();
-    }
-  };
-
   const stats = useMemo(() => {
     return taskStatusConfig.map((status) => ({
       ...status,
@@ -336,43 +293,6 @@ const Tasks = () => {
       return;
     }
     importTasksMutation.mutate(validTasks as any);
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const ext = file.name.split(".").pop()?.toLowerCase();
-
-    if (ext === "xlsx" || ext === "xls") {
-      const reader = new FileReader();
-      reader.onload = (evt) => {
-        try {
-          const data = new Uint8Array(evt.target?.result as ArrayBuffer);
-          const workbook = XLSX.read(data, { type: "array" });
-          const sheet = workbook.Sheets[workbook.SheetNames[0]];
-          const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-          processTaskRows(rows);
-        } catch {
-          toast({ title: "Parsing Error", description: "Could not read the Excel file.", variant: "destructive" });
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    } else {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          if (results.errors.length > 0) {
-            toast({ title: "Parsing Error", description: "There was an error parsing the CSV file.", variant: "destructive" });
-            return;
-          }
-          processTaskRows(results.data as any[]);
-        },
-      });
-    }
-
-    e.target.value = '';
   };
 
   const updateMutation = useMutation({
@@ -545,15 +465,7 @@ const Tasks = () => {
           </div>
           {can("Tasks", "Create") && (
             <div className="flex gap-2 items-center">
-              <div>
-                <input type="file" id="import-tasks" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleFileUpload} />
-                <Label htmlFor="import-tasks">
-                  <div className="cursor-pointer flex items-center justify-center rounded-xl font-black gap-2 shadow-sm border border-slate-200 px-4 h-11 uppercase text-xs tracking-widest transition-all hover:bg-slate-50 text-slate-700">
-                    <Upload className="h-4 w-4 stroke-[3]" />
-                    {importTasksMutation.isPending ? "Importing..." : "Import Tasks"}
-                  </div>
-                </Label>
-              </div>
+              <ImportButton onData={processTaskRows} loading={importTasksMutation.isPending} label="Import Tasks" />
               <Dialog open={isNewTaskModalOpen} onOpenChange={setIsNewTaskModalOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setEditingTask(null)} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
@@ -868,33 +780,19 @@ const Tasks = () => {
                   </SelectContent>
                 </Select>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-9 gap-2 text-xs font-bold uppercase tracking-wider bg-slate-50 border-slate-200">
-                      <Download className="h-3.5 w-3.5" />
-                      Export
-                      <ChevronDown className="h-3 w-3 opacity-50" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-40">
-                    <DropdownMenuItem onClick={() => handleExport("xlsx")} className="gap-3 cursor-pointer text-xs font-bold">
-                      <FileSpreadsheet className="h-4 w-4 text-green-600" />
-                      <span>Excel</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleExport("csv")} className="gap-3 cursor-pointer text-xs font-bold">
-                      <FileJson className="h-4 w-4 text-blue-600" />
-                      <span>CSV</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleExport("pdf")} className="gap-3 cursor-pointer text-xs font-bold">
-                      <FileType className="h-4 w-4 text-red-600" />
-                      <span>PDF</span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleExport("print")} className="gap-3 cursor-pointer text-xs font-bold">
-                      <Printer className="h-4 w-4 text-gray-600" />
-                      <span>Print</span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <ExportButton
+                  data={filteredTasks}
+                  filename="tasks"
+                  columns={[
+                    { header: "Task Name", key: "name" },
+                    { header: "Type", key: (t) => t.isTodo ? "Personal Todo" : "Task" },
+                    { header: "Status", key: (t) => taskStatusConfig.find(s => s.id === t.displayStatus)?.label || "Not Started" },
+                    { header: "Start Date", key: (t) => t.startdate ? formatDate(t.startdate) : "-" },
+                    { header: "Due Date", key: (t) => t.duedate ? formatDate(t.duedate) : "-" },
+                    { header: "Tags", key: (t) => t.tags ? t.tags.join(", ") : "" },
+                    { header: "Priority", key: (t) => priorityLabels[t.displayPriority] || "Medium" },
+                  ]}
+                />
 
                 <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                   if (open && selectedTasks.length === 0) {

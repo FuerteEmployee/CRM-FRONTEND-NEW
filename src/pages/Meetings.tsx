@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/dateFormat";
 import { Badge } from "@/components/ui/badge";
 import { ExportButton } from "@/components/ui/export-button";
+import { ImportButton } from "@/components/ui/import-button";
 
 export default function Meetings() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -96,6 +97,27 @@ export default function Meetings() {
       toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
     },
   });
+
+  const importMutation = useMutation({
+    mutationFn: (rows: any[]) => meetingService.importMeetings(rows),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["meetings"] });
+      const count = data?.count ?? 0;
+      const skipped = data?.skipped ?? 0;
+      toast({
+        title: count === 0 ? "No Meetings Imported" : "Import Successful",
+        description: count === 0 ? "No rows had the required Topic, Agenda, and Date columns." : `Imported ${count} meeting(s)${skipped ? `, skipped ${skipped} invalid row(s)` : ""}.`,
+        variant: count === 0 ? "destructive" : "default",
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Import Failed", description: err.response?.data?.message || err.message, variant: "destructive" });
+    },
+  });
+
+  const handleImportData = (rows: Record<string, any>[]) => {
+    importMutation.mutate(rows as any);
+  };
 
   const handleInputChange = (e: any) => {
     const { id, value } = e.target;
@@ -211,6 +233,7 @@ export default function Meetings() {
                 { header: "Summary", key: "summary" }
               ]}
             />
+            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
               <DialogTrigger asChild>
                 <Button onClick={() => setEditingMeeting(null)} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">

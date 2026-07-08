@@ -27,15 +27,15 @@ import {
   TableHeader, 
   TableRow 
 } from "@/components/ui/table";
-import { 
-  Search, 
-  FileDown,
+import {
+  Search,
   Calendar,
   User,
   Loader2,
   X,
   Zap
 } from "lucide-react";
+import { ExportButton } from "@/components/ui/export-button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { utilityService } from "@/api/services/utility.service";
 import { format } from "date-fns";
@@ -139,39 +139,6 @@ const ActivityLogs = () => {
   };
 
   // Export handlers
-  const handleExport = (type: string) => {
-    if (filteredData.length === 0) {
-      toast.error("No data to export");
-      return;
-    }
-
-    if (type === "csv" || type === "xlsx") {
-      const headers = ["Description", "Date", "Staff Member"];
-      const rows = filteredData.map((log: any) => [
-        log.description,
-        formatLogDate(log.date),
-        log.staffid ? `${log.staffid.firstname} ${log.staffid.lastname}` : "System"
-      ]);
-
-      const csvContent = "data:text/csv;charset=utf-8," 
-        + [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
-      
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `activity_logs_${new Date().toISOString().split('T')[0]}.${type === "xlsx" ? "xlsx" : "csv"}`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success(`Exported successfully as ${type.toUpperCase()}`);
-    } else if (type === "print") {
-      window.print();
-    } else if (type === "pdf") {
-      toast.success("Ready to save - choose Save as PDF in print options");
-      window.print();
-    }
-  };
-
   const clearDate = () => {
     setFilterDate("");
     setCurrentPage(1);
@@ -277,21 +244,15 @@ const ActivityLogs = () => {
                   </SelectContent>
                 </Select>
 
-                {/* Export Dropdown */}
-                <Select onValueChange={handleExport}>
-                  <SelectTrigger className="w-[125px] h-9 rounded-lg border-border/40 bg-background font-bold text-xs uppercase tracking-wider">
-                    <div className="flex items-center gap-2">
-                      <FileDown className="h-3.5 w-3.5 text-primary" />
-                      <span>Export</span>
-                    </div>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="csv">CSV</SelectItem>
-                    <SelectItem value="xlsx">Excel</SelectItem>
-                    <SelectItem value="pdf">PDF</SelectItem>
-                    <SelectItem value="print">Print</SelectItem>
-                  </SelectContent>
-                </Select>
+                <ExportButton
+                  data={filteredData}
+                  filename="activity_logs"
+                  columns={[
+                    { header: "Description", key: "description" },
+                    { header: "Date", key: (log) => formatLogDate(log.date) },
+                    { header: "Staff Member", key: (log) => log.staffid ? `${log.staffid.firstname} ${log.staffid.lastname}` : "System" },
+                  ]}
+                />
 
                 <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                   if (open && selectedItems.length === 0) {
