@@ -306,6 +306,7 @@ export function VoiceTextarea({ value, onChange, className, placeholder, name }:
         value={value}
         onChange={onChange}
         className={cn(className, "pb-12")}
+        disableVoice
       />
       <Button
         size="sm"
@@ -404,6 +405,7 @@ export function VoiceInput({ value, onChange, className, placeholder, name, type
         onChange={onChange}
         className={cn(className, "pr-8")}
         {...props}
+        disableVoice
       />
       <Button
         size="icon"
@@ -2601,6 +2603,7 @@ export default function CustomerView() {
                                 value={noteDescription}
                                 onChange={(e: any) => setNoteDescription(e.target.value)}
                                 className="min-h-[100px] bg-background focus:ring-1 ring-primary/20 pb-12"
+                                disableVoice
                               />
                               <Button
                                 size="sm"

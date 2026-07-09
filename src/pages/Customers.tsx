@@ -738,15 +738,6 @@ const Customers = () => {
                   </Tabs>
                   <div className="flex gap-2 pt-2">
                     <DialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="flex-1"
-                        onClick={handleCreate}
-                      >
-                        Save and Create Contact
-                      </Button>
-                    </DialogTrigger>
-                    <DialogTrigger asChild>
                       <Button className="flex-1" onClick={handleCreate}>
                         Save
                       </Button>

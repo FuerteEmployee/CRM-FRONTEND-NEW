@@ -81,7 +81,7 @@ export function FuerteAIAssistant() {
     return true;
   };
 
-  const { transcript, listening, resetTranscript, browserSupportsSpeechRecognition } = useSpeechRecognition();
+  const { transcript, listening, resetTranscript, browserSupportsSpeechRecognition, isMicrophoneAvailable } = useSpeechRecognition();
 
 const changeState = (s: AIState) => {
   setAIState(s);
@@ -95,6 +95,25 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [transcript]);
 
+// ─── Surface mic permission errors instead of failing silently ───────────
+// Chrome scopes microphone permission per-origin, so a user who denied it once
+// on this domain (or on an origin without a valid HTTPS cert) will see this
+// flip to false even though everything works fine on localhost.
+useEffect(() => {
+  if (!isMicrophoneAvailable && aiStateRef.current !== "sleeping") {
+    changeState("sleeping");
+    setTooltip(false);
+    resetTranscript();
+    if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
+    toast({
+      title: "Fuerte AI",
+      description: "Microphone access is blocked for this site. Check your browser's site permissions and allow microphone access, then try again.",
+      variant: "destructive",
+    });
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [isMicrophoneAvailable]);
+
 if (!browserSupportsSpeechRecognition) return null;
 
 // ─── FAB toggle ──────────────────────────────────────────────────────────
@@ -106,6 +125,12 @@ const toggleListening = () => {
     setTooltip(false);
     if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
     toast({ title: "Fuerte AI", description: "Microphone off. AI is sleeping." });
+  } else if (!isMicrophoneAvailable) {
+    toast({
+      title: "Fuerte AI",
+      description: "Microphone access is blocked for this site. Check your browser's site permissions and allow microphone access, then try again.",
+      variant: "destructive",
+    });
   } else {
     resetTranscript();
     SpeechRecognition.startListening({ continuous: true, language: "en-US" });

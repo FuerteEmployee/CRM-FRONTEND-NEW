@@ -455,7 +455,7 @@ const Tasks = () => {
         <TaskViewModal
           isOpen={isViewModalOpen}
           onClose={() => setIsViewModalOpen(false)}
-          task={selectedViewTask}
+          task={(selectedViewTask && allTasks.find((t: any) => t._id === selectedViewTask._id)) || selectedViewTask}
           staffOptions={staffOptions}
         />
         <div className="flex items-center justify-between">

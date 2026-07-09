@@ -4,7 +4,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,9 +38,11 @@ import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { taskService } from "@/api/services/task.service";
 import { utilityService } from "@/api/services/utility.service";
 import { timeEntryService } from "@/api/services/time_entry.service";
-import { mediaService } from "@/api/services/media.service";
+import { reminderService } from "@/api/services/reminder.service";
+import { fileService } from "@/api/services/file.service";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyContext";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface TaskViewModalProps {
   isOpen: boolean;
@@ -67,6 +71,7 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { symbol } = useCurrency();
+  const { user, isAdmin } = usePermissions();
   const [newChecklist, setNewChecklist] = useState("");
   const [newComment, setNewComment] = useState("");
   const [isEditingDesc, setIsEditingDesc] = useState(false);
@@ -74,7 +79,19 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
   const [showReminders, setShowReminders] = useState(true);
   const [showAssignees, setShowAssignees] = useState(true);
   const [showFollowers, setShowFollowers] = useState(true);
-  
+  const [isEditingAssignees, setIsEditingAssignees] = useState(false);
+  const [isEditingFollowers, setIsEditingFollowers] = useState(false);
+
+  const [isAddReminderOpen, setIsAddReminderOpen] = useState(false);
+  const [reminderDate, setReminderDate] = useState("");
+  const [reminderStaffId, setReminderStaffId] = useState("");
+  const [reminderDescription, setReminderDescription] = useState("");
+  const [reminderNotifyEmail, setReminderNotifyEmail] = useState(false);
+
+  const [isAddChecklistOpen, setIsAddChecklistOpen] = useState(false);
+  const [checklistTitle, setChecklistTitle] = useState("");
+  const [checklistAssignedTo, setChecklistAssignedTo] = useState("");
+
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [timerStartMs, setTimerStartMs] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -89,6 +106,64 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
       return allEntries.filter((te: any) => te.task === task._id);
     },
     enabled: !!task && isOpen
+  });
+
+  const { data: reminders = [] } = useQuery({
+    queryKey: ["task-reminders", task?._id],
+    queryFn: () => reminderService.getReminders(task._id, "task"),
+    enabled: !!task && isOpen,
+  });
+
+  const { data: taskFiles = [] } = useQuery({
+    queryKey: ["task-files", task?._id],
+    queryFn: () => fileService.getFiles(task._id, "task"),
+    enabled: !!task && isOpen,
+  });
+
+  const createReminderMutation = useMutation({
+    mutationFn: (data: any) => reminderService.createReminder(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["task-reminders", task._id] });
+      toast({ title: "Success", description: "Reminder created successfully." });
+      setIsAddReminderOpen(false);
+      setReminderDate("");
+      setReminderDescription("");
+      setReminderNotifyEmail(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    }
+  });
+
+  const deleteReminderMutation = useMutation({
+    mutationFn: (id: string) => reminderService.deleteReminder(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["task-reminders", task._id] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    }
+  });
+
+  const uploadFileMutation = useMutation({
+    mutationFn: (files: File[]) => fileService.uploadFiles(task._id, "task", files),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["task-files", task._id] });
+      toast({ title: "Success", description: "File uploaded successfully." });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to upload file.", variant: "destructive" });
+    }
+  });
+
+  const deleteFileMutation = useMutation({
+    mutationFn: (fileId: string) => fileService.deleteFile(fileId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["task-files", task._id] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    }
   });
 
   useEffect(() => {
@@ -135,6 +210,27 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
     const updatedChecklists = [...(task.checklists || [])];
     updatedChecklists[index].completed = completed;
     updateMutation.mutate({ id: task._id, isTodo: false, data: { checklists: updatedChecklists } });
+  };
+
+  const handleOpenAddChecklist = () => {
+    if (task.isTodo) return; // Simple todos don't have nested checklists
+    setChecklistTitle("");
+    setChecklistAssignedTo("");
+    setIsAddChecklistOpen(true);
+  };
+
+  const handleAddChecklistItem = () => {
+    if (!checklistTitle.trim()) {
+      toast({ title: "Error", description: "Title is required.", variant: "destructive" });
+      return;
+    }
+    const currentChecklists = task.checklists || [];
+    const newItem: any = { title: checklistTitle.trim(), completed: false };
+    if (isAdmin && checklistAssignedTo) newItem.assigned_to = checklistAssignedTo;
+    updateMutation.mutate({ id: task._id, isTodo: false, data: { checklists: [...currentChecklists, newItem] } });
+    setIsAddChecklistOpen(false);
+    setChecklistTitle("");
+    setChecklistAssignedTo("");
   };
 
   const handleAddComment = () => {
@@ -210,12 +306,42 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      mediaService.uploadFile(file).then(() => {
-        toast({ title: "Success", description: "File uploaded successfully." });
-      }).catch(() => {
-        toast({ title: "Error", description: "Failed to upload file.", variant: "destructive" });
-      });
+      uploadFileMutation.mutate([file]);
     }
+    e.target.value = "";
+  };
+
+  const getFileUrl = (attachmentKey: string) => {
+    const apiBase = (import.meta.env.VITE_API_URL as string) || "/api";
+    return `${apiBase.replace(/\/api\/?$/, "")}/uploads/${attachmentKey}`;
+  };
+
+  const handleOpenAddReminder = () => {
+    setReminderStaffId(user?._id || "");
+    setIsAddReminderOpen(true);
+  };
+
+  const handleCreateReminder = () => {
+    if (!reminderDate || !reminderDescription.trim()) {
+      toast({ title: "Error", description: "Date and description are required.", variant: "destructive" });
+      return;
+    }
+    createReminderMutation.mutate({
+      rel_id: task._id,
+      rel_type: "task",
+      staff: isAdmin ? reminderStaffId : user?._id,
+      description: reminderDescription.trim(),
+      date: reminderDate,
+      notify_by_email: reminderNotifyEmail,
+    });
+  };
+
+  const handleToggleAssignee = (newIds: string[]) => {
+    updateMutation.mutate({ id: task._id, isTodo: false, data: { assignees: newIds } });
+  };
+
+  const handleToggleFollower = (newIds: string[]) => {
+    updateMutation.mutate({ id: task._id, isTodo: false, data: { followers: newIds } });
   };
 
   return (
@@ -324,23 +450,30 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-bold text-slate-800 text-lg">Checklist Items</h3>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-slate-100">
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-slate-100" onClick={handleOpenAddChecklist}>
                   <Plus className="h-4 w-4 text-slate-500" />
                 </Button>
               </div>
-              
+
               <div className="space-y-3">
                 {task.checklists && task.checklists.length > 0 ? (
                   task.checklists.map((check: any, idx: number) => (
                     <div key={check._id || idx} className="flex items-start gap-3 group">
-                      <Checkbox 
-                        checked={check.completed} 
-                        onCheckedChange={(c) => handleToggleChecklist(idx, !!c)} 
+                      <Checkbox
+                        checked={check.completed}
+                        onCheckedChange={(c) => handleToggleChecklist(idx, !!c)}
                         className="mt-0.5 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500 rounded-md"
                       />
-                      <span className={`text-sm font-medium ${check.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>
-                        {check.title}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className={`text-sm font-medium ${check.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>
+                          {check.title}
+                        </span>
+                        {check.assigned_to && (
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                            Assigned to {getStaffName(check.assigned_to)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))
                 ) : (
@@ -480,7 +613,7 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
 
             {/* Reminders Section */}
             <div className="p-6 border-b border-slate-200">
-              <div 
+              <div
                 className="flex items-center justify-between cursor-pointer group"
                 onClick={() => setShowReminders(!showReminders)}
               >
@@ -488,13 +621,40 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
                   <Bell className="h-4 w-4 opacity-70" />
                   Reminders
                 </div>
-                <Button variant="ghost" size="icon" className="h-6 w-6 rounded-full group-hover:bg-slate-200">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 rounded-full group-hover:bg-slate-200"
+                  onClick={(e) => { e.stopPropagation(); handleOpenAddReminder(); }}
+                >
                   <Plus className="h-3.5 w-3.5 opacity-50" />
                 </Button>
               </div>
               {showReminders && (
-                <div className="mt-4 text-sm font-medium text-slate-500 animate-in fade-in duration-200">
-                  No reminders for this task
+                <div className="mt-4 space-y-2 animate-in fade-in duration-200">
+                  {reminders.length > 0 ? (
+                    reminders.map((r: any) => (
+                      <div key={r._id} className="flex items-start justify-between gap-2 bg-white rounded-xl border border-slate-200 p-3">
+                        <div className="space-y-0.5 min-w-0">
+                          <div className="text-xs font-bold text-slate-700">{formatDate(r.date)}</div>
+                          <div className="text-sm text-slate-600 font-medium break-words">{r.description}</div>
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                            For {r.staff?.firstname} {r.staff?.lastname}{r.notify_by_email ? " · Email" : ""}
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 rounded-full shrink-0 hover:bg-red-50 hover:text-red-500"
+                          onClick={() => deleteReminderMutation.mutate(r._id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm font-medium text-slate-500">No reminders for this task</div>
+                  )}
                 </div>
               )}
             </div>
@@ -505,23 +665,34 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
                 <Users className="h-4 w-4 opacity-70" />
                 Assignees
               </div>
-              <div 
+              <div
                 className="flex items-center justify-between text-sm font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors"
+                onClick={() => setIsEditingAssignees(!isEditingAssignees)}
               >
                 Assign task to
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className={`h-4 w-4 transition-transform ${isEditingAssignees ? "rotate-180" : ""}`} />
               </div>
+              {isEditingAssignees && (
+                <SearchableSelect
+                  options={staffOptions}
+                  value={task.assignees || []}
+                  onValueChange={handleToggleAssignee}
+                  multiple
+                  placeholder="Select Assignees"
+                  className="h-10 rounded-xl border-slate-200 shadow-none bg-white"
+                />
+              )}
               <div className="flex flex-wrap gap-2 pt-2">
                 {task.assignees && task.assignees.length > 0 ? (
                   task.assignees.map((id: string) => (
-                    <Avatar key={id} className="h-10 w-10 border-2 border-white shadow-sm cursor-pointer hover:-translate-y-1 transition-transform">
+                    <Avatar key={id} className="h-10 w-10 border-2 border-white shadow-sm cursor-pointer hover:-translate-y-1 transition-transform" onClick={() => setIsEditingAssignees(true)}>
                       <AvatarFallback className="bg-primary/10 text-primary font-bold text-xs">
                         {getStaffName(id).substring(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                   ))
                 ) : (
-                  <Avatar className="h-10 w-10 border-2 border-slate-200 border-dashed bg-transparent cursor-pointer hover:border-primary/50 transition-colors">
+                  <Avatar className="h-10 w-10 border-2 border-slate-200 border-dashed bg-transparent cursor-pointer hover:border-primary/50 transition-colors" onClick={() => setIsEditingAssignees(true)}>
                     <AvatarFallback className="bg-transparent text-slate-400 font-black">
                       <Plus className="h-4 w-4" />
                     </AvatarFallback>
@@ -536,10 +707,23 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
                 <Users className="h-4 w-4 opacity-70" />
                 Followers
               </div>
-              <div className="flex items-center justify-between text-sm font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors">
+              <div
+                className="flex items-center justify-between text-sm font-medium text-slate-500 cursor-pointer hover:text-slate-800 transition-colors"
+                onClick={() => setIsEditingFollowers(!isEditingFollowers)}
+              >
                 Add Followers
-                <ChevronDown className="h-4 w-4" />
+                <ChevronDown className={`h-4 w-4 transition-transform ${isEditingFollowers ? "rotate-180" : ""}`} />
               </div>
+              {isEditingFollowers && (
+                <SearchableSelect
+                  options={staffOptions}
+                  value={task.followers || []}
+                  onValueChange={handleToggleFollower}
+                  multiple
+                  placeholder="Select Followers"
+                  className="h-10 rounded-xl border-slate-200 shadow-none bg-white"
+                />
+              )}
               <div className="mt-2 text-sm font-medium text-slate-500">
                 {task.followers && task.followers.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
@@ -554,18 +738,165 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
             </div>
 
             {/* File Upload Dropzone */}
-            <div className="p-6">
+            <div className="p-6 space-y-3">
               <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
-              <div 
+              <div
                 onClick={handleFileClick}
                 className="border-2 border-dashed border-slate-200 rounded-xl bg-white p-8 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/50 hover:bg-slate-50 transition-all"
               >
-                <span className="font-bold text-slate-600 text-sm text-center">Drop files here to upload</span>
+                <Paperclip className="h-5 w-5 text-slate-400" />
+                <span className="font-bold text-slate-600 text-sm text-center">
+                  {uploadFileMutation.isPending ? "Uploading..." : "Drop files here to upload"}
+                </span>
               </div>
+              {taskFiles.length > 0 && (
+                <div className="space-y-2">
+                  {taskFiles.map((f: any) => {
+                    const isImage = (f.filetype || "").startsWith("image/");
+                    return (
+                      <div key={f._id} className="flex items-center gap-3 bg-white rounded-lg border border-slate-200 px-3 py-2">
+                        <a
+                          href={getFileUrl(f.attachment_key)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0"
+                        >
+                          {isImage ? (
+                            <img
+                              src={getFileUrl(f.attachment_key)}
+                              alt={f.file_name}
+                              className="h-10 w-10 rounded-lg object-cover border border-slate-200"
+                            />
+                          ) : (
+                            <div className="h-10 w-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center">
+                              <Paperclip className="h-4 w-4 text-slate-400" />
+                            </div>
+                          )}
+                        </a>
+                        <a
+                          href={getFileUrl(f.attachment_key)}
+                          download={f.file_name}
+                          className="text-sm font-medium text-primary hover:underline truncate flex-1"
+                        >
+                          {f.file_name}
+                        </a>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 rounded-full shrink-0 hover:bg-red-50 hover:text-red-500"
+                          onClick={() => deleteFileMutation.mutate(f._id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
           </div>
         </div>
+
+        {/* Add Reminder Modal */}
+        <Dialog open={isAddReminderOpen} onOpenChange={setIsAddReminderOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Create Reminder</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Date to be notified</label>
+                <Input
+                  type="datetime-local"
+                  value={reminderDate}
+                  onChange={(e) => setReminderDate(e.target.value)}
+                  className="h-11 rounded-xl border-slate-200"
+                />
+              </div>
+
+              {isAdmin && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Set reminder to</label>
+                  <SearchableSelect
+                    options={staffOptions}
+                    value={reminderStaffId}
+                    onValueChange={(v: string) => setReminderStaffId(v)}
+                    placeholder="Select staff member"
+                    className="h-11 rounded-xl border-slate-200"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Description</label>
+                <Textarea
+                  value={reminderDescription}
+                  onChange={(e) => setReminderDescription(e.target.value)}
+                  placeholder="What should this reminder be about?"
+                  className="min-h-[90px] rounded-xl border-slate-200 resize-none"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="notify-by-email"
+                  checked={reminderNotifyEmail}
+                  onCheckedChange={(c) => setReminderNotifyEmail(!!c)}
+                />
+                <label htmlFor="notify-by-email" className="text-sm font-medium text-slate-600 cursor-pointer">
+                  Send also an email for this reminder
+                </label>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setIsAddReminderOpen(false)} className="font-bold">Cancel</Button>
+              <Button onClick={handleCreateReminder} disabled={createReminderMutation.isPending} className="font-bold">
+                {createReminderMutation.isPending ? "Creating..." : "Create Reminder"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Checklist Item Modal */}
+        <Dialog open={isAddChecklistOpen} onOpenChange={setIsAddChecklistOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Add Checklist Item</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Title</label>
+                <Input
+                  value={checklistTitle}
+                  onChange={(e) => setChecklistTitle(e.target.value)}
+                  placeholder="Checklist item title"
+                  className="h-11 rounded-xl border-slate-200"
+                  onKeyDown={(e) => { if (e.key === "Enter") handleAddChecklistItem(); }}
+                />
+              </div>
+
+              {isAdmin && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Assign to</label>
+                  <SearchableSelect
+                    options={staffOptions}
+                    value={checklistAssignedTo}
+                    onValueChange={(v: string) => setChecklistAssignedTo(v)}
+                    placeholder="Select staff member (optional)"
+                    className="h-11 rounded-xl border-slate-200"
+                  />
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setIsAddChecklistOpen(false)} className="font-bold">Cancel</Button>
+              <Button onClick={handleAddChecklistItem} disabled={updateMutation.isPending} className="font-bold">
+                {updateMutation.isPending ? "Adding..." : "Add Item"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );
