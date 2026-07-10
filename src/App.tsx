@@ -31,6 +31,7 @@ import SubscriptionCreate from "./pages/SubscriptionCreate";
 import SubscriptionWebsite from "./pages/SubscriptionWebsite";
 import SubscriptionPricing from "./pages/SubscriptionPricing";
 import Contracts from "./pages/Contracts";
+import ContractView from "./pages/ContractView";
 import Support from "./pages/Support";
 import EstimateRequest from "./pages/EstimateRequest";
 import KnowledgeBase from "./pages/KnowledgeBase";
@@ -206,6 +207,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="subscriptions/edit/:id" element={<Wrapper><SubscriptionCreate /></Wrapper>} />
     <Route path="pricing" element={<Wrapper><SubscriptionPricing /></Wrapper>} />
     <Route path="contracts" element={<Wrapper><Contracts /></Wrapper>} />
+    <Route path="contracts/view/:id" element={<Wrapper><ContractView /></Wrapper>} />
     <Route path="support" element={<Wrapper><Support /></Wrapper>} />
     <Route path="support/create" element={<Wrapper><TicketCreate /></Wrapper>} />
     <Route path="support/edit/:id" element={<Wrapper><TicketCreate /></Wrapper>} />

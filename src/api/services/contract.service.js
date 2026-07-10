@@ -7,4 +7,5 @@ export const contractService = {
   updateContract: (id, data) => apiClient.patch(`/contracts/${id}`, data),
   deleteContract: (id) => apiClient.delete(`/contracts/${id}`),
   importContracts: (rows) => apiClient.post('/contracts/import', rows),
+  signContract: (id, data) => apiClient.post(`/contracts/${id}/sign`, data),
 };

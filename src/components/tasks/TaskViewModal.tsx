@@ -83,6 +83,7 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
   const [isEditingFollowers, setIsEditingFollowers] = useState(false);
 
   const [isAddReminderOpen, setIsAddReminderOpen] = useState(false);
+  const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
   const [reminderDate, setReminderDate] = useState("");
   const [reminderStaffId, setReminderStaffId] = useState("");
   const [reminderDescription, setReminderDescription] = useState("");
@@ -120,15 +121,32 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
     enabled: !!task && isOpen,
   });
 
+  const closeReminderModal = () => {
+    setIsAddReminderOpen(false);
+    setEditingReminderId(null);
+    setReminderDate("");
+    setReminderDescription("");
+    setReminderNotifyEmail(false);
+  };
+
   const createReminderMutation = useMutation({
     mutationFn: (data: any) => reminderService.createReminder(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["task-reminders", task._id] });
       toast({ title: "Success", description: "Reminder created successfully." });
-      setIsAddReminderOpen(false);
-      setReminderDate("");
-      setReminderDescription("");
-      setReminderNotifyEmail(false);
+      closeReminderModal();
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    }
+  });
+
+  const updateReminderMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => reminderService.updateReminder(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["task-reminders", task._id] });
+      toast({ title: "Success", description: "Reminder updated successfully." });
+      closeReminderModal();
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
@@ -316,24 +334,51 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
     return `${apiBase.replace(/\/api\/?$/, "")}/uploads/${attachmentKey}`;
   };
 
+  // Converts an ISO date string to the "YYYY-MM-DDTHH:mm" value a datetime-local input expects,
+  // in the browser's local time (so editing a reminder shows the same wall-clock time it was set to).
+  const toDatetimeLocalValue = (isoDate: string) => {
+    const d = new Date(isoDate);
+    if (isNaN(d.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   const handleOpenAddReminder = () => {
+    setEditingReminderId(null);
+    setReminderDate("");
+    setReminderDescription("");
+    setReminderNotifyEmail(false);
     setReminderStaffId(user?._id || "");
     setIsAddReminderOpen(true);
   };
 
-  const handleCreateReminder = () => {
+  const handleOpenEditReminder = (reminder: any) => {
+    setEditingReminderId(reminder._id);
+    setReminderDate(toDatetimeLocalValue(reminder.date));
+    setReminderDescription(reminder.description || "");
+    setReminderNotifyEmail(!!reminder.notify_by_email);
+    setReminderStaffId(reminder.staff?._id || reminder.staff || user?._id || "");
+    setIsAddReminderOpen(true);
+  };
+
+  const handleSaveReminder = () => {
     if (!reminderDate || !reminderDescription.trim()) {
       toast({ title: "Error", description: "Date and description are required.", variant: "destructive" });
       return;
     }
-    createReminderMutation.mutate({
+    const payload = {
       rel_id: task._id,
       rel_type: "task",
       staff: isAdmin ? reminderStaffId : user?._id,
       description: reminderDescription.trim(),
       date: reminderDate,
       notify_by_email: reminderNotifyEmail,
-    });
+    };
+    if (editingReminderId) {
+      updateReminderMutation.mutate({ id: editingReminderId, data: payload });
+    } else {
+      createReminderMutation.mutate(payload);
+    }
   };
 
   const handleToggleAssignee = (newIds: string[]) => {
@@ -642,14 +687,24 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
                             For {r.staff?.firstname} {r.staff?.lastname}{r.notify_by_email ? " · Email" : ""}
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 rounded-full shrink-0 hover:bg-red-50 hover:text-red-500"
-                          onClick={() => deleteReminderMutation.mutate(r._id)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 rounded-full hover:bg-slate-100"
+                            onClick={() => handleOpenEditReminder(r)}
+                          >
+                            <Edit2 className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 rounded-full hover:bg-red-50 hover:text-red-500"
+                            onClick={() => deleteReminderMutation.mutate(r._id)}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     ))
                   ) : (
@@ -798,11 +853,11 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
           </div>
         </div>
 
-        {/* Add Reminder Modal */}
-        <Dialog open={isAddReminderOpen} onOpenChange={setIsAddReminderOpen}>
+        {/* Add / Edit Reminder Modal */}
+        <Dialog open={isAddReminderOpen} onOpenChange={(open) => { if (!open) closeReminderModal(); else setIsAddReminderOpen(true); }}>
           <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle>Create Reminder</DialogTitle>
+              <DialogTitle>{editingReminderId ? "Edit Reminder" : "Create Reminder"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-1.5">
@@ -850,9 +905,11 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
               </div>
             </div>
             <DialogFooter>
-              <Button variant="ghost" onClick={() => setIsAddReminderOpen(false)} className="font-bold">Cancel</Button>
-              <Button onClick={handleCreateReminder} disabled={createReminderMutation.isPending} className="font-bold">
-                {createReminderMutation.isPending ? "Creating..." : "Create Reminder"}
+              <Button variant="ghost" onClick={closeReminderModal} className="font-bold">Cancel</Button>
+              <Button onClick={handleSaveReminder} disabled={createReminderMutation.isPending || updateReminderMutation.isPending} className="font-bold">
+                {editingReminderId
+                  ? (updateReminderMutation.isPending ? "Saving..." : "Save Changes")
+                  : (createReminderMutation.isPending ? "Creating..." : "Create Reminder")}
               </Button>
             </DialogFooter>
           </DialogContent>

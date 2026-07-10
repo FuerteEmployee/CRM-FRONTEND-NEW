@@ -47,7 +47,6 @@ const Contracts = () => {
   const [contracts, setContracts] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [viewItem, setViewItem] = useState<any | null>(null);
   const [editItem, setEditItem] = useState<any | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   useOpenCreateModal(() => setIsAddOpen(true));
@@ -194,8 +193,10 @@ const Contracts = () => {
       const dataToSubmit = {
         subject: editItem.subject,
         contract_value: Number(editItem.contract_value) || 0,
+        contract_type: editItem.contract_type,
         datestart: editItem.datestart,
         dateend: editItem.dateend,
+        description: editItem.description,
       };
       const updated = await contractService.updateContract(editItem._id, dataToSubmit);
       setContracts((prev) => prev.map((c) => c._id === updated._id ? updated : c));
@@ -435,7 +436,7 @@ const Contracts = () => {
                       </td>
                       <td className="p-3">
                         <TableActions
-                          onView={() => setViewItem(c)}
+                          onView={() => window.open(`/admin/contracts/view/${c._id}`, "_blank")}
                           onEdit={
                             can("Contracts", "Edit") ? () => setEditItem(c) : undefined
                           }
@@ -473,29 +474,41 @@ const Contracts = () => {
         </div>
       </div>
 
-      <Dialog open={!!viewItem} onOpenChange={() => setViewItem(null)}>
-        <DialogContent><DialogHeader><DialogTitle>Contract Details</DialogTitle></DialogHeader>
-          {viewItem && (<div className="space-y-3 pt-2"><div className="grid grid-cols-2 gap-4">
-            <div><p className="text-xs text-muted-foreground">Title</p><p className="text-sm font-medium">{viewItem.subject}</p></div>
-            <div><p className="text-xs text-muted-foreground">Customer</p><p className="text-sm">{viewItem.client?.company || "Unknown"}</p></div>
-            <div><p className="text-xs text-muted-foreground">Value</p><p className="text-sm font-medium">{formatAmount(viewItem.contract_value || 0)}</p></div>
-            <div><p className="text-xs text-muted-foreground">Status</p><Badge variant="outline" className={statusColors[getStatus(viewItem)]}>{getStatus(viewItem)}</Badge></div>
-            <div><p className="text-xs text-muted-foreground">Start Date</p><p className="text-sm">{viewItem.datestart ? formatDate(viewItem.datestart) : "-"}</p></div>
-            <div><p className="text-xs text-muted-foreground">End Date</p><p className="text-sm">{viewItem.dateend ? formatDate(viewItem.dateend) : "-"}</p></div>
-          </div></div>)}
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={!!editItem} onOpenChange={() => setEditItem(null)}>
-        <DialogContent><DialogHeader><DialogTitle>Edit Contract</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Edit Contract</DialogTitle></DialogHeader>
           {editItem && (<div className="space-y-4 pt-2 max-h-[70vh] overflow-y-auto">
+            <div className="space-y-2">
+              <Label>Customer</Label>
+              <p className="text-sm font-medium text-muted-foreground px-3 py-2 rounded-lg bg-muted/40">
+                {editItem.client?.company || editItem.client?.firstname || "Unknown"}
+              </p>
+            </div>
             <div className="space-y-2"><Label>Subject</Label><Input value={editItem.subject || ""} onChange={(e) => setEditItem({...editItem, subject: e.target.value})} /></div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Contract Value</Label><Input type="number" value={editItem.contract_value || ""} onChange={(e) => setEditItem({...editItem, contract_value: e.target.value})} /></div>
+              <div className="space-y-2">
+                <Label>Contract Type</Label>
+                <Select value={editItem.contract_type || ""} onValueChange={(val) => setEditItem({...editItem, contract_type: val})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Fixed">Fixed Price</SelectItem>
+                    <SelectItem value="Hourly">Hourly</SelectItem>
+                    <SelectItem value="Retainer">Retainer</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Start Date</Label><Input type="date" value={editItem.datestart?.substring(0, 10) || ""} onChange={(e) => setEditItem({...editItem, datestart: e.target.value})} /></div>
               <div className="space-y-2"><Label>End Date</Label><Input type="date" value={editItem.dateend?.substring(0, 10) || ""} onChange={(e) => setEditItem({...editItem, dateend: e.target.value})} /></div>
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea rows={3} value={editItem.description || ""} onChange={(e) => setEditItem({...editItem, description: e.target.value})} />
             </div>
             <Button className="w-full" onClick={handleUpdate}>Save Changes</Button>
           </div>)}

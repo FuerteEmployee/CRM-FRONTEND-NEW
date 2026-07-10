@@ -240,14 +240,16 @@ export default function ProposalCreate() {
 
   const calculations = useMemo(() => {
     const subTotal = items.reduce((acc, item) => acc + (item.qty * item.rate), 0);
-    const discountAmount = formData.discount_type === "no_discount" ? 0 : 
+    const discountAmount = formData.discount_type === "no_discount" ? 0 :
       (discountType === "percent" ? (subTotal * (discountValue / 100)) : discountValue);
+    // Tax is charged on the discounted amount, not the full pre-discount subtotal.
+    const discountFactor = subTotal > 0 ? 1 - discountAmount / subTotal : 1;
     const totalTax = items.reduce((acc, item) => {
       const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || 0;
-      return acc + ((item.qty * item.rate) * (taxRate / 100));
+      return acc + ((item.qty * item.rate) * discountFactor * (taxRate / 100));
     }, 0);
     const total = subTotal - discountAmount + totalTax + Number(adjustmentValue);
-    
+
     return { subTotal, discountAmount, totalTax, total };
   }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, taxes]);
 

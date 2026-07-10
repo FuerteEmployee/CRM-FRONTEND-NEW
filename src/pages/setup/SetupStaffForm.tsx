@@ -333,40 +333,27 @@ export default function SetupStaffForm() {
     );
   }
 
+  const saveDisabled =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    (id === "new" ? !can("Staff", "Create") : !can("Staff", "Edit"));
+
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/admin/setup/staff")}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <h1 className="text-xl font-bold text-foreground">
-              {id && id !== "new"
-                ? "Edit Staff Member"
-                : "Add New Staff Member"}
-            </h1>
-          </div>
+      <div className="space-y-6 pb-24">
+        <div className="flex items-center gap-4">
           <Button
-            onClick={handleSave}
-            className="  text-white"
-            disabled={
-              createMutation.isPending ||
-              updateMutation.isPending ||
-              (id === "new" ? !can("Staff", "Create") : !can("Staff", "Edit"))
-            }
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate("/admin/setup/staff")}
           >
-            {createMutation.isPending || updateMutation.isPending ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4 mr-2" />
-            )}
-            Save
+            <ArrowLeft className="h-4 w-4" />
           </Button>
+          <h1 className="text-xl font-bold text-foreground">
+            {id && id !== "new"
+              ? "Edit Staff Member"
+              : "Add New Staff Member"}
+          </h1>
         </div>
 
         <Tabs defaultValue="profile" className="w-full">
@@ -780,6 +767,23 @@ export default function SetupStaffForm() {
             </div>
           </TabsContent>
         </Tabs>
+      </div>
+
+      {/* Always-reachable Save action, pinned bottom-right so long forms/tabs don't require scrolling back to the header */}
+      <div className="sticky bottom-6 z-40 w-fit">
+        <Button
+          onClick={handleSave}
+          size="lg"
+          className="text-white rounded-xl shadow-lg shadow-primary/30 gap-2 font-bold px-6"
+          disabled={saveDisabled}
+        >
+          {createMutation.isPending || updateMutation.isPending ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Save className="h-4 w-4" />
+          )}
+          Save
+        </Button>
       </div>
     </DashboardLayout>
   );

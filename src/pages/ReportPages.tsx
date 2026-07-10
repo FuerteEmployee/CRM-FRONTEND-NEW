@@ -2225,6 +2225,17 @@ export const ReportTimesheets = () => {
     ? allTimesheets.filter(t => t.staff === currentStaffName)
     : allTimesheets;
 
+  // Parses a date-only value (e.g. "2026-07-10", no time component) as LOCAL midnight
+  // instead of UTC midnight — otherwise `new Date("2026-07-10")` anchors to UTC and can
+  // shift a day backward/forward depending on the viewer's timezone, making entries
+  // logged "today" silently fall outside the Today/This Week filters.
+  const toLocalDate = (value: string | Date) => {
+    if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return new Date(value + "T00:00:00");
+    }
+    return new Date(value);
+  };
+
   const getPeriodRange = (p: string): { start: Date; end: Date } => {
     const now = new Date();
     if (p === "Yesterday") {
@@ -2252,7 +2263,7 @@ export const ReportTimesheets = () => {
     }
 
     const { start, end } = getPeriodRange(period);
-    result = result.filter(t => t.date && isWithinInterval(new Date(t.date), { start, end }));
+    result = result.filter(t => t.date && isWithinInterval(toLocalDate(t.date), { start, end }));
 
     if (taskSearch.trim() !== "") {
       result = result.filter(t => t.task.toLowerCase().includes(taskSearch.toLowerCase()));
@@ -2315,7 +2326,7 @@ export const ReportTimesheets = () => {
   const weeklyMyLoggedData = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, idx) => {
     const dayDate = addDays(weekStart, idx);
     const hours = myTimesheets
-      .filter(t => t.date && isSameDay(new Date(t.date), dayDate))
+      .filter(t => t.date && isSameDay(toLocalDate(t.date), dayDate))
       .reduce((sum, t) => sum + t.hours, 0);
     return { day, hours };
   });
@@ -2323,7 +2334,7 @@ export const ReportTimesheets = () => {
   // Metrics for the "My Timesheets" summary cards — all computed from real logged hours
   const now = new Date();
   const sumHoursInRange = (start: Date, end: Date) =>
-    myTimesheets.filter(t => t.date && isWithinInterval(new Date(t.date), { start, end })).reduce((sum, t) => sum + t.hours, 0);
+    myTimesheets.filter(t => t.date && isWithinInterval(toLocalDate(t.date), { start, end })).reduce((sum, t) => sum + t.hours, 0);
 
   const myTotalHours = myTimesheets.reduce((sum, t) => sum + t.hours, 0);
   const myThisWeekHours = sumHoursInRange(startOfWeek(now, { weekStartsOn: 1 }), endOfWeek(now, { weekStartsOn: 1 }));

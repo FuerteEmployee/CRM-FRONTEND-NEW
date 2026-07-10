@@ -340,8 +340,8 @@ const KnowledgeBase = () => {
 
           {/* Add Group Modal */}
           <Dialog open={isAddGroupModalOpen} onOpenChange={setIsAddGroupModalOpen}>
-            <DialogContent className="max-w-2xl p-0 overflow-hidden border-none rounded-[2rem] shadow-2xl">
-              <div className="bg-white px-8 py-6 text-slate-900 flex items-center justify-between border-b border-slate-100">
+            <DialogContent className="max-w-2xl max-h-[85vh] p-0 overflow-hidden border-none rounded-[2rem] shadow-2xl flex flex-col">
+              <div className="bg-white px-8 py-6 text-slate-900 flex items-center justify-between border-b border-slate-100 shrink-0">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Configuration</p>
                   <DialogTitle className="text-2xl font-black tracking-tight">Add New Group</DialogTitle>
@@ -350,7 +350,7 @@ const KnowledgeBase = () => {
                   <Plus className="h-6 w-6 text-primary" />
                 </div>
               </div>
-              <div className="p-8 space-y-5 bg-white">
+              <div className="p-8 space-y-5 bg-white overflow-y-auto">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Group Name *</Label>
@@ -417,7 +417,7 @@ const KnowledgeBase = () => {
                 </div>
                 <p className="text-[10px] text-slate-400 font-bold uppercase italic">* All articles in this group will be hidden if disabled is checked</p>
               </div>
-              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+              <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
                 <Button variant="outline" onClick={() => setIsAddGroupModalOpen(false)} className="rounded-xl font-black uppercase text-[10px] tracking-widest h-10 px-6">Close</Button>
                 <Button
                   onClick={() => createGroupMutation.mutate(newGroupData)}
