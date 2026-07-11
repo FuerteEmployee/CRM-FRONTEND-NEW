@@ -377,8 +377,8 @@ const Projects = () => {
                         <td className="p-3 text-xs text-muted-foreground">{index + 1}</td>
                         <td className="p-3">
                           <div className="flex flex-col">
-                            <span 
-                              onClick={() => navigate(`/admin/projects/edit/${project._id}`)}
+                            <span
+                              onClick={() => navigate(`/admin/projects/view/${project._id}`)}
                               className="text-sm font-semibold text-primary hover:underline cursor-pointer"
                             >
                               {project.name}
@@ -430,7 +430,7 @@ const Projects = () => {
                         </td>
                         <td className="p-3 text-right">
                           <TableActions
-                            onView={() => navigate(`/admin/projects/edit/${project._id}`)}
+                            onView={() => navigate(`/admin/projects/view/${project._id}`)}
                             onEdit={() => navigate(`/admin/projects/edit/${project._id}`)}
                             onDelete={() => {
                               if (confirm("Are you sure you want to delete this project?")) {

@@ -34,9 +34,25 @@ import {
   Eye,
   CreditCard,
   Zap,
+  Mail,
+  Trash2,
+  ChevronDown,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
+import { financeService } from "@/api/services/finance.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
@@ -45,11 +61,14 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useCurrency } from "@/context/CurrencyContext";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
+import { cn } from "@/lib/utils";
 
 const Payments = () => {
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState("10");
   const [viewItem, setViewItem] = useState<any>(null);
+  const [viewTab, setViewTab] = useState<"receipt" | "payment">("receipt");
+  const [paymentForm, setPaymentForm] = useState({ amount: "", date: "", paymentmode: "", paymentmethod: "", transactionid: "", note: "" });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { toast } = useToast();
   const { can } = usePermissions();
@@ -96,6 +115,62 @@ const Payments = () => {
       return Array.isArray(response) ? response : response?.data || [];
     },
   });
+
+  const { data: paymentModes = [] } = useQuery<any[]>({
+    queryKey: ["payment-modes"],
+    queryFn: () => financeService.getPaymentModes().then((res: any) => res.data || res),
+  });
+
+  const openView = (p: any) => {
+    setViewItem(p);
+    setViewTab("receipt");
+    setPaymentForm({
+      amount: String(p.amount ?? ""),
+      date: p.date ? new Date(p.date).toISOString().split("T")[0] : "",
+      paymentmode: p.paymentmode || "",
+      paymentmethod: p.paymentmethod || "",
+      transactionid: p.transactionid || "",
+      note: p.note || "",
+    });
+  };
+
+  const updateMutation = useMutation({
+    mutationFn: (data: any) => salesService.updatePayment(viewItem._id, data),
+    onSuccess: (updated: any) => {
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      const merged = { ...viewItem, ...(updated?.data || updated) };
+      setViewItem(merged);
+      setViewTab("receipt");
+      toast({ title: "Payment Updated", description: "Invoice status recalculated based on the new amount.", className: "bg-green-600 text-white font-bold rounded-2xl" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message || "Failed to update payment.", variant: "destructive" }),
+  });
+
+  const deleteOneMutation = useMutation({
+    mutationFn: (id: string) => salesService.deletePayment(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      toast({ title: "Deleted", description: "Payment deleted successfully.", className: "bg-green-600 text-white font-bold rounded-2xl" });
+      setViewItem(null);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message || "Failed to delete payment.", variant: "destructive" }),
+  });
+
+  const handleSavePayment = () => {
+    const amount = Number(paymentForm.amount);
+    if (!amount || amount <= 0) {
+      toast({ title: "Validation Error", description: "Enter a valid amount received.", variant: "destructive" });
+      return;
+    }
+    updateMutation.mutate({
+      amount,
+      date: paymentForm.date,
+      paymentmode: paymentForm.paymentmode,
+      paymentmethod: paymentForm.paymentmethod,
+      transactionid: paymentForm.transactionid,
+      note: paymentForm.note,
+    });
+  };
 
   const importMutation = useMutation({
     mutationFn: (rows: any[]) => salesService.importPayments(rows),
@@ -349,7 +424,7 @@ const Payments = () => {
                       </td>
                       <td
                         className="px-6 py-4 font-bold text-primary cursor-pointer hover:underline"
-                        onClick={() => setViewItem(p)}
+                        onClick={() => openView(p)}
                       >
                         {p._id?.substring(0, 8).toUpperCase()}
                       </td>
@@ -373,7 +448,7 @@ const Payments = () => {
                       </td>
                       <td className="px-6 py-4">
                         <TableActions
-                          onView={() => setViewItem(p)}
+                          onView={() => openView(p)}
                         />
                       </td>
                     </tr>
@@ -403,53 +478,241 @@ const Payments = () => {
       </div>
 
       {/* View Dialog */}
-      <Dialog open={!!viewItem} onOpenChange={() => setViewItem(null)}>
-        <DialogContent className="max-w-md rounded-3xl p-6 border-none shadow-2xl bg-white/95 backdrop-blur-md">
-          <DialogHeader className="border-b border-border/50 pb-4 mb-4">
-            <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-primary" />
-              Payment Details
-            </DialogTitle>
-          </DialogHeader>
+      <Dialog open={!!viewItem} onOpenChange={(open) => { if (!open) setViewItem(null); }}>
+        <DialogContent className="max-w-2xl rounded-2xl p-0 overflow-hidden border-none shadow-2xl">
           {viewItem && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Payment ID</p>
-                  <p className="text-sm font-bold text-slate-800">{viewItem._id}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Invoice #</p>
-                  <p className="text-sm font-bold text-slate-800">{viewItem.invoice?.number || "N/A"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Customer</p>
-                  <p className="text-sm font-medium text-slate-700">{viewItem.invoice?.client?.company || "N/A"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Payment Mode</p>
-                  <p className="text-sm font-bold text-slate-700 uppercase tracking-widest text-[10px]">{viewItem.paymentmode || "Bank Transfer"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Transaction ID</p>
-                  <p className="text-sm font-mono text-slate-700">{viewItem.transactionid || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Amount</p>
-                  <p className="text-sm font-black text-emerald-600">₹{(viewItem.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Payment Date</p>
-                  <p className="text-sm font-medium text-slate-700">{viewItem.date ? formatDate(viewItem.date) : "-"}</p>
+            <>
+              <div className="bg-slate-50 px-6 pt-5 pb-4 border-b border-slate-200">
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-black text-slate-900 tracking-tight">
+                    Payment for Invoice{" "}
+                    <span className="text-primary">{viewItem.invoice?.number || "N/A"}</span>
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="flex gap-1 mt-4 bg-slate-200/60 p-1 rounded-lg w-fit">
+                  <button
+                    onClick={() => setViewTab("receipt")}
+                    className={cn(
+                      "px-4 py-1.5 text-xs font-bold rounded-md transition-colors",
+                      viewTab === "receipt" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    Payment Receipt
+                  </button>
+                  <button
+                    onClick={() => setViewTab("payment")}
+                    className={cn(
+                      "px-4 py-1.5 text-xs font-bold rounded-md transition-colors",
+                      viewTab === "payment" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                    )}
+                  >
+                    Payment
+                  </button>
                 </div>
               </div>
-              {viewItem.note && (
-                <div className="border-t border-border/50 pt-4">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Payment Note</p>
-                  <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">{viewItem.note}</p>
+
+              <div className="bg-white p-6 max-h-[65vh] overflow-y-auto">
+                <div className="flex justify-end gap-2 mb-5">
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-8 w-8 rounded-lg"
+                    title="Email Receipt"
+                    onClick={() => toast({ title: "Email Sent", description: "Receipt emailed to the customer (simulation)." })}
+                  >
+                    <Mail className="h-3.5 w-3.5" />
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="outline" className="h-8 px-2 rounded-lg gap-0.5 text-xs">
+                        <FileText className="h-3.5 w-3.5" />
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>View PDF</DropdownMenuItem>
+                      <DropdownMenuItem>Download</DropdownMenuItem>
+                      <DropdownMenuItem>Print</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="icon" className="h-8 w-8 rounded-lg bg-destructive hover:bg-destructive/90" title="Delete Payment">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this payment?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently remove the payment and recalculate the invoice's status.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={() => deleteOneMutation.mutate(viewItem._id)}
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
-              )}
-            </div>
+
+                {viewTab === "receipt" ? (
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="text-sm">
+                        <p className="font-bold text-slate-900">{viewItem.invoice?.client?.company || "N/A"}</p>
+                        {viewItem.invoice?.client?.address && <p className="text-slate-500">{viewItem.invoice.client.address}</p>}
+                        {(viewItem.invoice?.client?.city || viewItem.invoice?.client?.state) && (
+                          <p className="text-slate-500">{[viewItem.invoice?.client?.city, viewItem.invoice?.client?.state, viewItem.invoice?.client?.zip].filter(Boolean).join(" ")}</p>
+                        )}
+                        {viewItem.invoice?.client?.country && <p className="text-slate-500">{viewItem.invoice.client.country}</p>}
+                      </div>
+                      <p className="text-sm font-bold text-primary uppercase">
+                        {viewItem.created_by ? `${viewItem.created_by.firstname || ""} ${viewItem.created_by.lastname || ""}`.trim() : "-"}
+                      </p>
+                    </div>
+
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight">PAYMENT RECEIPT</h3>
+
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between border-b border-slate-100 pb-2">
+                        <span className="text-slate-500">Payment Date:</span>
+                        <span className="font-medium text-slate-800">{viewItem.date ? formatDate(viewItem.date) : "-"}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-2">
+                        <span className="text-slate-500">Payment Mode:</span>
+                        <span className="font-medium text-slate-800">{viewItem.paymentmode || "-"}</span>
+                      </div>
+                      {viewItem.paymentmethod && (
+                        <div className="flex justify-between border-b border-slate-100 pb-2">
+                          <span className="text-slate-500">Payment Method:</span>
+                          <span className="font-medium text-slate-800">{viewItem.paymentmethod}</span>
+                        </div>
+                      )}
+                      {viewItem.transactionid && (
+                        <div className="flex justify-between border-b border-slate-100 pb-2">
+                          <span className="text-slate-500">Transaction ID:</span>
+                          <span className="font-mono text-slate-800">{viewItem.transactionid}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-50 rounded-xl p-4">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Amount</p>
+                      <p className="text-xl font-black text-slate-900">₹{(viewItem.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-bold text-slate-900 mb-2">Payment For</p>
+                      <div className="border border-slate-200 rounded-xl overflow-hidden">
+                        <table className="w-full text-xs">
+                          <thead className="bg-slate-50 text-slate-500">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-bold">Invoice Number</th>
+                              <th className="px-3 py-2 text-left font-bold">Invoice Date</th>
+                              <th className="px-3 py-2 text-left font-bold">Invoice Amount</th>
+                              <th className="px-3 py-2 text-left font-bold">Payment Amount</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr className="border-t border-slate-100">
+                              <td className="px-3 py-2 text-primary font-bold">{viewItem.invoice?.number || "N/A"}</td>
+                              <td className="px-3 py-2 text-slate-700">{viewItem.invoice?.date ? formatDate(viewItem.invoice.date) : "-"}</td>
+                              <td className="px-3 py-2 text-slate-700">₹{(viewItem.invoice?.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                              <td className="px-3 py-2 font-bold text-slate-900">₹{(viewItem.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {viewItem.note && (
+                      <div className="border-t border-slate-100 pt-4">
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Note</p>
+                        <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">{viewItem.note}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="text-sm font-medium block mb-1.5">Amount Received</Label>
+                      <Input
+                        type="number"
+                        value={paymentForm.amount}
+                        onChange={(e) => setPaymentForm(p => ({ ...p, amount: e.target.value }))}
+                        className="rounded-lg border-border/60"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium block mb-1.5">Payment Date</Label>
+                      <Input
+                        type="date"
+                        value={paymentForm.date}
+                        onChange={(e) => setPaymentForm(p => ({ ...p, date: e.target.value }))}
+                        className="rounded-lg border-border/60"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-sm font-medium block mb-1.5">Payment Mode</Label>
+                        <Select value={paymentForm.paymentmode} onValueChange={(v) => setPaymentForm(p => ({ ...p, paymentmode: v }))}>
+                          <SelectTrigger className="rounded-lg border-border/60">
+                            <SelectValue placeholder="Select mode" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {paymentModes.map((m: any) => (
+                              <SelectItem key={m._id} value={m.name}>{m.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium block mb-1.5">Payment Method</Label>
+                        <Input
+                          value={paymentForm.paymentmethod}
+                          onChange={(e) => setPaymentForm(p => ({ ...p, paymentmethod: e.target.value }))}
+                          className="rounded-lg border-border/60"
+                          placeholder="e.g. Bank Transfer"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium block mb-1.5">Transaction ID</Label>
+                      <Input
+                        value={paymentForm.transactionid}
+                        onChange={(e) => setPaymentForm(p => ({ ...p, transactionid: e.target.value }))}
+                        className="rounded-lg border-border/60"
+                        placeholder="Optional"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium block mb-1.5">Note</Label>
+                      <Textarea
+                        value={paymentForm.note}
+                        onChange={(e) => setPaymentForm(p => ({ ...p, note: e.target.value }))}
+                        className="rounded-lg border-border/60 min-h-[90px] resize-none"
+                        placeholder="Optional note..."
+                      />
+                    </div>
+                    <div className="flex justify-end pt-1">
+                      <Button
+                        className="rounded-lg"
+                        onClick={handleSavePayment}
+                        disabled={updateMutation.isPending}
+                      >
+                        {updateMutation.isPending ? "Saving..." : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

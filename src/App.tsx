@@ -13,6 +13,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
 import Projects from "./pages/Projects";
 import ProjectCreate from "./pages/ProjectCreate";
+import ProjectView from "./pages/ProjectView";
 import Tasks from "./pages/Tasks";
 import Customers from "./pages/Customers";
 import Invoices from "./pages/Invoices";
@@ -24,6 +25,7 @@ import Profile from "./pages/Profile";
 import ActivityLogs from "./pages/ActivityLogs";
 import TicketPipeLog from "./pages/TicketPipeLog";
 import TicketCreate from "./pages/TicketCreate";
+import TicketView from "./pages/TicketView";
 import Calendar from "./pages/Calendar";
 import Leads from "./pages/Leads";
 import Subscriptions from "./pages/Subscriptions";
@@ -186,6 +188,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="projects" element={<Wrapper><Projects /></Wrapper>} />
     <Route path="projects/create" element={<Wrapper><ProjectCreate /></Wrapper>} />
     <Route path="projects/edit/:id" element={<Wrapper><ProjectCreate /></Wrapper>} />
+    <Route path="projects/view/:id" element={<Wrapper><ProjectView /></Wrapper>} />
     <Route path="tasks" element={<Wrapper><Tasks /></Wrapper>} />
     <Route path="customers" element={<Wrapper><Customers /></Wrapper>} />
     <Route path="customers/:id" element={<Wrapper><CustomerView /></Wrapper>} />
@@ -211,6 +214,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="support" element={<Wrapper><Support /></Wrapper>} />
     <Route path="support/create" element={<Wrapper><TicketCreate /></Wrapper>} />
     <Route path="support/edit/:id" element={<Wrapper><TicketCreate /></Wrapper>} />
+    <Route path="support/view/:id" element={<Wrapper><TicketView /></Wrapper>} />
     <Route path="estimate-request" element={<Wrapper><EstimateRequest /></Wrapper>} />
     <Route path="knowledge-base" element={<Wrapper><KnowledgeBase /></Wrapper>} />
     <Route path="chat" element={<Wrapper><Chat /></Wrapper>} />

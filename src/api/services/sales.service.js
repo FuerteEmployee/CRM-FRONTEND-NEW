@@ -23,7 +23,10 @@ export const salesService = {
   // ─────────────────────────────────────────────
   getPayments: () => apiClient.get("/payments"),
   getPaymentsByCustomer: (clientId) => apiClient.get(`/payments/customer/${clientId}`),
+  getPaymentsByInvoice: (invoiceId) => apiClient.get(`/payments/invoice/${invoiceId}`),
   createPayment: (data) => apiClient.post("/payments", data),
+  updatePayment: (id, data) => apiClient.put(`/payments/${id}`, data),
+  deletePayment: (id) => apiClient.delete(`/payments/${id}`),
 
   // ─────────────────────────────────────────────
   // Expenses

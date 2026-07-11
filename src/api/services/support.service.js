@@ -7,6 +7,7 @@ export const supportService = {
   createTicket: (data) => apiClient.post("/tickets", data),
   updateTicket: (id, data) => apiClient.put(`/tickets/${id}`, data),
   deleteTicket: (id) => apiClient.delete(`/tickets/${id}`),
+  addTicketReply: (id, data) => apiClient.post(`/tickets/${id}/replies`, data),
 
   // Knowledge Base
   getKBGroups: () => apiClient.get("/kb/groups"),

@@ -42,7 +42,8 @@ import {
   Mail,
   Maximize2,
   Pencil,
-  ChevronDown
+  ChevronDown,
+  Wallet
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
@@ -58,24 +59,28 @@ import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
 
-const statusMap: Record<number, { label: string; color: string }> = {
-  1: { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
-  2: { label: "Paid", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  3: { label: "Partially Paid", color: "bg-blue-50 text-blue-700 border-blue-200" },
-  4: { label: "Overdue", color: "bg-rose-50 text-rose-700 border-rose-200" },
-  5: { label: "Cancelled", color: "bg-slate-50 text-slate-700 border-slate-200" },
+const statusMap: Record<string, { label: string; color: string }> = {
+  unpaid: { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+  sent: { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+  sent_later: { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+  draft: { label: "Draft", color: "bg-slate-50 text-slate-700 border-slate-200" },
+  paid: { label: "Paid", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  recorded: { label: "Paid", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+  partially_paid: { label: "Partially Paid", color: "bg-blue-50 text-blue-700 border-blue-200" },
+  overdue: { label: "Overdue", color: "bg-rose-50 text-rose-700 border-rose-200" },
+  cancelled: { label: "Cancelled", color: "bg-slate-50 text-slate-700 border-slate-200" },
 };
 
 const statusCardConfig = [
-  { label: "Unpaid", color: "text-yellow-600", bg: "bg-yellow-50/50", border: "border-yellow-100", statusId: 1 },
-  { label: "Paid", color: "text-emerald-600", bg: "bg-emerald-50/50", border: "border-emerald-100", statusId: 2 },
-  { label: "Partially Paid", color: "text-blue-600", bg: "bg-blue-50/50", border: "border-blue-100", statusId: 3 },
-  { label: "Overdue", color: "text-rose-600", bg: "bg-rose-50/50", border: "border-rose-100", statusId: 4 },
-  { label: "Cancelled", color: "text-slate-500", bg: "bg-slate-50/50", border: "border-slate-100", statusId: 5 },
+  { label: "Unpaid", color: "text-yellow-600", bg: "bg-yellow-50/50", border: "border-yellow-100", statusId: "unpaid" },
+  { label: "Paid", color: "text-emerald-600", bg: "bg-emerald-50/50", border: "border-emerald-100", statusId: "paid" },
+  { label: "Partially Paid", color: "text-blue-600", bg: "bg-blue-50/50", border: "border-blue-100", statusId: "partially_paid" },
+  { label: "Overdue", color: "text-rose-600", bg: "bg-rose-50/50", border: "border-rose-100", statusId: "overdue" },
+  { label: "Cancelled", color: "text-slate-500", bg: "bg-slate-50/50", border: "border-slate-100", statusId: "cancelled" },
 ];
 
 const getStatus = (statusId: any) => {
-  return statusMap[Number(statusId)] ?? { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" };
+  return statusMap[String(statusId)] ?? { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" };
 };
 
 const DETAIL_TABS = ["Invoice", "Comments", "Reminders", "Tasks", "Notes", "Templates"];
@@ -96,12 +101,14 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
   const [commentText, setCommentText] = useState("");
   const [ccEmail, setCcEmail] = useState("");
   const [attachPdf, setAttachPdf] = useState(true);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({ amount: "", paymentmode: "", date: new Date().toISOString().split("T")[0], transactionid: "" });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const updateStatusMutation = useMutation({
-    mutationFn: (status: number) => salesService.updateInvoice(d._id || d.id, { status }),
+    mutationFn: (status: string) => salesService.updateInvoice(d._id || d.id, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoice._id || invoice.id] });
@@ -152,6 +159,50 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
   });
 
   const d = detail || invoice;
+
+  const { data: payments = [] } = useQuery({
+    queryKey: ["invoice-payments", invoice._id || invoice.id],
+    queryFn: () => salesService.getPaymentsByInvoice(invoice._id || invoice.id).then((res: any) => res.data || res),
+    enabled: !!(invoice._id || invoice.id),
+  });
+
+  const { data: paymentModes = [] } = useQuery({
+    queryKey: ["payment-modes"],
+    queryFn: () => financeService.getPaymentModes().then((res: any) => res.data || res),
+  });
+
+  const totalPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+  const balanceDue = Math.max((d.total || 0) - totalPaid, 0);
+
+  const recordPaymentMutation = useMutation({
+    mutationFn: (payload: any) => salesService.createPayment(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoice._id || invoice.id] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-payments", invoice._id || invoice.id] });
+      toast({ title: "Payment Recorded", description: "Invoice status updated based on the new balance.", className: "bg-green-600 text-white font-bold rounded-2xl" });
+      setShowPaymentDialog(false);
+      setPaymentForm({ amount: "", paymentmode: "", date: new Date().toISOString().split("T")[0], transactionid: "" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to record payment.", variant: "destructive" });
+    }
+  });
+
+  const handleRecordPayment = () => {
+    const amount = Number(paymentForm.amount);
+    if (!amount || amount <= 0) {
+      toast({ title: "Validation Error", description: "Enter a valid payment amount.", variant: "destructive" });
+      return;
+    }
+    recordPaymentMutation.mutate({
+      invoice: d._id || d.id,
+      amount,
+      paymentmode: paymentForm.paymentmode,
+      date: paymentForm.date,
+      transactionid: paymentForm.transactionid,
+    });
+  };
 
   const { symbol } = useCurrency();
   const { data: currencies = [] } = useQuery({
@@ -249,6 +300,21 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
               <Pencil className="h-3.5 w-3.5" />
             </Button>
 
+            {/* Record Payment */}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 px-3 rounded-lg gap-1.5 text-xs font-bold border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+              title="Record Payment"
+              onClick={() => {
+                setPaymentForm(p => ({ ...p, amount: balanceDue > 0 ? String(balanceDue.toFixed(2)) : "" }));
+                setShowPaymentDialog(true);
+              }}
+            >
+              <Wallet className="h-3.5 w-3.5" />
+              Record Payment
+            </Button>
+
             {/* PDF dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -287,10 +353,10 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                 <DropdownMenuItem onClick={onView}>View Invoice</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>Attach File</DropdownMenuItem>
                 <DropdownMenuItem onClick={handleCopy}>Copy</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateStatusMutation.mutate(1)}>Mark as Unpaid</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateStatusMutation.mutate(2)}>Mark as Paid</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateStatusMutation.mutate(3)}>Mark as Partially Paid</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateStatusMutation.mutate(5)}>Mark as Cancelled</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("unpaid")}>Mark as Unpaid</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("paid")}>Mark as Paid</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("partially_paid")}>Mark as Partially Paid</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("cancelled")}>Mark as Cancelled</DropdownMenuItem>
                 <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => deleteMutation.mutate(d._id || d.id)}>Delete</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -402,6 +468,20 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                             {formatRowAmount(d, d.total || 0)}
                           </p>
                         </div>
+                        {totalPaid > 0 && (
+                          <>
+                            <div className="flex gap-4 text-xs text-emerald-600">
+                              <span className="font-medium">Amount Paid:</span>
+                              <span className="font-bold">{formatRowAmount(d, totalPaid)}</span>
+                            </div>
+                            <div className="text-right w-40">
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Balance Due</p>
+                              <p className={cn("text-sm font-black", balanceDue > 0 ? "text-rose-600" : "text-emerald-600")}>
+                                {formatRowAmount(d, balanceDue)}
+                              </p>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </>
                   ) : (
@@ -518,6 +598,71 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Record Payment Dialog ── */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="max-w-md p-6">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold text-foreground">Record Payment for {invoiceNumber}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="flex justify-between items-center text-xs font-bold text-muted-foreground bg-muted/30 rounded-lg px-3 py-2">
+              <span>Balance Due</span>
+              <span className="text-foreground">{formatRowAmount(d, balanceDue)}</span>
+            </div>
+            <div>
+              <Label className="text-sm font-medium block mb-1.5">Amount</Label>
+              <Input
+                type="number"
+                value={paymentForm.amount}
+                onChange={(e) => setPaymentForm(p => ({ ...p, amount: e.target.value }))}
+                className="rounded-lg border-border/60"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium block mb-1.5">Payment Mode</Label>
+              <Select value={paymentForm.paymentmode} onValueChange={(v) => setPaymentForm(p => ({ ...p, paymentmode: v }))}>
+                <SelectTrigger className="rounded-lg border-border/60">
+                  <SelectValue placeholder="Select mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  {paymentModes.map((m: any) => (
+                    <SelectItem key={m._id} value={m.name}>{m.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm font-medium block mb-1.5">Date</Label>
+              <Input
+                type="date"
+                value={paymentForm.date}
+                onChange={(e) => setPaymentForm(p => ({ ...p, date: e.target.value }))}
+                className="rounded-lg border-border/60"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium block mb-1.5">Transaction ID</Label>
+              <Input
+                value={paymentForm.transactionid}
+                onChange={(e) => setPaymentForm(p => ({ ...p, transactionid: e.target.value }))}
+                className="rounded-lg border-border/60"
+                placeholder="Optional"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" className="rounded-lg" onClick={() => setShowPaymentDialog(false)}>Cancel</Button>
+              <Button
+                className="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={handleRecordPayment}
+                disabled={recordPaymentMutation.isPending}
+              >
+                {recordPaymentMutation.isPending ? "Saving..." : "Record Payment"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
@@ -577,7 +722,7 @@ const Invoices = () => {
         await Promise.all(selectedIds.map(id => salesService.deleteInvoice(id)));
         toast({ title: "Success", description: `Deleted ${selectedIds.length} items.` });
       } else if (bulkState.status) {
-        await Promise.all(selectedIds.map(id => salesService.updateInvoice(id, { status: Number(bulkState.status) })));
+        await Promise.all(selectedIds.map(id => salesService.updateInvoice(id, { status: bulkState.status })));
         toast({ title: "Success", description: `Updated ${selectedIds.length} items.` });
       }
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -636,10 +781,10 @@ const Invoices = () => {
   });
 
   const stats = useMemo(() => {
-    const counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-    const totals = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    const counts: Record<string, number> = { unpaid: 0, paid: 0, partially_paid: 0, overdue: 0, cancelled: 0 };
+    const totals: Record<string, number> = { unpaid: 0, paid: 0, partially_paid: 0, overdue: 0, cancelled: 0 };
     invoices.forEach((inv: any) => {
-      const status = inv.status || 1;
+      const status = inv.status === "sent" || inv.status === "sent_later" ? "unpaid" : inv.status === "recorded" ? "paid" : (inv.status || "unpaid");
       if (counts[status] !== undefined) {
         counts[status]++;
         totals[status] += inv.total || 0;
@@ -811,12 +956,12 @@ const Invoices = () => {
                         <SelectValue placeholder="Select Status" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="1">Draft</SelectItem>
-                        <SelectItem value="2">Sent</SelectItem>
-                        <SelectItem value="3">Paid</SelectItem>
-                        <SelectItem value="4">Partially Paid</SelectItem>
-                        <SelectItem value="5">Overdue</SelectItem>
-                        <SelectItem value="6">Cancelled</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="sent">Sent</SelectItem>
+                        <SelectItem value="paid">Paid</SelectItem>
+                        <SelectItem value="partially_paid">Partially Paid</SelectItem>
+                        <SelectItem value="overdue">Overdue</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

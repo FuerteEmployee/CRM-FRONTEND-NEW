@@ -53,7 +53,7 @@ export default function SetupTicketStatuses() {
       setIsBulkModalOpen(false);
       setBulkNames("");
     },
-    onError: () => toast.error("Failed to bulk create"),
+    onError: (err: any) => toast.error(err?.response?.data?.message || "Failed to bulk create"),
   });
 
   const createMutation = useMutation({
@@ -63,7 +63,7 @@ export default function SetupTicketStatuses() {
       toast.success("Ticket status created successfully");
       closeModal();
     },
-    onError: () => toast.error("Failed to create ticket status")
+    onError: (err: any) => toast.error(err?.response?.data?.message || "Failed to create ticket status")
   });
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) =>
@@ -73,7 +73,7 @@ export default function SetupTicketStatuses() {
       toast.success("Ticket status updated successfully");
       closeModal();
     },
-    onError: () => toast.error("Failed to update ticket status"),
+    onError: (err: any) => toast.error(err?.response?.data?.message || "Failed to update ticket status"),
   });
 
   const deleteMutation = useMutation({
@@ -82,7 +82,7 @@ export default function SetupTicketStatuses() {
       queryClient.invalidateQueries({ queryKey: ["ticket-statuses"] });
       toast.success("Ticket status deleted successfully");
     },
-    onError: () => toast.error("Failed to delete ticket status"),
+    onError: (err: any) => toast.error(err?.response?.data?.message || "Failed to delete ticket status"),
   });
 
   const bulkDeleteMutation = useMutation({
@@ -135,7 +135,7 @@ export default function SetupTicketStatuses() {
 
   const handleBulkSave = () => {
     if (!bulkNames.trim()) {
-      toast({ title: "Error", variant: "destructive", description: "Please enter at least one item" });
+      toast.error("Please enter at least one item");
       return;
     }
     const names = bulkNames.split(/[\n,]+/).map(n => n.trim()).filter(n => n);

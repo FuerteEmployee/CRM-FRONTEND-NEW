@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,7 @@ export default function InvoiceCreate() {
   const { clientId, id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { symbol } = useCurrency();
 
@@ -101,6 +102,18 @@ export default function InvoiceCreate() {
   const [discountType, setDiscountType] = useState("percent");
   const [adjustmentValue, setAdjustmentValue] = useState(0);
   const [showQtyAs, setShowQtyAs] = useState("qty");
+
+  // Seed the invoice from a project's "Invoice Project" action (navigate state), once on mount.
+  useEffect(() => {
+    if (isEdit) return;
+    const state = location.state as { projectId?: string; seedItems?: any[] } | null;
+    if (!state?.projectId) return;
+    setFormData(p => ({ ...p, project: state.projectId! }));
+    if (state.seedItems?.length) {
+      setItems(state.seedItems.map((it: any) => ({ ...it, id: Math.random().toString(36).substr(2, 9) })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
@@ -164,8 +177,12 @@ export default function InvoiceCreate() {
         client: (invoice.client?._id || invoice.client || "").toString(),
         project: (invoice.project?._id || invoice.project || "").toString(),
         number: invoice.number,
-        date: new Date(invoice.date).toISOString().split('T')[0],
-        duedate: new Date(invoice.duedate).toISOString().split('T')[0],
+        date: invoice.date && !isNaN(new Date(invoice.date).getTime())
+          ? new Date(invoice.date).toISOString().split('T')[0]
+          : new Date().toISOString().split('T')[0],
+        duedate: invoice.duedate && !isNaN(new Date(invoice.duedate).getTime())
+          ? new Date(invoice.duedate).toISOString().split('T')[0]
+          : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         prevent_overdue_reminders: invoice.prevent_overdue_reminders || false,
         tags: invoice.tags || [],
         allowed_payment_modes: invoice.allowed_payment_modes || [],
@@ -710,7 +727,7 @@ export default function InvoiceCreate() {
                       </Select>
                     </td>
                     <td className="p-4 align-top text-sm font-black text-foreground">
-                      {formatDocAmount(newItem.qty * newItem.rate)}
+                      {formatDocAmount(newItem.qty * newItem.rate * (1 + (taxes.find(t => t._id === newItem.tax)?.taxrate || 0) / 100))}
                     </td>
                     <td className="p-4 align-top text-right">
                       <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
@@ -729,7 +746,7 @@ export default function InvoiceCreate() {
                       <td className="p-4 align-top text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                         {taxes.find(t => t._id === item.tax)?.name || "No Tax"}
                       </td>
-                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.qty * item.rate)}</td>
+                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.qty * item.rate * (1 + (taxes.find(t => t._id === item.tax)?.taxrate || 0) / 100))}</td>
                       <td className="p-4 align-top text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />

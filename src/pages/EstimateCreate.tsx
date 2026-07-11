@@ -608,7 +608,7 @@ export default function EstimateCreate() {
                       </Select>
                     </td>
                     <td className="p-4 align-top text-sm font-black text-foreground">
-                      {formatDocAmount(newItem.qty * newItem.rate)}
+                      {formatDocAmount(newItem.qty * newItem.rate * (1 + (taxes.find(t => t._id === newItem.tax)?.taxrate || 0) / 100))}
                     </td>
                     <td className="p-4 align-top text-right">
                       <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
@@ -626,7 +626,7 @@ export default function EstimateCreate() {
                       <td className="p-4 align-top text-[10px] font-black uppercase text-muted-foreground">
                         {taxes.find(t => t._id === item.tax)?.name || "No Tax"}
                       </td>
-                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.qty * item.rate)}</td>
+                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.qty * item.rate * (1 + (taxes.find(t => t._id === item.tax)?.taxrate || 0) / 100))}</td>
                       <td className="p-4 align-top text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
