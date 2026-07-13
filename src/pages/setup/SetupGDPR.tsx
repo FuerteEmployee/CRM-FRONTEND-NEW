@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -20,7 +21,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState, useRef, useEffect } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { settingsService } from "@/api/services/settings.service";
+import { useToast } from "@/hooks/use-toast";
+import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { 
   Bold, 
@@ -33,10 +45,13 @@ import {
   AlignRight, 
   AlignJustify, 
   MoreVertical,
-  Undo, 
-  Redo, 
+  Undo,
+  Redo,
   ChevronDown,
-  Search
+  Search,
+  Pencil,
+  Trash2,
+  Loader2
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -312,6 +327,99 @@ export default function SetupGDPR() {
   const toggleField = (setter: React.Dispatch<React.SetStateAction<string[]>>, field: string) => {
     setter(prev => prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]);
   };
+
+  // ── Consent Purposes (dynamic, backed by /consent-purposes) ─────────────
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { can } = usePermissions();
+  const [purposeSearch, setPurposeSearch] = useState("");
+  const [purposePageSize, setPurposePageSize] = useState("10");
+  const [isPurposeModalOpen, setIsPurposeModalOpen] = useState(false);
+  const [editingPurposeId, setEditingPurposeId] = useState<string | null>(null);
+  const [purposeForm, setPurposeForm] = useState({ name: "", description: "" });
+
+  const { data: purposes = [], isLoading: isPurposesLoading } = useQuery<any[]>({
+    queryKey: ["consent-purposes"],
+    queryFn: async () => {
+      try {
+        const response = await settingsService.getConsentPurposes();
+        return Array.isArray(response) ? response : [];
+      } catch (error) {
+        console.error("Error fetching consent purposes:", error);
+        return [];
+      }
+    },
+  });
+
+  const createPurposeMutation = useMutation({
+    mutationFn: (data: any) => settingsService.createConsentPurpose(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["consent-purposes"] });
+      toast({ title: "Success", description: "Purpose created successfully" });
+      closePurposeModal();
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.response?.data?.message || "Failed to create purpose", variant: "destructive" }),
+  });
+
+  const updatePurposeMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => settingsService.updateConsentPurpose(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["consent-purposes"] });
+      toast({ title: "Success", description: "Purpose updated successfully" });
+      closePurposeModal();
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.response?.data?.message || "Failed to update purpose", variant: "destructive" }),
+  });
+
+  const deletePurposeMutation = useMutation({
+    mutationFn: (id: string) => settingsService.deleteConsentPurpose(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["consent-purposes"] });
+      toast({ title: "Success", description: "Purpose deleted successfully" });
+    },
+    onError: () => toast({ title: "Error", description: "Failed to delete purpose", variant: "destructive" }),
+  });
+
+  const openPurposeModal = (purpose?: any) => {
+    if (purpose) {
+      setEditingPurposeId(purpose._id);
+      setPurposeForm({ name: purpose.name || "", description: purpose.description || "" });
+    } else {
+      setEditingPurposeId(null);
+      setPurposeForm({ name: "", description: "" });
+    }
+    setIsPurposeModalOpen(true);
+  };
+
+  const closePurposeModal = () => {
+    setIsPurposeModalOpen(false);
+    setEditingPurposeId(null);
+  };
+
+  const handleSavePurpose = () => {
+    if (!purposeForm.name.trim()) {
+      toast({ title: "Error", description: "Name / Purpose is required", variant: "destructive" });
+      return;
+    }
+    if (editingPurposeId) {
+      updatePurposeMutation.mutate({ id: editingPurposeId, data: purposeForm });
+    } else {
+      createPurposeMutation.mutate(purposeForm);
+    }
+  };
+
+  const filteredPurposes = useMemo(() => {
+    return purposes.filter((p: any) =>
+      (p.name || "").toLowerCase().includes(purposeSearch.toLowerCase()) ||
+      (p.description || "").toLowerCase().includes(purposeSearch.toLowerCase())
+    );
+  }, [purposes, purposeSearch]);
+
+  const purposePageData = purposePageSize === "all"
+    ? filteredPurposes
+    : filteredPurposes.slice(0, parseInt(purposePageSize));
+
+  const formatDateShort = (d: string) => d ? new Date(d).toLocaleDateString() : "-";
 
   return (
     <DashboardLayout>
@@ -1029,17 +1137,25 @@ export default function SetupGDPR() {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-base font-semibold">Purposes of consent</CardTitle>
-                    <Button size="sm">New Purpose</Button>
+                    {can("GDPR", "Create") && (
+                      <Button size="sm" onClick={() => openPurposeModal()}>New Purpose</Button>
+                    )}
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div className="flex items-center gap-2 border rounded-md px-3 bg-background focus-within:ring-1 focus-within:ring-primary w-full sm:w-[300px]">
                         <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <input type="text" placeholder="Search..." className="flex-1 bg-transparent border-none text-sm py-2 px-1 focus:outline-none" />
+                        <input
+                          type="text"
+                          placeholder="Search..."
+                          className="flex-1 bg-transparent border-none text-sm py-2 px-1 focus:outline-none"
+                          value={purposeSearch}
+                          onChange={(e) => setPurposeSearch(e.target.value)}
+                        />
                       </div>
                       <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                         <span className="whitespace-nowrap">Show</span>
-                        <Select defaultValue="10">
+                        <Select value={purposePageSize} onValueChange={setPurposePageSize}>
                           <SelectTrigger className="w-[70px] h-9">
                             <SelectValue />
                           </SelectTrigger>
@@ -1067,11 +1183,47 @@ export default function SetupGDPR() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          <TableRow>
-                            <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                              No purposes found.
-                            </TableCell>
-                          </TableRow>
+                          {isPurposesLoading ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">Loading...</TableCell>
+                            </TableRow>
+                          ) : purposePageData.length === 0 ? (
+                            <TableRow>
+                              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                                No purposes found.
+                              </TableCell>
+                            </TableRow>
+                          ) : (
+                            purposePageData.map((p: any) => (
+                              <TableRow key={p._id}>
+                                <TableCell className="font-medium text-foreground">{p.name}</TableCell>
+                                <TableCell className="text-muted-foreground">{p.description || "-"}</TableCell>
+                                <TableCell className="text-muted-foreground">{formatDateShort(p.createdAt)}</TableCell>
+                                <TableCell className="text-muted-foreground">{formatDateShort(p.updatedAt)}</TableCell>
+                                <TableCell className="text-right pr-4">
+                                  <div className="flex justify-end gap-1">
+                                    {can("GDPR", "Edit") && (
+                                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openPurposeModal(p)}>
+                                        <Pencil className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                    {can("GDPR", "Delete") && (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                        onClick={() => {
+                                          if (confirm(`Delete purpose "${p.name}"?`)) deletePurposeMutation.mutate(p._id);
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          )}
                         </TableBody>
                       </Table>
                     </div>
@@ -1086,6 +1238,50 @@ export default function SetupGDPR() {
           </div>
         </div>
       </div>
+
+      <Dialog open={isPurposeModalOpen} onOpenChange={setIsPurposeModalOpen}>
+        <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden rounded-xl">
+          <DialogHeader className="px-6 py-4 border-b">
+            <DialogTitle className="text-lg font-semibold text-gray-800">
+              {editingPurposeId ? "Edit Purpose" : "New Purpose"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">
+                <span className="text-red-500 mr-1">*</span>Name / Purpose
+              </label>
+              <Input
+                value={purposeForm.name}
+                onChange={(e) => setPurposeForm({ ...purposeForm, name: e.target.value })}
+                className="h-10 border-gray-300 focus:ring-1 focus:ring-primary text-gray-800"
+                placeholder="e.g. Marketing Emails"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Description</label>
+              <Textarea
+                value={purposeForm.description}
+                onChange={(e) => setPurposeForm({ ...purposeForm, description: e.target.value })}
+                className="min-h-[100px] border-gray-300 focus:ring-1 focus:ring-primary text-gray-800"
+                placeholder="Describe what this consent purpose covers..."
+              />
+            </div>
+          </div>
+          <DialogFooter className="px-6 py-4 bg-gray-50 flex items-center justify-end gap-3">
+            <Button variant="outline" onClick={closePurposeModal} className="bg-white border-gray-300 text-foreground hover:bg-gray-100 px-6 h-10 font-medium">
+              Close
+            </Button>
+            <Button
+              onClick={handleSavePurpose}
+              className="px-8 h-10 font-medium text-white"
+              disabled={createPurposeMutation.isPending || updatePurposeMutation.isPending}
+            >
+              {createPurposeMutation.isPending || updatePurposeMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

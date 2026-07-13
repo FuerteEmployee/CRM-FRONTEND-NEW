@@ -148,6 +148,7 @@ const setupMenuItems = [
     permission: "Estimate Request",
     subItems: [
       { title: "Statuses", url: "/admin/setup/estimate-request/statuses" },
+      { title: "Forms", url: "/admin/setup/estimate-request/forms" },
     ],
   },
   { title: "Modules", url: "/admin/setup/modules", icon: Layout },

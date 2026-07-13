@@ -3,6 +3,7 @@ import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { Plus, Search, ChevronDown, FileJson, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { LANGUAGE_NAMES } from "@/lib/languages";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -352,7 +353,7 @@ const Leads = () => {
   };
 
   const countries = ["United States", "United Kingdom", "Canada", "Australia", "India", "Germany", "France", "Japan", "China", "Brazil"];
-  const languages = ["English", "Spanish", "French", "German", "Chinese", "Hindi", "Arabic", "Portuguese"];
+  const languages = LANGUAGE_NAMES;
 
   const getExportRows = () =>
     filtered.map((l) => ({

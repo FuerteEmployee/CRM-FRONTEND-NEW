@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { LANGUAGES } from "@/lib/languages";
 import { estimateService } from "@/api/services/estimate.service";
 import { staffService } from "@/api/services/staff.service";
 import { useToast } from "@/hooks/use-toast";
@@ -177,9 +178,10 @@ export default function EstimateRequestFormSetup() {
                           <SelectTrigger className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="English">English</SelectItem>
-                            <SelectItem value="Spanish">Spanish</SelectItem>
+                          <SelectContent className="max-h-[300px]">
+                            {LANGUAGES.map((lang) => (
+                              <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>

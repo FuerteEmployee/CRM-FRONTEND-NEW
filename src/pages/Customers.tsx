@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
+import { LANGUAGES_ISO } from "@/lib/languages";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,36 +78,7 @@ const COUNTRIES = [
   "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
 ];
 
-const LANGUAGES = [
-  { value: "system", label: "System Default" },
-  { value: "fr-ca", label: "Français (canada)" },
-  { value: "pt", label: "Português" },
-  { value: "bg", label: "Bulgarian" },
-  { value: "it", label: "Italian" },
-  { value: "cs", label: "Czech" },
-  { value: "fa", label: "Persian" },
-  { value: "ja", label: "Japanese" },
-  { value: "de", label: "German" },
-  { value: "ca", label: "Catalan" },
-  { value: "uk", label: "Ukrainian" },
-  { value: "en", label: "English" },
-  { value: "id", label: "Indonesia" },
-  { value: "el", label: "Greek" },
-  { value: "ru", label: "Russian" },
-  { value: "ro", label: "Romanian" },
-  { value: "pt-br", label: "Português_br" },
-  { value: "fi", label: "Finnish" },
-  { value: "es", label: "Spanish" },
-  { value: "sk", label: "Slovak" },
-  { value: "zh", label: "Chinese" },
-  { value: "sv", label: "Swedish" },
-  { value: "tr", label: "Turkish" },
-  { value: "nl", label: "Dutch" },
-  { value: "pl", label: "Polish" },
-  { value: "no", label: "Norwegian" },
-  { value: "vi", label: "Vietnamese" },
-  { value: "fr", label: "French" }
-];
+const LANGUAGES = LANGUAGES_ISO;
 
 const Customers = () => {
   const [search, setSearch] = useState("");

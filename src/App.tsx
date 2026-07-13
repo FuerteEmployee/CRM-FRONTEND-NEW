@@ -84,8 +84,11 @@ import SetupExpensesCategories from "./pages/setup/SetupExpensesCategories";
 import SetupContractTypes from "./pages/setup/SetupContractTypes";
 import SetupEstimateRequestFormFields from "./pages/setup/SetupEstimateRequestFormFields";
 import SetupEstimateStatus from "./pages/setup/SetupEstimateStatus";
+import SetupEstimateRequestForms from "./pages/setup/SetupEstimateRequestForms";
+import EstimateRequestFormPreview from "./pages/setup/EstimateRequestFormPreview";
 import SetupModules from "./pages/setup/SetupModules";
 import SetupEmailTemplates from "./pages/setup/SetupEmailTemplates";
+import EmailTemplateEdit from "./pages/setup/EmailTemplateEdit";
 import SetupCustomFields from "./pages/setup/SetupCustomFields";
 import SetupGDPR from "./pages/setup/SetupGDPR";
 import SetupRoles from "./pages/setup/SetupRoles";
@@ -273,10 +276,13 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="setup/finance/expense-categories" element={<Wrapper><SetupExpensesCategories /></Wrapper>} />
     <Route path="setup/contracts/contract-types" element={<Wrapper><SetupContractTypes /></Wrapper>} />
     <Route path="setup/estimate-request/statuses" element={<Wrapper><SetupEstimateStatus /></Wrapper>} />
+    <Route path="setup/estimate-request/forms" element={<Wrapper><SetupEstimateRequestForms /></Wrapper>} />
+    <Route path="setup/estimate-request/forms/:id/preview" element={<Wrapper><EstimateRequestFormPreview /></Wrapper>} />
     <Route path="setup/estimate-request/form-fields/new" element={<Wrapper><EstimateRequestFormBuilder /></Wrapper>} />
     <Route path="setup/estimate-request/form-fields/:id" element={<Wrapper><EstimateRequestFormBuilder /></Wrapper>} />
     <Route path="setup/modules" element={<Wrapper><SetupModules /></Wrapper>} />
     <Route path="setup/email-templates" element={<Wrapper><SetupEmailTemplates /></Wrapper>} />
+    <Route path="setup/email-templates/:id" element={<Wrapper><EmailTemplateEdit /></Wrapper>} />
     <Route path="setup/custom-fields" element={<Wrapper><SetupCustomFields /></Wrapper>} />
     <Route path="setup/gdpr" element={<Wrapper><SetupGDPR /></Wrapper>} />
     <Route path="setup/roles" element={<Wrapper><SetupRoles /></Wrapper>} />

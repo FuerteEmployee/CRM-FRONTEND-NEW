@@ -227,8 +227,15 @@ const handleTranscript = (cmd: string) => {
   if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
   awakeTimerRef.current = setTimeout(() => {
     changeState("listening");
+    // Surface exactly what the mic heard — without this, a misheard word
+    // (e.g. "task" transcribed as something else) looks identical to "nothing
+    // happened" from the user's side, with no way to tell the two apart.
+    const heard = cmd.trim();
+    toast({
+      title: "Fuerte AI",
+      description: heard ? `Didn't recognize "${heard}" as a command. Back to listening…` : "No command heard. Back to listening…",
+    });
     resetTranscript();
-    toast({ title: "Fuerte AI", description: "No command heard. Back to listening…" });
   }, 10000);
 };
 

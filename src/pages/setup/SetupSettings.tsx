@@ -18,6 +18,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { settingsService } from "@/api/services/settings.service";
 import { toast } from "sonner";
+import { LANGUAGES_SETUP_KEYS } from "@/lib/languages";
 import { useQuery } from "@tanstack/react-query";
 import { estimateService } from "@/api/services/estimate.service";
 import {
@@ -1547,30 +1548,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           <SelectValue placeholder="Select language" />
                         </SelectTrigger>
                         <SelectContent className="max-h-[300px]">
-                          <SelectItem value="english">English</SelectItem>
-                          <SelectItem value="french">French</SelectItem>
-                          <SelectItem value="francais_canada">Francais_canada</SelectItem>
-                          <SelectItem value="german">German</SelectItem>
-                          <SelectItem value="portuguese">Portuguese</SelectItem>
-                          <SelectItem value="portuguese_br">Portuguese_br</SelectItem>
-                          <SelectItem value="bulgarian">Bulgarian</SelectItem>
-                          <SelectItem value="italian">Italian</SelectItem>
-                          <SelectItem value="czech">Czech</SelectItem>
-                          <SelectItem value="persian">Persian</SelectItem>
-                          <SelectItem value="japanese">Japanese</SelectItem>
-                          <SelectItem value="catalan">Catalan</SelectItem>
-                          <SelectItem value="ukrainian">Ukrainian</SelectItem>
-                          <SelectItem value="indonesia">Indonesia</SelectItem>
-                          <SelectItem value="greek">Greek</SelectItem>
-                          <SelectItem value="russian">Russian</SelectItem>
-                          <SelectItem value="romanian">Romanian</SelectItem>
-                          <SelectItem value="slovak">Slovak</SelectItem>
-                          <SelectItem value="chinese">Chinese</SelectItem>
-                          <SelectItem value="turkish">Turkish</SelectItem>
-                          <SelectItem value="dutch">Dutch</SelectItem>
-                          <SelectItem value="polish">Polish</SelectItem>
-                          <SelectItem value="norwegian">Norwegian</SelectItem>
-                          <SelectItem value="vietnamese">Vietnamese</SelectItem>
+                          {LANGUAGES_SETUP_KEYS.map((lang) => (
+                            <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

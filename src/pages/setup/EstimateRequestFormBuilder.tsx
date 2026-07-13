@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { LANGUAGES } from "@/lib/languages";
 import { estimateService } from "@/api/services/estimate.service";
 import { staffService } from "@/api/services/staff.service";
 import { toast } from "sonner";
@@ -136,6 +137,8 @@ export default function EstimateRequestFormBuilder() {
   const [activeSetupTab, setActiveSetupTab] = useState("general");
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [iframeWidth, setIframeWidth] = useState(600);
+  const [iframeHeight, setIframeHeight] = useState(850);
 
   const [formData, setFormData] = useState<any>({
     name: "",
@@ -315,7 +318,7 @@ export default function EstimateRequestFormBuilder() {
   }
 
   const publicUrl = `${window.location.origin}/forms/quote/${id}`;
-  const iframeCode = `<iframe width="600" height="850" src="${publicUrl}" frameborder="0" sandbox="allow-top-navigation allow-forms allow-scripts allow-same-origin allow-popups" allowfullscreen></iframe>`;
+  const iframeCode = `<iframe width="${iframeWidth}" height="${iframeHeight}" src="${publicUrl}" frameborder="0" sandbox="allow-top-navigation allow-forms allow-scripts allow-same-origin allow-popups" allowfullscreen></iframe>`;
 
   return (
     <DashboardLayout>
@@ -925,10 +928,10 @@ export default function EstimateRequestFormBuilder() {
                           <SelectTrigger className="h-10 border-slate-200 rounded-lg shadow-sm">
                             <SelectValue placeholder="Select Language" />
                           </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="English">English</SelectItem>
-                            <SelectItem value="Spanish">Spanish</SelectItem>
-                            <SelectItem value="French">French</SelectItem>
+                          <SelectContent className="max-h-[300px]">
+                            {LANGUAGES.map((lang) => (
+                              <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1174,6 +1177,90 @@ export default function EstimateRequestFormBuilder() {
                     <Button onClick={handleSave}>Save</Button>
                   </div>
                 </Tabs>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="integration" className="mt-0 outline-none max-w-4xl">
+            <div className="space-y-6">
+              <h2 className="text-lg font-semibold text-slate-800 ml-1">Integration Code</h2>
+
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 space-y-8">
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Copy &amp; Paste the code anywhere in your site to show the form, additionally you can
+                    adjust the width and height px to fit for your website.
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-slate-500">Width (px)</Label>
+                      <Input
+                        type="number"
+                        value={iframeWidth}
+                        onChange={(e) => setIframeWidth(Number(e.target.value) || 0)}
+                        className="h-9 w-28 border-slate-200 rounded-lg"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs font-semibold text-slate-500">Height (px)</Label>
+                      <Input
+                        type="number"
+                        value={iframeHeight}
+                        onChange={(e) => setIframeHeight(Number(e.target.value) || 0)}
+                        className="h-9 w-28 border-slate-200 rounded-lg"
+                      />
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <Textarea
+                      readOnly
+                      value={iframeCode}
+                      className="font-mono text-xs bg-slate-50 border-slate-200 min-h-[100px] resize-none pr-24"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="absolute top-2 right-2 h-8 gap-1.5 text-xs"
+                      onClick={() => copyToClipboard(iframeCode)}
+                    >
+                      <Copy className="h-3.5 w-3.5" /> Copy
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-6 border-t border-slate-100">
+                  <Label className="text-sm font-semibold text-slate-700">Share direct link</Label>
+                  <div className="relative">
+                    <Input
+                      readOnly
+                      value={publicUrl}
+                      className="h-10 border-slate-200 rounded-lg font-mono text-xs pr-24"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="absolute top-1 right-1 h-8 gap-1.5 text-xs"
+                      onClick={() => copyToClipboard(publicUrl)}
+                    >
+                      <Copy className="h-3.5 w-3.5" /> Copy
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 space-y-2">
+                  <p className="text-sm font-semibold text-amber-900">
+                    When placing the iframe snippet code consider the following:
+                  </p>
+                  <p className="text-sm text-amber-800">
+                    1. If the protocol of your installation is http use a http page inside the iframe.
+                  </p>
+                  <p className="text-sm text-amber-800">
+                    2. If the protocol of your installation is https use a https page inside the iframe.
+                  </p>
+                  <p className="text-sm text-amber-800">
+                    None SSL installation will need to place the link in non ssl eq. landing page and backwards.
+                  </p>
+                </div>
               </div>
             </div>
           </TabsContent>

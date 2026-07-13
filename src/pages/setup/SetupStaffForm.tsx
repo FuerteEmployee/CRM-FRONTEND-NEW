@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { LANGUAGES_WITH_SYSTEM_DEFAULT } from "@/lib/languages";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -485,12 +486,10 @@ export default function SetupStaffForm() {
                     <SelectTrigger className="h-10 border-slate-200">
                       <SelectValue placeholder="System Default" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="System Default">
-                        System Default
-                      </SelectItem>
-                      <SelectItem value="English">English</SelectItem>
-                      <SelectItem value="Spanish">Spanish</SelectItem>
+                    <SelectContent className="max-h-[300px]">
+                      {LANGUAGES_WITH_SYSTEM_DEFAULT.map((lang) => (
+                        <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

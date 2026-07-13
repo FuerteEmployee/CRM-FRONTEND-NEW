@@ -22,6 +22,10 @@ class SettingsService {
     return apiClient.get("/email-templates");
   }
 
+  async getEmailTemplateById(id) {
+    return apiClient.get(`/email-templates/${id}`);
+  }
+
   async createEmailTemplate(data) {
     return apiClient.post("/email-templates", data);
   }
@@ -49,6 +53,23 @@ class SettingsService {
 
   async deleteCustomField(id) {
     return apiClient.delete(`/custom-fields/${id}`);
+  }
+
+  // GDPR - Consent Purposes
+  async getConsentPurposes() {
+    return apiClient.get("/consent-purposes");
+  }
+
+  async createConsentPurpose(data) {
+    return apiClient.post("/consent-purposes", data);
+  }
+
+  async updateConsentPurpose(id, data) {
+    return apiClient.put(`/consent-purposes/${id}`, data);
+  }
+
+  async deleteConsentPurpose(id) {
+    return apiClient.delete(`/consent-purposes/${id}`);
   }
 }
 
