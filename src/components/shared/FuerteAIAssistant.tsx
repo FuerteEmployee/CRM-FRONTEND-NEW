@@ -6,6 +6,7 @@ import { Bot, Mic, X } from "lucide-react";
 import { usePermissionContext } from "@/context/PermissionContext";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
+import { assistantService } from "@/api/services/assistant.service";
 
 const WAKE_WORDS = ["fuerte", "for the ai", "forty", "forte", "four tay", "for tay"];
 
@@ -65,6 +66,12 @@ export function FuerteAIAssistant() {
   const [tooltip, setTooltip] = useState(false);
   const aiStateRef = useRef<AIState>("sleeping");
   const awakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Claude-backed fallback for anything the local keyword matcher can't resolve
+  // (free-form questions, data lookups, task creation, etc.)
+  const [conversationHistory, setConversationHistory] = useState<any[]>([]);
+  const [isThinking, setIsThinking] = useState(false);
+  const [typedCommand, setTypedCommand] = useState("");
 
   const navigate = useNavigate();
   const { isStaff, isModuleEnabled, canView } = usePermissionContext();
@@ -151,6 +158,38 @@ const toggleListening = () => {
 // ─── Resolve + navigate (create intent first, then plain navigation) ──────
 const matchCommand = resolveCommand;
 
+// ─── Claude fallback — anything the local keyword matcher can't resolve ───
+// (free-form questions, "show me overdue invoices from Acme", "create a task
+// to call John tomorrow", etc.) Runs server-side against real CRM data.
+const askFuerteAI = async (text: string) => {
+  if (!text || !text.trim()) return;
+  setIsThinking(true);
+  try {
+    const result = await assistantService.chat(text, conversationHistory);
+    setConversationHistory(result?.history || []);
+
+    if (result?.navigateTo) {
+      if (!canAccessRoute(result.navigateTo)) {
+        toast({ title: "Fuerte AI", description: "You don't have access to that section.", variant: "destructive" });
+      } else {
+        navigate(applyBasePath(result.navigateTo, isStaff));
+      }
+    }
+
+    if (result?.reply) {
+      toast({ title: "Fuerte AI", description: result.reply });
+    }
+  } catch (error: any) {
+    toast({
+      title: "Fuerte AI",
+      description: error?.response?.data?.message || "Something went wrong. Please try again.",
+      variant: "destructive",
+    });
+  } finally {
+    setIsThinking(false);
+  }
+};
+
 // ─── Keyword matcher ─────────────────────────────────────────────────────
 const handleTranscript = (cmd: string) => {
   // Step 1 — check for wake word while in listening state
@@ -218,7 +257,7 @@ const handleTranscript = (cmd: string) => {
     return;
   }
 
-  // Step 4 — no match fallback
+  // Step 4 — no local match: fall back to Claude instead of giving up
   // We do not reset the transcript here because the Web Speech API continuously
   // fires interim results (e.g., "open" -> "open t" -> "open tasks").
   // If we reset on an incomplete mismatch, the user can never finish a command.
@@ -227,15 +266,13 @@ const handleTranscript = (cmd: string) => {
   if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
   awakeTimerRef.current = setTimeout(() => {
     changeState("listening");
-    // Surface exactly what the mic heard — without this, a misheard word
-    // (e.g. "task" transcribed as something else) looks identical to "nothing
-    // happened" from the user's side, with no way to tell the two apart.
     const heard = cmd.trim();
-    toast({
-      title: "Fuerte AI",
-      description: heard ? `Didn't recognize "${heard}" as a command. Back to listening…` : "No command heard. Back to listening…",
-    });
     resetTranscript();
+    if (heard) {
+      askFuerteAI(heard);
+    } else {
+      toast({ title: "Fuerte AI", description: "No command heard. Back to listening…" });
+    }
   }, 10000);
 };
 
@@ -292,15 +329,45 @@ return (
           </div>
         )}
 
+        {/* Typed command — same Claude-backed assistant, no mic required */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const text = typedCommand.trim();
+            if (!text) return;
+            setTypedCommand("");
+            askFuerteAI(text);
+          }}
+          className="flex items-center gap-2 mb-3"
+        >
+          <input
+            type="text"
+            value={typedCommand}
+            onChange={(e) => setTypedCommand(e.target.value)}
+            placeholder="Or type a command…"
+            disabled={isThinking}
+            className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
+          />
+          <button
+            type="submit"
+            disabled={isThinking || !typedCommand.trim()}
+            className="text-xs font-bold text-primary disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isThinking ? "…" : "Ask"}
+          </button>
+        </form>
+
         {/* State badge + API label */}
         <div className="flex items-center justify-between">
-          <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${aiState === "awake"
-              ? "bg-green-100 text-green-700"
-              : "bg-blue-50 text-blue-600"
+          <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${isThinking
+              ? "bg-amber-100 text-amber-700 animate-pulse"
+              : aiState === "awake"
+                ? "bg-green-100 text-green-700"
+                : "bg-blue-50 text-blue-600"
             }`}>
-            {aiState === "awake" ? "Awake" : "Listening"}
+            {isThinking ? "Thinking…" : aiState === "awake" ? "Awake" : "Listening"}
           </span>
-          <span className="text-[10px] text-gray-400">Web Speech API</span>
+          <span className="text-[10px] text-gray-400">FuerteAI</span>
         </div>
       </div>
     )}

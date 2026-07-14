@@ -26,7 +26,6 @@ import {
   Banknote,
   Layout,
   Plug,
-  Brain,
   MoreHorizontal,
   Terminal,
   Building2,
@@ -42,7 +41,6 @@ import {
   Headphones,
   Search,
   ExternalLink,
-  Bot,
   Calendar,
   FileJson,
   PenLine,
@@ -126,14 +124,6 @@ const settingsNavigation: SettingCategory[] = [
     items: [
       { id: "int-google", label: "Google", icon: Search },
       { id: "int-pusher", label: "Pusher.com", icon: ExternalLink },
-    ]
-  },
-  {
-    title: "AI Integration",
-    icon: Brain,
-    items: [
-      { id: "ai-general", label: "General", icon: Brain },
-      { id: "ai-openai", label: "OpenAI", icon: Bot },
     ]
   },
   {
@@ -484,15 +474,6 @@ export default function SetupSettings() {
   const [intPusherRtEnabled, setIntPusherRtEnabled] = useState(() => getInit("intPusherRtEnabled", true));
   const [intPusherDesktopEnabled, setIntPusherDesktopEnabled] = useState(() => getInit("intPusherDesktopEnabled", true));
   const [intPusherDismissSeconds, setIntPusherDismissSeconds] = useState(() => getInit("intPusherDismissSeconds", 0));
-
-  // AI Integration States
-  const [aiProvider, setAiProvider] = useState(() => getInit("aiProvider", "openai"));
-  const [aiSystemPrompt, setAiSystemPrompt] = useState(() => getInit("aiSystemPrompt", ""));
-  const [aiEnableSummarization, setAiEnableSummarization] = useState(() => getInit("aiEnableSummarization", false));
-  const [aiEnableReplySuggestion, setAiEnableReplySuggestion] = useState(() => getInit("aiEnableReplySuggestion", false));
-  const [aiOpenAIKey, setAiOpenAIKey] = useState(() => getInit("aiOpenAIKey", ""));
-  const [aiOpenAIModel, setAiOpenAIModel] = useState(() => getInit("aiOpenAIModel", "gpt-4-turbo-preview"));
-  const [aiMaxTokens, setAiMaxTokens] = useState(() => getInit("aiMaxTokens", "2000"));
 
   const [emailHeader, setEmailHeader] = useState(() => getInit("emailHeader", `<!doctype html>
 <html>
@@ -929,13 +910,6 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
     intPusherRtEnabled: [intPusherRtEnabled, setIntPusherRtEnabled],
     intPusherDesktopEnabled: [intPusherDesktopEnabled, setIntPusherDesktopEnabled],
     intPusherDismissSeconds: [intPusherDismissSeconds, setIntPusherDismissSeconds],
-    aiProvider: [aiProvider, setAiProvider],
-    aiSystemPrompt: [aiSystemPrompt, setAiSystemPrompt],
-    aiEnableSummarization: [aiEnableSummarization, setAiEnableSummarization],
-    aiEnableReplySuggestion: [aiEnableReplySuggestion, setAiEnableReplySuggestion],
-    aiOpenAIKey: [aiOpenAIKey, setAiOpenAIKey],
-    aiOpenAIModel: [aiOpenAIModel, setAiOpenAIModel],
-    aiMaxTokens: [aiMaxTokens, setAiMaxTokens],
     calEventLimit: [calEventLimit, setCalEventLimit],
     calDefaultView: [calDefaultView, setCalDefaultView],
     calFirstDay: [calFirstDay, setCalFirstDay],
@@ -4834,191 +4808,6 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
               </Card>
             )}
 
-            {activeTab === "ai-general" && (
-              <Card className="border shadow-sm">
-                <CardHeader className="border-b bg-muted/30">
-                  <div className="flex items-center gap-2">
-                    <Brain className="h-5 w-5 text-primary" />
-                    <CardTitle className="text-lg">AI Integration - General</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6 space-y-8">
-                  {/* Provider */}
-                  <div className="space-y-3">
-                    <Label className="text-sm font-bold">Provider</Label>
-                    <Select value={aiProvider} onValueChange={setAiProvider}>
-                      <SelectTrigger className="max-w-md h-11 border-muted-foreground/30">
-                        <SelectValue placeholder="Select Provider" />
-                      </SelectTrigger>
-                      <SelectContent tabIndex={-1}>
-                        <SelectItem value="openai">OpenAI</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* System Prompt */}
-                  <div className="space-y-3 pt-6 border-t">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-sm font-bold">System Prompt</Label>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <p className="text-xs">Provide context about your company and how you handle support tickets to help AI generate better responses.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <Textarea
-                      value={aiSystemPrompt}
-                      onChange={(e) => setAiSystemPrompt(e.target.value)}
-                      placeholder="Enter OpenAI system prompt..."
-                      className="min-h-[150px] border-muted-foreground/30"
-                    />
-                  </div>
-
-                  {/* Enable Ticket Summarization */}
-                  <div className="flex flex-col gap-2 pt-6 border-t">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-sm font-bold">Enable Ticket Summarization</Label>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <p className="text-xs">Enable the AI ticket summary feature to automatically generate a summary of the ticket conversation.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <div className="flex items-center space-x-6 pt-1">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="ai-sum-yes"
-                          checked={aiEnableSummarization === true}
-                          onCheckedChange={() => setAiEnableSummarization(true)}
-                        />
-                        <label htmlFor="ai-sum-yes" className="text-sm cursor-pointer select-none">Yes</label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="ai-sum-no"
-                          checked={aiEnableSummarization === false}
-                          onCheckedChange={() => setAiEnableSummarization(false)}
-                        />
-                        <label htmlFor="ai-sum-no" className="text-sm cursor-pointer select-none">No</label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Enable Ticket Reply Suggestion */}
-                  <div className="flex flex-col gap-2 pt-6 border-t">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-sm font-bold">Enable Ticket Reply Suggestion</Label>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Info className="h-4 w-4 text-muted-foreground cursor-help" />
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            <p className="text-xs">Enable the AI ticket reply suggestion to automatically generate a reply to the customer based on the tickets conversation.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                    <div className="flex items-center space-x-6 pt-1">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="ai-reply-yes"
-                          checked={aiEnableReplySuggestion === true}
-                          onCheckedChange={() => setAiEnableReplySuggestion(true)}
-                        />
-                        <label htmlFor="ai-reply-yes" className="text-sm cursor-pointer select-none">Yes</label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="ai-reply-no"
-                          checked={aiEnableReplySuggestion === false}
-                          onCheckedChange={() => setAiEnableReplySuggestion(false)}
-                        />
-                        <label htmlFor="ai-reply-no" className="text-sm cursor-pointer select-none">No</label>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {activeTab === "ai-openai" && (
-              <Card className="border shadow-sm">
-                <CardHeader className="border-b bg-muted/30">
-                  <div className="flex items-center gap-2">
-                    <Bot className="h-5 w-5 text-primary" />
-                    <CardTitle className="text-lg">OpenAI Settings</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6 space-y-8">
-                  {/* API Key */}
-                  <div className="space-y-3">
-                    <Label className="text-sm font-bold">OpenAI API Key</Label>
-                    <Input
-                      type="password"
-                      value={aiOpenAIKey}
-                      onChange={(e) => setAiOpenAIKey(e.target.value)}
-                      placeholder="Enter OpenAI API Key"
-                      className="max-w-md h-11 border-muted-foreground/30"
-                    />
-                  </div>
-
-                  {/* Model */}
-                  <div className="space-y-3 pt-6 border-t">
-                    <Label className="text-sm font-bold">OpenAI Model</Label>
-                    <Select value={aiOpenAIModel} onValueChange={setAiOpenAIModel}>
-                      <SelectTrigger className="max-w-md h-11 border-muted-foreground/30">
-                        <SelectValue placeholder="Select Model" />
-                      </SelectTrigger>
-                      <SelectContent tabIndex={-1}>
-                        <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                        <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                        <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-                        <SelectItem value="o1-mini">o1 Mini</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Max Tokens */}
-                  <div className="space-y-3 pt-6 border-t">
-                    <Label className="text-sm font-bold">Max Output Tokens</Label>
-                    <Input
-                      type="number"
-                      value={aiMaxTokens}
-                      onChange={(e) => setAiMaxTokens(parseInt(e.target.value) || 0)}
-                      className="max-w-md h-11 border-muted-foreground/30"
-                    />
-                  </div>
-
-                  {/* Advanced Features */}
-                  <div className="space-y-4 pt-6 border-t">
-                    <Label className="text-sm font-bold">Advanced Features</Label>
-                    <div className="bg-muted/30 p-6 rounded-lg border border-dashed text-center space-y-4">
-                      <div className="space-y-2">
-                        <Button className="gap-2" onClick={() => window.location.href = '/admin/setup/ai-fine-tuning'}>
-                          <Bot className="h-4 w-4" />
-                          OpenAI Fine-tuning
-                        </Button>
-                        <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                          Fine-tune OpenAI models with your knowledge base and predefined replies content for more accurate responses.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             {activeTab === "oth-calendar" && (
               <Card className="border shadow-sm">
                 <CardHeader className="border-b bg-muted/30 p-0">
@@ -6508,7 +6297,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
             )}
 
             {/* Placeholder for other tabs */}
-            {!["gen-general", "gen-company", "gen-localization", "gen-email", "gen-update", "gen-server", "fin-general", "fin-invoices", "fin-proposals", "fin-estimates", "fin-credit-notes", "fin-subscriptions", "fin-gateways", "feat-customers", "feat-tasks", "feat-support", "feat-leads", "int-google", "int-pusher", "ai-general", "ai-openai", "oth-calendar", "oth-pdf", "oth-esign", "oth-tags", "oth-sms", "misc-misc", "misc-tables", "misc-inline", "misc-cron"].includes(activeTab) && (
+            {!["gen-general", "gen-company", "gen-localization", "gen-email", "gen-update", "gen-server", "fin-general", "fin-invoices", "fin-proposals", "fin-estimates", "fin-credit-notes", "fin-subscriptions", "fin-gateways", "feat-customers", "feat-tasks", "feat-support", "feat-leads", "int-google", "int-pusher", "oth-calendar", "oth-pdf", "oth-esign", "oth-tags", "oth-sms", "misc-misc", "misc-tables", "misc-inline", "misc-cron"].includes(activeTab) && (
               <Card className="border shadow-sm min-h-[400px] flex items-center justify-center bg-muted/10">
                 <div className="text-center space-y-3">
                   <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">

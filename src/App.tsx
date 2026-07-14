@@ -94,7 +94,6 @@ import SetupGDPR from "./pages/setup/SetupGDPR";
 import SetupRoles from "./pages/setup/SetupRoles";
 import SetupThemeStyle from "./pages/setup/SetupThemeStyle";
 import SetupSettings from "./pages/setup/SetupSettings";
-import SetupAIFineTuning from "./pages/setup/SetupAIFineTuning";
 import SetupHelp from "./pages/setup/SetupHelp";
 import SetupStaffForm from "./pages/setup/SetupStaffForm";
 import EstimateRequestFormBuilder from "./pages/setup/EstimateRequestFormBuilder";
@@ -288,7 +287,6 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="setup/roles" element={<Wrapper><SetupRoles /></Wrapper>} />
     <Route path="setup/theme" element={<Wrapper><SetupThemeStyle /></Wrapper>} />
     <Route path="setup/settings" element={<Wrapper><SetupSettings /></Wrapper>} />
-    <Route path="setup/ai-fine-tuning" element={<Wrapper><SetupAIFineTuning /></Wrapper>} />
     <Route path="setup/help" element={<Wrapper><SetupHelp /></Wrapper>} />
     <Route path="setup/mainsidebar" element={<Wrapper><SetupMainSidebar /></Wrapper>} />
   </>
