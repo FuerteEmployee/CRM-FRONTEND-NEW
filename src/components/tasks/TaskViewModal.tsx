@@ -43,6 +43,7 @@ import { fileService } from "@/api/services/file.service";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { InquiryOutcomeDialog } from "@/components/tasks/InquiryOutcomeDialog";
 
 interface TaskViewModalProps {
   isOpen: boolean;
@@ -89,6 +90,7 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
   const [reminderDescription, setReminderDescription] = useState("");
   const [reminderNotifyEmail, setReminderNotifyEmail] = useState(false);
 
+  const [isOutcomeOpen, setIsOutcomeOpen] = useState(false);
   const [isAddChecklistOpen, setIsAddChecklistOpen] = useState(false);
   const [checklistTitle, setChecklistTitle] = useState("");
   const [checklistAssignedTo, setChecklistAssignedTo] = useState("");
@@ -269,10 +271,24 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
 
   const toggleStatus = () => {
     const nextStatus = task.displayStatus === 5 ? 1 : 5; // toggle between not started and complete
-    updateMutation.mutate({ 
-      id: task._id, 
-      isTodo: task.isTodo, 
-      data: task.isTodo ? { finished: nextStatus === 5 } : { status: nextStatus } 
+    // Closing an Inquiry task requires a Won/Lost outcome first
+    if (nextStatus === 5 && !task.isTodo && task.category === "Inquiry") {
+      setIsOutcomeOpen(true);
+      return;
+    }
+    updateMutation.mutate({
+      id: task._id,
+      isTodo: task.isTodo,
+      data: task.isTodo ? { finished: nextStatus === 5 } : { status: nextStatus }
+    });
+  };
+
+  const handleOutcomeSelect = (outcome: "Won" | "Lost") => {
+    setIsOutcomeOpen(false);
+    updateMutation.mutate({
+      id: task._id,
+      isTodo: false,
+      data: { status: 5, inquiry_outcome: outcome },
     });
   };
 
@@ -610,6 +626,18 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
                   <span className="font-bold text-slate-800">{currentStatus.label}</span>
                 </div>
                 <div className="flex items-center gap-3">
+                  <div className="w-6 flex justify-center"><div className="h-4 w-4 text-slate-400">🏷️</div></div>
+                  <span className="text-slate-500 font-medium w-24">Category:</span>
+                  <span className="font-bold text-slate-800">
+                    {task.category || "To-Do"}
+                    {task.category === "Inquiry" && task.inquiry_outcome && (
+                      <span className={`ml-1 ${task.inquiry_outcome === 'Won' ? 'text-green-600' : 'text-red-600'}`}>
+                        ({task.inquiry_outcome})
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
                   <div className="w-6 flex justify-center"><div className="h-4 w-4 text-slate-400">📅</div></div>
                   <span className="text-slate-500 font-medium w-24">Start Date:</span>
                   <span className="font-bold text-slate-800">{task.startdate ? formatDate(task.startdate) : "-"}</span>
@@ -852,6 +880,14 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
 
           </div>
         </div>
+
+        {/* Inquiry Won/Lost Outcome Modal */}
+        <InquiryOutcomeDialog
+          isOpen={isOutcomeOpen}
+          onClose={() => setIsOutcomeOpen(false)}
+          taskName={task.name}
+          onSelect={handleOutcomeSelect}
+        />
 
         {/* Add / Edit Reminder Modal */}
         <Dialog open={isAddReminderOpen} onOpenChange={(open) => { if (!open) closeReminderModal(); else setIsAddReminderOpen(true); }}>

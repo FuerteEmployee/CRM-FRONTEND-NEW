@@ -19,6 +19,7 @@ import Customers from "./pages/Customers";
 import Invoices from "./pages/Invoices";
 import Contacts from "./pages/Contacts";
 import Expenses from "./pages/Expenses";
+import Purchases from "./pages/Purchases";
 import ExpenseCreate from "./pages/ExpenseCreate";
 
 import Profile from "./pages/Profile";
@@ -200,6 +201,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="invoices/create/:clientId?" element={<Wrapper><InvoiceCreate /></Wrapper>} />
     <Route path="invoices/edit/:id" element={<Wrapper><InvoiceCreate /></Wrapper>} />
     <Route path="quotations" element={<Wrapper><QuotationModule /></Wrapper>} />
+    <Route path="purchases" element={<Wrapper><Purchases /></Wrapper>} />
     <Route path="expenses" element={<Wrapper><Expenses /></Wrapper>} />
     <Route path="expenses/create" element={<Wrapper><ExpenseCreate /></Wrapper>} />
     <Route path="expenses/edit/:id" element={<Wrapper><ExpenseCreate /></Wrapper>} />

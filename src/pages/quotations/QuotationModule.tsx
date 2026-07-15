@@ -28,17 +28,22 @@ import {
   Phone,
   Eye,
   Save,
+  Download,
 } from "lucide-react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 type Stats = { totalThisMonth: number; acceptedThisMonth: number; totalValue: number };
 type Quotation = {
   _id: string;
   number: string;
   date: string;
+  valid_till?: string;
   total: number;
   subtotal?: number;
+  total_tax?: number;
   status: string;
-  client?: { company?: string };
+  client?: any;
   items?: any[];
 };
 type ItemRow = { id: string; description: string; qty: number; rate: number; photoPreview?: string };
@@ -129,7 +134,8 @@ export default function QuotationModule() {
   const acceptedThisMonth = stats?.acceptedThisMonth ?? 0;
   const totalValue = stats?.totalValue ?? 0;
 
-  // ─── Create Quotation form state ─────────────────────────────────────
+  // ─── Create/Edit Quotation form state ────────────────────────────────
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [clientId, setClientId] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [address, setAddress] = useState("");
@@ -168,6 +174,7 @@ export default function QuotationModule() {
   }, [selectedCustomer]);
 
   const resetForm = () => {
+    setEditingId(null);
     setClientId("");
     setContactNumber("");
     setAddress("");
@@ -218,6 +225,7 @@ export default function QuotationModule() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quotation-stats"] });
       queryClient.invalidateQueries({ queryKey: ["quotations-recent"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations-all"] });
       toast({ title: "Quotation saved", description: "Your quotation has been saved successfully." });
       resetForm();
       setActiveTab("dashboard");
@@ -230,6 +238,68 @@ export default function QuotationModule() {
       });
     },
   });
+
+  const updateMutation = useMutation({
+    mutationFn: (status: string) =>
+      quotationService.update(editingId, {
+        client: clientId,
+        date: quotationDate,
+        valid_till: validUntil,
+        status,
+        items: items
+          .filter((i) => i.description.trim())
+          .map((i) => ({ description: i.description, qty: Number(i.qty) || 0, rate: Number(i.rate) || 0 })),
+        subtotal,
+        total_tax: gstAmount,
+        total: grandTotal,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quotation-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations-recent"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations-all"] });
+      toast({ title: "Quotation updated", description: "Your quotation has been updated successfully." });
+      resetForm();
+      setActiveTab("list");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error?.response?.data?.message || "Failed to update quotation",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => quotationService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["quotation-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations-recent"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations-all"] });
+      toast({ title: "Deleted", description: "Quotation deleted successfully." });
+    },
+  });
+
+  const handleEdit = (q: Quotation) => {
+    setEditingId(q._id);
+    setClientId(q.client?._id || q.client?.id || (typeof q.client === 'string' ? q.client : ""));
+    setQuotationDate(q.date ? new Date(q.date).toISOString().split("T")[0] : todayISO());
+    setValidUntil(q.valid_till ? new Date(q.valid_till).toISOString().split("T")[0] : plusDaysISO(20));
+    if (q.items && q.items.length > 0) {
+      setItems(q.items.map(i => ({
+        id: Math.random().toString(36).slice(2, 9),
+        description: i.description || "",
+        qty: i.qty || 1,
+        rate: i.rate || 0,
+      })));
+    } else {
+      setItems([emptyItem()]);
+    }
+    if (q.total_tax && q.subtotal) {
+      setGstPercent(Math.round((q.total_tax / q.subtotal) * 100));
+    }
+    setActiveTab("create");
+  };
 
   const validate = () => {
     if (!clientId) {
@@ -245,8 +315,9 @@ export default function QuotationModule() {
 
   const handleSaveAndDownload = () => {
     if (!validate()) return;
-    createMutation.mutate("draft", {
-      onSuccess: () => toast({ title: "Quotation saved", description: "PDF download isn't wired up yet — the quotation was saved as a draft." }),
+    const mut = editingId ? updateMutation : createMutation;
+    mut.mutate("draft", {
+      onSuccess: () => toast({ title: editingId ? "Quotation updated" : "Quotation saved", description: "PDF download isn't wired up yet — the quotation was saved as a draft." }),
     });
   };
 
@@ -257,9 +328,60 @@ export default function QuotationModule() {
 
   const handleConfirmPreviewSave = () => {
     setIsPreviewOpen(false);
-    createMutation.mutate("sent", {
-      onSuccess: () => toast({ title: "Quotation saved", description: "Your quotation has been saved successfully." }),
+    const mut = editingId ? updateMutation : createMutation;
+    mut.mutate("sent", {
+      onSuccess: () => toast({ title: editingId ? "Quotation updated" : "Quotation saved", description: "Your quotation has been saved successfully." }),
     });
+  };
+
+  const handleDownloadPDF = (q: Quotation) => {
+    const doc = new jsPDF();
+    
+    // Add Company Info
+    doc.setFontSize(20);
+    doc.text(companyName || "Company Name", 14, 22);
+    doc.setFontSize(10);
+    if (tagline) doc.text(tagline, 14, 30);
+    
+    // Add Quotation Info
+    doc.setFontSize(14);
+    doc.text("QUOTATION", 150, 22);
+    doc.setFontSize(10);
+    doc.text(`Number: ${q.number || "—"}`, 150, 30);
+    doc.text(`Date: ${q.date ? new Date(q.date).toLocaleDateString() : "—"}`, 150, 36);
+    
+    // Add Client Info
+    doc.setFontSize(12);
+    doc.text("Bill To:", 14, 50);
+    doc.setFontSize(10);
+    const clientName = q.client?.company || q.client?.name || "Client";
+    doc.text(clientName, 14, 56);
+    
+    // Add Items Table
+    const tableData = (q.items || []).map((item, index) => [
+      index + 1,
+      item.description || "—",
+      item.qty || 0,
+      `₹${(item.rate || 0).toLocaleString("en-IN")}`,
+      `₹${((item.qty || 0) * (item.rate || 0)).toLocaleString("en-IN")}`
+    ]);
+    
+    autoTable(doc, {
+      startY: 70,
+      head: [["#", "Description", "Qty", "Rate", "Amount"]],
+      body: tableData,
+    });
+    
+    // Add Totals
+    const finalY = (doc as any).lastAutoTable.finalY || 70;
+    doc.text(`Subtotal: ₹${(q.subtotal || 0).toLocaleString("en-IN")}`, 140, finalY + 10);
+    if (q.total_tax) {
+      doc.text(`Tax: ₹${q.total_tax.toLocaleString("en-IN")}`, 140, finalY + 16);
+    }
+    doc.setFontSize(12);
+    doc.text(`Grand Total: ₹${(q.total || 0).toLocaleString("en-IN")}`, 140, finalY + 24);
+    
+    doc.save(`Quotation_${q.number || "Draft"}.pdf`);
   };
 
   const selectedClientLabel = customers.find((c: any) => c._id === clientId)?.company || "";
@@ -274,7 +396,7 @@ export default function QuotationModule() {
           <h1 className="text-2xl font-bold tracking-tight">{activeItem?.label || "Quotations"}</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {activeTab === "dashboard" && "Overview of your quotation activity"}
-            {activeTab === "create" && "Fill in the details below to generate a new quotation"}
+            {activeTab === "create" && (editingId ? "Update the details below to save changes to the quotation" : "Fill in the details below to generate a new quotation")}
             {activeTab === "list" && "Browse and manage all quotations"}
           </p>
         </div>
@@ -288,7 +410,10 @@ export default function QuotationModule() {
                 {sidebarItems.map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => setActiveTab(item.id)}
+                    onClick={() => {
+                      if (item.id === "create" && editingId) resetForm();
+                      setActiveTab(item.id);
+                    }}
                     className={
                       "flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-md transition-all duration-200 text-left w-full " +
                       (activeTab === item.id
@@ -297,7 +422,7 @@ export default function QuotationModule() {
                     }
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
-                    <span className="truncate">{item.label}</span>
+                    <span className="truncate">{item.id === "create" && editingId ? "Edit Quotation" : item.label}</span>
                   </button>
                 ))}
               </CardContent>
@@ -383,10 +508,13 @@ export default function QuotationModule() {
                               </td>
                               <td className="px-6 py-2.5 text-right">
                                 <div className="flex items-center justify-end gap-1">
-                                  <button className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors">
+                                  <button onClick={() => handleDownloadPDF(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Download PDF">
+                                    <Download className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button onClick={() => handleEdit(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Edit">
                                     <Edit className="h-3.5 w-3.5" />
                                   </button>
-                                  <button className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors">
+                                  <button onClick={() => { if(window.confirm('Delete this quotation?')) deleteMutation.mutate(q._id) }} className="p-1.5 rounded-lg hover:red-50 text-muted-foreground hover:text-red-600 transition-colors">
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
@@ -651,7 +779,7 @@ export default function QuotationModule() {
                     <Button
                       variant="ghost"
                       className="rounded-xl font-semibold"
-                      disabled={createMutation.isPending}
+                      disabled={createMutation.isPending || updateMutation.isPending}
                       onClick={() => {
                         resetForm();
                         setActiveTab("dashboard");
@@ -662,23 +790,23 @@ export default function QuotationModule() {
                     <Button
                       variant="outline"
                       className="rounded-xl font-semibold gap-2"
-                      disabled={createMutation.isPending}
+                      disabled={createMutation.isPending || updateMutation.isPending}
                       onClick={handleSaveAndDownload}
                     >
-                      {createMutation.isPending && createMutation.variables === "draft" ? (
+                      {(createMutation.isPending || updateMutation.isPending) && (createMutation.variables === "draft" || updateMutation.variables === "draft") ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Save className="h-4 w-4" />
                       )}
-                      Save &amp; Download PDF
+                      {editingId ? "Update Draft" : "Save & Download PDF"}
                     </Button>
                     <Button
                       className="rounded-xl font-semibold gap-2"
-                      disabled={createMutation.isPending}
+                      disabled={createMutation.isPending || updateMutation.isPending}
                       onClick={handlePreviewAndSave}
                     >
                       <Eye className="h-4 w-4" />
-                      Preview &amp; Save Quotation
+                      {editingId ? "Preview & Update" : "Preview & Save Quotation"}
                     </Button>
                   </div>
                 </CardContent>
@@ -736,13 +864,13 @@ export default function QuotationModule() {
                               </td>
                               <td className="px-6 py-3 text-right">
                                 <div className="flex items-center justify-end gap-1">
-                                  <button className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="View">
-                                    <Eye className="h-3.5 w-3.5" />
+                                  <button onClick={() => handleDownloadPDF(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Download PDF">
+                                    <Download className="h-3.5 w-3.5" />
                                   </button>
-                                  <button className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Edit">
+                                  <button onClick={() => handleEdit(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Edit">
                                     <Edit className="h-3.5 w-3.5" />
                                   </button>
-                                  <button className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors" title="Delete">
+                                  <button onClick={() => { if(window.confirm('Delete this quotation?')) deleteMutation.mutate(q._id) }} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors" title="Delete">
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
