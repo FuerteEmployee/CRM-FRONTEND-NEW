@@ -176,6 +176,28 @@ const setupMenuItems = [
   { title: "Help", url: "https://fuertedevelopers.com/", icon: HelpCircle },
 ];
 
+// Static HRMS submenu — mirrors the real, working routes in hrms/AppRoutes.tsx.
+// Kept in code (not the DB-backed mainsidebar collection) so it can never drift into
+// duplicate/404 entries the way manually-edited DB rows previously did.
+const hrmsMenuItems = [
+  { title: "Staff Directory", url: "/hrms/staff/users", icon: "Users" },
+  { title: "Attendance Dashboard", url: "/hrms/employees", icon: "LayoutDashboard" },
+  { title: "Departments", url: "/hrms/staff/departments", icon: "Building2" },
+  { title: "Designations", url: "/hrms/staff/designations", icon: "Briefcase" },
+  { title: "Shift Management", url: "/hrms/staff/shifts", icon: "AlarmClock" },
+  { title: "Device Approvals", url: "/hrms/staff/device-approvals", icon: "ShieldCheck" },
+  { title: "Session Logs", url: "/hrms/staff/session-logs", icon: "Clock" },
+  { title: "Live Tracking", url: "/hrms/staff/live-tracking", icon: "RadioTower" },
+  { title: "Leave Management", url: "/hrms/staff/leave-management", icon: "CalendarDays" },
+  { title: "Expense Management", url: "/hrms/staff/expense-management", icon: "Wallet" },
+  { title: "Targets", url: "/hrms/staff/targets", icon: "Target" },
+  { title: "Salary Management", url: "/hrms/staff/payroll", icon: "Landmark" },
+  { title: "Salary Settlements", url: "/hrms/staff/salary-settlements", icon: "ArrowLeftRight" },
+  { title: "Advance Salary", url: "/hrms/staff/advance-salary", icon: "CreditCard" },
+  { title: "Branch Management", url: "/hrms/staff/branches", icon: "MapPin" },
+  { title: "Roles & Permissions", url: "/hrms/staff/roles", icon: "Shield" },
+];
+
 export function AppSidebar() {
   const { state, setOpenMobile, isMobile } = useSidebar();
   const collapsed = state === "collapsed";
@@ -242,10 +264,11 @@ export function AppSidebar() {
       mainNav: items.filter((i: any) => i.group === "Main"),
       customersNav: items.filter((i: any) => i.group === "Customers"),
       salesNav: items.filter((i: any) => i.group === "Sales"),
-      managementNav: items.filter((i: any) => i.group === "Management"),
+      managementNav: items.filter((i: any) => i.group === "Management" && (!i.url || !i.url.includes("/hrms"))),
       utilitiesNav: items.filter((i: any) => i.group === "Utilities"),
       reportsNav: items.filter((i: any) => i.group === "Reports"),
       setupNav: items.filter((i: any) => i.group === "Setup"),
+      hrmsNav: hrmsMenuItems,
     };
   };
 
@@ -337,10 +360,11 @@ export function AppSidebar() {
         return !moduleKey || isModuleEnabled(moduleKey);
       })
       .map((item: any) => {
+        const urlStr = getUrl(item.url) || "";
         const isActive =
-          location.pathname === getUrl(item.url) ||
-          location.pathname.startsWith(getUrl(item.url) + "/");
-        const isExternal = getUrl(item.url)?.startsWith("http");
+          location.pathname === urlStr ||
+          (urlStr !== "/admin/hrms" && urlStr !== "/hrms" && urlStr !== "/admin/dashboard" && urlStr !== "/staff/dashboard" && urlStr !== "/admin" && location.pathname.startsWith(urlStr + "/"));
+        const isExternal = urlStr.startsWith("http");
         const IconComponent = (Icons as any)[item.icon] || Icons.Circle;
 
         return (
@@ -493,6 +517,7 @@ export function AppSidebar() {
                 {renderItems(dynamicNav.customersNav)}
                 {renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
                 {renderItems(dynamicNav.managementNav)}
+                {renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav)}
                 {renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav)}
                 {renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav)}
                 {hasSetupAccess && (
@@ -638,9 +663,11 @@ export function AppSidebar() {
                       );
                     }
 
-                    const isActive = location.pathname === getUrl(item.url) || location.pathname.startsWith(getUrl(item.url) + "/");
+                    const urlStr = getUrl(item.url) || "";
+                    const isActive = location.pathname === urlStr || 
+                      (urlStr !== "/admin/hrms" && urlStr !== "/hrms" && urlStr !== "/admin/dashboard" && urlStr !== "/staff/dashboard" && urlStr !== "/admin" && location.pathname.startsWith(urlStr + "/"));
 
-                    const isExternal = getUrl(item.url)?.startsWith("http");
+                    const isExternal = urlStr.startsWith("http");
 
                     return (
                       <SidebarMenuItem key={item.title}>

@@ -119,6 +119,9 @@ import SuperAdminBilling from "./pages/super-admin/SuperAdminBilling";
 import SuperAdminAlerts from "./pages/super-admin/SuperAdminAlerts";
 import SuperAdminProfile from "./pages/super-admin/SuperAdminProfile";
 
+import { HRMSEntry } from "./hrms/HRMSEntry";
+
+
 
 // Admin Route Protection
 const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -137,6 +140,15 @@ const StaffProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (!isStaff) return <Navigate to="/admin/dashboard" replace />;
   return <>{children}</>;
 };
+
+// Generic Auth Route Protection (Any logged in user)
+const AuthProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = usePermissionContext();
+  if (loading) return null;
+  if (!user) return <Navigate to="/admin/login" replace />;
+  return <>{children}</>;
+};
+
 
 // Redirect logged-out users away from super-admin protected pages
 const SuperAdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -413,6 +425,10 @@ const MainApp = () => {
           
           {/* Setup sub-routes */}
         </Route>
+
+        {/* HRMS Module */}
+        <Route path="/hrms/*" element={<AuthProtectedRoute><HRMSEntry /></AuthProtectedRoute>} />
+        <Route path="/admin/hrms/*" element={<AuthProtectedRoute><HRMSEntry /></AuthProtectedRoute>} />
 
         <Route path="/forms/quote/:id" element={<PublicForm />} />
         <Route path="*" element={<NotFound />} />
