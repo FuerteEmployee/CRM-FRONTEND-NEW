@@ -46,6 +46,8 @@ const TaskCreate = () => {
     name: "",
     status: 1,
     priority: 2,
+    category: "To-Do",
+    inquiry_outcome: null,
     startdate: new Date().toISOString().split('T')[0],
     duedate: "",
     billable: false,
@@ -130,6 +132,10 @@ const TaskCreate = () => {
     e.preventDefault();
     if (!formData.name || !formData.startdate || !formData.rel_id) {
       toast({ title: "Error", description: "Please fill all required fields.", variant: "destructive" });
+      return;
+    }
+    if (formData.category === "Inquiry" && formData.status === 5 && !formData.inquiry_outcome) {
+      toast({ title: "Error", description: "Please select Won or Lost for the closed inquiry.", variant: "destructive" });
       return;
     }
     mutation.mutate(formData);
@@ -264,6 +270,37 @@ const TaskCreate = () => {
                     className="rounded-xl h-12 text-sm font-bold border-slate-200 shadow-none"
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">* Category</Label>
+                  <Select value={formData.category || "To-Do"} onValueChange={(val) => handleSelectChange("category", val)}>
+                    <SelectTrigger className="rounded-xl h-12 text-sm font-bold border-slate-200 bg-white">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="Visit">Visit</SelectItem>
+                      <SelectItem value="Trial">Trial</SelectItem>
+                      <SelectItem value="Query">Query</SelectItem>
+                      <SelectItem value="Inquiry">Inquiry</SelectItem>
+                      <SelectItem value="To-Do">To-Do</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {formData.category === "Inquiry" && formData.status === 5 && (
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">* Inquiry Outcome</Label>
+                    <Select value={formData.inquiry_outcome || ""} onValueChange={(val) => handleSelectChange("inquiry_outcome", val)}>
+                      <SelectTrigger className="rounded-xl h-12 text-sm font-bold border-slate-200 bg-white">
+                        <SelectValue placeholder="Won or Lost?" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="Won">Won</SelectItem>
+                        <SelectItem value="Lost">Lost</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Priority</Label>

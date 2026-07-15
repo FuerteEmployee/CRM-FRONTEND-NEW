@@ -79,6 +79,7 @@ const OverviewSection = ({ title, icon: Icon, items }: { title: string; icon: Re
 );
 
 const PlanExpiredModal = ({ plan }: { plan: any }) => {
+  const { formatAmount } = useCurrency();
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
       <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">

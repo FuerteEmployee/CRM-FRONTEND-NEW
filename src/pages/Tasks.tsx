@@ -61,6 +61,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { customerService } from "@/api/services/customer.service";
 import { TaskViewModal } from "@/components/tasks/TaskViewModal";
+import { InquiryOutcomeDialog } from "@/components/tasks/InquiryOutcomeDialog";
 
 const taskStatusConfig = [
   { id: 1, label: "Not Started", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" },
@@ -100,7 +101,9 @@ const Tasks = () => {
     description: "",
     status: 1,
     assignees: [],
-    followers: []
+    followers: [],
+    category: "To-Do",
+    inquiry_outcome: ""
   });
   
   const handleInputChange = (e: any) => {
@@ -114,6 +117,7 @@ const Tasks = () => {
 
   const [search, setSearch] = useState("");
   const [activeStatus, setActiveStatus] = useState<number | "all">("all");
+  const [activeCategory, setActiveCategory] = useState<string>("all");
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [editorFont, setEditorFont] = useState("System Font");
@@ -125,6 +129,7 @@ const Tasks = () => {
   const [selectedViewTask, setSelectedViewTask] = useState<any>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
+  const [outcomeTask, setOutcomeTask] = useState<any>(null);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
   const [bulkState, setBulkState] = useState({
     massDelete: false,
@@ -200,9 +205,10 @@ const Tasks = () => {
     return allTasks.filter((t: any) => {
       const matchesSearch = (t.name || "").toLowerCase().includes(search.toLowerCase());
       const matchesStatus = activeStatus === "all" || t.displayStatus === activeStatus;
-      return matchesSearch && matchesStatus;
+      const matchesCategory = activeCategory === "all" || (t.category || "To-Do") === activeCategory;
+      return matchesSearch && matchesStatus && matchesCategory;
     });
-  }, [allTasks, search, activeStatus]);
+  }, [allTasks, search, activeStatus, activeCategory]);
 
   const stats = useMemo(() => {
     return taskStatusConfig.map((status) => ({
@@ -383,7 +389,9 @@ const Tasks = () => {
       description: "",
       status: 1,
       assignees: [],
-      followers: []
+      followers: [],
+      category: "To-Do",
+      inquiry_outcome: ""
     });
   };
 
@@ -404,7 +412,9 @@ const Tasks = () => {
       description: task.description || "",
       status: task.status || 1,
       assignees: task.assignees || [],
-      followers: task.followers || []
+      followers: task.followers || [],
+      category: task.category || "To-Do",
+      inquiry_outcome: task.inquiry_outcome || ""
     });
     setIsNewTaskModalOpen(true);
   };
@@ -415,10 +425,21 @@ const Tasks = () => {
   };
 
   const handleInlineUpdate = (task: any, field: string, value: any) => {
+    // Closing an Inquiry task requires a Won/Lost outcome first
+    if (field === "status" && value === 5 && !task.isTodo && (task.category === "Inquiry")) {
+      setOutcomeTask(task);
+      return;
+    }
     const payload = {
       [field]: value
     };
     updateMutation.mutate({ id: task._id, isTodo: task.isTodo, data: payload });
+  };
+
+  const handleOutcomeSelect = (outcome: "Won" | "Lost") => {
+    if (!outcomeTask) return;
+    updateMutation.mutate({ id: outcomeTask._id, isTodo: false, data: { status: 5, inquiry_outcome: outcome } });
+    setOutcomeTask(null);
   };
 
   const handleSave = () => {
@@ -426,12 +447,17 @@ const Tasks = () => {
       toast({ title: "Error", description: "Subject and Start Date are required fields", variant: "destructive" });
       return;
     }
-    
+    if (formData.category === "Inquiry" && formData.status === 5 && !formData.inquiry_outcome) {
+      toast({ title: "Error", description: "Please select Won or Lost for the closed inquiry.", variant: "destructive" });
+      return;
+    }
+
     const payload = {
       ...formData,
       tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
       hourly_rate: formData.hourly_rate ? parseFloat(formData.hourly_rate) : 0,
-      priority: parseInt(formData.priority)
+      priority: parseInt(formData.priority),
+      inquiry_outcome: formData.inquiry_outcome || null
     };
     
     if (editingTask) {
@@ -457,6 +483,12 @@ const Tasks = () => {
           onClose={() => setIsViewModalOpen(false)}
           task={(selectedViewTask && allTasks.find((t: any) => t._id === selectedViewTask._id)) || selectedViewTask}
           staffOptions={staffOptions}
+        />
+        <InquiryOutcomeDialog
+          isOpen={!!outcomeTask}
+          onClose={() => setOutcomeTask(null)}
+          taskName={outcomeTask?.name}
+          onSelect={handleOutcomeSelect}
         />
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
@@ -578,6 +610,41 @@ const Tasks = () => {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
+                        <span className="text-red-500">*</span> Category
+                      </Label>
+                      <Select value={formData.category} onValueChange={(v) => handleSelectChange('category', v)}>
+                        <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
+                          <SelectValue placeholder="Select Category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="To-Do">To-Do</SelectItem>
+                          <SelectItem value="Visit">Visit</SelectItem>
+                          <SelectItem value="Trial">Trial</SelectItem>
+                          <SelectItem value="Query">Query</SelectItem>
+                          <SelectItem value="Inquiry">Inquiry</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {formData.category === "Inquiry" && formData.status === 5 && (
+                      <div className="space-y-1 col-span-2">
+                        <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
+                          <span className="text-red-500">*</span> Inquiry Outcome
+                        </Label>
+                        <Select value={formData.inquiry_outcome} onValueChange={(v) => handleSelectChange('inquiry_outcome', v)}>
+                          <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
+                            <SelectValue placeholder="Select Outcome" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Won">Won</SelectItem>
+                            <SelectItem value="Lost">Lost</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
 
                     <div className="space-y-1">
                       <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Priority</Label>
@@ -780,12 +847,33 @@ const Tasks = () => {
                   </SelectContent>
                 </Select>
 
+                <Select 
+                  value={activeCategory} 
+                  onValueChange={(val) => {
+                    setActiveCategory(val);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-[140px] h-9 text-xs font-bold bg-slate-50 border-slate-200">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    <SelectItem value="To-Do">To-Do</SelectItem>
+                    <SelectItem value="Visit">Visit</SelectItem>
+                    <SelectItem value="Trial">Trial</SelectItem>
+                    <SelectItem value="Query">Query</SelectItem>
+                    <SelectItem value="Inquiry">Inquiry</SelectItem>
+                  </SelectContent>
+                </Select>
+
                 <ExportButton
                   data={filteredTasks}
                   filename="tasks"
                   columns={[
                     { header: "Task Name", key: "name" },
                     { header: "Type", key: (t) => t.isTodo ? "Personal Todo" : "Task" },
+                    { header: "Category", key: (t) => t.category || "To-Do" },
                     { header: "Status", key: (t) => taskStatusConfig.find(s => s.id === t.displayStatus)?.label || "Not Started" },
                     { header: "Start Date", key: (t) => t.startdate ? formatDate(t.startdate) : "-" },
                     { header: "Due Date", key: (t) => t.duedate ? formatDate(t.duedate) : "-" },
@@ -930,6 +1018,7 @@ const Tasks = () => {
                     </th>
                     <th className="p-4 font-bold w-16">#</th>
                     <th className="p-4 font-bold min-w-[200px]">Name</th>
+                    <th className="p-4 font-bold">Category</th>
                     <th className="p-4 font-bold">Status</th>
                     <th className="p-4 font-bold">Start Date</th>
                     <th className="p-4 font-bold">Due Date</th>
@@ -985,6 +1074,16 @@ const Tasks = () => {
                               </span>
                               {task.isTodo && <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Personal Todo</span>}
                             </div>
+                          </td>
+                          <td className="p-4">
+                            <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-slate-50">
+                              {task.category || "To-Do"}
+                              {task.category === "Inquiry" && task.inquiry_outcome && (
+                                <span className={`ml-1 ${task.inquiry_outcome === 'Won' ? 'text-green-600' : 'text-red-600'}`}>
+                                  ({task.inquiry_outcome})
+                                </span>
+                              )}
+                            </Badge>
                           </td>
                           <td className="p-4">
                             <Select 

@@ -12,6 +12,18 @@ class QuotationService {
   async create(data) {
     return apiClient.post("/quotations", data);
   }
+
+  async getById(id) {
+    return apiClient.get(`/quotations/${id}`);
+  }
+
+  async update(id, data) {
+    return apiClient.put(`/quotations/${id}`, data);
+  }
+
+  async delete(id) {
+    return apiClient.delete(`/quotations/${id}`);
+  }
 }
 
 export const quotationService = new QuotationService();
