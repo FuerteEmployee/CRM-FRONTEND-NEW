@@ -61,6 +61,7 @@ import Bookmarks from "./pages/Bookmarks";
 import { ReportSales, ReportExpenses, ReportExpensesVsIncome, ReportLeads, ReportTimesheets, ReportKBArticles } from "./pages/ReportPages";
 import CustomerView from "./pages/CustomerView";
 import InvoiceCreate from "./pages/InvoiceCreate";
+import QuotationModule from "./pages/quotations/QuotationModule";
 import FAQ from "./pages/FAQ";
 import NotFound from "./pages/NotFound";
 import Setup from "./pages/Setup";
@@ -198,6 +199,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="invoices" element={<Wrapper><Invoices /></Wrapper>} />
     <Route path="invoices/create/:clientId?" element={<Wrapper><InvoiceCreate /></Wrapper>} />
     <Route path="invoices/edit/:id" element={<Wrapper><InvoiceCreate /></Wrapper>} />
+    <Route path="quotations" element={<Wrapper><QuotationModule /></Wrapper>} />
     <Route path="expenses" element={<Wrapper><Expenses /></Wrapper>} />
     <Route path="expenses/create" element={<Wrapper><ExpenseCreate /></Wrapper>} />
     <Route path="expenses/edit/:id" element={<Wrapper><ExpenseCreate /></Wrapper>} />

@@ -26,6 +26,7 @@ import {
   ClipboardList,
   Loader2,
   ArrowRight,
+  FileBarChart,
 } from "lucide-react";
 import {
   AreaChart,
@@ -53,6 +54,7 @@ import { supportService } from "@/api/services/support.service";
 import { utilityService } from "@/api/services/utility.service";
 import { leadService } from "@/api/services/lead.service";
 import { customerService } from "@/api/services/customer.service";
+import { quotationService } from "@/api/services/quotation.service";
 import { formatDate } from "@/lib/dateFormat";
 import { useCurrency } from "@/context/CurrencyContext";
 
@@ -206,6 +208,15 @@ const Dashboard = () => {
       return Array.isArray(res) ? res : res?.data || [];
     },
     enabled: !isExpired && isModuleEnabled("proposals")
+  });
+
+  const { data: quotationsList = [] } = useQuery({
+    queryKey: ["dashboard-quotations"],
+    queryFn: async () => {
+      const res = await quotationService.getQuotations();
+      return Array.isArray(res) ? res : res?.data || [];
+    },
+    enabled: !isExpired && isModuleEnabled("quotations")
   });
 
   const { data: tasksList = [] } = useQuery({
@@ -490,6 +501,24 @@ const Dashboard = () => {
     { label: "Accepted", value: proposalOverviewAccepted, percentage: ((proposalOverviewAccepted / proposalOverviewTotal) * 100).toFixed(2), color: "text-green-600" },
   ];
 
+  // - Quotation Overview Section Items
+  const quotationOverviewDraft = quotationsList.filter((q: any) => String(q.status || "").toLowerCase() === "draft").length;
+  const quotationOverviewSent = quotationsList.filter((q: any) => String(q.status || "").toLowerCase() === "sent").length;
+  const quotationOverviewPending = quotationsList.filter((q: any) => String(q.status || "").toLowerCase() === "pending").length;
+  const quotationOverviewRejected = quotationsList.filter((q: any) => String(q.status || "").toLowerCase() === "rejected").length;
+  const quotationOverviewExpired = quotationsList.filter((q: any) => String(q.status || "").toLowerCase() === "expired").length;
+  const quotationOverviewAccepted = quotationsList.filter((q: any) => String(q.status || "").toLowerCase() === "accepted").length;
+  const quotationOverviewTotal = quotationsList.length || 1;
+
+  const quotationItems = [
+    { label: "Draft", value: quotationOverviewDraft, percentage: ((quotationOverviewDraft / quotationOverviewTotal) * 100).toFixed(2) },
+    { label: "Sent", value: quotationOverviewSent, percentage: ((quotationOverviewSent / quotationOverviewTotal) * 100).toFixed(2), color: "text-blue-600" },
+    { label: "Pending", value: quotationOverviewPending, percentage: ((quotationOverviewPending / quotationOverviewTotal) * 100).toFixed(2), color: "text-amber-600" },
+    { label: "Rejected", value: quotationOverviewRejected, percentage: ((quotationOverviewRejected / quotationOverviewTotal) * 100).toFixed(2), color: "text-destructive" },
+    { label: "Expired", value: quotationOverviewExpired, percentage: ((quotationOverviewExpired / quotationOverviewTotal) * 100).toFixed(2), color: "text-slate-500" },
+    { label: "Accepted", value: quotationOverviewAccepted, percentage: ((quotationOverviewAccepted / quotationOverviewTotal) * 100).toFixed(2), color: "text-green-600" },
+  ];
+
   // Leads overview data chart
   const leadsChartData = React.useMemo(() => {
     const groups: Record<string, { value: number; fill: string }> = {
@@ -680,6 +709,19 @@ const Dashboard = () => {
       description: r.description,
     }));
   }, [remindersRes]);
+
+  const dynamicQuotationsToShow = React.useMemo(() => {
+    return quotationsList
+      .slice(0, 5)
+      .map((q: any) => ({
+        id: q._id || q.id,
+        number: q.number,
+        client: q.client?.company || q.client?.name || "—",
+        date: formatDate(q.date || q.createdAt),
+        total: formatAmount(q.total || 0),
+        status: q.status || "Draft"
+      }));
+  }, [quotationsList, formatAmount]);
 
   const dynamicTasksToShow = React.useMemo(() => {
     return tasksList
@@ -897,14 +939,15 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* Invoice / Estimate / Proposal Overview + To Do */}
+        {/* Invoice / Estimate / Proposal / Quotation Overview + To Do */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           {((isModuleEnabled("finance") && canView("Invoices")) || 
             (isModuleEnabled("estimates") && canView("Estimates")) || 
-            (isModuleEnabled("proposals") && canView("Proposals"))) && (
+            (isModuleEnabled("proposals") && canView("Proposals")) ||
+            (isModuleEnabled("quotations") && canView("Quotations"))) && (
             <Card className="lg:col-span-3" id="tour-overview">
               <CardContent className="p-5">
-                <div className={`grid grid-cols-1 ${[isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals")].filter(Boolean).length > 1 ? 'md:grid-cols-' + [isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals")].filter(Boolean).length : ''} gap-6 divide-y md:divide-y-0 md:divide-x divide-border`}>
+                <div className={`grid grid-cols-1 ${[isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("quotations") && canView("Quotations")].filter(Boolean).length > 1 ? 'md:grid-cols-' + Math.min(4, [isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("quotations") && canView("Quotations")].filter(Boolean).length) : ''} gap-6 divide-y md:divide-y-0 md:divide-x divide-border`}>
                   {isModuleEnabled("finance") && canView("Invoices") && (
                     <OverviewSection
                       title="Invoice overview"
@@ -930,13 +973,22 @@ const Dashboard = () => {
                       />
                     </div>
                   )}
+                  {isModuleEnabled("quotations") && canView("Quotations") && (
+                    <div className={(isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) || (isModuleEnabled("proposals") && canView("Proposals")) ? "pt-4 md:pt-0 md:pl-6" : ""}>
+                      <OverviewSection
+                        title="Quotation overview"
+                        icon={FileBarChart}
+                        items={quotationItems}
+                      />
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
           )}
 
           {/* To Do Items */}
-          <Card className={!((isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) || (isModuleEnabled("proposals") && canView("Proposals"))) ? "lg:col-span-4" : ""} id="tour-todo">
+          <Card className={!((isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) || (isModuleEnabled("proposals") && canView("Proposals")) || (isModuleEnabled("quotations") && canView("Quotations"))) ? "lg:col-span-4" : ""} id="tour-todo">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -1010,7 +1062,7 @@ const Dashboard = () => {
           {/* My Tasks / Projects / Reminders / Tickets / Announcements */}
           <Card className="lg:col-span-2">
             <CardContent className="p-0">
-              <Tabs defaultValue={isModuleEnabled("tasks") ? "tasks" : isModuleEnabled("projects") ? "projects" : isModuleEnabled("support") ? "tickets" : isModuleEnabled("announcements") ? "announcements" : "reminders"}>
+              <Tabs defaultValue={isModuleEnabled("tasks") ? "tasks" : isModuleEnabled("projects") ? "projects" : isModuleEnabled("support") ? "tickets" : isModuleEnabled("announcements") ? "announcements" : isModuleEnabled("quotations") ? "quotations" : "reminders"}>
                 <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-auto p-0 flex-wrap">
                   {isModuleEnabled("tasks") && (
                     <TabsTrigger value="tasks" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent gap-1.5 text-xs">
@@ -1033,6 +1085,11 @@ const Dashboard = () => {
                   {isModuleEnabled("announcements") && (
                     <TabsTrigger value="announcements" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent gap-1.5 text-xs">
                       <Megaphone className="h-3.5 w-3.5" /> Announcements
+                    </TabsTrigger>
+                  )}
+                  {isModuleEnabled("quotations") && (
+                    <TabsTrigger value="quotations" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent gap-1.5 text-xs">
+                      <FileBarChart className="h-3.5 w-3.5" /> Recent Quotations
                     </TabsTrigger>
                   )}
                 </TabsList>
@@ -1203,6 +1260,48 @@ const Dashboard = () => {
                             <p className="text-xs text-primary mt-1">— {a.author}</p>
                           </div>
                         ))}
+                      </div>
+                    </TabsContent>
+                  )}
+
+                  {isModuleEnabled("quotations") && (
+                    <TabsContent value="quotations" className="m-0">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b text-left text-xs text-muted-foreground">
+                              <th className="pb-2 font-medium pl-4">#</th>
+                              <th className="pb-2 font-medium">Client</th>
+                              <th className="pb-2 font-medium">Date</th>
+                              <th className="pb-2 font-medium">Amount</th>
+                              <th className="pb-2 font-medium pr-4">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dynamicQuotationsToShow.map((q) => (
+                              <tr key={q.id} className="border-b last:border-0 hover:bg-muted/50">
+                                <td className="py-2 text-muted-foreground pl-4">{q.number}</td>
+                                <td className="py-2 font-medium">{q.client}</td>
+                                <td className="py-2 text-muted-foreground">{q.date}</td>
+                                <td className="py-2 font-medium">{q.total}</td>
+                                <td className="py-2 pr-4">
+                                  <Badge variant="outline" className={
+                                    q.status.toLowerCase() === "accepted" ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400" :
+                                    q.status.toLowerCase() === "rejected" ? "bg-destructive/10 text-destructive border-destructive/20" :
+                                    q.status.toLowerCase() === "sent" ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400" :
+                                    q.status.toLowerCase() === "pending" ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400" :
+                                    "bg-muted text-muted-foreground"
+                                  }>
+                                    <span className="capitalize">{q.status}</span>
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {dynamicQuotationsToShow.length === 0 && (
+                          <p className="text-sm text-muted-foreground text-center py-8">No quotations found</p>
+                        )}
                       </div>
                     </TabsContent>
                   )}
