@@ -519,7 +519,7 @@ export function AppSidebar() {
                 {renderItems(dynamicNav.customersNav)}
                 {renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
                 {renderItems(dynamicNav.managementNav)}
-                {renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav)}
+                {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav)}
                 {renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav)}
                 {renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav)}
                 {hasSetupAccess && (
