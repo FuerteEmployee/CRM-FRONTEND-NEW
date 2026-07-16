@@ -303,7 +303,7 @@ export default function StaffBranchFormPage() {
         : await hrmsbranchService.create(payload);
       if (res?.success !== false) {
         toast.success(`Branch ${isEdit ? "updated" : "created"} successfully`);
-        navigate("/staff/branches");
+        navigate("staff/branches");
       }
     } catch { toast.error("Failed to save branch"); }
     finally { setLoading(false); }
@@ -337,7 +337,7 @@ export default function StaffBranchFormPage() {
       <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 bg-white sticky top-0 z-20 shadow-sm">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-slate-100 text-slate-500"
-            onClick={() => navigate("/staff/branches")}>
+            onClick={() => navigate("staff/branches")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -348,7 +348,7 @@ export default function StaffBranchFormPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/staff/branches")}
+          <Button variant="ghost" size="sm" onClick={() => navigate("staff/branches")}
             className="h-9 px-4 rounded-md text-slate-500 text-xs font-semibold hover:bg-slate-100">
             Discard
           </Button>
@@ -377,7 +377,7 @@ export default function StaffBranchFormPage() {
           <div className="col-span-2 space-y-1.5">
             <Label className={lbl}>
               Branch Type
-              <button type="button" onClick={() => navigate("/staff/branches")}
+              <button type="button" onClick={() => navigate("staff/branches")}
                 className="ml-1.5 text-[9px] text-primary font-bold underline underline-offset-2 hover:opacity-80 normal-case">
                 Manage
               </button>

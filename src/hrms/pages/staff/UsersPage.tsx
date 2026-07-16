@@ -346,7 +346,7 @@ export default function UsersPage() {
           </div>
           */}
           {hasPermission("manage_users") && (
-            <Button size="sm" className="rounded-md h-9 px-4 gradient-primary font-medium shadow-sm flex items-center gap-2" onClick={() => navigate("/staff/users/new")}>
+            <Button size="sm" className="rounded-md h-9 px-4 gradient-primary font-medium shadow-sm flex items-center gap-2" onClick={() => navigate("staff/users/new")}>
               <UserPlus className="h-4 w-4" /> Add Staff
             </Button>
           )}
@@ -499,12 +499,12 @@ export default function UsersPage() {
                 className: "sticky right-0 bg-inherit z-10 text-right border-l border-slate-50 shadow-[-12px_0_15px_-12px_rgba(0,0,0,0.1)]",
                 accessorKey: (u) => (
                   <div className="flex items-center justify-end gap-2 pr-2">
-                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-primary hover:bg-primary/10 transition-all" onClick={() => navigate(`/staff/users/view/${u.id}`)}>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-primary hover:bg-primary/10 transition-all" onClick={() => navigate(`staff/users/view/${u.id}`)}>
                       <Eye className="h-4 w-4" />
                     </Button>
                     {hasPermission("manage_users") && (
                       <>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-amber-600 hover:bg-amber-50 transition-all" onClick={() => navigate(`/staff/users/edit/${u.id}`)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-amber-600 hover:bg-amber-50 transition-all" onClick={() => navigate(`staff/users/edit/${u.id}`)}>
                           <Edit2 className="h-4 w-4" />
                         </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 transition-all" onClick={() => handleDeleteUser(u.id)}>

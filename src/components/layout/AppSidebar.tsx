@@ -179,23 +179,25 @@ const setupMenuItems = [
 // Static HRMS submenu — mirrors the real, working routes in hrms/AppRoutes.tsx.
 // Kept in code (not the DB-backed mainsidebar collection) so it can never drift into
 // duplicate/404 entries the way manually-edited DB rows previously did.
+// Urls use the "/admin/..." form like every other sidebar item, so getUrl() below
+// rewrites them to "/staff/..." for staff users the same way it does for Sales/Estimates/etc.
 const hrmsMenuItems = [
-  { title: "Staff Directory", url: "/hrms/staff/users", icon: "Users" },
-  { title: "Attendance Dashboard", url: "/hrms/employees", icon: "LayoutDashboard" },
-  { title: "Departments", url: "/hrms/staff/departments", icon: "Building2" },
-  { title: "Designations", url: "/hrms/staff/designations", icon: "Briefcase" },
-  { title: "Shift Management", url: "/hrms/staff/shifts", icon: "AlarmClock" },
-  { title: "Device Approvals", url: "/hrms/staff/device-approvals", icon: "ShieldCheck" },
-  { title: "Session Logs", url: "/hrms/staff/session-logs", icon: "Clock" },
-  { title: "Live Tracking", url: "/hrms/staff/live-tracking", icon: "RadioTower" },
-  { title: "Leave Management", url: "/hrms/staff/leave-management", icon: "CalendarDays" },
-  { title: "Expense Management", url: "/hrms/staff/expense-management", icon: "Wallet" },
-  { title: "Targets", url: "/hrms/staff/targets", icon: "Target" },
-  { title: "Salary Management", url: "/hrms/staff/payroll", icon: "Landmark" },
-  { title: "Salary Settlements", url: "/hrms/staff/salary-settlements", icon: "ArrowLeftRight" },
-  { title: "Advance Salary", url: "/hrms/staff/advance-salary", icon: "CreditCard" },
-  { title: "Branch Management", url: "/hrms/staff/branches", icon: "MapPin" },
-  { title: "Roles & Permissions", url: "/hrms/staff/roles", icon: "Shield" },
+  { title: "Staff Directory", url: "/admin/hrms/staff/users", icon: "Users" },
+  { title: "Attendance Dashboard", url: "/admin/hrms/employees", icon: "LayoutDashboard" },
+  { title: "Departments", url: "/admin/hrms/staff/departments", icon: "Building2" },
+  // { title: "Designations", url: "/admin/hrms/staff/designations", icon: "Briefcase" }, // commented out per request — page not ready
+  { title: "Shift Management", url: "/admin/hrms/staff/shifts", icon: "AlarmClock" },
+  { title: "Device Approvals", url: "/admin/hrms/staff/device-approvals", icon: "ShieldCheck" },
+  { title: "Session Logs", url: "/admin/hrms/staff/session-logs", icon: "Clock" },
+  { title: "Live Tracking", url: "/admin/hrms/staff/live-tracking", icon: "RadioTower" },
+  { title: "Leave Management", url: "/admin/hrms/staff/leave-management", icon: "CalendarDays" },
+  { title: "Expense Management", url: "/admin/hrms/staff/expense-management", icon: "Wallet" },
+  { title: "Targets", url: "/admin/hrms/staff/targets", icon: "Target" },
+  { title: "Salary Management", url: "/admin/hrms/staff/payroll", icon: "Landmark" },
+  // { title: "Salary Settlements", url: "/admin/hrms/staff/salary-settlements", icon: "ArrowLeftRight" }, // commented out per request — page not ready
+  { title: "Advance Salary", url: "/admin/hrms/staff/advance-salary", icon: "CreditCard" },
+  { title: "Branch Management", url: "/admin/hrms/staff/branches", icon: "MapPin" },
+  { title: "Roles & Permissions", url: "/admin/hrms/staff/roles", icon: "Shield" },
 ];
 
 export function AppSidebar() {
@@ -664,7 +666,7 @@ export function AppSidebar() {
                     }
 
                     const urlStr = getUrl(item.url) || "";
-                    const isActive = location.pathname === urlStr || 
+                    const isActive = location.pathname === urlStr ||
                       (urlStr !== "/admin/hrms" && urlStr !== "/hrms" && urlStr !== "/admin/dashboard" && urlStr !== "/staff/dashboard" && urlStr !== "/admin" && location.pathname.startsWith(urlStr + "/"));
 
                     const isExternal = urlStr.startsWith("http");

@@ -634,7 +634,7 @@ const EmployeePage = () => {
           <h2 className="text-xl font-bold text-slate-800 mb-2">Access Restricted</h2>
           <p className="text-slate-500 text-sm max-w-sm">You don't have permission to view this dashboard. Contact your administrator for access.</p>
         </div>
-        <Button variant="outline" onClick={() => navigate("/staff/attendance")}>
+        <Button variant="outline" onClick={() => navigate("staff/attendance")}>
           <Clock className="mr-2 h-4 w-4" /> My Attendance
         </Button>
       </div>
@@ -656,7 +656,7 @@ const EmployeePage = () => {
           const role = typeof user?.role === "string" ? user.role : user?.role?.role;
           if (role === "admin" || role === "super_admin") return null;
           return (
-            <Button onClick={() => navigate("/staff/attendance")} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold h-9 px-4 text-sm shadow-sm">
+            <Button onClick={() => navigate("staff/attendance")} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold h-9 px-4 text-sm shadow-sm">
               <Clock className="mr-2 h-4 w-4" /> My Attendance
             </Button>
           );

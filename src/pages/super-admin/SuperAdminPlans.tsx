@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   Plus, Edit2, Trash2, X, Package, Database, Users,
-  DollarSign, Target, HeadphonesIcon, FileSignature, FolderKanban, CheckSquare,
+  IndianRupee, Target, HeadphonesIcon, FileSignature, FolderKanban, CheckSquare,
   MessageSquare, Video, CreditCard, Receipt, FileText, ClipboardList,
   BookOpen, BarChart3, Clock, Goal, Megaphone, CalendarDays, Bookmark,
 } from "lucide-react";
@@ -50,7 +50,7 @@ interface SaasPlan {
 }
 
 const MODULE_META: { key: keyof SaasPlan["module_access"]; label: string; icon: React.ElementType; color: string }[] = [
-  { key: "finance",          label: "Finance",          icon: DollarSign,    color: "text-green-500" },
+  { key: "finance",          label: "Finance",          icon: IndianRupee,    color: "text-green-500" },
   { key: "leads",            label: "Leads",            icon: Target,        color: "text-orange-500" },
   { key: "support",          label: "Support",          icon: HeadphonesIcon,color: "text-blue-500" },
   { key: "contracts",        label: "Contracts",        icon: FileSignature, color: "text-purple-500" },

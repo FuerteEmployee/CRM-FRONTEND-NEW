@@ -428,9 +428,10 @@ const MainApp = () => {
           {/* Setup sub-routes */}
         </Route>
 
-        {/* HRMS Module */}
-        <Route path="/hrms/*" element={<AuthProtectedRoute><HRMSEntry /></AuthProtectedRoute>} />
+        {/* HRMS Module — mounted under /admin and /staff like every other module (renderCommonRoutes above),
+            so sidebar links resolve through the same getUrl() basePath rewrite instead of a separate bare prefix. */}
         <Route path="/admin/hrms/*" element={<AuthProtectedRoute><HRMSEntry /></AuthProtectedRoute>} />
+        <Route path="/staff/hrms/*" element={<AuthProtectedRoute><HRMSEntry /></AuthProtectedRoute>} />
 
         <Route path="/forms/quote/:id" element={<PublicForm />} />
         <Route path="*" element={<NotFound />} />

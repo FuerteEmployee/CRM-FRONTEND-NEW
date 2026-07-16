@@ -85,147 +85,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [logo, setLogo] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
-  // Helper to determine if a color is light or dark for contrast
-  const getContrastColor = (hex: string) => {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-    return brightness > 128 ? "0 0% 0%" : "0 0% 100%"; // black or white in HSL format
-  };
-
-  const applyTheme = (colors: {
-    primary?: string;
-    button?: string;
-    buttonText?: string;
-    text?: string;
-    sidebarBg?: string;
-    sidebarInactive?: string;
-    sidebarActive?: string;
-    bodyBg?: string;
-    bodyText?: string;
-    navbarBg?: string;
-    navbarText?: string;
-  }) => {
-    const root = document.documentElement;
-    
-    if (colors.primary) {
-      const hex = colors.primary.startsWith("#") ? colors.primary : hslToHex(colors.primary);
-      const hsl = hexToHSL(hex);
-      const [h, s, l] = hsl.split(" ").map(v => v.replace("%", ""));
-      const contrast = getContrastColor(hex);
-      
-      root.style.setProperty("--primary", hsl);
-      root.style.setProperty("--primary-foreground", contrast);
-      root.style.setProperty("--ring", hsl);
-      root.style.setProperty("--sidebar-primary", hsl);
-      root.style.setProperty("--sidebar-ring", hsl);
-      
-      // Secondary/Accent calculations
-      const secondaryHsl = `${h} ${Math.max(0, Number(s) - 40)}% ${Math.min(100, Number(l) + 50)}%`;
-      root.style.setProperty("--secondary", secondaryHsl);
-      root.style.setProperty("--secondary-foreground", `${h} ${s}% 20%`);
-      const accentHsl = `${h} ${Math.max(0, Number(s) - 10)}% 96%`;
-      root.style.setProperty("--accent", accentHsl);
-      root.style.setProperty("--accent-foreground", `${h} ${s}% 25%`);
-      root.style.setProperty("--muted", `${h} 10% 96%`);
-      root.style.setProperty("--muted-foreground", `${h} 15% 45%`);
-      root.style.setProperty("--sidebar-accent", accentHsl);
-      root.style.setProperty("--sidebar-accent-foreground", `${h} ${s}% 25%`);
-
-      // Icons and brand accents
-      root.style.setProperty("--brand-color", hsl);
-
-      // Brand gradient for non-button elements (like login sidebar)
-      root.style.setProperty("--gradient-brand", `linear-gradient(135deg, hsl(${hsl}), hsl(${hsl} / 0.85))`);
-    }
-
-    if (colors.button) {
-      const hex = colors.button.startsWith("#") ? colors.button : hslToHex(colors.button);
-      const hsl = hexToHSL(hex);
-
-      root.style.setProperty("--button-bg", hsl);
-      root.style.setProperty("--button-color", hsl);
-
-      const buttonGradient = `linear-gradient(135deg, hsl(${hsl}), hsl(${hsl} / 0.85))`;
-      root.style.setProperty("--gradient-button", buttonGradient);
-      root.style.setProperty("--gradient-primary", buttonGradient);
-      root.style.setProperty("--shadow-glow-color", hsl);
-    }
-
-    if (colors.buttonText) {
-      const hex = colors.buttonText.startsWith("#") ? colors.buttonText : hslToHex(colors.buttonText);
-      const hsl = hexToHSL(hex);
-      root.style.setProperty("--button-foreground", hsl);
-      root.style.setProperty("--primary-foreground", hsl);
-    }
-
-    if (colors.text) {
-      const hex = colors.text.startsWith("#") ? colors.text : hslToHex(colors.text);
-      const hsl = hexToHSL(hex);
-      root.style.setProperty("--foreground", hsl);
-      root.style.setProperty("--text-color", hsl);
-      root.style.setProperty("--card-foreground", hsl);
-      root.style.setProperty("--popover-foreground", hsl);
-    }
-
-    if (colors.sidebarBg) {
-      const hex = colors.sidebarBg.startsWith("#") ? colors.sidebarBg : hslToHex(colors.sidebarBg);
-      const hsl = hexToHSL(hex);
-      root.style.setProperty("--sidebar-background", hsl);
-    }
-
-    if (colors.sidebarInactive) {
-      const hex = colors.sidebarInactive.startsWith("#") ? colors.sidebarInactive : hslToHex(colors.sidebarInactive);
-      const hsl = hexToHSL(hex);
-      // Only sidebar — does NOT touch global --muted-foreground
-      root.style.setProperty("--sidebar-foreground", hsl);
-      root.style.setProperty("--sidebar-inactive-item-color", hsl);
-    }
-
-    if (colors.sidebarActive) {
-      const hex = colors.sidebarActive.startsWith("#") ? colors.sidebarActive : hslToHex(colors.sidebarActive);
-      const hsl = hexToHSL(hex);
-      const contrast = getContrastColor(hex);
-      const [h, s] = hsl.split(" ");
-      root.style.setProperty("--sidebar-primary", hsl);
-      root.style.setProperty("--sidebar-primary-foreground", contrast);
-      root.style.setProperty("--sidebar-accent", `${h} ${s} 92%`);
-      root.style.setProperty("--sidebar-accent-foreground", hsl);
-      root.style.setProperty("--sidebar-ring", hsl);
-      root.style.setProperty("--sidebar-active-item-color", hsl);
-    }
-
-    if (colors.bodyBg) {
-      const hex = colors.bodyBg.startsWith("#") ? colors.bodyBg : hslToHex(colors.bodyBg);
-      const hsl = hexToHSL(hex);
-      root.style.setProperty("--background", hsl);
-      root.style.setProperty("--card", hsl);
-    }
-
-    if (colors.bodyText) {
-      const hex = colors.bodyText.startsWith("#") ? colors.bodyText : hslToHex(colors.bodyText);
-      const hsl = hexToHSL(hex);
-      root.style.setProperty("--foreground", hsl);
-      root.style.setProperty("--text-color", hsl);
-      root.style.setProperty("--card-foreground", hsl);
-      root.style.setProperty("--popover-foreground", hsl);
-      document.body.style.color = `hsl(${hsl})`;
-    }
-
-    if (colors.navbarBg) {
-      const hex = colors.navbarBg.startsWith("#") ? colors.navbarBg : hslToHex(colors.navbarBg);
-      const hsl = hexToHSL(hex);
-      root.style.setProperty("--navbar-background", hsl);
-    }
-
-    if (colors.navbarText) {
-      const hex = colors.navbarText.startsWith("#") ? colors.navbarText : hslToHex(colors.navbarText);
-      const hsl = hexToHSL(hex);
-      root.style.setProperty("--navbar-foreground", hsl);
-    }
-  };
-
   const fetchSettings = async () => {
     // 5-second timeout — on iOS, a stalled request must never block the splash screen forever
     const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), 5000));
@@ -250,11 +109,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         if (nbg)  setNavbarBgColor(nbg);
         if (ntxt) setNavbarTextColor(ntxt);
         if (logoUrl) setLogo(logoUrl);
-
-        applyTheme({ primary: p, button: b, buttonText: btc, text: t,
-          sidebarBg: sbg, sidebarInactive: stxt, sidebarActive: sact,
-          bodyBg: bbg, bodyText: btxt,
-          navbarBg: nbg, navbarText: ntxt });
       }
     } catch (error) {
       console.error("Error loading theme settings:", error);
@@ -263,21 +117,12 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  useEffect(() => {
-    applyTheme({
-      primary: primaryHex,
-      button: buttonColor,
-      buttonText: buttonTextColor,
-      text: textColor,
-      sidebarBg: sidebarBgColor,
-      sidebarInactive: sidebarInactiveColor,
-      sidebarActive: sidebarActiveColor,
-      bodyBg: bodyBgColor,
-      bodyText: bodyTextColor,
-      navbarBg: navbarBgColor,
-      navbarText: navbarTextColor,
-    });
-  }, [primaryHex, buttonColor, buttonTextColor, textColor, sidebarBgColor, sidebarInactiveColor, sidebarActiveColor, bodyBgColor, bodyTextColor, navbarBgColor, navbarTextColor]);
+  // Deliberately does not apply these colors to document.documentElement: HRMS is embedded in the
+  // main CRM and shares its layout/sidebar, which already gets its theme from the CRM's own
+  // Setup > Theme Style settings (src/context/ThemeContext.tsx + lib/themeUtils.ts). Writing here too
+  // fought over the same global CSS variables, so HRMS pages flashed a different sidebar color than
+  // the rest of the app. These values still back the Settings > Appearance form below for HRMS's own
+  // saved preferences, but no longer take over the shared page.
 
   const setPrimaryColor = (color: string) => {
     setPrimaryColorState(color);

@@ -120,7 +120,7 @@ export default function StaffViewPage() {
         setStores(storesData.data || []);
       } catch (err: any) {
         toast({ title: "Error", description: "Failed to load employee details", variant: "destructive" });
-        navigate("/staff/users");
+        navigate("staff/users");
       } finally {
         setIsLoading(false);
       }
@@ -254,7 +254,7 @@ export default function StaffViewPage() {
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-200 pb-5">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/staff/users")} className="rounded-full hover:bg-slate-100">
+          <Button variant="ghost" size="icon" onClick={() => navigate("staff/users")} className="rounded-full hover:bg-slate-100">
             <ArrowLeft className="h-5 w-5 text-slate-600" />
           </Button>
           <div>
@@ -264,7 +264,7 @@ export default function StaffViewPage() {
             <p className="text-[13px] font-medium text-slate-500">Viewing detailed record for {user.name}</p>
           </div>
         </div>
-        <Button size="sm" className="rounded-md gradient-primary font-medium shadow-sm flex items-center gap-2 h-9 px-5" onClick={() => navigate(`/staff/users/edit/${user.id}`)}>
+        <Button size="sm" className="rounded-md gradient-primary font-medium shadow-sm flex items-center gap-2 h-9 px-5" onClick={() => navigate(`staff/users/edit/${user.id}`)}>
           <Edit2 className="h-3.5 w-3.5" /> Edit Profile
         </Button>
       </div>

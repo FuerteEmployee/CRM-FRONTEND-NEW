@@ -315,7 +315,7 @@ export default function StaffBranchListPage() {
       accessorKey: (row: any) => (
         <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
           <Button variant="ghost" size="icon" className="h-9 w-9 text-primary hover:bg-primary/10 rounded-xl"
-            onClick={() => navigate(`/staff/branches/edit/${row.id || row._id}`)}>
+            onClick={() => navigate(`staff/branches/edit/${row.id || row._id}`)}>
             <Edit className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="icon" className="h-9 w-9 text-destructive hover:bg-destructive/10 rounded-xl"
@@ -370,7 +370,7 @@ export default function StaffBranchListPage() {
           <Button
             size="sm"
             onClick={() => {
-              if (activeTab === "branches") navigate("/staff/branches/new");
+              if (activeTab === "branches") navigate("staff/branches/new");
               else openAddType();
             }}
             className="rounded-md gradient-primary text-white border-0 shadow-sm hover:opacity-95 px-4 h-9 font-medium text-xs flex items-center gap-2"
@@ -515,7 +515,7 @@ export default function StaffBranchListPage() {
               totalItems={totalItems}
               currentPage={currentPage}
               onPageChange={page => setCurrentPage(page)}
-              onRowClick={row => navigate(`/staff/branches/edit/${row.id || row._id}`)}
+              onRowClick={row => navigate(`staff/branches/edit/${row.id || row._id}`)}
             />
           </div>
         </TabsContent>

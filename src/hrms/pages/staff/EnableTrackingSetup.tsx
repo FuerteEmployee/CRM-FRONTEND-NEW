@@ -196,7 +196,7 @@ export default function EnableTrackingSetup() {
         <Button variant="outline" onClick={refresh} disabled={busy}>
           <RefreshCw className="h-4 w-4 mr-2" /> Re-check status
         </Button>
-        <Button onClick={() => navigate("/staff/attendance")}>
+        <Button onClick={() => navigate("staff/attendance")}>
           {readiness?.ready ? "Done" : "Continue anyway"}
         </Button>
       </div>

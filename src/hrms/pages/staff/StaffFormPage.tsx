@@ -580,7 +580,7 @@ export default function StaffFormPage() {
           }
         }
       }
-      navigate("/staff/users");
+      navigate("staff/users");
     } catch (error: any) {
       const msg: string =
         error?.response?.data?.message ||
@@ -604,7 +604,7 @@ export default function StaffFormPage() {
     <div className="space-y-6 animate-fade-in pb-20 bg-white min-h-screen">
       <div className="flex items-center justify-between border-b-[0.8px] border-slate-200 pb-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/staff/users")} className="rounded-full hover:bg-slate-100 text-slate-600">
+          <Button variant="ghost" size="icon" onClick={() => navigate("staff/users")} className="rounded-full hover:bg-slate-100 text-slate-600">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-lg font-semibold text-[#1a1a1a]">
@@ -612,7 +612,7 @@ export default function StaffFormPage() {
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="ghost" onClick={() => navigate("/staff/users")} className="h-9 px-5 text-slate-600 font-medium">
+          <Button variant="ghost" onClick={() => navigate("staff/users")} className="h-9 px-5 text-slate-600 font-medium">
             Cancel
           </Button>
           <Button

@@ -93,7 +93,7 @@ const AttendancePage = () => {
     if (!Capacitor.isNativePlatform()) return;
     try {
       const { ready } = await getTrackingReadiness();
-      if (!ready) navigate("/staff/enable-tracking");
+      if (!ready) navigate("staff/enable-tracking");
     } catch { /* non-fatal */ }
   };
   const [attendance, setAttendance] = useState<Attendance | null>(null);
