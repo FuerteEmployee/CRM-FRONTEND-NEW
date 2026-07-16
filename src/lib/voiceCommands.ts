@@ -24,6 +24,7 @@ export const COMMAND_MAP: CommandEntry[] = [
   { keywords: ["estimates", "estimate"],             route: "/admin/estimates",      label: "Estimates",     section: "Sales" },
   { keywords: ["proposals", "proposal"],             route: "/admin/proposals",      label: "Proposals",     section: "Sales" },
   { keywords: ["credit notes", "credit note"],       route: "/admin/credit-notes",   label: "Credit Notes",  section: "Sales" },
+  { keywords: ["purchases", "purchase", "purchase bills"], route: "/admin/purchases", label: "Purchases",     section: "Sales" },
   { keywords: ["tickets", "support", "ticket"],      route: "/admin/support",        label: "Support",       section: null },
   { keywords: ["chat", "messages"],                  route: "/admin/chat",           label: "Chat",          section: "Utilities" },
   { keywords: ["calendar", "schedule"],              route: "/admin/calendar",       label: "Calendar",      section: "Utilities" },
@@ -54,6 +55,7 @@ export const CREATE_MAP: CommandEntry[] = [
   { keywords: ["article", "knowledge base"],         route: "/admin/knowledge-base?new=1",                   label: "New Article",      section: "Utilities" },
   { keywords: ["meeting"],                           route: "/admin/meetings?new=1",                         label: "New Meeting",      section: "Utilities" },
   { keywords: ["contract"],                          route: "/admin/contracts?new=1",                        label: "New Contract",     section: null },
+  { keywords: ["purchase", "purchase bill"],         route: "/admin/purchases?new=1",                        label: "New Purchase",     section: "Sales" },
   // Route-based create
   { keywords: ["project"],                           route: "/admin/projects/create",                        label: "New Project",      section: null },
   { keywords: ["invoice"],                           route: "/admin/invoices/create",                        label: "New Invoice",      section: null },

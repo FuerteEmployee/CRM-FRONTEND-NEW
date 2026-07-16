@@ -127,19 +127,62 @@ const Contacts = () => {
     },
   });
 
+  // Header-insensitive lookup: "First Name", "first_name", "FIRSTNAME " all match.
+  const normalizeKey = (k: string) => k.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const getField = (row: any, ...candidates: string[]) => {
+    const normalized: Record<string, any> = {};
+    Object.keys(row).forEach((k) => { normalized[normalizeKey(k)] = row[k]; });
+    for (const c of candidates) {
+      const val = normalized[normalizeKey(c)];
+      if (val !== undefined && val !== null && String(val).trim() !== "") return String(val).trim();
+    }
+    return "";
+  };
+
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const ext = file.name.split(".").pop()?.toLowerCase();
 
     const processRows = (rows: any[]) => {
-      const valid = rows.filter(r =>
-        (r.firstname || r["First Name"] || r.first_name) &&
-        (r.email || r.Email)
-      );
+      const mapped = rows.map((r) => {
+        let firstname = getField(r, "firstname", "first name", "fname");
+        let lastname = getField(r, "lastname", "last name", "lname", "surname");
+        // "Full Name" / "Name" column (what our own export produces) → split it
+        if (!firstname) {
+          const full = getField(r, "full name", "fullname", "name", "contact name");
+          if (full) {
+            const parts = full.split(/\s+/);
+            firstname = parts.shift() || "";
+            lastname = lastname || parts.join(" ");
+          }
+        }
+        return {
+          firstname,
+          lastname,
+          email: getField(r, "email", "e-mail", "email address", "mail").toLowerCase(),
+          company: getField(r, "company", "company name", "customer/company", "customer company", "customer", "client"),
+          phonenumber: getField(r, "phonenumber", "phone", "phone number", "mobile", "mobile number", "contact number"),
+          title: getField(r, "title", "position", "designation", "job title", "role"),
+        };
+      });
+
+      const valid = mapped.filter((r) => r.firstname && r.email && r.company);
       if (valid.length === 0) {
-        toast({ title: "Error", description: "No valid rows. Needs columns: firstname (or 'First Name'), email, company.", variant: "destructive" });
+        const missing: string[] = [];
+        if (!mapped.some((r) => r.firstname)) missing.push("'First Name' (or 'Full Name')");
+        if (!mapped.some((r) => r.email)) missing.push("'Email'");
+        if (!mapped.some((r) => r.company)) missing.push("'Company' (or 'Customer/Company')");
+        toast({
+          title: "Error",
+          description: `No valid rows found. Missing column(s): ${missing.join(", ") || "check First Name, Email, Company"}. The company must match an existing customer.`,
+          variant: "destructive",
+        });
         return;
+      }
+      const dropped = mapped.length - valid.length;
+      if (dropped > 0) {
+        toast({ title: "Note", description: `${dropped} row(s) skipped — missing name, email, or company.` });
       }
       importMutation.mutate(valid as any);
     };
@@ -164,6 +207,17 @@ const Contacts = () => {
       });
     }
     e.target.value = "";
+  };
+
+  // Downloads an .xlsx template with the exact headers the import understands
+  const handleDownloadTemplate = () => {
+    const headers = ["First Name", "Last Name", "Email", "Company", "Phone", "Position"];
+    const example = ["Amit", "Shah", "amit@example.com", "Existing Customer Name", "9876543210", "Manager"];
+    const ws = XLSX.utils.aoa_to_sheet([headers, example]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Contacts");
+    XLSX.writeFile(wb, "contacts_import_template.xlsx");
+    toast({ title: "Template Downloaded", description: "Fill it and use Import. 'Company' must match an existing customer." });
   };
 
   const handlePermissionChange = (permission: string, type: "permissions" | "email_notifications") => {
@@ -275,6 +329,15 @@ const Contacts = () => {
                 >
                   <RefreshCcw className="h-3.5 w-3.5" />
                   {importMutation.isPending ? "Importing..." : "Import"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-2 text-xs font-bold uppercase tracking-wider"
+                  onClick={handleDownloadTemplate}
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5 text-green-600" />
+                  Sample
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

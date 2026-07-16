@@ -48,6 +48,7 @@ const ROUTE_PERMISSION_MAP: Record<string, string> = {
   "/admin/estimates": "estimates",
   "/admin/proposals": "proposals",
   "/admin/credit-notes": "credit_notes",
+  "/admin/purchases": "purchases",
   "/admin/contracts": "contracts",
   "/admin/support": "support",
   "/admin/reports": "reports",
