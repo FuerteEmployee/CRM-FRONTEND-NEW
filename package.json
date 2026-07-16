@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy": "vite build && git add dist -f && git commit -m \"build: dist\" && git push origin main"
+    "deploy": "vite build && git add . && git commit -m \"deploy: update source and build\" && git push origin main"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",
