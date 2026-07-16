@@ -70,6 +70,7 @@ import { mainSidebarService } from "@/api/services/mainsidebar.service";
 import * as Icons from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSettings } from "@/context/SettingsContext";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { Badge } from "@/components/ui/badge";
 import { useNotificationContext } from "@/context/NotificationContext";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -193,7 +194,7 @@ export function AppSidebar() {
   const { chatUnreadCount } = useNotificationContext();
 
   const companyName = getSetting("companyName", "CRMPro");
-  const logoLight = getSetting("compLogoLight", "");
+  const logoLight = resolveImageUrl(getSetting("compLogoLight", ""));
 
   const visibleSetupItems = setupMenuItems.filter((item) => {
     // If the item has a permission key, check it

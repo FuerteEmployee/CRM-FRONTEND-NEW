@@ -24,6 +24,7 @@ import { authService } from "@/api/services/auth.service";
 import { toast } from "sonner";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useSettings } from "@/context/SettingsContext";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 
 const features = [
   { icon: BarChart3, label: "Real-time Analytics" },
@@ -34,7 +35,7 @@ const features = [
 const StaffLogin = () => {
   const navigate = useNavigate();
   const { setFromLoginResponse } = usePermissionContext();
-  const { settings } = useSettings();
+  const { settings, refreshSettings } = useSettings();
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState("admin");
   const [loading, setLoading] = useState(false);
@@ -51,6 +52,9 @@ const StaffLogin = () => {
       } else {
         toast.success("Welcome back!");
         setFromLoginResponse(response.user, response.permissions, response.plan_modules);
+        // Reload settings with the new auth token so this tenant's own
+        // branding (logo, favicon, company name) applies immediately
+        refreshSettings();
         if (response.user?.is_superadmin) {
           navigate("/super-admin/dashboard");
         } else {
@@ -78,7 +82,7 @@ const StaffLogin = () => {
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
           {settings?.compLogoLight ? (
-            <img src={settings.compLogoLight} alt="Logo" className="h-10 w-auto object-contain" />
+            <img src={resolveImageUrl(settings.compLogoLight)} alt="Logo" className="h-10 w-auto object-contain" />
           ) : (
             <>
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-primary font-extrabold text-lg shadow-lg">
@@ -141,7 +145,7 @@ const StaffLogin = () => {
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center justify-center gap-2 mb-2">
             {settings?.compLogoDark ? (
-              <img src={settings.compLogoDark} alt="Logo" className="h-9 w-auto object-contain" />
+              <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-9 w-auto object-contain" />
             ) : (
               <>
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-base">
