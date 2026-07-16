@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import {
   Plus, Edit2, Trash2, X, Package, Database, Users,
-  DollarSign, Target, HeadphonesIcon, FileSignature, FolderKanban, CheckSquare,
+  IndianRupee, Target, HeadphonesIcon, FileSignature, FolderKanban, CheckSquare,
   MessageSquare, Video, CreditCard, Receipt, FileText, ClipboardList,
-  BookOpen, BarChart3, Clock, Goal, Megaphone, CalendarDays, Bookmark,
+  BookOpen, BarChart3, Clock, Goal, Megaphone, CalendarDays, Bookmark, UserCog,
 } from "lucide-react";
 import { apiClient as api } from "@/api/client";
 import { toast } from "sonner";
@@ -46,11 +46,12 @@ interface SaasPlan {
     announcements: boolean;
     calendar: boolean;
     bookmarks: boolean;
+    hrms: boolean;
   };
 }
 
 const MODULE_META: { key: keyof SaasPlan["module_access"]; label: string; icon: React.ElementType; color: string }[] = [
-  { key: "finance",          label: "Finance",          icon: DollarSign,    color: "text-green-500" },
+  { key: "finance",          label: "Finance",          icon: IndianRupee,    color: "text-green-500" },
   { key: "leads",            label: "Leads",            icon: Target,        color: "text-orange-500" },
   { key: "support",          label: "Support",          icon: HeadphonesIcon,color: "text-blue-500" },
   { key: "contracts",        label: "Contracts",        icon: FileSignature, color: "text-purple-500" },
@@ -70,6 +71,7 @@ const MODULE_META: { key: keyof SaasPlan["module_access"]; label: string; icon: 
   { key: "announcements",    label: "Announcements",    icon: Megaphone,     color: "text-yellow-500" },
   { key: "calendar",         label: "Calendar",         icon: CalendarDays,  color: "text-fuchsia-500" },
   { key: "bookmarks",        label: "Bookmarks",        icon: Bookmark,      color: "text-amber-600" },
+  { key: "hrms",             label: "HRMS",             icon: UserCog,       color: "text-indigo-600" },
 ];
 
 const BANNER_PRESETS = [
@@ -93,6 +95,7 @@ const DEFAULT_PLAN: Partial<SaasPlan> = {
     chat: true, meetings: true, subscriptions: true, expenses: true, estimates: true,
     proposals: true, estimate_request: true, knowledge_base: true, reports: true,
     time_tracking: true, goals: true, announcements: true, calendar: true, bookmarks: true,
+    hrms: true,
   },
 };
 

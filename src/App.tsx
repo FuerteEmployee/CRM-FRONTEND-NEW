@@ -120,6 +120,9 @@ import SuperAdminBilling from "./pages/super-admin/SuperAdminBilling";
 import SuperAdminAlerts from "./pages/super-admin/SuperAdminAlerts";
 import SuperAdminProfile from "./pages/super-admin/SuperAdminProfile";
 
+import { HRMSEntry } from "./hrms/HRMSEntry";
+
+
 
 // Admin Route Protection
 const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -138,6 +141,15 @@ const StaffProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (!isStaff) return <Navigate to="/admin/dashboard" replace />;
   return <>{children}</>;
 };
+
+// Generic Auth Route Protection (Any logged in user)
+const AuthProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = usePermissionContext();
+  if (loading) return null;
+  if (!user) return <Navigate to="/admin/login" replace />;
+  return <>{children}</>;
+};
+
 
 // Redirect logged-out users away from super-admin protected pages
 const SuperAdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -415,6 +427,11 @@ const MainApp = () => {
           
           {/* Setup sub-routes */}
         </Route>
+
+        {/* HRMS Module — mounted under /admin and /staff like every other module (renderCommonRoutes above),
+            so sidebar links resolve through the same getUrl() basePath rewrite instead of a separate bare prefix. */}
+        <Route path="/admin/hrms/*" element={<AuthProtectedRoute><HRMSEntry /></AuthProtectedRoute>} />
+        <Route path="/staff/hrms/*" element={<AuthProtectedRoute><HRMSEntry /></AuthProtectedRoute>} />
 
         <Route path="/forms/quote/:id" element={<PublicForm />} />
         <Route path="*" element={<NotFound />} />

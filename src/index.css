@@ -539,6 +539,83 @@ html, body {
   padding-top: 0px !important;
 }
 
+/* ========================================= */
+/* HRMS CUSTOM UTILITIES AND OVERRIDES       */
+/* ========================================= */
+@layer base {
+  :root {
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary) / 0.8));
+    --gradient-success: linear-gradient(135deg, hsl(var(--success)), hsl(var(--success) / 0.8));
+    --gradient-warning: linear-gradient(135deg, hsl(var(--warning)), hsl(var(--warning) / 0.8));
+    --gradient-danger: linear-gradient(135deg, hsl(var(--destructive)), hsl(var(--destructive) / 0.8));
+    --gradient-info: linear-gradient(135deg, hsl(var(--info)), hsl(var(--info) / 0.8));
+    --gradient-surface: linear-gradient(135deg, hsl(var(--background)), hsl(var(--muted)));
+  }
+}
+
+@layer utilities {
+  .gradient-primary { background: var(--gradient-primary); color: hsl(var(--primary-foreground)) !important; }
+  .gradient-success { background: var(--gradient-success); color: hsl(var(--success-foreground)) !important; }
+  .gradient-warning { background: var(--gradient-warning); color: hsl(var(--warning-foreground)) !important; }
+  .gradient-danger { background: var(--gradient-danger); color: hsl(var(--destructive-foreground)) !important; }
+  .gradient-info { background: var(--gradient-info); color: hsl(var(--info-foreground)) !important; }
+  .gradient-surface { background: var(--gradient-surface); }
+
+  .glass {
+    @apply bg-card/70 backdrop-blur-2xl border-[0.8px] border-border;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+  }
+  .glass-deep {
+    @apply bg-card/85 backdrop-blur-3xl;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+    border-width: 0.8px !important;
+    border-color: rgba(226, 232, 240, 0.8) !important;
+  }
+  .card-hover {
+    @apply transition-all duration-300 hover:-translate-y-1;
+  }
+  .card-hover:hover {
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+  }
+  .shadow-soft { box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.08); }
+  .shadow-glow { box-shadow: 0 0 20px 0 hsl(var(--primary) / 0.3); }
+
+  .animate-collapsible-down { animation: collapsible-down 0.2s ease-out; }
+  .animate-collapsible-up { animation: collapsible-up 0.2s ease-out; }
+
+  .btn-add-primary {
+    @apply h-9 px-4 rounded-md text-xs font-bold shadow-sm transition-all flex items-center gap-1.5 text-white hover:opacity-90 border-0;
+    background: var(--gradient-primary);
+    color: hsl(var(--primary-foreground)) !important;
+  }
+  .btn-export-outline {
+    @apply h-9 px-3 rounded-md text-xs font-bold flex items-center gap-1.5 border border-input bg-background hover:bg-accent hover:text-accent-foreground;
+  }
+}
+
+@keyframes collapsible-down {
+  from { height: 0; opacity: 0; }
+  to { height: var(--radix-collapsible-content-height); opacity: 1; }
+}
+@keyframes collapsible-up {
+  from { height: var(--radix-collapsible-content-height); opacity: 1; }
+  to { height: 0; opacity: 0; }
+}
+
+/* Leaflet Custom Styles for Live Tracker */
+.leaflet-container { font-family: inherit !important; background-color: #f1f5f9 !important; z-index: 10 !important; }
+.glass-popup .leaflet-popup-content-wrapper { background: rgba(255, 255, 255, 0.9) !important; backdrop-filter: blur(16px) !important; border: 1px solid rgba(255, 255, 255, 0.2) !important; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1) !important; border-radius: 16px !important; padding: 0 !important; }
+.glass-popup .leaflet-popup-tip { background: rgba(255, 255, 255, 0.9) !important; }
+.leaflet-popup-content { margin: 0 !important; line-height: 1.4 !important; }
+.custom-marker { transition: transform 0.3s ease; }
+.custom-marker:hover { transform: scale(1.1); }
+.leaflet-control-zoom { border: none !important; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important; border-radius: 12px !important; overflow: hidden !important; }
+.leaflet-control-zoom a { background: rgba(255, 255, 255, 0.8) !important; backdrop-filter: blur(8px) !important; color: #16a34a !important; font-weight: bold !important; border-bottom: 1px solid #f1f5f9 !important; }
+.leaflet-control-zoom a:hover { background: #16a34a !important; color: white !important; }
+.leaflet-bar { border: none !important; }
+.leaflet-attribution-flag { display: none !important; }
+.leaflet-control-attribution { background: rgba(255, 255, 255, 0.3) !important; backdrop-filter: blur(4px) !important; font-size: 8px !important; opacity: 0.5 !important; }
+
 @media print {
   /* Hide sidebar, top bar, headers, notifications, etc. */
   aside,

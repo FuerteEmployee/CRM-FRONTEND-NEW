@@ -238,14 +238,39 @@ export function AppSidebar() {
   const getMenuItems = () => {
     const rawItems = dbMenuItems.length > 0 ? dbMenuItems : fallbackNav;
     const items = rawItems.filter((i: any) => i.active !== false);
+
+    const roleName = typeof user?.role === "object" ? (user.role?.role || user.role?.name || "") : String(user?.role || "");
+    const rk = roleName.toLowerCase();
+    const isUserAdminOrSuper = !!(user?.is_superadmin || user?.admin === true || user?.admin === 1 || user?.admin === "1" || user?.admin === "true" || rk.includes("admin") || rk.includes("owner") || rk.includes("super") || isAdmin);
+
+    let filteredHrms = items.filter((i: any) => i.group === "HRMS");
+    if (isUserAdminOrSuper) {
+      // Admins see management items, hide "My ..." personal views
+      filteredHrms = filteredHrms.filter(item => 
+        item.title !== "My Attendance" &&
+        item.title !== "My Leaves" &&
+        item.title !== "My Expenses" &&
+        item.title !== "My Advance Salary"
+      );
+    } else {
+      // Non-admins see "My ..." personal views, hide management items
+      filteredHrms = filteredHrms.filter(item => 
+        item.title === "My Attendance" ||
+        item.title === "My Leaves" ||
+        item.title === "My Expenses" ||
+        item.title === "My Advance Salary"
+      );
+    }
+
     return {
       mainNav: items.filter((i: any) => i.group === "Main"),
       customersNav: items.filter((i: any) => i.group === "Customers"),
       salesNav: items.filter((i: any) => i.group === "Sales"),
-      managementNav: items.filter((i: any) => i.group === "Management"),
+      managementNav: items.filter((i: any) => i.group === "Management" && (!i.url || !i.url.includes("/hrms"))),
       utilitiesNav: items.filter((i: any) => i.group === "Utilities"),
       reportsNav: items.filter((i: any) => i.group === "Reports"),
       setupNav: items.filter((i: any) => i.group === "Setup"),
+      hrmsNav: filteredHrms,
     };
   };
 
@@ -337,10 +362,11 @@ export function AppSidebar() {
         return !moduleKey || isModuleEnabled(moduleKey);
       })
       .map((item: any) => {
+        const urlStr = getUrl(item.url) || "";
         const isActive =
-          location.pathname === getUrl(item.url) ||
-          location.pathname.startsWith(getUrl(item.url) + "/");
-        const isExternal = getUrl(item.url)?.startsWith("http");
+          location.pathname === urlStr ||
+          (urlStr !== "/admin/hrms" && urlStr !== "/hrms" && urlStr !== "/admin/dashboard" && urlStr !== "/staff/dashboard" && urlStr !== "/admin" && location.pathname.startsWith(urlStr + "/"));
+        const isExternal = urlStr.startsWith("http");
         const IconComponent = (Icons as any)[item.icon] || Icons.Circle;
 
         return (
@@ -493,6 +519,7 @@ export function AppSidebar() {
                 {renderItems(dynamicNav.customersNav)}
                 {renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
                 {renderItems(dynamicNav.managementNav)}
+                {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav)}
                 {renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav)}
                 {renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav)}
                 {hasSetupAccess && (
@@ -638,9 +665,11 @@ export function AppSidebar() {
                       );
                     }
 
-                    const isActive = location.pathname === getUrl(item.url) || location.pathname.startsWith(getUrl(item.url) + "/");
+                    const urlStr = getUrl(item.url) || "";
+                    const isActive = location.pathname === urlStr ||
+                      (urlStr !== "/admin/hrms" && urlStr !== "/hrms" && urlStr !== "/admin/dashboard" && urlStr !== "/staff/dashboard" && urlStr !== "/admin" && location.pathname.startsWith(urlStr + "/"));
 
-                    const isExternal = getUrl(item.url)?.startsWith("http");
+                    const isExternal = urlStr.startsWith("http");
 
                     return (
                       <SidebarMenuItem key={item.title}>

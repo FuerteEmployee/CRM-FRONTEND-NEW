@@ -118,6 +118,15 @@ const FEATURES_CONFIG = [
   },
   { name: "Leads", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "Goals", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Staff Directory", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Attendance", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Leave Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Expense Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Salary Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Shift Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Branch Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Departments", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Designations", caps: ["View(Global)", "Create", "Edit", "Delete"] },
 ];
 
 const mapToBackend = (

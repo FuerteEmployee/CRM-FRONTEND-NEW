@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  CreditCard, TrendingUp, DollarSign, Activity,
+  CreditCard, TrendingUp, IndianRupee, Activity,
   Zap, Globe, Shield, Clock, CheckCircle2, ArrowRight, Package
 } from "lucide-react";
 import { apiClient as api } from "@/api/client";
@@ -85,7 +85,7 @@ export default function SuperAdminBilling() {
   }, 0);
 
   const stats = [
-    { label: "Est. Monthly Revenue", value: `₹${mrr.toFixed(2)}`, icon: DollarSign, color: "bg-blue-50 text-blue-600", sub: "From active subscriptions" },
+    { label: "Est. Monthly Revenue", value: `₹${mrr.toFixed(2)}`, icon: IndianRupee, color: "bg-blue-50 text-blue-600", sub: "From active subscriptions" },
     { label: "Active Subscriptions", value: activeTenants.length.toString(), icon: CreditCard, color: "bg-emerald-50 text-emerald-600", sub: "Paying customers" },
     { label: "Trial Customers", value: trialTenants.length.toString(), icon: TrendingUp, color: "bg-indigo-50 text-indigo-600", sub: "Pending conversion" },
   ];

@@ -82,7 +82,7 @@ export default function SuperAdminDashboard() {
     },
     {
       title: "Est. Monthly Revenue",
-      value: metrics?.monthly_revenue ?? "₹0.00",
+      value: metrics?.monthly_revenue?.replace('$', '₹') ?? "₹0.00",
       sub: `${metrics?.new_this_month ?? 0} new this month`,
       icon: TrendingUp,
       color: "from-emerald-500 to-teal-500",
