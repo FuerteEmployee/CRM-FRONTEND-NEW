@@ -125,9 +125,10 @@ const AdvanceSalaryPage = () => {
    *  canManage     → either of the above    : used for all "management" views/actions
    *  isEmployee    → everyone else          : submit own requests, view own only
    */
-  const roleKey =
-    typeof authUser?.role === "string" ? authUser.role : (authUser?.role as any)?.role || "";
-  const isSuperAdmin = roleKey === "super_admin" || roleKey === "owner";
+  const roleKey = String(
+    typeof authUser?.role === "string" ? authUser.role : (authUser?.role as any)?.role || ""
+  ).toLowerCase();
+  const isSuperAdmin = ["super_admin", "superadmin", "owner"].includes(roleKey);
   const isAdmin     = roleKey === "admin";
   const canManage   = isSuperAdmin || isAdmin;
   const isEmployee  = !canManage;

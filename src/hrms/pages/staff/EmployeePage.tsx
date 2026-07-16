@@ -86,7 +86,7 @@ import type { LeaveRequest, EmployeeExpense, User } from "@/hrms/types";
 import { Progress } from "@/hrms/components/ui/progress";
 import { DataTable } from "@/hrms/components/common/DataTable";
 import { useAuth } from "@/hrms/contexts/AuthContext";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { cn } from "@/hrms/lib/utils";
 import { TrackingMap } from "@/hrms/components/staff/TrackingMap";
 import {
@@ -268,6 +268,7 @@ const InfoPill = ({ icon: Icon, label, value, color = "slate" }: { icon: React.E
 
 const EmployeePage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { hasPermission, user } = useAuth();
 
@@ -634,7 +635,10 @@ const EmployeePage = () => {
           <h2 className="text-xl font-bold text-slate-800 mb-2">Access Restricted</h2>
           <p className="text-slate-500 text-sm max-w-sm">You don't have permission to view this dashboard. Contact your administrator for access.</p>
         </div>
-        <Button variant="outline" onClick={() => navigate("staff/attendance")}>
+        <Button variant="outline" onClick={() => {
+          const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
+          navigate(`${basePath}/staff/attendance`);
+        }}>
           <Clock className="mr-2 h-4 w-4" /> My Attendance
         </Button>
       </div>
@@ -653,10 +657,13 @@ const EmployeePage = () => {
           <p className="text-slate-400 text-sm mt-0.5">Manage field personnel, attendance, and organizational workflows</p>
         </div>
         {(() => {
-          const role = typeof user?.role === "string" ? user.role : user?.role?.role;
+          const role = String(typeof user?.role === "string" ? user.role : user?.role?.role || "").toLowerCase();
           if (role === "admin" || role === "super_admin") return null;
           return (
-            <Button onClick={() => navigate("staff/attendance")} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold h-9 px-4 text-sm shadow-sm">
+            <Button onClick={() => {
+              const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
+              navigate(`${basePath}/staff/attendance`);
+            }} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold h-9 px-4 text-sm shadow-sm">
               <Clock className="mr-2 h-4 w-4" /> My Attendance
             </Button>
           );

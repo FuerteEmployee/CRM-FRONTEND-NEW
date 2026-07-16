@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   Save,
@@ -108,7 +108,7 @@ const staffSchema = z.object({
   }).optional(),
 
   // Employment
-  role: z.string().min(1, "Please select a security role"),
+
   hrmsBranchId: z.string().optional(),
   department: z.string().optional(),
   employmentType: z.string().optional(),
@@ -213,6 +213,7 @@ type StaffFormValues = z.infer<typeof staffSchema>;
 
 export default function StaffFormPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
   const isEdit = !!id;
   useAuth();
@@ -580,7 +581,8 @@ export default function StaffFormPage() {
           }
         }
       }
-      navigate("staff/users");
+      const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
+      navigate(`${basePath}/staff/users`);
     } catch (error: any) {
       const msg: string =
         error?.response?.data?.message ||
@@ -604,7 +606,10 @@ export default function StaffFormPage() {
     <div className="space-y-6 animate-fade-in pb-20 bg-white min-h-screen">
       <div className="flex items-center justify-between border-b-[0.8px] border-slate-200 pb-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate("staff/users")} className="rounded-full hover:bg-slate-100 text-slate-600">
+          <Button variant="ghost" size="icon" onClick={() => {
+            const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
+            navigate(`${basePath}/staff/users`);
+          }} className="rounded-full hover:bg-slate-100 text-slate-600">
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <h1 className="text-lg font-semibold text-[#1a1a1a]">
@@ -612,7 +617,10 @@ export default function StaffFormPage() {
           </h1>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="ghost" onClick={() => navigate("staff/users")} className="h-9 px-5 text-slate-600 font-medium">
+          <Button variant="ghost" onClick={() => {
+            const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
+            navigate(`${basePath}/staff/users`);
+          }} className="h-9 px-5 text-slate-600 font-medium">
             Cancel
           </Button>
           <Button
@@ -822,18 +830,6 @@ export default function StaffFormPage() {
                   {/* Employment Details */}
                   <TabsContent value="employment" className="m-0 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                      <FormField control={form.control} name="role" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className={labelClass}>Security Role <span className="text-destructive ml-1">*</span></FormLabel>
-                          <Select onValueChange={field.onChange} defaultValue={field.value}>
-                            <FormControl><SelectTrigger className={inputClass}><SelectValue placeholder="Select Role" /></SelectTrigger></FormControl>
-                            <SelectContent className="rounded-md">
-                              {roles.map(r => <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
 
                       <FormField control={form.control} name={"hrmsBranchId" as any} render={({ field }) => (
                         <FormItem>
@@ -946,127 +942,6 @@ export default function StaffFormPage() {
                         )} />
                       </div>
 
-                      {/* Salary Management */}
-                      <FormField
-                        control={form.control}
-                        name="salaryManagedBy"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className={labelClass}>Salary Management</FormLabel>
-                            <FormDescription className="text-[10px] text-slate-500 -mt-1 mb-2">
-                              Define who manages this employee's salary.
-                            </FormDescription>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {[
-                                {
-                                  value: "screen_time",
-                                  title: "Screen Time Managed",
-                                  desc: "Screen Time manages both salary & incentive",
-                                  color: "indigo",
-                                },
-                                {
-                                  value: "branch",
-                                  title: "Branch Managed",
-                                  desc: "Branch manages salary — Screen Time manages incentive only",
-                                  color: "amber",
-                                },
-                              ].map((opt) => {
-                                const active = field.value === opt.value;
-                                return (
-                                  <button
-                                    key={opt.value}
-                                    type="button"
-                                    onClick={() => field.onChange(opt.value)}
-                                    className={cn(
-                                      "flex items-start gap-3 p-4 rounded-xl border-2 text-left transition-all",
-                                      active
-                                        ? opt.value === "screen_time"
-                                          ? "border-indigo-500 bg-indigo-50"
-                                          : "border-amber-500 bg-amber-50"
-                                        : "border-slate-200 bg-white hover:border-slate-300"
-                                    )}
-                                  >
-                                    <div
-                                      className={cn(
-                                        "h-4 w-4 rounded-full border-2 mt-0.5 shrink-0 flex items-center justify-center",
-                                        active
-                                          ? opt.value === "screen_time"
-                                            ? "border-indigo-500 bg-indigo-500"
-                                            : "border-amber-500 bg-amber-500"
-                                          : "border-slate-300"
-                                      )}
-                                    >
-                                      {active && <div className="h-2 w-2 rounded-full bg-white" />}
-                                    </div>
-                                    <div>
-                                      <p className={cn(
-                                        "text-[13px] font-semibold",
-                                        active
-                                          ? opt.value === "screen_time" ? "text-indigo-700" : "text-amber-700"
-                                          : "text-slate-700"
-                                      )}>
-                                        {opt.title}
-                                      </p>
-                                      <p className="text-[11px] text-slate-500 mt-0.5">{opt.desc}</p>
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </FormItem>
-                        )}
-                      />
-
-                      {/* Managing Company — only for branch-managed employees */}
-                      {form.watch("salaryManagedBy") === "branch" && (
-                        <>
-                        <FormField
-                          control={form.control}
-                          name="managingCompanyId"
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="flex items-center justify-between">
-                                <FormLabel className={labelClass}>Managing Company</FormLabel>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 gap-1 text-[11px] font-semibold rounded-lg"
-                                  onClick={() => setCompaniesDialogOpen(true)}
-                                >
-                                  <Plus className="h-3 w-3" /> Manage
-                                </Button>
-                              </div>
-                              <FormDescription className="text-[10px] text-slate-500 -mt-1 mb-2">
-                                Select the external company managing this employee (e.g. LG, Samsung)
-                              </FormDescription>
-                              <FormControl>
-                                <select
-                                  {...field}
-                                  value={field.value || ""}
-                                  className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/50"
-                                >
-                                  <option value="">— Select Company —</option>
-                                  {(managingCompanies || [])
-                                    .filter((c) => c.active || (c._id || c.id) === field.value)
-                                    .map((c) => (
-                                      <option key={c._id || c.id} value={c._id || c.id || ""}>
-                                        {c.name}{!c.active ? " (inactive)" : ""}
-                                      </option>
-                                    ))}
-                                </select>
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                        <ManageCompaniesDialog
-                          open={companiesDialogOpen}
-                          onOpenChange={setCompaniesDialogOpen}
-                          companies={managingCompanies}
-                          onChanged={reloadCompanies}
-                        />
-                        </>
-                      )}
 
                       <div className="space-y-3">
                         <Label className={labelClass}>Weekly Holidays</Label>

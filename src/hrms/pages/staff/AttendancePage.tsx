@@ -34,7 +34,7 @@ import {
   LayoutGrid,
   List,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { attendanceService } from "@/hrms/services/attendanceService";
 import { locationService } from "@/hrms/services/LocationService";
@@ -84,6 +84,7 @@ const ATT_CAL_CELL: Record<string, { bg: string; border: string; label: string; 
 const AttendancePage = () => {
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { lightImpact } = useHaptics();
 
   // After a native punch-in, if background tracking isn't fully enabled
@@ -93,7 +94,10 @@ const AttendancePage = () => {
     if (!Capacitor.isNativePlatform()) return;
     try {
       const { ready } = await getTrackingReadiness();
-      if (!ready) navigate("staff/enable-tracking");
+      if (!ready) {
+        const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
+        navigate(`${basePath}/staff/enable-tracking`);
+      }
     } catch { /* non-fatal */ }
   };
   const [attendance, setAttendance] = useState<Attendance | null>(null);

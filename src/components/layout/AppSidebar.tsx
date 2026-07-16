@@ -176,30 +176,6 @@ const setupMenuItems = [
   { title: "Help", url: "https://fuertedevelopers.com/", icon: HelpCircle },
 ];
 
-// Static HRMS submenu — mirrors the real, working routes in hrms/AppRoutes.tsx.
-// Kept in code (not the DB-backed mainsidebar collection) so it can never drift into
-// duplicate/404 entries the way manually-edited DB rows previously did.
-// Urls use the "/admin/..." form like every other sidebar item, so getUrl() below
-// rewrites them to "/staff/..." for staff users the same way it does for Sales/Estimates/etc.
-const hrmsMenuItems = [
-  { title: "Staff Directory", url: "/admin/hrms/staff/users", icon: "Users" },
-  { title: "Attendance Dashboard", url: "/admin/hrms/employees", icon: "LayoutDashboard" },
-  { title: "Departments", url: "/admin/hrms/staff/departments", icon: "Building2" },
-  // { title: "Designations", url: "/admin/hrms/staff/designations", icon: "Briefcase" }, // commented out per request — page not ready
-  { title: "Shift Management", url: "/admin/hrms/staff/shifts", icon: "AlarmClock" },
-  { title: "Device Approvals", url: "/admin/hrms/staff/device-approvals", icon: "ShieldCheck" },
-  { title: "Session Logs", url: "/admin/hrms/staff/session-logs", icon: "Clock" },
-  { title: "Live Tracking", url: "/admin/hrms/staff/live-tracking", icon: "RadioTower" },
-  { title: "Leave Management", url: "/admin/hrms/staff/leave-management", icon: "CalendarDays" },
-  { title: "Expense Management", url: "/admin/hrms/staff/expense-management", icon: "Wallet" },
-  { title: "Targets", url: "/admin/hrms/staff/targets", icon: "Target" },
-  { title: "Salary Management", url: "/admin/hrms/staff/payroll", icon: "Landmark" },
-  // { title: "Salary Settlements", url: "/admin/hrms/staff/salary-settlements", icon: "ArrowLeftRight" }, // commented out per request — page not ready
-  { title: "Advance Salary", url: "/admin/hrms/staff/advance-salary", icon: "CreditCard" },
-  { title: "Branch Management", url: "/admin/hrms/staff/branches", icon: "MapPin" },
-  { title: "Roles & Permissions", url: "/admin/hrms/staff/roles", icon: "Shield" },
-];
-
 export function AppSidebar() {
   const { state, setOpenMobile, isMobile } = useSidebar();
   const collapsed = state === "collapsed";
@@ -262,6 +238,30 @@ export function AppSidebar() {
   const getMenuItems = () => {
     const rawItems = dbMenuItems.length > 0 ? dbMenuItems : fallbackNav;
     const items = rawItems.filter((i: any) => i.active !== false);
+
+    const roleName = typeof user?.role === "object" ? (user.role?.role || user.role?.name || "") : String(user?.role || "");
+    const rk = roleName.toLowerCase();
+    const isUserAdminOrSuper = !!(user?.is_superadmin || user?.admin === true || user?.admin === 1 || user?.admin === "1" || user?.admin === "true" || rk.includes("admin") || rk.includes("owner") || rk.includes("super") || isAdmin);
+
+    let filteredHrms = items.filter((i: any) => i.group === "HRMS");
+    if (isUserAdminOrSuper) {
+      // Admins see management items, hide "My ..." personal views
+      filteredHrms = filteredHrms.filter(item => 
+        item.title !== "My Attendance" &&
+        item.title !== "My Leaves" &&
+        item.title !== "My Expenses" &&
+        item.title !== "My Advance Salary"
+      );
+    } else {
+      // Non-admins see "My ..." personal views, hide management items
+      filteredHrms = filteredHrms.filter(item => 
+        item.title === "My Attendance" ||
+        item.title === "My Leaves" ||
+        item.title === "My Expenses" ||
+        item.title === "My Advance Salary"
+      );
+    }
+
     return {
       mainNav: items.filter((i: any) => i.group === "Main"),
       customersNav: items.filter((i: any) => i.group === "Customers"),
@@ -270,7 +270,7 @@ export function AppSidebar() {
       utilitiesNav: items.filter((i: any) => i.group === "Utilities"),
       reportsNav: items.filter((i: any) => i.group === "Reports"),
       setupNav: items.filter((i: any) => i.group === "Setup"),
-      hrmsNav: hrmsMenuItems,
+      hrmsNav: filteredHrms,
     };
   };
 

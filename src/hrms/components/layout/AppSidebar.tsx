@@ -213,15 +213,15 @@ const hrmsNav = [
   { title: "Live Tracking", url: "/staff/live-tracking", icon: RadioTower, permission: "view_live_tracking" },
   { title: "Leave Management", url: "/staff/leave-management", icon: CalendarDays, permission: "view_leaves" },
   { title: "Expense Management", url: "/staff/expense-management", icon: Wallet, permission: "manage_expenses" },
-  { title: "Targets", url: "/staff/targets", icon: Target, permission: "view_targets" },
+  // { title: "Targets", url: "/staff/targets", icon: Target, permission: "view_targets" },
   { title: "Salary Management", url: "/staff/payroll", icon: Landmark, permission: "view_payroll" },
   { title: "Salary Settlements", url: "/staff/salary-settlements", icon: ArrowLeftRight, permission: "manage_payroll" },
-  { title: "Advance Salary", url: "/staff/advance-salary", icon: CreditCard, permission: "view_payroll" },
-  { title: "User Roles", url: "/staff/roles", icon: Shield, permission: "manage_roles" },
+  // { title: "Advance Salary", url: "/staff/advance-salary", icon: CreditCard, permission: "view_payroll" },
+  // { title: "User Roles", url: "/staff/roles", icon: Shield, permission: "manage_roles" },
   { title: "My Attendance", url: "/staff/attendance", icon: Clock },
   { title: "My Leaves", url: "/staff/leaves", icon: Briefcase },
   { title: "My Expenses", url: "/staff/expenses", icon: Wallet },
-  { title: "My Advance Salary", url: "/staff/advance-salary", icon: CreditCard },
+  // { title: "My Advance Salary", url: "/staff/advance-salary", icon: CreditCard },
   { title: "Branch Management", url: "/staff/branches", icon: Landmark, permission: "view_branches" },
 ];
 
@@ -906,7 +906,7 @@ export function AppSidebar() {
   }, [itemDragOverSide]);
 
   // Build ordered groups, filtering items based on role
-  const roleKey = typeof user?.role === 'string' ? user.role : user?.role?.role;
+  const roleKey = String(typeof user?.role === 'string' ? user.role : user?.role?.role || "").toLowerCase();
   const isAdminRole = roleKey === "admin" || roleKey === "super_admin";
 
   const orderedGroups = useMemo(() => {

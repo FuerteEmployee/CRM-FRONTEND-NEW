@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import {
   MapPin, BatteryCharging, Bell, RefreshCw, CheckCircle2, AlertTriangle, ChevronLeft,
@@ -28,6 +28,7 @@ function StatusPill({ state }: { state: StepState }) {
 
 export default function EnableTrackingSetup() {
   const navigate = useNavigate();
+  const location = useLocation();
   const isNative = Capacitor.isNativePlatform();
   const [oem, setOem] = useState<OemProfile | null>(null);
   const [readiness, setReadiness] = useState<TrackingReadiness | null>(null);
@@ -196,7 +197,10 @@ export default function EnableTrackingSetup() {
         <Button variant="outline" onClick={refresh} disabled={busy}>
           <RefreshCw className="h-4 w-4 mr-2" /> Re-check status
         </Button>
-        <Button onClick={() => navigate("staff/attendance")}>
+        <Button onClick={() => {
+          const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
+          navigate(`${basePath}/staff/attendance`);
+        }}>
           {readiness?.ready ? "Done" : "Continue anyway"}
         </Button>
       </div>

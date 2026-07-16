@@ -5,15 +5,10 @@ import { mapUser } from "./apiUtils";
 
 export const staffService = {
   getAll: async (): Promise<User[]> => {
-    try {
-      const res = await apiClient.get("/users?limit=1000");
-      // Handle backend response wrapper { success: true, data: [...] }
-      const usersData = res.data?.data || res.data || [];
-      return Array.isArray(usersData) ? usersData.map(mapUser) : [];
-    } catch (error) {
-      console.error("Failed to fetch staff members:", error);
-      return [];
-    }
+    const res = await apiClient.get("/users?limit=1000");
+    // Handle backend response wrapper { success: true, data: [...] }
+    const usersData = res.data?.data || res.data || [];
+    return Array.isArray(usersData) ? usersData.map(mapUser) : [];
   },
 
   getById: async (id: string): Promise<User | undefined> => {

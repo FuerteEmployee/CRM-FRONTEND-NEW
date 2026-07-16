@@ -485,9 +485,10 @@ const AVAILABLE_COLORS = [
 ];
 
 // ─── Friendly Permission Summary ──────────────────────────────────────────────
-function PermissionSummary({ permissions }: { permissions: string[] }) {
+function PermissionSummary({ permissions = [] }: { permissions?: string[] }) {
+  const safePermissions = Array.isArray(permissions) ? permissions : [];
   const matched = PERMISSION_GROUPS.filter((g) =>
-    g.permissions.some((p) => permissions.includes(p.key)),
+    g.permissions.some((p) => safePermissions.includes(p.key)),
   );
   return (
     <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100/80">
@@ -690,7 +691,7 @@ export default function RolesPage() {
     setFormDescription(rd.description);
     setFormIcon(rd.icon);
     setFormColor(rd.color);
-    setFormPermissions([...rd.permissions]);
+    setFormPermissions(Array.isArray(rd.permissions) ? [...rd.permissions] : []);
     setIsRoleDialogOpen(true);
   };
 
@@ -860,8 +861,9 @@ export default function RolesPage() {
               const rk = (u.role && typeof u.role === "object") ? u.role.role : u.role;
               return rk === rd.role;
             }).length;
+            const safePerms = Array.isArray(rd.permissions) ? rd.permissions : [];
             const permGroupCount = PERMISSION_GROUPS.filter((g) =>
-              g.permissions.some((p) => rd.permissions.includes(p.key)),
+              g.permissions.some((p) => safePerms.includes(p.key)),
             ).length;
 
             return (
@@ -954,7 +956,7 @@ export default function RolesPage() {
                   </div>
 
                   {/* Tags Summary */}
-                  <PermissionSummary permissions={rd.permissions} />
+                  <PermissionSummary permissions={rd.permissions || []} />
                 </CardContent>
               </Card>
             );

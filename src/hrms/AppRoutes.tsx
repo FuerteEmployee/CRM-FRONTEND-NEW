@@ -231,7 +231,7 @@ export function AppRoutes() {
           path=""
           element={
             (() => {
-              const roleKey = typeof user?.role === 'string' ? user.role : user?.role?.role;
+              const roleKey = String(typeof user?.role === 'string' ? user.role : user?.role?.role || "").toLowerCase();
               const isAdmin = user?.is_superadmin || user?.admin === 1 || user?.admin === true || user?.admin === "1" || user?.admin === "true" || roleKey === "admin" || roleKey === "super_admin" || roleKey === "manager" || roleKey === "owner";
 
               if (!isAdmin) {
