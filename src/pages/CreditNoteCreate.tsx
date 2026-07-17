@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,8 +47,11 @@ export default function CreditNoteCreate() {
   const { clientId, id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { symbol } = useCurrency();
+
+  const prepopulate = !isEdit ? (location.state as any)?.prepopulate : null;
 
   const { data: creditNote } = useQuery({
     queryKey: ["creditNote", id],
@@ -58,13 +61,13 @@ export default function CreditNoteCreate() {
 
   const [formData, setFormData] = useState({
     number: `CN-${Math.floor(100000 + Math.random() * 900000)}`,
-    rel_id: clientId || "",
+    rel_id: clientId || prepopulate?.client?._id || "",
     project: "",
     date: new Date().toISOString().split('T')[0],
-    currency: "",
+    currency: prepopulate?.currency || "",
     discount_type: "no_discount",
     status: "open",
-    reference: "",
+    reference: prepopulate?.invoice_number ? `Credit for Invoice ${prepopulate.invoice_number}` : "",
     admin_note: "",
     client_note: "",
     terms: "",
@@ -82,7 +85,21 @@ export default function CreditNoteCreate() {
 
   const [showQtyAs, setShowQtyAs] = useState("qty");
 
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>(() =>
+    prepopulate?.balance_due > 0
+      ? [{
+          id: `prefill-${Date.now()}`,
+          description: `Credit for Invoice ${prepopulate.invoice_number || ""}`.trim(),
+          long_description: "",
+          qty: 1,
+          rate: prepopulate.balance_due,
+          tax: "",
+          tax2: "",
+          unit: "",
+          item_group: ""
+        }]
+      : []
+  );
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
   const [newItem, setNewItem] = useState({
     description: "",

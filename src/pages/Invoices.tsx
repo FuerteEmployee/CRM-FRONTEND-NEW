@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
+import { creditNoteService } from "@/api/services/credit_note.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
@@ -173,6 +174,12 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
 
   const totalPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
   const balanceDue = Math.max((d.total || 0) - totalPaid, 0);
+
+  const { data: appliedCreditNotes = [] } = useQuery({
+    queryKey: ["invoice-credit-notes", invoice._id || invoice.id],
+    queryFn: () => creditNoteService.getByInvoice(invoice._id || invoice.id),
+    enabled: !!(invoice._id || invoice.id),
+  });
 
   const recordPaymentMutation = useMutation({
     mutationFn: (payload: any) => salesService.createPayment(payload),
@@ -369,7 +376,21 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => navigate("/admin/credit-notes/create", { state: { prepopulate: d } })}>
+                <DropdownMenuItem
+                  onClick={() =>
+                    navigate(`/admin/credit-notes/create/${d.client?._id || ""}`, {
+                      state: {
+                        prepopulate: {
+                          invoice_id: d._id || d.id,
+                          invoice_number: d.number,
+                          client: d.client,
+                          currency: d.currency,
+                          balance_due: balanceDue,
+                        },
+                      },
+                    })
+                  }
+                >
                   Convert to Credit Note
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -481,6 +502,17 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                               </p>
                             </div>
                           </>
+                        )}
+                        {appliedCreditNotes.length > 0 && (
+                          <div className="text-right w-56 mt-2 pt-2 border-t border-border/20 space-y-1">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Credit Notes Applied</p>
+                            {appliedCreditNotes.map((cn: any) => (
+                              <div key={cn._id} className="flex justify-between gap-4 text-xs">
+                                <span className="text-muted-foreground font-medium">{cn.number || `CN-${cn._id?.substring(0, 6)}`}</span>
+                                <span className="font-bold text-emerald-600">{formatRowAmount(d, cn.applied_amount || 0)}</span>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </>

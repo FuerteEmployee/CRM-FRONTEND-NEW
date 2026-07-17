@@ -1,11 +1,13 @@
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Download, Send, FileText } from "lucide-react";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "@/lib/dateFormat";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/CurrencyContext";
+import { salesService } from "@/api/services/sales.service";
 
 interface DocumentPreviewDialogProps {
   open: boolean;
@@ -23,14 +25,25 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
     { id: 1, author: "System Log", text: `${type.toUpperCase()} created successfully.`, date: "Just now" }
   ]);
 
+  // Payments for this invoice — drives the dynamic "Amount Paid" / "Balance Due" display below.
+  const invoiceId = type === "invoice" ? (data?._id || data?.id) : null;
+  const { data: paymentsData } = useQuery({
+    queryKey: ["invoice-payments-preview", invoiceId],
+    queryFn: () => salesService.getPaymentsByInvoice(invoiceId).then((res: any) => res.data || res),
+    enabled: !!invoiceId,
+  });
+
+  // Currency helper — must run unconditionally, before any early return, to keep hook order stable.
+  const { symbol: currencySymbol } = useCurrency();
+
   if (!data) return null;
 
   const isProposal = type === "proposal";
   const isEstimate = type === "estimate";
   const isInvoice = type === "invoice";
 
-  // Currency helper
-  const { symbol: currencySymbol } = useCurrency();
+  const payments = paymentsData || [];
+  const totalPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
 
   // Document Number extraction
   let num = "";
@@ -85,13 +98,17 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
       "bg-muted text-muted-foreground";
   } else {
     const sMap: any = {
-      1: { label: "Unpaid", className: "bg-yellow-50 text-yellow-700 border-yellow-200" },
-      2: { label: "Paid", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-      3: { label: "Partially Paid", className: "bg-blue-50 text-blue-700 border-blue-200" },
-      4: { label: "Overdue", className: "bg-rose-50 text-rose-700 border-rose-200" },
-      5: { label: "Cancelled", className: "bg-slate-50 text-slate-700 border-slate-200" },
+      unpaid: { label: "Unpaid", className: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+      sent: { label: "Unpaid", className: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+      sent_later: { label: "Unpaid", className: "bg-yellow-50 text-yellow-700 border-yellow-200" },
+      draft: { label: "Draft", className: "bg-slate-50 text-slate-700 border-slate-200" },
+      paid: { label: "Paid", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+      recorded: { label: "Paid", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+      partially_paid: { label: "Partially Paid", className: "bg-blue-50 text-blue-700 border-blue-200" },
+      overdue: { label: "Overdue", className: "bg-rose-50 text-rose-700 border-rose-200" },
+      cancelled: { label: "Cancelled", className: "bg-slate-50 text-slate-700 border-slate-200" },
     };
-    const s = sMap[Number(data.status)] ?? { label: "Unpaid", className: "bg-yellow-50 text-yellow-700 border-yellow-200" };
+    const s = sMap[String(data.status)] ?? { label: "Unpaid", className: "bg-yellow-50 text-yellow-700 border-yellow-200" };
     statusLabel = s.label;
     statusClass = s.className;
   }
@@ -133,10 +150,90 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
   const totalTax = data.total_tax || 0;
   const adjustment = data.adjustment || 0;
   const total = data.total || data.amount || 0;
+  const balanceDue = Math.max(total - totalPaid, 0);
 
   // Print Logic for PDF Download
   const handlePrint = () => {
-    window.print();
+    const printContent = document.getElementById("printable-invoice-area");
+    if (!printContent) return;
+
+    // Create a hidden temporary iframe
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document;
+    if (!iframeDoc) return;
+
+    iframeDoc.open();
+    iframeDoc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${num}</title>
+          <style>
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            body {
+              background: white !important;
+              color: black !important;
+              padding: 20px !important;
+              margin: 0 !important;
+            }
+          </style>
+        </head>
+        <body class="bg-white">
+          <div>
+            ${printContent.innerHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    iframeDoc.close();
+
+    // Copy all style tags and link tags from main document head
+    const parentHead = document.head;
+    const iframeHead = iframeDoc.head;
+    
+    Array.from(parentHead.querySelectorAll("style, link[rel='stylesheet']")).forEach((styleEl) => {
+      iframeHead.appendChild(styleEl.cloneNode(true));
+    });
+
+    // Trigger printing
+    const triggerPrint = () => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      // Remove iframe after print dialog is closed
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    };
+
+    // Wait for links to load, then print
+    const linkTags = Array.from(iframeHead.querySelectorAll("link[rel='stylesheet']"));
+    let loadedCount = 0;
+
+    if (linkTags.length === 0) {
+      setTimeout(triggerPrint, 300);
+    } else {
+      linkTags.forEach((link: any) => {
+        link.onload = link.onerror = () => {
+          loadedCount++;
+          if (loadedCount === linkTags.length) {
+            setTimeout(triggerPrint, 300);
+          }
+        };
+      });
+      // Fallback
+      setTimeout(triggerPrint, 1500);
+    }
   };
 
   const handleAddComment = () => {
@@ -155,10 +252,14 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] md:max-w-5xl rounded-3xl p-6 md:p-8 overflow-y-auto max-h-[90vh] bg-background border border-border shadow-2xl">
-        
+      <DialogContent
+        className="max-w-[95vw] md:max-w-5xl rounded-3xl p-6 md:p-8 overflow-y-auto max-h-[90vh] bg-background border border-border shadow-2xl"
+        aria-describedby={undefined}
+      >
+        <DialogTitle className="sr-only">{`${type.charAt(0).toUpperCase() + type.slice(1)} Preview — ${num}`}</DialogTitle>
+
         {/* Printable Area starts */}
-        <div className="flex flex-col space-y-6 print:p-0">
+        <div id="printable-invoice-area" className="flex flex-col space-y-6 print:p-0">
           
           {/* Header Row */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-border/50 pb-5 gap-4">
@@ -209,7 +310,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
 
               {/* Items Table container */}
               <div className="border border-border/50 rounded-2xl overflow-hidden bg-background shadow-sm">
-                <table className="w-full text-sm text-left">
+                <table className="w-full text-sm text-left printable-table">
                   <thead className="bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest">
                     <tr>
                       <th className="px-4 py-3 text-left w-12">#</th>
@@ -284,6 +385,21 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                       {currencySymbol}{Number(total).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </span>
                   </div>
+
+                  {isInvoice && totalPaid > 0 && (
+                    <>
+                      <div className="flex justify-between w-64 text-xs text-emerald-600">
+                        <span className="font-semibold">Amount Paid:</span>
+                        <span className="font-bold">-{currencySymbol}{Number(totalPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <div className="flex justify-between w-64 border-t border-border/40 pt-2.5 mt-1.5">
+                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest self-center">Balance Due</span>
+                        <span className={cn("text-xl font-black", balanceDue > 0 ? "text-rose-600" : "text-emerald-600")}>
+                          {currencySymbol}{Number(balanceDue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -356,16 +472,31 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                             <span className="text-muted-foreground">{expiryLabel}:</span>
                             <span className="font-bold text-foreground">{expiryDate}</span>
                           </div>
+                          {isInvoice && totalPaid > 0 && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Amount Paid:</span>
+                              <span className="font-bold text-emerald-600">{currencySymbol}{Number(totalPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       {/* Large Total Indicator */}
-                      <div className="bg-primary/5 rounded-xl p-4 border border-primary/10 text-center">
-                        <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-0.5">Total Value</p>
-                        <p className="text-2xl font-black text-primary">
-                          {currencySymbol}{Number(total).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </p>
-                      </div>
+                      {isInvoice && totalPaid > 0 ? (
+                        <div className={cn("rounded-xl p-4 border text-center", balanceDue > 0 ? "bg-rose-500/5 border-rose-500/10" : "bg-emerald-500/5 border-emerald-500/10")}>
+                          <p className={cn("text-[10px] font-bold uppercase tracking-widest mb-0.5", balanceDue > 0 ? "text-rose-600" : "text-emerald-600")}>Balance Due</p>
+                          <p className={cn("text-2xl font-black", balanceDue > 0 ? "text-rose-600" : "text-emerald-600")}>
+                            {currencySymbol}{Number(balanceDue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-primary/5 rounded-xl p-4 border border-primary/10 text-center">
+                          <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-0.5">Total Value</p>
+                          <p className="text-2xl font-black text-primary">
+                            {currencySymbol}{Number(total).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          </p>
+                        </div>
+                      )}
 
                     </div>
                   ) : (

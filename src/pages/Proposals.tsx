@@ -687,7 +687,7 @@ const Proposals = () => {
               columns={[
                 { header: "Proposal #", key: (p) => p.number || p._id },
                 { header: "Subject", key: "subject" },
-                { header: "To", key: (p) => p.rel_id || p.customer || "N/A" },
+                { header: "To", key: (p) => p.proposal_to || p.rel_id || p.customer || "N/A" },
                 { header: "Total", key: (p) => p.total || p.amount || "0" },
                 { header: "Date", key: "date" },
                 { header: "Status", key: "status" }

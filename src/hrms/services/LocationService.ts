@@ -1,6 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { Geolocation } from "@capacitor/geolocation";
-import { OfflineQueueService } from "./OfflineQueueService";
+import { offlineQueueService } from "./OfflineQueueService";
 import { employeeApi } from "./api";
 import { getAuthToken } from "./apiClient";
 import { BackgroundTracker } from "@/hrms/plugins/backgroundTracker";
@@ -75,15 +75,15 @@ class LocationService {
     document.addEventListener("visibilitychange", this.onVisibilityChange);
 
     // Drain any offline queue from previous sessions
-    try { await OfflineQueueService.migrate(); } catch { /* non-fatal */ }
+    try { await offlineQueueService.migrate(); } catch { /* non-fatal */ }
 
     // Immediate first fix
     await this.captureInitialFix();
     this.initWebTracking();
 
     // Safety-net: flush queue every 60 s
-    this.flushInterval = setInterval(() => OfflineQueueService.processQueue(), 60_000);
-    OfflineQueueService.processQueue();
+    this.flushInterval = setInterval(() => offlineQueueService.processQueue(), 60_000);
+    offlineQueueService.processQueue();
 
     // Stationary heartbeat
     this.heartbeatInterval = setInterval(() => this.forceUpdate(), STATIONARY_HEARTBEAT);
@@ -400,7 +400,7 @@ class LocationService {
     // never starts (app terminated mid-flight), the data stays here and
     // syncs automatically on the next launch via processQueue().
     try {
-      await OfflineQueueService.enqueue({
+      await offlineQueueService.enqueue({
         lat, lng, batteryLevel, speed, accuracy,
         sessionId: this.sessionId,
         storeId: this.user?.storeId,
@@ -413,7 +413,7 @@ class LocationService {
     }
 
     // Flush queue to server immediately (non-blocking — failures retry later)
-    OfflineQueueService.processQueue().catch(() => { });
+    offlineQueueService.processQueue().catch(() => { });
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

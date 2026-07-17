@@ -53,7 +53,6 @@ export const salesService = {
   // Credit Notes
   // ─────────────────────────────────────────────
   getCreditNotes: (params) => apiClient.get("/credit-notes", { params }),
-  getCreditNotesByCustomer: (clientId) => apiClient.get(`/credit-notes/customer/${clientId}`),
 
   // ─────────────────────────────────────────────
   // Imports

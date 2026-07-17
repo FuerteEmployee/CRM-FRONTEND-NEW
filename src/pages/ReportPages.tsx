@@ -160,7 +160,9 @@ const ReportPage = ({ title, children }: { title: string; children: React.ReactN
 );
 
 export const ReportSales = () => {
-  const [currency, setCurrency] = useState("USD");
+  // Starts unresolved until the tenant's real default currency loads below —
+  // avoids hardcoding USD and querying against a currency that may not match any data.
+  const [currency, setCurrency] = useState("");
   const [period, setPeriod] = useState("all_time");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -276,10 +278,18 @@ export const ReportSales = () => {
     queryFn: () => financeService.getCurrencies(),
   });
 
-  // Fetch sales report data dynamically
+  // Once currencies load, resolve the tenant's real default instead of assuming USD.
+  useEffect(() => {
+    if (!currency && currenciesList.length > 0) {
+      setCurrency(currenciesList.find((c: any) => c.isdefault)?.name || currenciesList[0]?.name || "USD");
+    }
+  }, [currency, currenciesList]);
+
+  // Fetch sales report data dynamically — wait until the default currency resolves.
   const { data = {}, isLoading } = useQuery({
     queryKey: ["salesReport", currency, period, fromDate, toDate],
     queryFn: () => utilityService.getSalesReport(currency, period, fromDate, toDate),
+    enabled: !!currency,
   });
 
   const invoicesReport = data.invoicesReport || [];
