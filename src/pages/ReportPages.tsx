@@ -188,10 +188,10 @@ export const ReportSales = () => {
     if (selectedSubReport === "invoices") {
       headers = ["Invoice Number", "Customer", "Date", "Due Date", "Amount", "Tax", "Status"];
       rows = invoicesReport.map((inv: any) => [
-        inv.number || inv.invoice_number,
-        inv.customer_name || inv.customer?.company || "-",
+        inv.number,
+        inv.clientName || "-",
         formatRepDate(inv.date),
-        formatRepDate(inv.due_date),
+        formatRepDate(inv.duedate),
         inv.total,
         inv.total_tax,
         inv.status
@@ -206,18 +206,18 @@ export const ReportSales = () => {
     } else if (selectedSubReport === "payments") {
       headers = ["Payment ID", "Invoice Number", "Payment Mode", "Transaction ID", "Amount", "Date"];
       rows = paymentsReport.map((p: any) => [
-        p._id || p.id,
-        p.invoice_number,
-        p.payment_mode,
-        p.transaction_id || "-",
+        p.paymentId,
+        p.invoiceNumber,
+        p.paymentMode,
+        p.transactionId || "-",
         p.amount,
         formatRepDate(p.date)
       ]);
     } else if (selectedSubReport === "credit_notes") {
       headers = ["Credit Note Number", "Customer", "Date", "Amount", "Status"];
       rows = creditNotesReport.map((cn: any) => [
-        cn.number || cn.credit_note_number,
-        cn.customer_name || cn.customer?.company || "-",
+        cn.number,
+        cn.clientName || "-",
         formatRepDate(cn.date),
         cn.total,
         cn.status
@@ -225,31 +225,32 @@ export const ReportSales = () => {
     } else if (selectedSubReport === "proposals") {
       headers = ["Proposal Number", "Customer", "Subject", "Date", "Open Till", "Amount", "Status"];
       rows = proposalsReport.map((prop: any) => [
-        prop.number || prop.proposal_number,
-        prop.customer_name || prop.customer?.company || "-",
+        prop.number,
+        prop.clientName || "-",
         prop.subject,
         formatRepDate(prop.date),
-        formatRepDate(prop.open_till),
+        formatRepDate(prop.openTill),
         prop.total,
         prop.status
       ]);
     } else if (selectedSubReport === "estimates") {
-      headers = ["Estimate Number", "Customer", "Subject", "Date", "Expiry Date", "Amount", "Status"];
+      headers = ["Estimate Number", "Customer", "Reference", "Date", "Expiry Date", "Amount", "Status"];
       rows = estimatesReport.map((est: any) => [
-        est.number || est.estimate_number,
-        est.customer_name || est.customer?.company || "-",
-        est.subject,
+        est.number,
+        est.clientName || "-",
+        est.reference,
         formatRepDate(est.date),
-        formatRepDate(est.expiry_date),
+        formatRepDate(est.expiryDate),
         est.total,
         est.status
       ]);
     } else if (selectedSubReport === "customers") {
-      headers = ["Customer Name", "Total Invoiced", "Total Paid"];
+      headers = ["Customer Name", "Total Invoiced", "Total Paid", "Outstanding Balance"];
       rows = customersReport.map((cust: any) => [
-        cust.company || cust.name,
+        cust.clientName || "-",
         cust.totalInvoiced,
-        cust.totalPaid
+        cust.totalPaid,
+        cust.balance
       ]);
     }
 

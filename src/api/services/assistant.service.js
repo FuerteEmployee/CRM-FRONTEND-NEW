@@ -1,8 +1,17 @@
 import { apiClient } from "../client";
 
 class AssistantService {
-  async chat(message, history = []) {
-    return apiClient.post("/assistant/chat", { message, history });
+  // History is kept server-side per user (Phase 6) — only the message is sent.
+  async chat(message) {
+    return apiClient.post("/assistant/chat", { message });
+  }
+
+  async getHistory() {
+    return apiClient.get("/assistant/history");
+  }
+
+  async clearHistory() {
+    return apiClient.delete("/assistant/history");
   }
 }
 

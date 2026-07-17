@@ -2,13 +2,21 @@ import "regenerator-runtime/runtime";
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Bot, Mic, X } from "lucide-react";
+import { Sparkles, Mic, MicOff, X, Volume2, VolumeX, Trash2 } from "lucide-react";
 import { usePermissionContext } from "@/context/PermissionContext";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
 import { assistantService } from "@/api/services/assistant.service";
+import { speak, stopSpeaking, isVoiceReplyEnabled, setVoiceReplyEnabled, speechSupported } from "@/lib/speak";
 
-const WAKE_WORDS = ["fuerte", "for the ai", "forty", "forte", "four tay", "for tay"];
+// The en-US recognizer rarely hears the Spanish word "fuerte" cleanly —
+// "FuerteAI" typically comes back as "fuerte ai", "40 ai", "fortay", etc.
+// Matching is substring-based, so "fuerte" also covers "fuerteai"/"fuerte ai".
+const WAKE_WORDS = [
+  "fuerte", "forte", "fortay", "fuerta", "fuente",
+  "for the ai", "for te", "four tay", "for tay",
+  "forty", "40", "fourty", "4t",
+];
 
 // Mirrors AppSidebar's URL_MODULE_MAP — route prefix → plan module key
 const ROUTE_MODULE_MAP: Record<string, string> = {
@@ -70,9 +78,99 @@ export function FuerteAIAssistant() {
 
   // Claude-backed fallback for anything the local keyword matcher can't resolve
   // (free-form questions, data lookups, task creation, etc.)
-  const [conversationHistory, setConversationHistory] = useState<any[]>([]);
   const [isThinking, setIsThinking] = useState(false);
   const [typedCommand, setTypedCommand] = useState("");
+
+  // Phase 6 — persistent chat panel. Transcript is stored server-side per
+  // user, so each admin/staff member sees only their own conversation and it
+  // survives page reloads.
+  type ChatMessage = { role: "user" | "assistant"; text: string };
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!tooltip || historyLoaded) return;
+    (async () => {
+      try {
+        const result = await assistantService.getHistory();
+        setChatMessages(Array.isArray(result?.messages) ? result.messages : []);
+      } catch {
+        // history is a convenience — the assistant still works without it
+      } finally {
+        setHistoryLoaded(true);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tooltip]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages, isThinking]);
+
+  const clearChat = async () => {
+    try {
+      await assistantService.clearHistory();
+      setChatMessages([]);
+      toast({ title: "Fuerte AI", description: "Conversation cleared." });
+    } catch {
+      toast({ title: "Fuerte AI", description: "Could not clear the conversation.", variant: "destructive" });
+    }
+  };
+
+  // Hands-free mode: listen for the wake word from page load, no click needed.
+  // Persisted per browser; on by default.
+  const [autoListen, setAutoListen] = useState(
+    () => localStorage.getItem("fuerte_auto_listen") !== "off"
+  );
+
+  const toggleAutoListen = () => {
+    const next = !autoListen;
+    setAutoListen(next);
+    localStorage.setItem("fuerte_auto_listen", next ? "on" : "off");
+    if (next) {
+      SpeechRecognition.startListening({ continuous: true, language: "en-US" });
+      changeState("listening");
+      toast({ title: "Fuerte AI", description: 'Hands-free mode on — just say "Fuerte" anytime.' });
+    } else {
+      SpeechRecognition.stopListening();
+      stopSpeaking();
+      changeState("sleeping");
+      toast({ title: "Fuerte AI", description: "Hands-free mode off. Click the button to use voice." });
+    }
+  };
+
+  // Phase 5 — voice replies (TTS). Mic is paused while the assistant speaks
+  // so it never hears its own voice and re-triggers the wake word.
+  const [voiceReplies, setVoiceReplies] = useState(isVoiceReplyEnabled());
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const wasListeningRef = useRef(false);
+
+  const toggleVoiceReplies = () => {
+    const next = !voiceReplies;
+    setVoiceReplies(next);
+    setVoiceReplyEnabled(next);
+    if (!next) stopSpeaking();
+  };
+
+  // Speak a reply aloud, pausing speech recognition for the duration.
+  const speakReply = (text: string) => {
+    if (!voiceReplies || !speechSupported()) return;
+    speak(text, {
+      onStart: () => {
+        setIsSpeaking(true);
+        wasListeningRef.current = aiStateRef.current !== "sleeping";
+        if (wasListeningRef.current) SpeechRecognition.stopListening();
+      },
+      onEnd: () => {
+        setIsSpeaking(false);
+        if (wasListeningRef.current && aiStateRef.current !== "sleeping") {
+          resetTranscript();
+          SpeechRecognition.startListening({ continuous: true, language: "en-US" });
+        }
+      },
+    });
+  };
 
   const navigate = useNavigate();
   const { isStaff, isModuleEnabled, canView } = usePermissionContext();
@@ -122,12 +220,42 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [isMicrophoneAvailable]);
 
+// ─── Hands-free wake word: start listening on page load ──────────────────
+// Saying "Fuerte" now works without clicking the button first. The browser
+// will ask for microphone permission the first time; once allowed, the
+// assistant is always waiting for the wake word. Users can opt out with the
+// auto-listen toggle in the panel (persisted per browser).
+useEffect(() => {
+  if (!browserSupportsSpeechRecognition || !autoListen) return;
+  SpeechRecognition.startListening({ continuous: true, language: "en-US" });
+  changeState("listening");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
+// ─── Watchdog: keep the mic alive ────────────────────────────────────────
+// Chrome silently stops continuous recognition after long silence or a
+// network hiccup. If we're supposed to be listening but the mic went quiet
+// (and we're not deliberately paused for TTS), restart it.
+useEffect(() => {
+  if (listening || isSpeaking) return;
+  if (aiState === "sleeping") return;
+  if (isMicrophoneAvailable === false) return;
+  const t = setTimeout(() => {
+    if (aiStateRef.current !== "sleeping") {
+      SpeechRecognition.startListening({ continuous: true, language: "en-US" });
+    }
+  }, 800);
+  return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [listening, aiState, isSpeaking, isMicrophoneAvailable]);
+
 if (!browserSupportsSpeechRecognition) return null;
 
 // ─── FAB toggle ──────────────────────────────────────────────────────────
 const toggleListening = () => {
   if (listening) {
     SpeechRecognition.stopListening();
+    stopSpeaking();
     changeState("sleeping");
     resetTranscript();
     setTooltip(false);
@@ -165,9 +293,10 @@ const matchCommand = resolveCommand;
 const askFuerteAI = async (text: string) => {
   if (!text || !text.trim()) return;
   setIsThinking(true);
+  setChatMessages((prev) => [...prev, { role: "user", text }]);
   try {
-    const result = await assistantService.chat(text, conversationHistory);
-    setConversationHistory(result?.history || []);
+    // Conversation context lives server-side per user (Phase 6)
+    const result = await assistantService.chat(text);
 
     if (result?.navigateTo) {
       if (!canAccessRoute(result.navigateTo)) {
@@ -178,14 +307,15 @@ const askFuerteAI = async (text: string) => {
     }
 
     if (result?.reply) {
-      toast({ title: "Fuerte AI", description: result.reply });
+      setChatMessages((prev) => [...prev, { role: "assistant", text: result.reply }]);
+      // Voice-only flow (panel closed): still surface the answer as a toast
+      if (!tooltip) toast({ title: "Fuerte AI", description: result.reply });
+      speakReply(result.reply);
     }
   } catch (error: any) {
-    toast({
-      title: "Fuerte AI",
-      description: error?.response?.data?.message || "Something went wrong. Please try again.",
-      variant: "destructive",
-    });
+    const msg = error?.response?.data?.message || "Something went wrong. Please try again.";
+    setChatMessages((prev) => [...prev, { role: "assistant", text: msg }]);
+    toast({ title: "Fuerte AI", description: msg, variant: "destructive" });
   } finally {
     setIsThinking(false);
   }
@@ -201,6 +331,7 @@ const handleTranscript = (cmd: string) => {
       const afterWake = cmd.slice(cmd.indexOf(wakeWord) + wakeWord.length).trim();
 
       changeState("awake");
+      setTooltip(true); // pop the panel open so the wake is visible, not just a toast
       resetTranscript();
       if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
 
@@ -210,10 +341,12 @@ const handleTranscript = (cmd: string) => {
         if (match) {
           if (!canAccessRoute(match.route)) {
             toast({ title: "Fuerte AI", description: `You don't have access to ${match.label}.`, variant: "destructive" });
+            speakReply(`You don't have access to ${match.label}.`);
             changeState("listening");
             return;
           }
           toast({ title: "Fuerte AI", description: `Opening ${match.label}…` });
+          speakReply(`Opening ${match.label}`);
           if (match.section) {
             window.dispatchEvent(new CustomEvent("fuerte:open-section", { detail: { section: match.section } }));
           }
@@ -242,12 +375,14 @@ const handleTranscript = (cmd: string) => {
   if (match) {
     if (!canAccessRoute(match.route)) {
       toast({ title: "Fuerte AI", description: `You don't have access to ${match.label}.`, variant: "destructive" });
+      speakReply(`You don't have access to ${match.label}.`);
       changeState("listening");
       resetTranscript();
       if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
       return;
     }
     toast({ title: "Fuerte AI", description: `Opening ${match.label}…` });
+    speakReply(`Opening ${match.label}`);
     if (match.section) {
       window.dispatchEvent(new CustomEvent("fuerte:open-section", { detail: { section: match.section } }));
     }
@@ -263,7 +398,9 @@ const handleTranscript = (cmd: string) => {
   // fires interim results (e.g., "open" -> "open t" -> "open tasks").
   // If we reset on an incomplete mismatch, the user can never finish a command.
 
-  // Reset the 10-second timer to give them time to finish their sentence
+  // Debounce: every interim result restarts this timer, so it fires ~3 s after
+  // the user STOPS talking — the question goes to the AI almost immediately
+  // instead of waiting out a long fixed window.
   if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
   awakeTimerRef.current = setTimeout(() => {
     changeState("listening");
@@ -274,16 +411,38 @@ const handleTranscript = (cmd: string) => {
     } else {
       toast({ title: "Fuerte AI", description: "No command heard. Back to listening…" });
     }
-  }, 10000);
+  }, 3000);
 };
 
 // ─── UI helpers ──────────────────────────────────────────────────────────
+// FAB follows the CRM design system: primary-color gradient pill that
+// expands on hover, with a live status ring + badge per assistant state.
 const fabColor =
   aiState === "awake"
-    ? "bg-green-600 shadow-green-400/50 animate-pulse"
+    ? "bg-gradient-to-br from-emerald-500 to-green-600 shadow-emerald-500/40"
     : aiState === "listening"
-      ? "bg-primary shadow-primary/40 animate-pulse"
-      : "bg-slate-900 hover:bg-slate-800 hover:scale-105";
+      ? "bg-gradient-to-br from-primary to-primary/75 shadow-primary/40"
+      : "bg-gradient-to-br from-slate-800 to-slate-950 shadow-slate-900/40";
+
+const fabBadge = isThinking
+  ? "bg-amber-400 animate-pulse"
+  : isSpeaking
+    ? "bg-purple-400 animate-pulse"
+    : aiState === "awake"
+      ? "bg-emerald-400"
+      : aiState === "listening"
+        ? "bg-sky-400 animate-pulse"
+        : "bg-gray-400";
+
+const fabLabel = isThinking
+  ? "Thinking…"
+  : isSpeaking
+    ? "Speaking…"
+    : aiState === "awake"
+      ? "Listening…"
+      : aiState === "listening"
+        ? 'Say "Fuerte"'
+        : "FuerteAI";
 
 const statusLabel =
   aiState === "awake"
@@ -311,16 +470,70 @@ return (
             <span className={`h-2 w-2 rounded-full ${statusDot}`} />
             <span className="text-sm font-bold text-gray-800">Fuerte AI</span>
           </div>
-          <button
-            onClick={() => setTooltip(false)}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={toggleAutoListen}
+              title={autoListen ? "Turn off hands-free wake word" : "Turn on hands-free wake word"}
+              className={`transition-colors ${autoListen ? "text-primary hover:text-primary/80" : "text-gray-400 hover:text-gray-600"}`}
+            >
+              {autoListen ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
+            </button>
+            {chatMessages.length > 0 && (
+              <button
+                onClick={clearChat}
+                title="Clear conversation"
+                className="text-gray-400 hover:text-red-500 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {speechSupported() && (
+              <button
+                onClick={toggleVoiceReplies}
+                title={voiceReplies ? "Mute voice replies" : "Unmute voice replies"}
+                className={`transition-colors ${voiceReplies ? "text-primary hover:text-primary/80" : "text-gray-400 hover:text-gray-600"}`}
+              >
+                {voiceReplies ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
+              </button>
+            )}
+            <button
+              onClick={() => setTooltip(false)}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
 
         {/* Status */}
         <p className="text-xs text-gray-500 mb-3">{statusLabel}</p>
+
+        {/* Chat thread — persisted per user on the server (Phase 6) */}
+        {(chatMessages.length > 0 || isThinking) && (
+          <div className="max-h-64 overflow-y-auto space-y-2 mb-3 pr-1">
+            {chatMessages.map((m, i) => (
+              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`max-w-[85%] rounded-2xl px-3 py-1.5 text-xs leading-snug whitespace-pre-wrap break-words ${
+                    m.role === "user"
+                      ? "bg-primary text-primary-foreground rounded-br-sm"
+                      : "bg-gray-100 text-gray-800 rounded-bl-sm"
+                  }`}
+                >
+                  {m.text}
+                </div>
+              </div>
+            ))}
+            {isThinking && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 text-gray-400 rounded-2xl rounded-bl-sm px-3 py-1.5 text-xs animate-pulse">
+                  Thinking…
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+        )}
 
         {/* Live transcript */}
         {transcript && (
@@ -362,28 +575,52 @@ return (
         <div className="flex items-center justify-between">
           <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full ${isThinking
               ? "bg-amber-100 text-amber-700 animate-pulse"
-              : aiState === "awake"
-                ? "bg-green-100 text-green-700"
-                : "bg-blue-50 text-blue-600"
+              : isSpeaking
+                ? "bg-purple-100 text-purple-700 animate-pulse"
+                : aiState === "awake"
+                  ? "bg-green-100 text-green-700"
+                  : "bg-blue-50 text-blue-600"
             }`}>
-            {isThinking ? "Thinking…" : aiState === "awake" ? "Awake" : "Listening"}
+            {isThinking ? "Thinking…" : isSpeaking ? "Speaking…" : aiState === "awake" ? "Awake" : "Listening"}
           </span>
           <span className="text-[10px] text-gray-400">FuerteAI</span>
         </div>
       </div>
     )}
 
-    {/* ── FAB button ── */}
+    {/* ── FAB button — CRM-styled pill that expands on hover ── */}
     <button
       onClick={toggleListening}
       title={listening ? "Stop Fuerte AI" : "Start Fuerte AI"}
-      className={`h-14 w-14 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 border-4 border-white text-white ${fabColor}`}
+      className="group relative"
     >
-      {aiState === "sleeping" ? (
-        <Bot className="h-6 w-6" />
-      ) : (
-        <Mic className="h-6 w-6" />
+      {/* Soft ping ring while the mic is live */}
+      {aiState !== "sleeping" && (
+        <span
+          className={`absolute inset-0 rounded-full animate-ping opacity-25 ${
+            aiState === "awake" ? "bg-emerald-500" : "bg-primary"
+          }`}
+        />
       )}
+
+      <div
+        className={`relative flex h-14 min-w-14 items-center justify-center rounded-full px-[14px] text-white shadow-xl ring-4 ring-background transition-all duration-300 group-hover:shadow-2xl group-hover:scale-[1.03] active:scale-95 ${fabColor}`}
+      >
+        {aiState === "sleeping" ? (
+          <Sparkles className="h-6 w-6 shrink-0" />
+        ) : (
+          <Mic className="h-6 w-6 shrink-0" />
+        )}
+        {/* Label slides out on hover */}
+        <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold tracking-tight opacity-0 transition-all duration-300 group-hover:ml-2 group-hover:max-w-[110px] group-hover:opacity-100">
+          {fabLabel}
+        </span>
+      </div>
+
+      {/* Status badge (thinking / speaking / awake / listening / off) */}
+      <span
+        className={`absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-background ${fabBadge}`}
+      />
     </button>
   </div>
 );

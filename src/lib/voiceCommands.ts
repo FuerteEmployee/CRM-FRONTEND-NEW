@@ -32,6 +32,7 @@ export const COMMAND_MAP: CommandEntry[] = [
   { keywords: ["reports", "analytics"],              route: "/admin/reports",        label: "Reports",       section: "Reports" },
   { keywords: ["attendance", "time tracking"],       route: "/admin/time-tracking",  label: "Attendance",    section: "Utilities" },
   { keywords: ["staff", "team"],                     route: "/admin/setup/staff",    label: "Staff",         section: null },
+  { keywords: ["general settings", "general setting"], route: "/admin/setup/settings", label: "General Settings", section: null },
   { keywords: ["settings", "setup"],                 route: "/admin/setup",          label: "Settings",      section: null },
   { keywords: ["contracts", "contract"],             route: "/admin/contracts",      label: "Contracts",     section: null },
   { keywords: ["payments", "payment"],               route: "/admin/payments",       label: "Payments",      section: null },
