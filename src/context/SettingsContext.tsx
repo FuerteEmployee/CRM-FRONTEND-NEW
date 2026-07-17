@@ -48,14 +48,17 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     if (settings.companyName) {
       document.title = settings.companyName;
+      localStorage.setItem("crm_company_name", settings.companyName);
     }
     
     if (settings.favicon) {
       const link: HTMLLinkElement = document.querySelector("link[rel*='icon']") || document.createElement('link');
       link.type = 'image/x-icon';
       link.rel = 'shortcut icon';
-      link.href = resolveImageUrl(settings.favicon);
+      const faviconUrl = resolveImageUrl(settings.favicon);
+      link.href = faviconUrl;
       document.getElementsByTagName('head')[0].appendChild(link);
+      localStorage.setItem("crm_favicon", faviconUrl);
     }
 
     // Apply RTL Direction

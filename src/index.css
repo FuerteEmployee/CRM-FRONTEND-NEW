@@ -661,10 +661,10 @@ html, body {
   }
 
   /* Hide table checkboxes (first column) and actions (last column) */
-  table th:first-child,
-  table td:first-child,
-  table th:last-child,
-  table td:last-child {
+  table:not(.printable-table) th:first-child,
+  table:not(.printable-table) td:first-child,
+  table:not(.printable-table) th:last-child,
+  table:not(.printable-table) td:last-child {
     display: none !important;
   }
 

@@ -87,6 +87,15 @@ export default function InvoiceCreate() {
     terms: ""
   });
 
+  const [status, setStatus] = useState("unpaid");
+  const [amountPaid, setAmountPaid] = useState<number | "">("");
+
+  const { data: payments = [] } = useQuery({
+    queryKey: ["invoice-payments", id],
+    queryFn: () => salesService.getPaymentsByInvoice(id!).then((res: any) => res.data || res),
+    enabled: isEdit
+  });
+
 
   const [items, setItems] = useState<any[]>([]);
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
@@ -195,6 +204,13 @@ export default function InvoiceCreate() {
         terms: invoice.terms || ""
       });
       
+      if (invoice.status) {
+        setStatus(invoice.status);
+      }
+      
+      const totalPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+      setAmountPaid(totalPaid || "");
+
       setItems(invoice.items.map((item: any) => ({
         ...item,
         id: Math.random().toString(36).substr(2, 9),
@@ -204,7 +220,7 @@ export default function InvoiceCreate() {
       setDiscountValue(invoice.discount_percent || 0);
       setAdjustmentValue(invoice.adjustment || 0);
     }
-  }, [invoice, taxes]);
+  }, [invoice, taxes, payments]);
 
   const calculations = useMemo(() => {
     const subTotal = items.reduce((acc, item) => acc + (item.qty * item.rate), 0);
@@ -241,7 +257,27 @@ export default function InvoiceCreate() {
 
   const mutation = useMutation({
     mutationFn: (payload: any) => isEdit ? salesService.updateInvoice(id!, payload) : salesService.createInvoice(payload),
-    onSuccess: () => {
+    onSuccess: async (createdInvoice: any) => {
+      // Record initial payment if specified
+      if (!isEdit && amountPaid && Number(amountPaid) > 0) {
+        try {
+          await salesService.createPayment({
+            invoice: createdInvoice._id || createdInvoice.id,
+            amount: Number(amountPaid),
+            date: formData.date,
+            paymentmode: formData.allowed_payment_modes[0] || "Bank Transfer",
+            note: "Initial payment recorded during invoice creation."
+          });
+        } catch (paymentErr) {
+          console.error("Failed to record initial payment:", paymentErr);
+          toast({
+            title: "Warning",
+            description: "Invoice created, but failed to record the initial payment.",
+            variant: "destructive"
+          });
+        }
+      }
+
       toast({ 
         title: isEdit ? "Invoice Updated Successfully!" : "Invoice Created Successfully!", 
         description: `Invoice ${formData.number} has been ${isEdit ? 'updated' : 'recorded'} in the system.`,
@@ -263,7 +299,7 @@ export default function InvoiceCreate() {
     }
   });
 
-  const handleSave = (status: string) => {
+  const handleSave = (statusArg: string) => {
     if (!formData.client) {
       toast({ 
         title: "Validation Error", 
@@ -282,17 +318,30 @@ export default function InvoiceCreate() {
       return;
     }
     
+    let finalStatus = status;
+    
+    // If the user specifically saves as draft, override status to draft
+    if (statusArg === 'draft') {
+      finalStatus = 'draft';
+    } else if (statusArg === 'recorded') {
+      // If they click Save & Record Payment, we automatically treat it as paid
+      finalStatus = 'paid';
+      if (!amountPaid || Number(amountPaid) <= 0) {
+        setAmountPaid(calculations.total);
+      }
+    }
+    
     const payload: any = { 
       client: formData.client,
       number: formData.number, // Don't add random suffix if user set it or in edit mode
       date: formData.date,
       duedate: formData.duedate,
-      currency: formData.currency || "USD",
+      currency: formData.currency || currencies.find((c: any) => c.isdefault)?.name || currencies[0]?.name || "USD",
       notes: formData.client_note,
       adminnote: formData.adminnote,
       project: formData.project || undefined,
       created_by: formData.sale_agent || undefined,
-      status: status,
+      status: finalStatus,
       items: items.map(item => ({
         description: item.description,
         long_description: item.long_description,
@@ -307,11 +356,6 @@ export default function InvoiceCreate() {
       total_tax: Number(calculations.totalTax) || 0,
       total: Number(calculations.total) || 0 
     };
-
-    // For new invoices, if number is still the default or needs uniqueness
-    if (!isEdit && payload.number.startsWith('INV-')) {
-      // Keep as is or handle suffix if needed. User can now edit it.
-    }
 
     // Remove undefined fields to be clean
     Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
@@ -564,6 +608,64 @@ export default function InvoiceCreate() {
                       <SelectItem value="after_tax">After Tax</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+
+              {/* Status and Initial Payment */}
+              <div className="grid grid-cols-2 gap-6 pt-4 border-t border-border/30 border-dashed">
+                {/* Status Selection */}
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Status</Label>
+                  <Select 
+                    value={status} 
+                    onValueChange={(val) => {
+                      setStatus(val);
+                      if (val === "paid") {
+                        setAmountPaid(calculations.total);
+                      } else if (val === "unpaid" || val === "draft" || val === "cancelled" || val === "overdue") {
+                        setAmountPaid("");
+                      }
+                    }}
+                    disabled={isEdit}
+                  >
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="Select Status" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      <SelectItem value="unpaid">Unpaid</SelectItem>
+                      <SelectItem value="partially_paid">Partially Paid</SelectItem>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="draft">Draft</SelectItem>
+                      <SelectItem value="overdue">Overdue</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {isEdit && <p className="text-[9px] text-muted-foreground italic">Manage status via Payments</p>}
+                </div>
+
+                {/* Amount Paid */}
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Amount Paid</Label>
+                  <Input 
+                    type="number"
+                    placeholder="e.g. 50% of total"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
+                    value={amountPaid}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? "" : Number(e.target.value);
+                      setAmountPaid(val);
+                      if (typeof val === "number" && val > 0) {
+                        if (val >= calculations.total) {
+                          setStatus("paid");
+                        } else {
+                          setStatus("partially_paid");
+                        }
+                      } else {
+                        setStatus("unpaid");
+                      }
+                    }}
+                    disabled={isEdit || (status !== "partially_paid" && status !== "paid")}
+                  />
                 </div>
               </div>
 
@@ -839,6 +941,24 @@ export default function InvoiceCreate() {
                   <span className="text-lg font-black uppercase tracking-widest text-primary">Total :</span>
                   <span className="text-2xl font-black text-primary">{formatDocAmount(calculations.total)}</span>
                 </div>
+
+                {typeof amountPaid === "number" && amountPaid > 0 && (() => {
+                  const amountDue = Math.max(calculations.total - amountPaid, 0);
+                  return (
+                    <>
+                      <div className="flex justify-between items-center py-2 text-sm font-bold text-emerald-600">
+                        <span>Amount Paid :</span>
+                        <span>{formatDocAmount(amountPaid)}</span>
+                      </div>
+                      <div className="flex justify-between items-center pt-4 border-t border-dashed border-border/40">
+                        <span className="text-sm font-black uppercase tracking-widest text-muted-foreground">Amount Due :</span>
+                        <span className={cn("text-lg font-black", amountDue > 0 ? "text-rose-600" : "text-emerald-600")}>
+                          {formatDocAmount(amountDue)}
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
             </div>
 

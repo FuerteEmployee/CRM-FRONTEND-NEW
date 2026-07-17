@@ -1,12 +1,11 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import {
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +19,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+
 import {
   Select,
   SelectContent,
@@ -28,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, BookOpen, Eye, ThumbsUp, Download, ChevronDown, FileSpreadsheet, FileJson, FileType, Printer, Undo, Redo, Bold, Italic, Underline, AlignLeft, List, Zap, Trash2, Pencil } from "lucide-react";
+import { Plus, Search, BookOpen, Eye, ThumbsUp, Download, ChevronDown, FileSpreadsheet, FileJson, FileType, Printer, Undo, Redo, Bold, Italic, Underline, AlignLeft, List, Zap, Trash2, Pencil, AlignCenter, AlignRight, AlignJustify, Strikethrough, Link, Image, Code, Quote, Eraser, Type, Palette, Minus, MoreHorizontal, Save, Copy, Scissors, ClipboardPaste, ZoomIn, ZoomOut, Maximize2, FileText, Table, Film } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supportService } from "@/api/services/support.service";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,11 +37,18 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatDate } from "@/lib/dateFormat";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
+
 
 const KnowledgeBase = () => {
   const [search, setSearch] = useState("");
@@ -182,47 +188,355 @@ const KnowledgeBase = () => {
     setIsNewArticleModalOpen(true);
   };
 
-  const RichToolbar = ({ onAction }: { onAction?: (action: string) => void }) => (
-    <div className="bg-slate-50 border-b border-slate-200 flex flex-col">
-      <div className="flex items-center gap-4 px-4 h-8 text-[11px] font-medium text-slate-500 border-b border-slate-100">
-        {["File", "Edit", "View", "Insert", "Format", "Tools"].map(m => (
-          <span key={m} className="cursor-pointer hover:bg-slate-100 px-2 py-0.5 rounded transition-colors">{m}</span>
-        ))}
+  const quillRef = useRef<ReactQuill>(null);
+
+  // Execute a Quill formatting command
+  const execFormat = useCallback((format: string, value: any = true) => {
+    const editor = quillRef.current?.getEditor();
+    if (!editor) return;
+    const range = editor.getSelection(true);
+    editor.format(format, value);
+  }, []);
+
+  // Menu bar actions
+  const handleFileAction = (action: string) => {
+    const editor = quillRef.current?.getEditor();
+    if (!editor) return;
+    if (action === "print") {
+      const content = editor.root.innerHTML;
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.write(`<html><head><title>Article</title><style>body{font-family:sans-serif;padding:24px;max-width:800px;margin:0 auto}</style></head><body>${content}</body></html>`);
+        w.document.close();
+        w.print();
+      }
+    } else if (action === "save") {
+      toast.success("Article content saved to draft");
+    } else if (action === "export-html") {
+      const blob = new Blob([editor.root.innerHTML], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = "article.html"; a.click();
+      URL.revokeObjectURL(url);
+    } else if (action === "export-txt") {
+      const blob = new Blob([editor.getText()], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = "article.txt"; a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const handleEditAction = (action: string) => {
+    const editor = quillRef.current?.getEditor();
+    if (!editor) return;
+    if (action === "undo") editor.history.undo();
+    else if (action === "redo") editor.history.redo();
+    else if (action === "select-all") editor.setSelection(0, editor.getLength());
+    else if (action === "copy") document.execCommand("copy");
+    else if (action === "cut") document.execCommand("cut");
+    else if (action === "paste") document.execCommand("paste");
+    else if (action === "clear") { editor.setText(""); setNewArticleData(p => ({ ...p, description: "" })); }
+  };
+
+  const handleInsertAction = (action: string) => {
+    const editor = quillRef.current?.getEditor();
+    if (!editor) return;
+    const range = editor.getSelection(true);
+    if (action === "link") {
+      const url = prompt("Enter URL:", "https://");
+      if (url) editor.format("link", url);
+    } else if (action === "image") {
+      const url = prompt("Enter image URL:");
+      if (url) editor.insertEmbed(range.index, "image", url);
+    } else if (action === "hr") {
+      editor.insertText(range.index, "\n─────────────────────────────\n");
+    } else if (action === "table") {
+      const rows = prompt("Number of rows:", "3");
+      const cols = prompt("Number of columns:", "3");
+      if (rows && cols) {
+        const r = parseInt(rows), c = parseInt(cols);
+        let tableHtml = '<table border="1" style="border-collapse:collapse;width:100%">';
+        for (let i = 0; i < r; i++) {
+          tableHtml += "<tr>";
+          for (let j = 0; j < c; j++) tableHtml += `<td style="padding:8px;border:1px solid #ccc"> </td>`;
+          tableHtml += "</tr>";
+        }
+        tableHtml += "</table>";
+        editor.clipboard.dangerouslyPasteHTML(range.index, tableHtml);
+      }
+    } else if (action === "code") {
+      editor.format("code-block", true);
+    } else if (action === "blockquote") {
+      editor.format("blockquote", true);
+    }
+  };
+
+  const handleViewAction = (action: string) => {
+    const editorEl = document.querySelector(".ql-editor") as HTMLElement;
+    if (!editorEl) return;
+    if (action === "zoom-in") editorEl.style.fontSize = (parseFloat(editorEl.style.fontSize || "14") + 2) + "px";
+    else if (action === "zoom-out") editorEl.style.fontSize = Math.max(10, parseFloat(editorEl.style.fontSize || "14") - 2) + "px";
+    else if (action === "reset-zoom") editorEl.style.fontSize = "14px";
+    else if (action === "fullscreen") {
+      const wrapper = document.querySelector(".rich-editor-wrapper") as HTMLElement;
+      if (wrapper) wrapper.classList.toggle("fullscreen-editor");
+    }
+  };
+
+  const QUILL_MODULES = {
+    toolbar: false, // we render our own
+    history: { delay: 500, maxStack: 200, userOnly: true },
+  };
+
+  const QUILL_FORMATS = [
+    "header", "font", "size", "bold", "italic", "underline", "strike",
+    "blockquote", "code-block", "list", "bullet", "indent",
+    "link", "image", "video", "color", "background", "align",
+  ];
+
+  // Our custom styled toolbar for the article editor
+  const ArticleEditorToolbar = ({ onFileAction, onEditAction, onInsertAction, onViewAction, onFormat }: any) => {
+    const toolBtn = (icon: React.ReactNode, title: string, onClick: () => void, active = false) => (
+      <button
+        type="button"
+        title={title}
+        onClick={onClick}
+        className={cn(
+          "h-7 w-7 flex items-center justify-center rounded text-slate-600 hover:bg-primary/10 hover:text-primary transition-colors",
+          active && "bg-primary/10 text-primary"
+        )}
+      >
+        {icon}
+      </button>
+    );
+
+    return (
+      <div className="bg-slate-50 border-b border-slate-200">
+        {/* Menu bar */}
+        <div className="flex items-center gap-0 px-2 h-8 text-[11px] font-medium text-slate-600 border-b border-slate-100">
+          {/* FILE */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="cursor-pointer hover:bg-slate-100 px-2.5 h-full rounded transition-colors font-semibold">File</button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48 text-xs">
+              <DropdownMenuItem onClick={() => onFileAction("save")} className="gap-2.5"><Save className="h-3.5 w-3.5" />Save Draft</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onFileAction("print")} className="gap-2.5"><Printer className="h-3.5 w-3.5" />Print</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onFileAction("export-html")} className="gap-2.5"><FileText className="h-3.5 w-3.5" />Export as HTML</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onFileAction("export-txt")} className="gap-2.5"><FileType className="h-3.5 w-3.5" />Export as Text</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* EDIT */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="cursor-pointer hover:bg-slate-100 px-2.5 h-full rounded transition-colors font-semibold">Edit</button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48 text-xs">
+              <DropdownMenuItem onClick={() => onEditAction("undo")} className="gap-2.5"><Undo className="h-3.5 w-3.5" />Undo <span className="ml-auto text-slate-400">Ctrl+Z</span></DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onEditAction("redo")} className="gap-2.5"><Redo className="h-3.5 w-3.5" />Redo <span className="ml-auto text-slate-400">Ctrl+Y</span></DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onEditAction("cut")} className="gap-2.5"><Scissors className="h-3.5 w-3.5" />Cut <span className="ml-auto text-slate-400">Ctrl+X</span></DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onEditAction("copy")} className="gap-2.5"><Copy className="h-3.5 w-3.5" />Copy <span className="ml-auto text-slate-400">Ctrl+C</span></DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onEditAction("paste")} className="gap-2.5"><ClipboardPaste className="h-3.5 w-3.5" />Paste <span className="ml-auto text-slate-400">Ctrl+V</span></DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onEditAction("select-all")} className="gap-2.5"><MoreHorizontal className="h-3.5 w-3.5" />Select All <span className="ml-auto text-slate-400">Ctrl+A</span></DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onEditAction("clear")} className="gap-2.5 text-rose-600"><Eraser className="h-3.5 w-3.5" />Clear All</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* VIEW */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="cursor-pointer hover:bg-slate-100 px-2.5 h-full rounded transition-colors font-semibold">View</button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48 text-xs">
+              <DropdownMenuItem onClick={() => onViewAction("zoom-in")} className="gap-2.5"><ZoomIn className="h-3.5 w-3.5" />Zoom In</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onViewAction("zoom-out")} className="gap-2.5"><ZoomOut className="h-3.5 w-3.5" />Zoom Out</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onViewAction("reset-zoom")} className="gap-2.5"><Eye className="h-3.5 w-3.5" />Reset Zoom (100%)</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onViewAction("fullscreen")} className="gap-2.5"><Maximize2 className="h-3.5 w-3.5" />Toggle Fullscreen</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* INSERT */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="cursor-pointer hover:bg-slate-100 px-2.5 h-full rounded transition-colors font-semibold">Insert</button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48 text-xs">
+              <DropdownMenuItem onClick={() => onInsertAction("link")} className="gap-2.5"><Link className="h-3.5 w-3.5" />Link</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onInsertAction("image")} className="gap-2.5"><Image className="h-3.5 w-3.5" />Image (URL)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onInsertAction("table")} className="gap-2.5"><Table className="h-3.5 w-3.5" />Table</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onInsertAction("hr")} className="gap-2.5"><Minus className="h-3.5 w-3.5" />Horizontal Rule</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onInsertAction("blockquote")} className="gap-2.5"><Quote className="h-3.5 w-3.5" />Block Quote</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onInsertAction("code")} className="gap-2.5"><Code className="h-3.5 w-3.5" />Code Block</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* FORMAT */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="cursor-pointer hover:bg-slate-100 px-2.5 h-full rounded transition-colors font-semibold">Format</button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-52 text-xs">
+              <DropdownMenuItem onClick={() => onFormat("bold", true)} className="gap-2.5 font-bold"><Bold className="h-3.5 w-3.5" />Bold <span className="ml-auto text-slate-400 font-normal">Ctrl+B</span></DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onFormat("italic", true)} className="gap-2.5 italic"><Italic className="h-3.5 w-3.5" />Italic <span className="ml-auto text-slate-400 font-normal">Ctrl+I</span></DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onFormat("underline", true)} className="gap-2.5 underline"><Underline className="h-3.5 w-3.5" />Underline <span className="ml-auto text-slate-400 font-normal">Ctrl+U</span></DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onFormat("strike", true)} className="gap-2.5 line-through"><Strikethrough className="h-3.5 w-3.5" />Strikethrough</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="gap-2.5"><Type className="h-3.5 w-3.5" />Heading</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {[1,2,3,4,5,6].map(h => (
+                    <DropdownMenuItem key={h} onClick={() => onFormat("header", h)} className="gap-2 text-xs">Heading {h}</DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => onFormat("header", false)} className="gap-2 text-xs">Normal text</DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="gap-2.5"><AlignLeft className="h-3.5 w-3.5" />Alignment</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={() => onFormat("align", false)} className="gap-2 text-xs"><AlignLeft className="h-3.5 w-3.5" />Left</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onFormat("align", "center")} className="gap-2 text-xs"><AlignCenter className="h-3.5 w-3.5" />Center</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onFormat("align", "right")} className="gap-2 text-xs"><AlignRight className="h-3.5 w-3.5" />Right</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onFormat("align", "justify")} className="gap-2 text-xs"><AlignJustify className="h-3.5 w-3.5" />Justify</DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onFormat("bold", false) && onFormat("italic", false) && onFormat("underline", false)} className="gap-2.5 text-slate-500"><Eraser className="h-3.5 w-3.5" />Clear Formatting</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* TOOLS */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className="cursor-pointer hover:bg-slate-100 px-2.5 h-full rounded transition-colors font-semibold">Tools</button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-48 text-xs">
+              <DropdownMenuItem onClick={() => {
+                const editor = quillRef.current?.getEditor();
+                if (editor) {
+                  const text = editor.getText();
+                  const words = text.trim().split(/\s+/).filter(Boolean).length;
+                  const chars = text.length;
+                  toast.info(`Words: ${words} · Characters: ${chars - 1}`);
+                }
+              }} className="gap-2.5"><FileText className="h-3.5 w-3.5" />Word Count</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                const editor = quillRef.current?.getEditor();
+                if (!editor) return;
+                const range = editor.getSelection();
+                if (!range || range.length === 0) { toast.warning("Select text first"); return; }
+                const text = editor.getText(range.index, range.length);
+                editor.deleteText(range.index, range.length);
+                editor.insertText(range.index, text.toUpperCase());
+              }} className="gap-2.5"><Type className="h-3.5 w-3.5" />UPPERCASE</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => {
+                const editor = quillRef.current?.getEditor();
+                if (!editor) return;
+                const range = editor.getSelection();
+                if (!range || range.length === 0) { toast.warning("Select text first"); return; }
+                const text = editor.getText(range.index, range.length);
+                editor.deleteText(range.index, range.length);
+                editor.insertText(range.index, text.toLowerCase());
+              }} className="gap-2.5"><Type className="h-3.5 w-3.5" />lowercase</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => {
+                const editor = quillRef.current?.getEditor();
+                if (!editor) return;
+                const html = editor.root.innerHTML;
+                navigator.clipboard.writeText(html).then(() => toast.success("HTML copied to clipboard"));
+              }} className="gap-2.5"><Copy className="h-3.5 w-3.5" />Copy as HTML</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Toolbar buttons */}
+        <div className="flex flex-wrap items-center gap-0.5 p-1.5">
+          {/* Undo/Redo/Print */}
+          <div className="flex items-center gap-0.5 pr-2 border-r border-slate-200 mr-1">
+            {toolBtn(<Undo className="h-3.5 w-3.5" />, "Undo (Ctrl+Z)", () => onEditAction("undo"))}
+            {toolBtn(<Redo className="h-3.5 w-3.5" />, "Redo (Ctrl+Y)", () => onEditAction("redo"))}
+            {toolBtn(<Printer className="h-3.5 w-3.5" />, "Print", () => onFileAction("print"))}
+          </div>
+          {/* Heading */}
+          <div className="flex items-center pr-2 border-r border-slate-200 mr-1">
+            <select
+              onChange={(e) => onFormat("header", e.target.value === "0" ? false : parseInt(e.target.value))}
+              defaultValue="0"
+              className="h-7 text-[11px] font-semibold bg-transparent border border-slate-200 rounded px-1 cursor-pointer outline-none hover:border-primary"
+            >
+              <option value="0">Normal text</option>
+              <option value="1">Heading 1</option>
+              <option value="2">Heading 2</option>
+              <option value="3">Heading 3</option>
+              <option value="4">Heading 4</option>
+              <option value="5">Heading 5</option>
+              <option value="6">Heading 6</option>
+            </select>
+          </div>
+          {/* Font size */}
+          <div className="flex items-center pr-2 border-r border-slate-200 mr-1">
+            <select
+              onChange={(e) => onFormat("size", e.target.value || false)}
+              defaultValue=""
+              className="h-7 text-[11px] font-semibold bg-transparent border border-slate-200 rounded px-1 cursor-pointer outline-none hover:border-primary"
+            >
+              <option value="">Normal</option>
+              <option value="small">Small</option>
+              <option value="large">Large</option>
+              <option value="huge">Huge</option>
+            </select>
+          </div>
+          {/* Bold / Italic / Underline / Strike */}
+          <div className="flex items-center gap-0.5 pr-2 border-r border-slate-200 mr-1">
+            {toolBtn(<Bold className="h-3.5 w-3.5" />, "Bold (Ctrl+B)", () => onFormat("bold", true))}
+            {toolBtn(<Italic className="h-3.5 w-3.5" />, "Italic (Ctrl+I)", () => onFormat("italic", true))}
+            {toolBtn(<Underline className="h-3.5 w-3.5" />, "Underline (Ctrl+U)", () => onFormat("underline", true))}
+            {toolBtn(<Strikethrough className="h-3.5 w-3.5" />, "Strikethrough", () => onFormat("strike", true))}
+          </div>
+          {/* Color */}
+          <div className="flex items-center gap-0.5 pr-2 border-r border-slate-200 mr-1">
+            <label title="Text Color" className="flex items-center h-7 w-7 justify-center rounded hover:bg-primary/10 cursor-pointer">
+              <Palette className="h-3.5 w-3.5 text-slate-600" />
+              <input type="color" className="sr-only" onChange={(e) => onFormat("color", e.target.value)} />
+            </label>
+            <label title="Highlight Color" className="flex items-center h-7 w-7 justify-center rounded hover:bg-primary/10 cursor-pointer">
+              <span className="h-3.5 w-3.5 rounded text-[9px] font-black flex items-center justify-center bg-yellow-300">A</span>
+              <input type="color" className="sr-only" defaultValue="#fef08a" onChange={(e) => onFormat("background", e.target.value)} />
+            </label>
+          </div>
+          {/* Alignment */}
+          <div className="flex items-center gap-0.5 pr-2 border-r border-slate-200 mr-1">
+            {toolBtn(<AlignLeft className="h-3.5 w-3.5" />, "Align Left", () => onFormat("align", false))}
+            {toolBtn(<AlignCenter className="h-3.5 w-3.5" />, "Align Center", () => onFormat("align", "center"))}
+            {toolBtn(<AlignRight className="h-3.5 w-3.5" />, "Align Right", () => onFormat("align", "right"))}
+            {toolBtn(<AlignJustify className="h-3.5 w-3.5" />, "Justify", () => onFormat("align", "justify"))}
+          </div>
+          {/* Lists */}
+          <div className="flex items-center gap-0.5 pr-2 border-r border-slate-200 mr-1">
+            {toolBtn(<List className="h-3.5 w-3.5" />, "Bullet List", () => onFormat("list", "bullet"))}
+            {toolBtn(<span className="text-[11px] font-black text-slate-700">1.</span>, "Ordered List", () => onFormat("list", "ordered"))}
+          </div>
+          {/* Insert */}
+          <div className="flex items-center gap-0.5 pr-2 border-r border-slate-200 mr-1">
+            {toolBtn(<Link className="h-3.5 w-3.5" />, "Insert Link", () => onInsertAction("link"))}
+            {toolBtn(<Image className="h-3.5 w-3.5" />, "Insert Image", () => onInsertAction("image"))}
+            {toolBtn(<Quote className="h-3.5 w-3.5" />, "Blockquote", () => onInsertAction("blockquote"))}
+            {toolBtn(<Code className="h-3.5 w-3.5" />, "Code Block", () => onInsertAction("code"))}
+          </div>
+          {/* Clear */}
+          <div className="flex items-center gap-0.5">
+            {toolBtn(<Eraser className="h-3.5 w-3.5" />, "Clear Formatting", () => {
+              const editor = quillRef.current?.getEditor();
+              if (!editor) return;
+              const range = editor.getSelection();
+              if (range) editor.removeFormat(range.index, range.length);
+            })}
+          </div>
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-1 p-2">
-        <div className="flex items-center gap-0.5 pr-2 border-r border-slate-200">
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Undo className="h-3.5 w-3.5" /></Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Redo className="h-3.5 w-3.5" /></Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Printer className="h-3.5 w-3.5" /></Button>
-        </div>
-        <div className="flex items-center gap-0.5 px-2 border-r border-slate-200">
-          <Select defaultValue="100%">
-            <SelectTrigger className="h-8 w-20 bg-transparent border-none text-[11px] font-bold shadow-none focus:ring-0">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent><SelectItem value="50%">50%</SelectItem><SelectItem value="100%">100%</SelectItem></SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-0.5 px-2 border-r border-slate-200">
-          <Select defaultValue="Normal">
-            <SelectTrigger className="h-8 w-28 bg-transparent border-none text-[11px] font-bold shadow-none focus:ring-0">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent><SelectItem value="Normal">Normal text</SelectItem><SelectItem value="H1">Heading 1</SelectItem></SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-0.5 px-2 border-r border-slate-200">
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Bold className="h-3.5 w-3.5 text-slate-900" /></Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Italic className="h-3.5 w-3.5 text-slate-900" /></Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Underline className="h-3.5 w-3.5 text-slate-900" /></Button>
-        </div>
-        <div className="flex items-center gap-0.5 pl-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><AlignLeft className="h-3.5 w-3.5" /></Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><List className="h-3.5 w-3.5" /></Button>
-        </div>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <DashboardLayout>
@@ -307,16 +621,58 @@ const KnowledgeBase = () => {
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Article Description</Label>
-                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
-                    <RichToolbar />
-                    <Textarea
-                      placeholder="Write article content..."
-                      className="min-h-[250px] border-none focus-visible:ring-0 text-sm leading-relaxed p-6 font-medium"
+                  <div className="rich-editor-wrapper rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
+                    <ArticleEditorToolbar
+                      onFileAction={handleFileAction}
+                      onEditAction={handleEditAction}
+                      onInsertAction={handleInsertAction}
+                      onViewAction={handleViewAction}
+                      onFormat={execFormat}
+                    />
+                    <style>{`
+                      .rich-editor-wrapper .ql-editor {
+                        min-height: 260px;
+                        font-size: 14px;
+                        line-height: 1.75;
+                        padding: 16px 20px;
+                        font-family: inherit;
+                        color: #1e293b;
+                      }
+                      .rich-editor-wrapper .ql-editor.ql-blank::before {
+                        color: #94a3b8;
+                        font-style: normal;
+                        font-size: 14px;
+                        left: 20px;
+                      }
+                      .rich-editor-wrapper .ql-container {
+                        border: none;
+                        font-family: inherit;
+                      }
+                      .rich-editor-wrapper.fullscreen-editor {
+                        position: fixed;
+                        inset: 0;
+                        z-index: 9999;
+                        border-radius: 0;
+                        display: flex;
+                        flex-direction: column;
+                      }
+                      .rich-editor-wrapper.fullscreen-editor .ql-editor {
+                        flex: 1;
+                        max-height: none;
+                      }
+                    `}</style>
+                    <ReactQuill
+                      ref={quillRef}
+                      theme="snow"
                       value={newArticleData.description}
-                      onChange={(e) => setNewArticleData({ ...newArticleData, description: e.target.value })}
+                      onChange={(val) => setNewArticleData(p => ({ ...p, description: val }))}
+                      modules={QUILL_MODULES}
+                      formats={QUILL_FORMATS}
+                      placeholder="Write article content here — use the menus and toolbar above to format your text..."
                     />
                   </div>
                 </div>
+
               </div>
               <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
                 <Button
@@ -382,13 +738,26 @@ const KnowledgeBase = () => {
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Short Description</Label>
-                  <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white">
-                    <RichToolbar />
-                    <Textarea
-                      placeholder="Brief description of this group..."
-                      className="min-h-[120px] border-none focus-visible:ring-0 text-sm p-4 font-medium"
+                  <div className="rich-editor-wrapper rounded-2xl border border-slate-200 overflow-hidden bg-white">
+                    <ArticleEditorToolbar
+                      onFileAction={handleFileAction}
+                      onEditAction={handleEditAction}
+                      onInsertAction={handleInsertAction}
+                      onViewAction={handleViewAction}
+                      onFormat={execFormat}
+                    />
+                    <style>{`
+                      .rich-editor-wrapper .ql-editor { min-height: 120px; font-size: 13px; line-height: 1.6; padding: 12px 16px; font-family: inherit; color: #1e293b; }
+                      .rich-editor-wrapper .ql-editor.ql-blank::before { color: #94a3b8; font-style: normal; font-size: 13px; left: 16px; }
+                      .rich-editor-wrapper .ql-container { border: none; font-family: inherit; }
+                    `}</style>
+                    <ReactQuill
+                      theme="snow"
                       value={newGroupData.description}
-                      onChange={(e) => setNewGroupData({ ...newGroupData, description: e.target.value })}
+                      onChange={(val) => setNewGroupData(p => ({ ...p, description: val }))}
+                      modules={QUILL_MODULES}
+                      formats={QUILL_FORMATS}
+                      placeholder="Brief description of this group..."
                     />
                   </div>
                 </div>

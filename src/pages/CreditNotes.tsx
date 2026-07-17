@@ -79,12 +79,13 @@ const CreditNotes = () => {
   const { can } = usePermissions();
   const { symbol, formatAmount } = useCurrency();
 
-  const { data: creditNotes = [], isLoading } = useQuery<any[]>({
+  const { data: creditNotes = [], isLoading, isError, error } = useQuery<any[]>({
     queryKey: ["creditNotes"],
     queryFn: async () => {
       const response = await creditNoteService.getAll();
       return Array.isArray(response) ? response : response?.data || [];
     },
+    retry: false,
   });
 
   const { data: currencies = [] } = useQuery<any[]>({
@@ -291,6 +292,13 @@ const CreditNotes = () => {
           </div>
         </div>
 
+        {/* Error State */}
+        {isError && (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 text-rose-700 p-4 text-sm font-bold">
+            Couldn't load credit notes: {(error as any)?.message || "You may not have permission to view this data."}
+          </div>
+        )}
+
         {/* Credit Notes Table */}
         <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
           <table className="w-full text-sm text-left">
@@ -417,6 +425,61 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
   const [reminderItemsPerPage, setReminderItemsPerPage] = useState("10");
   const { toast } = useToast();
   const { symbol } = useCurrency();
+  const queryClient = useQueryClient();
+  const [applyAmounts, setApplyAmounts] = useState<Record<string, string>>({});
+  const [isApplying, setIsApplying] = useState(false);
+
+  const handleApplyCredits = async () => {
+    setIsApplying(true);
+    try {
+      const allocations = Object.entries(applyAmounts)
+        .map(([invoiceId, amtStr]) => ({ invoiceId, amount: Number(amtStr) }))
+        .filter((alloc) => alloc.amount > 0);
+
+      if (allocations.length === 0) {
+        toast({ title: "No credits applied", description: "Please enter an amount to apply to at least one invoice.", variant: "destructive" });
+        setIsApplying(false);
+        return;
+      }
+
+      const totalToApply = allocations.reduce((sum, a) => sum + a.amount, 0);
+      const remainingCredits = item.remaining_amount ?? item.total;
+      if (totalToApply > remainingCredits) {
+        toast({ title: "Insufficient Credits", description: `You are attempting to apply ${formatAmount(totalToApply)} but only have ${formatAmount(remainingCredits)} available.`, variant: "destructive" });
+        setIsApplying(false);
+        return;
+      }
+
+      for (const alloc of allocations) {
+        await creditNoteService.applyToInvoice(item._id, {
+          invoiceId: alloc.invoiceId,
+          amount: alloc.amount
+        });
+      }
+
+      toast({
+        title: "Credits Applied",
+        description: "Your credits have been successfully applied to the selected invoice(s).",
+        className: "bg-emerald-600 text-white border-none",
+      });
+
+      setApplyAmounts({});
+      setIsApplyInvoiceModalOpen(false);
+
+      queryClient.invalidateQueries({ queryKey: ["creditNotes"] });
+      queryClient.invalidateQueries({ queryKey: ["creditNoteFull", item._id] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    } catch (error: any) {
+      console.error("Apply credits error:", error);
+      toast({
+        title: "Error Applying Credits",
+        description: error?.response?.data?.message || "Failed to apply credits to invoice.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsApplying(false);
+    }
+  };
 
   const { data: fullData, isLoading } = useQuery({
     queryKey: ["creditNoteFull", viewItem?._id],
@@ -982,25 +1045,42 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
           </DialogHeader>
           
           <div className="space-y-4">
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-2 flex justify-between items-center text-xs">
+              <span className="font-bold text-slate-600">Available Credits:</span>
+              <span className="font-black text-green-700 text-sm">{formatAmount(item.remaining_amount ?? item.total ?? 0)}</span>
+            </div>
+            
             {item.available_invoices && item.available_invoices.length > 0 ? (
               <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-100 text-slate-600 border-b border-slate-200">
                     <tr>
-                      <th className="py-3 px-4 text-left font-bold text-xs">Invoice #</th>
-                      <th className="py-3 px-4 text-left font-bold text-xs">Date</th>
-                      <th className="py-3 px-4 text-left font-bold text-xs">Amount</th>
-                      <th className="py-3 px-4 text-left font-bold text-xs">Amount to Apply</th>
+                      <th className="py-3 px-3 text-left font-bold text-xs">Invoice #</th>
+                      <th className="py-3 px-3 text-left font-bold text-xs">Date</th>
+                      <th className="py-3 px-3 text-left font-bold text-xs">Total</th>
+                      <th className="py-3 px-3 text-left font-bold text-xs text-emerald-700">Paid</th>
+                      <th className="py-3 px-3 text-left font-bold text-xs text-rose-600">Balance</th>
+                      <th className="py-3 px-3 text-left font-bold text-xs">Apply</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {item.available_invoices.map((inv: any, idx: number) => (
-                      <tr key={idx}>
-                        <td className="py-3 px-4 font-bold text-blue-600">{inv.number}</td>
-                        <td className="py-3 px-4 text-slate-600">{formatDate(inv.date)}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-700">{formatAmount(inv.total || 0)}</td>
-                        <td className="py-3 px-4">
-                           <Input type="number" placeholder="Amount" className="h-8 text-xs" />
+                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                        <td className="py-2.5 px-3 font-bold text-blue-600 text-xs">{inv.number}</td>
+                        <td className="py-2.5 px-3 text-slate-500 text-xs">{formatDate(inv.date)}</td>
+                        <td className="py-2.5 px-3 font-semibold text-slate-700 text-xs">{formatAmount(inv.total || 0)}</td>
+                        <td className="py-2.5 px-3 font-semibold text-emerald-600 text-xs">{formatAmount(inv.amount_paid || 0)}</td>
+                        <td className="py-2.5 px-3 font-bold text-rose-600 text-xs">{formatAmount(inv.balance_due || 0)}</td>
+                        <td className="py-2.5 px-3">
+                           <Input 
+                             type="number" 
+                             placeholder="0.00" 
+                             className="h-8 text-xs w-28" 
+                             value={applyAmounts[inv._id] || ""}
+                             onChange={(e) => setApplyAmounts({ ...applyAmounts, [inv._id]: e.target.value })}
+                             max={Math.min(item.remaining_amount ?? item.total ?? 0, inv.balance_due || 0)}
+                             min={0}
+                           />
                         </td>
                       </tr>
                     ))}
@@ -1015,12 +1095,16 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
           </div>
 
           <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-100">
-            <Button variant="outline" className="rounded-xl font-bold px-6 h-10 text-slate-500" onClick={() => setIsApplyInvoiceModalOpen(false)}>
+            <Button variant="outline" className="rounded-xl font-bold px-6 h-10 text-slate-500" onClick={() => { setApplyAmounts({}); setIsApplyInvoiceModalOpen(false); }} disabled={isApplying}>
               Close
             </Button>
             {item.available_invoices && item.available_invoices.length > 0 && (
-              <Button className="rounded-xl font-bold shadow-lg shadow-primary/20 px-8 h-10 bg-slate-900 hover:bg-slate-800 text-white">
-                Apply
+              <Button 
+                className="rounded-xl font-bold shadow-lg shadow-primary/20 px-8 h-10 bg-slate-900 hover:bg-slate-800 text-white gap-2"
+                onClick={handleApplyCredits}
+                disabled={isApplying}
+              >
+                {isApplying ? "Applying..." : "Apply"}
               </Button>
             )}
           </div>
