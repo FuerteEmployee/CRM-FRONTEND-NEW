@@ -5,6 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useNavigate, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/context/SettingsContext";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 
 const ClientLogin = () => {
   const [email, setEmail] = useState("");
@@ -36,7 +37,7 @@ const ClientLogin = () => {
       <header className="w-full h-14 border-b bg-white flex items-center justify-between px-6 md:px-10">
         <div className="flex items-center gap-2">
            {settings?.compLogoDark ? (
-             <img src={settings.compLogoDark} alt="Logo" className="h-8 w-auto object-contain" />
+             <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-8 w-auto object-contain" />
            ) : (
              <>
                 <div className="flex h-7 w-7 items-center justify-center rounded bg-primary font-bold text-[10px] uppercase shadow-sm">

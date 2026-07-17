@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { settingsService } from "@/api/services/settings.service";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 
 interface SettingsContextType {
   settings: Record<string, any>;
@@ -53,7 +54,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const link: HTMLLinkElement = document.querySelector("link[rel*='icon']") || document.createElement('link');
       link.type = 'image/x-icon';
       link.rel = 'shortcut icon';
-      link.href = settings.favicon;
+      link.href = resolveImageUrl(settings.favicon);
       document.getElementsByTagName('head')[0].appendChild(link);
     }
 

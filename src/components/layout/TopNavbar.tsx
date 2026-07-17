@@ -45,6 +45,7 @@ import {
 import { useTheme } from "@/hooks/useTheme";
 import { NavLink } from "@/components/NavLink";
 import { usePermissionContext } from "@/context/PermissionContext";
+import { useSettings } from "@/context/SettingsContext";
 import { useNavigate } from "react-router-dom";
 import { useNotificationContext } from "@/context/NotificationContext";
 import { useToast } from "@/hooks/use-toast";
@@ -56,6 +57,7 @@ export function TopNavbar() {
   const navigate = useNavigate();
 
   const { user, logout, isStaff } = usePermissionContext();
+  const { refreshSettings } = useSettings();
   const base = isStaff ? "/staff" : "/admin";
   const quickCreateItems = [
     { label: "Estimate", icon: ClipboardList, path: `${base}/estimates/create`, color: "text-violet-500 bg-violet-50 dark:bg-violet-500/10" },
@@ -97,6 +99,8 @@ export function TopNavbar() {
 
   const handleLogout = async () => {
     await logout();
+    // Drop this tenant's branding and fall back to the public/global settings
+    refreshSettings();
     navigate("/admin/login");
   };
 

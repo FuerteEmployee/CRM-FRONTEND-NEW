@@ -69,6 +69,7 @@ import {
   PlusCircle
 } from "lucide-react";
 import { useSettings } from "@/context/SettingsContext";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 
 interface SettingItem {
   id: string;
@@ -148,9 +149,10 @@ const settingsNavigation: SettingCategory[] = [
 ];
 
 
+
 export default function SetupSettings() {
   const [activeTab, setActiveTab] = useState("gen-general");
-  const { settings: globalSettings, refreshSettings: refreshGlobalSettings, updateSettings, isLoading: isSettingsLoading } = useSettings();
+  const { settings: globalSettings, refreshSettings: refreshGlobalSettings } = useSettings();
 
   const { data: estimateForms = [] } = useQuery({
     queryKey: ["estimate-request-forms"],
@@ -1252,7 +1254,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           }}
                           className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
                         />
-                        {compLogoLight && <img src={compLogoLight} className="h-8 w-auto border rounded p-1" alt="Logo Light" />}
+                        {compLogoLight && <img src={resolveImageUrl(compLogoLight)} className="h-8 w-auto border rounded p-1" alt="Logo Light" />}
                       </div>
                     </div>
                     <div className="space-y-3 pt-4 border-t">
@@ -1270,7 +1272,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           }}
                           className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
                         />
-                        {compLogoDark && <img src={compLogoDark} className="h-8 w-auto bg-slate-800 border rounded p-1" alt="Logo Dark" />}
+                        {compLogoDark && <img src={resolveImageUrl(compLogoDark)} className="h-8 w-auto bg-slate-800 border rounded p-1" alt="Logo Dark" />}
                       </div>
                     </div>
                     <div className="space-y-3 pt-4 border-t">
@@ -1288,7 +1290,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           }}
                           className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
                         />
-                        {favicon && <img src={favicon} className="h-6 w-6 border rounded p-0.5" alt="Favicon" />}
+                        {favicon && <img src={resolveImageUrl(favicon)} className="h-6 w-6 border rounded p-0.5" alt="Favicon" />}
                       </div>
                     </div>
                   </div>
@@ -5150,7 +5152,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             <div className="w-full lg:w-72 aspect-[3/1] border-2 border-dashed rounded-xl bg-muted/20 flex items-center justify-center relative overflow-hidden group border-primary/20">
                               {pdfSignatureImage ? (
                                 <>
-                                  <img src={pdfSignatureImage} alt="Signature Preview" className="max-h-full object-contain p-4 transition-transform group-hover:scale-105" />
+                                  <img src={resolveImageUrl(pdfSignatureImage)} alt="Signature Preview" className="max-h-full object-contain p-4 transition-transform group-hover:scale-105" />
                                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                     <Button
                                       variant="destructive"
