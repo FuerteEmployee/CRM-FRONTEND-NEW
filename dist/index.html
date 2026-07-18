@@ -8,22 +8,26 @@
     <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=block" />
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=block" rel="stylesheet" media="all" />
     <title>CRMPro - Management Dashboard</title>
-    <meta name="description" content="CRMPro - Complete CRM and team management platform" />
-    <meta name="author" content="Lovable" />
-
-    <!-- Open Graph Metadata -->
-    <meta property="og:title" content="CRMPro Dashboard" />
-    <meta property="og:description" content="A powerful CRM, sales, and team management platform." />
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=block" />
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=block" rel="stylesheet" media="all" />
-    <title>CRMPro - Management Dashboard</title>
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" />
+    <script>
+      (function() {
+        try {
+          const cachedFavicon = localStorage.getItem("crm_favicon");
+          if (cachedFavicon) {
+            const link = document.querySelector("link[rel*='icon']");
+            if (link) {
+              link.href = cachedFavicon;
+            }
+          }
+          const cachedTitle = localStorage.getItem("crm_company_name");
+          if (cachedTitle) {
+            document.title = cachedTitle;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      })();
+    </script>
     <meta name="description" content="CRMPro - Complete CRM and team management platform" />
     <meta name="author" content="Lovable" />
 
@@ -36,11 +40,11 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="CRMPro Dashboard" />
     <meta name="twitter:description" content="A powerful CRM, sales, and team management platform." />
-    <script type="module" crossorigin src="/assets/index-tgXAc62q.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-CpqdaRMb.css">
+    <script type="module" crossorigin src="/assets/index-0sij9TCK.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Ql22Uq-U.css">
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
   </body>
 </html>
