@@ -82,6 +82,10 @@ const FEATURES_CONFIG = [
     caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
   },
   {
+    name: "Vendors",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  {
     name: "Proposals",
     caps: [
       "View (Own)",
