@@ -100,6 +100,7 @@ import SetupHelp from "./pages/setup/SetupHelp";
 import SetupStaffForm from "./pages/setup/SetupStaffForm";
 import EstimateRequestFormBuilder from "./pages/setup/EstimateRequestFormBuilder";
 import SetupMainSidebar from "./pages/setup/SetupMainSidebar";
+import SetupQuotationTypes from "./pages/setup/SetupQuotationTypes";
 import PublicForm from "./pages/PublicForm";
 import { ClientLayout } from "./components/layout/ClientLayout";
 import ClientLogin from "./pages/client/ClientLogin";
@@ -305,6 +306,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="setup/settings" element={<Wrapper><SetupSettings /></Wrapper>} />
     <Route path="setup/help" element={<Wrapper><SetupHelp /></Wrapper>} />
     <Route path="setup/mainsidebar" element={<Wrapper><SetupMainSidebar /></Wrapper>} />
+    <Route path="setup/quotation-types" element={<Wrapper><SetupQuotationTypes /></Wrapper>} />
   </>
 );
 
