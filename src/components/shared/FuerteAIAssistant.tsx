@@ -9,13 +9,14 @@ import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
 import { assistantService } from "@/api/services/assistant.service";
 import { speak, stopSpeaking, isVoiceReplyEnabled, setVoiceReplyEnabled, speechSupported } from "@/lib/speak";
 
-// The en-US recognizer rarely hears the Spanish word "fuerte" cleanly —
-// "FuerteAI" typically comes back as "fuerte ai", "40 ai", "fortay", etc.
-// Matching is substring-based, so "fuerte" also covers "fuerteai"/"fuerte ai".
+// Wake phrase is English ("Hey CRM") instead of the Spanish brand name
+// ("Fuerte") because the en-US recognizer mishears "Fuerte" constantly,
+// and single fragments like "40" (a former fallback for "fuerte") were
+// false-triggering on unrelated speech. Matching is substring-based, so
+// keep entries as full "hey ..." phrases, not bare words, to avoid the
+// same false-positive problem recurring.
 const WAKE_WORDS = [
-  "fuerte", "forte", "fortay", "fuerta", "fuente",
-  "for the ai", "for te", "four tay", "for tay",
-  "forty", "40", "fourty", "4t",
+  "hey crm", "hey, crm", "hey c r m", "a crm",
 ];
 
 // Mirrors AppSidebar's URL_MODULE_MAP — route prefix → plan module key
@@ -131,7 +132,7 @@ export function FuerteAIAssistant() {
     if (next) {
       SpeechRecognition.startListening({ continuous: true, language: "en-US" });
       changeState("listening");
-      toast({ title: "Fuerte AI", description: 'Hands-free mode on — just say "Fuerte" anytime.' });
+      toast({ title: "Fuerte AI", description: 'Hands-free mode on — just say "Hey CRM" anytime.' });
     } else {
       SpeechRecognition.stopListening();
       stopSpeaking();
@@ -221,7 +222,7 @@ useEffect(() => {
 }, [isMicrophoneAvailable]);
 
 // ─── Hands-free wake word: start listening on page load ──────────────────
-// Saying "Fuerte" now works without clicking the button first. The browser
+// Saying "Hey CRM" now works without clicking the button first. The browser
 // will ask for microphone permission the first time; once allowed, the
 // assistant is always waiting for the wake word. Users can opt out with the
 // auto-listen toggle in the panel (persisted per browser).
@@ -335,7 +336,7 @@ const handleTranscript = (cmd: string) => {
       resetTranscript();
       if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
 
-      // If a command was spoken in the same breath ("Fuerte open Task")
+      // If a command was spoken in the same breath ("Hey CRM open Task")
       if (afterWake.length > 2) {
         const match = matchCommand(afterWake);
         if (match) {
@@ -441,14 +442,14 @@ const fabLabel = isThinking
     : aiState === "awake"
       ? "Listening…"
       : aiState === "listening"
-        ? 'Say "Fuerte"'
+        ? 'Say "Hey CRM"'
         : "FuerteAI";
 
 const statusLabel =
   aiState === "awake"
     ? "Say a command…"
     : aiState === "listening"
-      ? 'Say "Fuerte" to wake me'
+      ? 'Say "Hey CRM" to wake me'
       : "Microphone off";
 
 const statusDot =
