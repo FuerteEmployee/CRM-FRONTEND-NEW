@@ -1,12 +1,16 @@
 import { apiClient } from "../client";
 
 class QuotationService {
-  async getStats() {
-    return apiClient.get("/quotations/stats");
+  async getStats(quotationTypeId) {
+    return apiClient.get(quotationTypeId ? `/quotations/stats?quotation_type=${quotationTypeId}` : "/quotations/stats");
   }
 
-  async getQuotations(limit) {
-    return apiClient.get(limit ? `/quotations?limit=${limit}` : "/quotations");
+  async getQuotations(limit, quotationTypeId) {
+    const params = new URLSearchParams();
+    if (limit) params.set("limit", limit);
+    if (quotationTypeId) params.set("quotation_type", quotationTypeId);
+    const qs = params.toString();
+    return apiClient.get(qs ? `/quotations?${qs}` : "/quotations");
   }
 
   async create(data) {

@@ -67,6 +67,7 @@ import {
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { mainSidebarService } from "@/api/services/mainsidebar.service";
+import { quotationTypeService } from "@/api/services/quotationType.service";
 import * as Icons from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSettings } from "@/context/SettingsContext";
@@ -153,6 +154,7 @@ const setupMenuItems = [
     ],
   },
   { title: "Modules", url: "/admin/setup/modules", icon: Layout },
+  { title: "Quotation Types", url: "/admin/setup/quotation-types", icon: FileBarChart },
   {
     title: "Email Templates",
     url: "/admin/setup/email-templates",
@@ -236,6 +238,13 @@ export function AppSidebar() {
     queryFn: mainSidebarService.getSidebarItems,
   });
 
+  // Dynamically admin-defined quotation types — each renders as its own
+  // sidebar link under "Quotation Maker" (not nested under "Sales").
+  const { data: quotationTypes = [] as any[] } = useQuery<any[]>({
+    queryKey: ["quotation-types"],
+    queryFn: () => quotationTypeService.getQuotationTypes(true),
+  });
+
   const getMenuItems = () => {
     const rawItems = dbMenuItems.length > 0 ? dbMenuItems : fallbackNav;
     const items = rawItems.filter((i: any) => i.active !== false);
@@ -266,7 +275,9 @@ export function AppSidebar() {
     return {
       mainNav: items.filter((i: any) => i.group === "Main"),
       customersNav: items.filter((i: any) => i.group === "Customers"),
-      salesNav: items.filter((i: any) => i.group === "Sales"),
+      // "Quotations" used to live here as a flat entry — it now has its own
+      // "Quotation Maker" group below, built from dynamic quotation types.
+      salesNav: items.filter((i: any) => i.group === "Sales" && i.url !== "/admin/quotations"),
       managementNav: items.filter((i: any) => i.group === "Management" && (!i.url || !i.url.includes("/hrms"))),
       utilitiesNav: items.filter((i: any) => i.group === "Utilities"),
       reportsNav: items.filter((i: any) => i.group === "Reports"),
@@ -276,6 +287,16 @@ export function AppSidebar() {
   };
 
   const dynamicNav = getMenuItems();
+
+  // Each active QuotationType becomes its own sidebar link to the Quotation
+  // Maker module, scoped to that type via ?type=<slug>.
+  const quotationMakerNav = quotationTypes
+    .filter((t: any) => t.active !== false)
+    .map((t: any) => ({
+      title: t.name,
+      url: `/admin/quotations?type=${t.slug}`,
+      icon: t.icon || "FileBarChart",
+    }));
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     () => {
       try {
@@ -364,9 +385,12 @@ export function AppSidebar() {
       })
       .map((item: any) => {
         const urlStr = getUrl(item.url) || "";
+        // Quotation Maker links carry a `?type=<slug>` query string — compare
+        // path and query separately so highlighting still works for them.
+        const [urlPath, urlQuery] = urlStr.split("?");
         const isActive =
-          location.pathname === urlStr ||
-          (urlStr !== "/admin/hrms" && urlStr !== "/hrms" && urlStr !== "/admin/dashboard" && urlStr !== "/staff/dashboard" && urlStr !== "/admin" && location.pathname.startsWith(urlStr + "/"));
+          (location.pathname === urlPath && (!urlQuery || location.search === `?${urlQuery}`)) ||
+          (urlPath !== "/admin/hrms" && urlPath !== "/hrms" && urlPath !== "/admin/dashboard" && urlPath !== "/staff/dashboard" && urlPath !== "/admin" && location.pathname.startsWith(urlPath + "/"));
         const isExternal = urlStr.startsWith("http");
         const IconComponent = (Icons as any)[item.icon] || Icons.Circle;
 
@@ -519,6 +543,7 @@ export function AppSidebar() {
                 {renderItems(dynamicNav.mainNav)}
                 {renderItems(dynamicNav.customersNav)}
                 {renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
+                {renderCollapsibleItem("Quotation Maker", Icons.FileBarChart, quotationMakerNav)}
                 {renderItems(dynamicNav.managementNav)}
                 {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav)}
                 {renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav)}
