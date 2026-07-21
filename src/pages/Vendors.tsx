@@ -235,7 +235,7 @@ const Vendors = () => {
 
   const handleBulkAction = async () => {
     if (selectedIds.length === 0) {
-      toast({ title: "Error", description: "No vendors selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No vendors selected."});
       return;
     }
     setIsBulkLoading(true);
@@ -245,7 +245,7 @@ const Vendors = () => {
         toast({ title: "Success", description: `Deleted ${selectedIds.length} vendors.` });
       } else {
         if (!bulkState.sales_person) {
-          toast({ title: "Error", description: "Choose Mass Delete or enter a Sales Person to update.", variant: "destructive" });
+          toast({ title: "Error", description: "Choose Mass Delete or enter a Sales Person to update."});
           setIsBulkLoading(false);
           return;
         }
@@ -331,7 +331,7 @@ const Vendors = () => {
                 {(can("Vendors", "Edit") || can("Vendors", "Delete")) && (
                   <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                     if (open && selectedIds.length === 0) {
-                      toast({ title: "Error", description: "Please select at least one vendor first.", variant: "destructive" });
+                      toast({ title: "Error", description: "Please select at least one vendor first."});
                       return;
                     }
                     setBulkActionOpen(open);

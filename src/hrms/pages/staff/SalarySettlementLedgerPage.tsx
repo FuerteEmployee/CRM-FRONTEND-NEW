@@ -124,7 +124,7 @@ const SalarySettlementLedgerPage = () => {
 
   const handleAddToSettlement = async () => {
     if (!addEmployeeId) {
-      toast({ title: "Error", description: "Select an employee", variant: "destructive" });
+      toast({ title: "Error", description: "Select an employee"});
       return;
     }
 

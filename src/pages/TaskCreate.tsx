@@ -135,7 +135,7 @@ const TaskCreate = () => {
       return;
     }
     if (formData.category === "Inquiry" && formData.status === 5 && !formData.inquiry_outcome) {
-      toast({ title: "Error", description: "Please select Won or Lost for the closed inquiry.", variant: "destructive" });
+      toast({ title: "Error", description: "Please select Won or Lost for the closed inquiry."});
       return;
     }
     mutation.mutate(formData);

@@ -84,7 +84,7 @@ const Support = () => {
 
   const handleBulkAction = async () => {
     if (selectedTickets.length === 0) {
-      toast({ title: "Error", description: "No tickets selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No tickets selected."});
       return;
     }
     setIsBulkLoading(true);
@@ -110,7 +110,7 @@ const Support = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false, status: "", department: "", priority: "", tags: "", service: "" });
     } catch (err: any) {
-      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to perform bulk action."});
     } finally {
       setIsBulkLoading(false);
     }
@@ -232,7 +232,7 @@ const Support = () => {
 
                 <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                   if (open && selectedTickets.length === 0) {
-                    toast({ title: "Error", description: "Please select at least one ticket first.", variant: "destructive" });
+                    toast({ title: "Error", description: "Please select at least one ticket first."});
                     return;
                   }
                   setBulkActionOpen(open);

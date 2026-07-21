@@ -310,7 +310,7 @@ const Leads = () => {
 
   const handleBulkAction = async () => {
     if (selectedLeads.length === 0) {
-      toast({ title: "Error", description: "No leads selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No leads selected."});
       return;
     }
     setIsBulkLoading(true);
@@ -338,7 +338,7 @@ const Leads = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false, status: "", source: "", assigned: "", tags: "", is_public: false, contacted_today: false, mark_lost: false });
     } catch (err: any) {
-      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to perform bulk action."});
     } finally {
       setIsBulkLoading(false);
     }

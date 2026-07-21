@@ -303,7 +303,7 @@ export default function QuotationModule() {
 
   const validate = () => {
     if (!clientId) {
-      toast({ title: "Validation Error", description: "Please select a customer.", variant: "destructive" });
+      toast({ title: "Validation Error", description: "Please select a customer."});
       return false;
     }
     if (!items.some((i) => i.description.trim())) {

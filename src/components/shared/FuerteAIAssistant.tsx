@@ -76,6 +76,15 @@ export function FuerteAIAssistant() {
   const [tooltip, setTooltip] = useState(false);
   const aiStateRef = useRef<AIState>("sleeping");
   const awakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // How much of `transcript` has already been acted on. react-speech-recognition's
+  // resetTranscript() actually aborts + restarts the live mic session under the
+  // hood (see node_modules/react-speech-recognition RecognitionManager.disconnect
+  // -> abort()), which creates a real dead-air gap. Calling it after every wake /
+  // command used to swallow whatever was said in that gap. Tracking a consumed
+  // offset instead lets the mic run truly continuously through wake -> command
+  // -> next command, and we only fall back to a real resetTranscript() during
+  // genuine silence (the 10s idle timeout), where a brief restart is harmless.
+  const consumedRef = useRef(0);
 
   // Claude-backed fallback for anything the local keyword matcher can't resolve
   // (free-form questions, data lookups, task creation, etc.)
@@ -167,6 +176,7 @@ export function FuerteAIAssistant() {
         setIsSpeaking(false);
         if (wasListeningRef.current && aiStateRef.current !== "sleeping") {
           resetTranscript();
+          consumedRef.current = 0;
           SpeechRecognition.startListening({ continuous: true, language: "en-US" });
         }
       },
@@ -196,9 +206,13 @@ const changeState = (s: AIState) => {
 };
 
 // ─── Process transcript on every change ─────────────────────────────────
+// Only hand the NEW portion (since consumedRef) to the matcher — the mic
+// itself never gets restarted here, so it keeps listening straight through.
 useEffect(() => {
   if (!transcript) return;
-  handleTranscript(transcript.toLowerCase());
+  const unread = transcript.slice(consumedRef.current);
+  if (!unread.trim()) return;
+  handleTranscript(unread.toLowerCase());
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [transcript]);
 
@@ -211,6 +225,7 @@ useEffect(() => {
     changeState("sleeping");
     setTooltip(false);
     resetTranscript();
+    consumedRef.current = 0;
     if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
     toast({
       title: "Fuerte AI",
@@ -259,6 +274,7 @@ const toggleListening = () => {
     stopSpeaking();
     changeState("sleeping");
     resetTranscript();
+    consumedRef.current = 0;
     setTooltip(false);
     if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
     toast({ title: "Fuerte AI", description: "Microphone off. AI is sleeping." });
@@ -270,6 +286,7 @@ const toggleListening = () => {
     });
   } else {
     resetTranscript();
+    consumedRef.current = 0;
     SpeechRecognition.startListening({ continuous: true, language: "en-US" });
 
     // Start directly in "awake" state when button is clicked manually
@@ -279,8 +296,9 @@ const toggleListening = () => {
     awakeTimerRef.current = setTimeout(() => {
       changeState("listening");
       resetTranscript();
+      consumedRef.current = 0;
       toast({ title: "Fuerte AI", description: "No command heard. Back to listening…" });
-    }, 10000);
+    }, 30000);
     toast({ title: "Fuerte AI", description: 'Awake! Say your command (e.g. "open Task")' });
   }
 };
@@ -340,7 +358,11 @@ const handleTranscript = (cmd: string) => {
 
     changeState("awake");
     setTooltip(true); // pop the panel open so the wake is visible, not just a toast
-    resetTranscript();
+    // Mark consumed WITHOUT calling resetTranscript() — that would abort/restart
+    // the live mic session and swallow whatever the user says right after the
+    // wake word. The mic just keeps running; only our own "already handled"
+    // offset moves forward.
+    consumedRef.current = transcript.length;
     if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
 
     // If a command was spoken in the same breath ("Hey CRM open Task")
@@ -364,12 +386,16 @@ const handleTranscript = (cmd: string) => {
       }
     }
 
-    // No command yet — wait up to 10 s for the next utterance
+    // No command yet — wait up to 30 s for the next utterance. This timer only
+    // fires on genuine silence (any new speech clears and re-arms it), so a real
+    // resetTranscript() here is safe — it's also our one deliberate cleanup point
+    // that keeps the accumulated transcript from growing unbounded all session.
     awakeTimerRef.current = setTimeout(() => {
       changeState("listening");
       resetTranscript();
+      consumedRef.current = 0;
       toast({ title: "Fuerte AI", description: "No command heard. Back to listening…" });
-    }, 10000);
+    }, 30000);
     toast({ title: "Fuerte AI", description: 'Listening for your command… (e.g. "open Task")' });
     return;
   }
@@ -384,7 +410,9 @@ const handleTranscript = (cmd: string) => {
       toast({ title: "Fuerte AI", description: `You don't have access to ${match.label}.`, variant: "destructive" });
       speakReply(`You don't have access to ${match.label}.`);
       changeState("listening");
-      resetTranscript();
+      // Consume without touching the mic — so a follow-up command right after
+      // this one is heard instead of falling into the abort/restart gap.
+      consumedRef.current = transcript.length;
       if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
       return;
     }
@@ -395,7 +423,7 @@ const handleTranscript = (cmd: string) => {
     }
     navigate(applyBasePath(match.route, isStaff));
     changeState("listening");
-    resetTranscript();
+    consumedRef.current = transcript.length;
     if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
     return;
   }
@@ -412,7 +440,9 @@ const handleTranscript = (cmd: string) => {
   awakeTimerRef.current = setTimeout(() => {
     changeState("listening");
     const heard = cmd.trim();
-    resetTranscript();
+    // Consume without aborting the mic — same reasoning as the wake/command
+    // paths above: keep the session alive so the next thing said is heard.
+    consumedRef.current = transcript.length;
     if (heard) {
       askFuerteAI(heard);
     } else {
@@ -542,11 +572,12 @@ return (
           </div>
         )}
 
-        {/* Live transcript */}
-        {transcript && (
+        {/* Live transcript — only the part not yet acted on, not the whole
+            session (the mic itself no longer resets between commands). */}
+        {transcript.slice(consumedRef.current).trim() && (
           <div className="bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 mb-3">
             <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">Hearing</p>
-            <p className="text-xs text-gray-700 font-medium leading-snug line-clamp-2">{transcript}</p>
+            <p className="text-xs text-gray-700 font-medium leading-snug line-clamp-2">{transcript.slice(consumedRef.current)}</p>
           </div>
         )}
 
