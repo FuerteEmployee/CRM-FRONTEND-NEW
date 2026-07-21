@@ -16,7 +16,7 @@ import { speak, stopSpeaking, isVoiceReplyEnabled, setVoiceReplyEnabled, speechS
 // keep entries as full "hey ..." phrases, not bare words, to avoid the
 // same false-positive problem recurring.
 const WAKE_WORDS = [
-  "hey crm", "hey, crm", "hey c r m", "a crm",
+  "hey crm", "hey, crm", "hey c r m",
 ];
 
 // Mirrors AppSidebar's URL_MODULE_MAP — route prefix → plan module key
@@ -324,48 +324,54 @@ const askFuerteAI = async (text: string) => {
 
 // ─── Keyword matcher ─────────────────────────────────────────────────────
 const handleTranscript = (cmd: string) => {
-  // Step 1 — check for wake word while in listening state
-  if (aiStateRef.current === "listening") {
-    const wakeWord = WAKE_WORDS.find((w) => cmd.includes(w));
-    if (wakeWord) {
-      // Extract anything said AFTER the wake word in the same utterance
-      const afterWake = cmd.slice(cmd.indexOf(wakeWord) + wakeWord.length).trim();
+  // Step 1 — check for the wake word regardless of current state (listening
+  // OR already awake). Saying "Hey CRM" again while already awake used to
+  // fall through to the command matcher, fail, and get shipped to the Claude
+  // fallback as a nonsense query instead of just re-arming the 10s window —
+  // that's why a second "Hey CRM" right after the first used to silently do
+  // nothing useful.
+  // Strip punctuation the recognizer sometimes inserts into acronyms
+  // (e.g. "Hey C.R.M." or "Hey, CRM!") before comparing.
+  const wakeCmd = cmd.replace(/[.,!?]/g, "").trim();
+  const wakeWord = WAKE_WORDS.find((w) => wakeCmd.includes(w));
+  if (wakeWord) {
+    // Extract anything said AFTER the wake word in the same utterance
+    const afterWake = wakeCmd.slice(wakeCmd.indexOf(wakeWord) + wakeWord.length).trim();
 
-      changeState("awake");
-      setTooltip(true); // pop the panel open so the wake is visible, not just a toast
-      resetTranscript();
-      if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
+    changeState("awake");
+    setTooltip(true); // pop the panel open so the wake is visible, not just a toast
+    resetTranscript();
+    if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
 
-      // If a command was spoken in the same breath ("Hey CRM open Task")
-      if (afterWake.length > 2) {
-        const match = matchCommand(afterWake);
-        if (match) {
-          if (!canAccessRoute(match.route)) {
-            toast({ title: "Fuerte AI", description: `You don't have access to ${match.label}.`, variant: "destructive" });
-            speakReply(`You don't have access to ${match.label}.`);
-            changeState("listening");
-            return;
-          }
-          toast({ title: "Fuerte AI", description: `Opening ${match.label}…` });
-          speakReply(`Opening ${match.label}`);
-          if (match.section) {
-            window.dispatchEvent(new CustomEvent("fuerte:open-section", { detail: { section: match.section } }));
-          }
-          navigate(applyBasePath(match.route, isStaff));
+    // If a command was spoken in the same breath ("Hey CRM open Task")
+    if (afterWake.length > 2) {
+      const match = matchCommand(afterWake);
+      if (match) {
+        if (!canAccessRoute(match.route)) {
+          toast({ title: "Fuerte AI", description: `You don't have access to ${match.label}.`, variant: "destructive" });
+          speakReply(`You don't have access to ${match.label}.`);
           changeState("listening");
           return;
         }
-      }
-
-      // No command yet — wait up to 10 s for the next utterance
-      awakeTimerRef.current = setTimeout(() => {
+        toast({ title: "Fuerte AI", description: `Opening ${match.label}…` });
+        speakReply(`Opening ${match.label}`);
+        if (match.section) {
+          window.dispatchEvent(new CustomEvent("fuerte:open-section", { detail: { section: match.section } }));
+        }
+        navigate(applyBasePath(match.route, isStaff));
         changeState("listening");
-        resetTranscript();
-        toast({ title: "Fuerte AI", description: "No command heard. Back to listening…" });
-      }, 10000);
-      toast({ title: "Fuerte AI", description: 'Listening for your command… (e.g. "open Task")' });
-      return;
+        return;
+      }
     }
+
+    // No command yet — wait up to 10 s for the next utterance
+    awakeTimerRef.current = setTimeout(() => {
+      changeState("listening");
+      resetTranscript();
+      toast({ title: "Fuerte AI", description: "No command heard. Back to listening…" });
+    }, 10000);
+    toast({ title: "Fuerte AI", description: 'Listening for your command… (e.g. "open Task")' });
+    return;
   }
 
   // Step 2 — only match commands when awake
