@@ -132,6 +132,10 @@ const FEATURES_CONFIG = [
     caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
   },
   { name: "Leads", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  {
+    name: "Vendors",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
   { name: "Goals", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "Announcements", caps: ["View(Global)"] },
   { name: "Activity Log", caps: ["View(Global)"] },
