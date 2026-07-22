@@ -41,6 +41,8 @@ const StaffLogin = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [logoLightError, setLogoLightError] = useState(false);
+  const [logoDarkError, setLogoDarkError] = useState(false);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -81,8 +83,8 @@ const StaffLogin = () => {
 
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          {settings?.compLogoLight ? (
-            <img src={resolveImageUrl(settings.compLogoLight)} alt="Logo" className="h-10 w-auto object-contain" />
+          {settings?.compLogoLight && !logoLightError ? (
+            <img src={resolveImageUrl(settings.compLogoLight)} alt="Logo" className="h-10 w-auto object-contain" onError={() => setLogoLightError(true)} />
           ) : (
             <>
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-primary font-extrabold text-lg shadow-lg">
@@ -144,8 +146,8 @@ const StaffLogin = () => {
         <div className="w-full max-w-sm space-y-8">
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center justify-center gap-2 mb-2">
-            {settings?.compLogoDark ? (
-              <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-9 w-auto object-contain" />
+            {settings?.compLogoDark && !logoDarkError ? (
+              <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-9 w-auto object-contain" onError={() => setLogoDarkError(true)} />
             ) : (
               <>
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-base">

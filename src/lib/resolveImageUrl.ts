@@ -7,6 +7,11 @@ const BACKEND_ORIGIN = (import.meta.env.VITE_API_URL || "").replace(/\/api\/?$/,
 
 export const resolveImageUrl = (val?: string) => {
   if (!val || typeof val !== "string") return "";
-  if (val.startsWith("data:") || val.startsWith("http") || val.startsWith("blob:")) return val;
-  return `${BACKEND_ORIGIN}/uploads/logos/${val}`;
+  const trimmed = val.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("data:") || trimmed.startsWith("http:") || trimmed.startsWith("https:") || trimmed.startsWith("blob:")) return trimmed;
+  if (trimmed.startsWith("/uploads/")) return `${BACKEND_ORIGIN}${trimmed}`;
+  if (trimmed.startsWith("uploads/")) return `${BACKEND_ORIGIN}/${trimmed}`;
+  if (trimmed.startsWith("/")) return `${BACKEND_ORIGIN}${trimmed}`;
+  return `${BACKEND_ORIGIN}/uploads/logos/${trimmed}`;
 };

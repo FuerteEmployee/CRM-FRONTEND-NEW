@@ -14,6 +14,7 @@ const ClientLogin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { settings } = useSettings();
+  const [logoError, setLogoError] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,8 +37,8 @@ const ClientLogin = () => {
       {/* Mini Header */}
       <header className="w-full h-14 border-b bg-white flex items-center justify-between px-6 md:px-10">
         <div className="flex items-center gap-2">
-           {settings?.compLogoDark ? (
-             <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-8 w-auto object-contain" />
+           {settings?.compLogoDark && !logoError ? (
+             <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-8 w-auto object-contain" onError={() => setLogoError(true)} />
            ) : (
              <>
                 <div className="flex h-7 w-7 items-center justify-center rounded bg-primary font-bold text-[10px] uppercase shadow-sm">

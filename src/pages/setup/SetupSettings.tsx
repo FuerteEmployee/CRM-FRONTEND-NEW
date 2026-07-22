@@ -1254,7 +1254,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           }}
                           className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
                         />
-                        {compLogoLight && <img src={resolveImageUrl(compLogoLight)} className="h-8 w-auto border rounded p-1" alt="Logo Light" />}
+                        {compLogoLight && <img src={resolveImageUrl(compLogoLight)} className="h-8 w-auto border rounded p-1" alt="Logo Light" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                       </div>
                     </div>
                     <div className="space-y-3 pt-4 border-t">
@@ -1272,7 +1272,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           }}
                           className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
                         />
-                        {compLogoDark && <img src={resolveImageUrl(compLogoDark)} className="h-8 w-auto bg-slate-800 border rounded p-1" alt="Logo Dark" />}
+                        {compLogoDark && <img src={resolveImageUrl(compLogoDark)} className="h-8 w-auto bg-slate-800 border rounded p-1" alt="Logo Dark" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                       </div>
                     </div>
                     <div className="space-y-3 pt-4 border-t">
@@ -1290,7 +1290,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           }}
                           className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
                         />
-                        {favicon && <img src={resolveImageUrl(favicon)} className="h-6 w-6 border rounded p-0.5" alt="Favicon" />}
+                        {favicon && <img src={resolveImageUrl(favicon)} className="h-6 w-6 border rounded p-0.5" alt="Favicon" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                       </div>
                     </div>
                   </div>

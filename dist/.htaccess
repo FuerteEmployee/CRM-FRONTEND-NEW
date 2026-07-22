@@ -1,14 +1,7 @@
 # Enable mod_rewrite
 <IfModule mod_rewrite.c>
   RewriteEngine On
-
-  # Force HTTPS — required for the browser microphone/speech APIs FuerteAI's
-  # voice assistant uses; they silently refuse to run on a plain-http origin
-  # (no permission prompt at all), which only shows up on the live site since
-  # local dev always runs on the exempt "localhost" secure context.
-  RewriteCond %{HTTPS} off
-  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301,END]
-
+  
   # Remove .html extension from URLs
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
