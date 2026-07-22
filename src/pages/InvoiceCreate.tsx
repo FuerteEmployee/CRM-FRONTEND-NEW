@@ -303,9 +303,7 @@ export default function InvoiceCreate() {
     if (!formData.client) {
       toast({ 
         title: "Validation Error", 
-        description: "Please select a customer.", 
-        variant: "destructive" 
-      });
+        description: "Please select a customer."});
       return;
     }
 

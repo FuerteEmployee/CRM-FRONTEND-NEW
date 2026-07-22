@@ -89,7 +89,7 @@ export default function SetupPredefinedReplies() {
       queryClient.invalidateQueries({ queryKey: ["predefined-replies"] });
       toast({ title: "Deleted", description: "Selected items deleted successfully." });
     },
-    onError: () => toast({ title: "Error", description: "Failed to delete selected items", variant: "destructive" }),
+    onError: () => toast({ title: "Error", description: "Failed to delete selected items"}),
   });
 
   const openModal = (reply?: any) => {

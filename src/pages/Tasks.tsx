@@ -317,7 +317,7 @@ const Tasks = () => {
 
   const handleBulkAction = async () => {
     if (selectedTasks.length === 0) {
-      toast({ title: "Error", description: "No tasks selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No tasks selected."});
       return;
     }
     setIsBulkLoading(true);
@@ -357,7 +357,7 @@ const Tasks = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false, status: "", priority: "", assignee: "", billable: "", tags: "" });
     } catch (err: any) {
-      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to perform bulk action."});
     } finally {
       setIsBulkLoading(false);
     }
@@ -448,7 +448,7 @@ const Tasks = () => {
       return;
     }
     if (formData.category === "Inquiry" && formData.status === 5 && !formData.inquiry_outcome) {
-      toast({ title: "Error", description: "Please select Won or Lost for the closed inquiry.", variant: "destructive" });
+      toast({ title: "Error", description: "Please select Won or Lost for the closed inquiry."});
       return;
     }
 
@@ -884,7 +884,7 @@ const Tasks = () => {
 
                 <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                   if (open && selectedTasks.length === 0) {
-                    toast({ title: "Error", description: "Please select at least one task first.", variant: "destructive" });
+                    toast({ title: "Error", description: "Please select at least one task first."});
                     return;
                   }
                   setBulkActionOpen(open);

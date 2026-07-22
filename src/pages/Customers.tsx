@@ -149,7 +149,7 @@ const Customers = () => {
 
   const handleBulkAction = async () => {
     if (selectedCustomers.length === 0) {
-      toast({ title: "Error", description: "No customers selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No customers selected."});
       return;
     }
     setIsBulkLoading(true);
@@ -172,7 +172,7 @@ const Customers = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false, groups: "" });
     } catch (err: any) {
-      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to perform bulk action."});
     } finally {
       setIsBulkLoading(false);
     }
@@ -810,7 +810,7 @@ const Customers = () => {
                 </Button>
                 <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                   if (open && selectedCustomers.length === 0) {
-                    toast({ title: "Error", description: "Please select at least one customer first.", variant: "destructive" });
+                    toast({ title: "Error", description: "Please select at least one customer first."});
                     return;
                   }
                   setBulkActionOpen(open);

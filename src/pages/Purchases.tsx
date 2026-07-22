@@ -361,7 +361,7 @@ const Purchases = () => {
 
   const handleBulkAction = async () => {
     if (selectedIds.length === 0) {
-      toast({ title: "Error", description: "No purchase bills selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No purchase bills selected."});
       return;
     }
     setIsBulkLoading(true);
@@ -496,7 +496,7 @@ const Purchases = () => {
                 {(can("Purchases", "Edit") || can("Purchases", "Delete")) && (
                   <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                     if (open && selectedIds.length === 0) {
-                      toast({ title: "Error", description: "Please select at least one purchase bill first.", variant: "destructive" });
+                      toast({ title: "Error", description: "Please select at least one purchase bill first."});
                       return;
                     }
                     setBulkActionOpen(open);

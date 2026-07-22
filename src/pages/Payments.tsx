@@ -88,7 +88,7 @@ const Payments = () => {
 
   const handleBulkAction = async () => {
     if (selectedIds.length === 0) {
-      toast({ title: "Error", description: "No items selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No items selected."});
       return;
     }
     setIsBulkLoading(true);
@@ -102,7 +102,7 @@ const Payments = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false });
     } catch {
-      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to perform bulk action."});
     } finally {
       setIsBulkLoading(false);
     }
@@ -311,7 +311,7 @@ const Payments = () => {
             </Select>
             <Dialog open={bulkActionOpen} onOpenChange={(open) => {
               if (open && selectedIds.length === 0) {
-                toast({ title: "Error", description: "Please select at least one item first.", variant: "destructive" });
+                toast({ title: "Error", description: "Please select at least one item first."});
                 return;
               }
               setBulkActionOpen(open);

@@ -167,7 +167,7 @@ export default function ExpensePage() {
     submitData.append("category", formData.get("category") as string);
     const storeId = formData.get("storeId");
     if (!storeId || storeId === "null") {
-      toast({ title: "Validation Error", description: "Please select an associated store.", variant: "destructive" });
+      toast({ title: "Validation Error", description: "Please select an associated store."});
       return;
     }
 

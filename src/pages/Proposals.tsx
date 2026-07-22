@@ -560,7 +560,7 @@ const Proposals = () => {
 
   const handleBulkAction = async () => {
     if (selectedProposals.length === 0) {
-      toast({ title: "Error", description: "No items selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No items selected."});
       return;
     }
     setIsBulkLoading(true);
@@ -577,7 +577,7 @@ const Proposals = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false, status: "" });
     } catch {
-      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to perform bulk action."});
     } finally {
       setIsBulkLoading(false);
     }
@@ -631,7 +631,7 @@ const Proposals = () => {
             </Select>
             <Dialog open={bulkActionOpen} onOpenChange={(open) => {
               if (open && selectedProposals.length === 0) {
-                toast({ title: "Error", description: "Please select at least one item first.", variant: "destructive" });
+                toast({ title: "Error", description: "Please select at least one item first."});
                 return;
               }
               setBulkActionOpen(open);
