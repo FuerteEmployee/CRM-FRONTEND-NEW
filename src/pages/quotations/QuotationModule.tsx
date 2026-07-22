@@ -166,16 +166,69 @@ const hexToRgb = (hex?: string): [number, number, number] => {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 };
 
-const loadImageAsDataUrl = async (url?: string): Promise<string | null> => {
+type LoadedImage = { dataUrl: string; width: number; height: number };
+
+const loadImageAsDataUrl = async (url?: string): Promise<LoadedImage | null> => {
   if (!url) return null;
+
+  // 1. Direct Data URL handling
+  if (url.startsWith("data:image")) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ dataUrl: url, width: img.width || 100, height: img.height || 100 });
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }
+
+  // 2. Full URL resolution
+  let fullUrl = url;
+  if (url.startsWith("/")) {
+    fullUrl = `${BACKEND_ORIGIN}${url}`;
+  }
+
+  // 3. HTML Image + Canvas conversion (handles crossOrigin anonymous cleanly)
   try {
-    const res = await fetch(url);
+    const loaded = await new Promise<LoadedImage | null>((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width || 100;
+          canvas.height = img.height || 100;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return resolve(null);
+          ctx.drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL("image/png");
+          resolve({ dataUrl, width: img.width || 100, height: img.height || 100 });
+        } catch {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = fullUrl;
+    });
+    if (loaded) return loaded;
+  } catch {
+    /* fallback to fetch */
+  }
+
+  // 4. Fallback fetch blob
+  try {
+    const res = await fetch(fullUrl, { mode: "cors" });
     const blob = await res.blob();
-    return await new Promise((resolve, reject) => {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.onerror = reject;
       reader.readAsDataURL(blob);
+    });
+    return await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ dataUrl, width: img.width || 100, height: img.height || 100 });
+      img.onerror = () => resolve({ dataUrl, width: 100, height: 100 });
+      img.src = dataUrl;
     });
   } catch {
     return null;
@@ -283,34 +336,55 @@ export default function QuotationModule() {
     if (currentType?.theme) setTheme({ ...DEFAULT_THEME, ...currentType.theme });
   }, [currentType?._id]);
 
-  // Branding — defaults to the CRM's own company name where sensible, still editable per-quotation.
-  const [companyName, setCompanyName] = useState(() => getSetting("companyName", ""));
-  const [fullCompanyName, setFullCompanyName] = useState("");
-  const [tagline, setTagline] = useState("");
-  const [brandAddress, setBrandAddress] = useState("");
-  const [defaultContactNumber, setDefaultContactNumber] = useState("");
-  const [brandLogoUrl, setBrandLogoUrl] = useState<string | null>(null);
+  const getSavedBrandingDefaults = () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(BRANDING_DEFAULTS_KEY) || "null");
+      if (saved) {
+        return {
+          companyName: saved.companyName ?? getSetting("companyName", ""),
+          fullCompanyName: saved.fullCompanyName ?? "",
+          tagline: saved.tagline ?? "",
+          brandAddress: saved.brandAddress ?? "",
+          defaultContactNumber: saved.defaultContactNumber ?? "",
+          brandLogoUrl: saved.brandLogoUrl ?? null,
+        };
+      }
+    } catch {
+      /* ignore */
+    }
+    return {
+      companyName: getSetting("companyName", ""),
+      fullCompanyName: "",
+      tagline: "",
+      brandAddress: "",
+      defaultContactNumber: "",
+      brandLogoUrl: null,
+    };
+  };
+
+  // Branding — defaults to saved branding or CRM company defaults
+  const [companyName, setCompanyName] = useState(() => getSavedBrandingDefaults().companyName);
+  const [fullCompanyName, setFullCompanyName] = useState(() => getSavedBrandingDefaults().fullCompanyName);
+  const [tagline, setTagline] = useState(() => getSavedBrandingDefaults().tagline);
+  const [brandAddress, setBrandAddress] = useState(() => getSavedBrandingDefaults().brandAddress);
+  const [defaultContactNumber, setDefaultContactNumber] = useState(() => getSavedBrandingDefaults().defaultContactNumber);
+  const [brandLogoUrl, setBrandLogoUrl] = useState<string | null>(() => getSavedBrandingDefaults().brandLogoUrl);
   const [clientLogoUrl, setClientLogoUrl] = useState<string | null>(null);
+  const [showItemImages, setShowItemImages] = useState(true);
   const [saveBrandingDefault, setSaveBrandingDefault] = useState(false);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // Preload saved branding defaults for brand-new quotations only.
+  // Preload saved branding defaults for brand-new quotations
   useEffect(() => {
     if (editingId) return;
-    try {
-      const saved = JSON.parse(localStorage.getItem(BRANDING_DEFAULTS_KEY) || "null");
-      if (saved) {
-        setCompanyName(saved.companyName ?? getSetting("companyName", ""));
-        setFullCompanyName(saved.fullCompanyName ?? "");
-        setTagline(saved.tagline ?? "");
-        setBrandAddress(saved.brandAddress ?? "");
-        setDefaultContactNumber(saved.defaultContactNumber ?? "");
-        setBrandLogoUrl(saved.brandLogoUrl ?? null);
-      }
-    } catch {
-      /* ignore malformed cache */
-    }
+    const saved = getSavedBrandingDefaults();
+    setCompanyName(saved.companyName);
+    setFullCompanyName(saved.fullCompanyName);
+    setTagline(saved.tagline);
+    setBrandAddress(saved.brandAddress);
+    setDefaultContactNumber(saved.defaultContactNumber);
+    setBrandLogoUrl(saved.brandLogoUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -330,7 +404,7 @@ export default function QuotationModule() {
   // still editable afterwards in case the quotation needs a different contact.
   useEffect(() => {
     if (!selectedCustomer) return;
-    setContactNumber(selectedCustomer.phonenumber || "");
+    setContactNumber((selectedCustomer.phonenumber || "").replace(/\D/g, "").slice(0, 10));
     const parts = [selectedCustomer.address, selectedCustomer.city, selectedCustomer.state, selectedCustomer.zip, selectedCustomer.country].filter(Boolean);
     setAddress(parts.join(", "));
   }, [selectedCustomer]);
@@ -354,13 +428,16 @@ export default function QuotationModule() {
     setAfterImages([]);
     setTheme(currentType?.theme ? { ...DEFAULT_THEME, ...currentType.theme } : DEFAULT_THEME);
     setShowThemeColors(false);
-    setCompanyName(getSetting("companyName", ""));
-    setFullCompanyName("");
-    setTagline("");
-    setBrandAddress("");
-    setDefaultContactNumber("");
-    setBrandLogoUrl(null);
+
+    const saved = getSavedBrandingDefaults();
+    setCompanyName(saved.companyName);
+    setFullCompanyName(saved.fullCompanyName);
+    setTagline(saved.tagline);
+    setBrandAddress(saved.brandAddress);
+    setDefaultContactNumber(saved.defaultContactNumber);
+    setBrandLogoUrl(saved.brandLogoUrl);
     setClientLogoUrl(null);
+    setShowItemImages(true);
   };
 
   const addItemRow = () => setItems((prev) => [...prev, emptyItem()]);
@@ -418,6 +495,11 @@ export default function QuotationModule() {
     const url = await uploadAsset(file, `room-${roomId}-${itemId}`);
     if (url) updateRoomItem(roomId, itemId, "photoUrl", url);
   };
+  const handleSimpleItemPhotoPick = async (itemId: string, file: File | undefined) => {
+    if (!file) return;
+    const url = await uploadAsset(file, `simple-${itemId}`);
+    if (url) updateItem(itemId, "photoUrl", url);
+  };
   const handleAddBeforeImage = async (file: File | undefined) => {
     if (!file) return;
     const url = await uploadAsset(file, "before");
@@ -430,11 +512,18 @@ export default function QuotationModule() {
   };
 
   const persistBrandingDefaults = () => {
-    if (!saveBrandingDefault) return;
-    localStorage.setItem(
-      BRANDING_DEFAULTS_KEY,
-      JSON.stringify({ companyName, fullCompanyName, tagline, brandAddress, defaultContactNumber, brandLogoUrl })
-    );
+    // Save branding defaults (including Trinetra mobile number) so it persists across sessions
+    const currentSaved = getSavedBrandingDefaults();
+    const updated = {
+      ...currentSaved,
+      companyName: companyName || currentSaved.companyName,
+      fullCompanyName: fullCompanyName || currentSaved.fullCompanyName,
+      tagline: tagline || currentSaved.tagline,
+      brandAddress: brandAddress || currentSaved.brandAddress,
+      defaultContactNumber: defaultContactNumber || currentSaved.defaultContactNumber,
+      brandLogoUrl: brandLogoUrl !== undefined ? brandLogoUrl : currentSaved.brandLogoUrl,
+    };
+    localStorage.setItem(BRANDING_DEFAULTS_KEY, JSON.stringify(updated));
   };
 
   const simpleSubtotal = items.reduce((acc, i) => acc + (Number(i.qty) || 0) * (Number(i.rate) || 0), 0);
@@ -445,6 +534,8 @@ export default function QuotationModule() {
 
   const buildPayload = (status: string) => ({
     client: clientId,
+    contact_number: contactNumber,
+    client_address: address,
     date: quotationDate,
     valid_till: validUntil,
     status,
@@ -452,35 +543,36 @@ export default function QuotationModule() {
     format,
     gst_percent: gstPercent,
     notes,
+    show_item_images: showItemImages,
     items:
       format === "simple"
-        ? items.filter((i) => i.description.trim()).map((i) => ({ description: i.description, qty: Number(i.qty) || 0, rate: Number(i.rate) || 0 }))
+        ? items.filter((i) => i.description.trim()).map((i) => ({ description: i.description, qty: Number(i.qty) || 0, rate: Number(i.rate) || 0, photo_url: i.photoUrl || "" }))
         : [],
     rooms:
       format === "pro"
         ? rooms.map((r) => ({
-            name: r.name,
-            items: r.items.map((it) => ({
-              description: it.description,
-              series: it.series,
-              model_no: it.model_no,
-              unit_price: Number(it.unit_price) || 0,
-              sw: Number(it.sw) || 0,
-              fan: Number(it.fan) || 0,
-              soc: Number(it.soc) || 0,
-              mod: Number(it.mod) || 0,
-              qty: Number(it.qty) || 1,
-              disc_percent: Number(it.disc_percent) || 0,
-              photo_url: it.photoUrl,
-            })),
-          }))
+          name: r.name,
+          items: r.items.map((it) => ({
+            description: it.description,
+            series: it.series,
+            model_no: it.model_no,
+            unit_price: Number(it.unit_price) || 0,
+            sw: Number(it.sw) || 0,
+            fan: Number(it.fan) || 0,
+            soc: Number(it.soc) || 0,
+            mod: Number(it.mod) || 0,
+            qty: Number(it.qty) || 1,
+            disc_percent: Number(it.disc_percent) || 0,
+            photo_url: it.photoUrl,
+          })),
+        }))
         : [],
     branding: {
       brandName: companyName,
       fullCompanyName,
       tagline,
       contactAddress: brandAddress,
-      defaultContactNumber,
+      defaultContactNumber: defaultContactNumber || getSavedBrandingDefaults().defaultContactNumber,
       brandLogoUrl,
       clientLogoUrl,
     },
@@ -545,11 +637,14 @@ export default function QuotationModule() {
   const handleEdit = (q: Quotation) => {
     setEditingId(q._id);
     setClientId(q.client?._id || q.client?.id || (typeof q.client === "string" ? q.client : ""));
+    setContactNumber((q as any).contact_number || q.client?.phonenumber || "");
+    setAddress((q as any).client_address || [q.client?.address, q.client?.city, q.client?.state, q.client?.zip, q.client?.country].filter(Boolean).join(", ") || "");
     setQuotationDate(q.date ? new Date(q.date).toISOString().split("T")[0] : todayISO());
     setValidUntil(q.valid_till ? new Date(q.valid_till).toISOString().split("T")[0] : plusDaysISO(20));
     setNotes(q.notes || DEFAULT_NOTES);
     setGstPercent(q.gst_percent ?? (q.total_tax && q.subtotal ? Math.round((q.total_tax / q.subtotal) * 100) : 18));
     setFormat(q.format === "pro" ? "pro" : "simple");
+    setShowItemImages((q as any).show_item_images !== false);
 
     if (q.items && q.items.length > 0) {
       setItems(
@@ -558,6 +653,7 @@ export default function QuotationModule() {
           description: i.description || "",
           qty: i.qty || 1,
           rate: i.rate || 0,
+          photoUrl: i.photo_url || "",
         }))
       );
     } else {
@@ -572,19 +668,19 @@ export default function QuotationModule() {
           items:
             r.items && r.items.length > 0
               ? r.items.map((it: any) => ({
-                  id: Math.random().toString(36).slice(2, 9),
-                  description: it.description || "",
-                  series: it.series || "",
-                  model_no: it.model_no || "",
-                  unit_price: it.unit_price || 0,
-                  sw: it.sw || 0,
-                  fan: it.fan || 0,
-                  soc: it.soc || 0,
-                  mod: it.mod || 0,
-                  qty: it.qty || 1,
-                  disc_percent: it.disc_percent || 0,
-                  photoUrl: it.photo_url,
-                }))
+                id: Math.random().toString(36).slice(2, 9),
+                description: it.description || "",
+                series: it.series || "",
+                model_no: it.model_no || "",
+                unit_price: it.unit_price || 0,
+                sw: it.sw || 0,
+                fan: it.fan || 0,
+                soc: it.soc || 0,
+                mod: it.mod || 0,
+                qty: it.qty || 1,
+                disc_percent: it.disc_percent || 0,
+                photoUrl: it.photo_url,
+              }))
               : [emptyRoomItem()],
         }))
       );
@@ -599,12 +695,13 @@ export default function QuotationModule() {
     setBeforeImages((q as any).attachments?.before_images || []);
     setAfterImages((q as any).attachments?.after_images || []);
 
-    setCompanyName(q.branding?.brandName || getSetting("companyName", ""));
-    setFullCompanyName(q.branding?.fullCompanyName || "");
-    setTagline(q.branding?.tagline || "");
-    setBrandAddress(q.branding?.contactAddress || "");
-    setDefaultContactNumber(q.branding?.defaultContactNumber || "");
-    setBrandLogoUrl(q.branding?.brandLogoUrl || null);
+    const defaults = getSavedBrandingDefaults();
+    setCompanyName(q.branding?.brandName || defaults.companyName);
+    setFullCompanyName(q.branding?.fullCompanyName || defaults.fullCompanyName);
+    setTagline(q.branding?.tagline || defaults.tagline);
+    setBrandAddress(q.branding?.contactAddress || defaults.brandAddress);
+    setDefaultContactNumber(q.branding?.defaultContactNumber || defaults.defaultContactNumber);
+    setBrandLogoUrl(q.branding?.brandLogoUrl !== undefined ? q.branding.brandLogoUrl : defaults.brandLogoUrl);
     setClientLogoUrl(q.branding?.clientLogoUrl || null);
 
     setActiveTab("create");
@@ -637,7 +734,9 @@ export default function QuotationModule() {
         if (saved) {
           handleDownloadPDF({
             ...saved,
-            client: { company: selectedClientLabel, phonenumber: contactNumber || defaultContactNumber, address },
+            contact_number: contactNumber,
+            client_address: address,
+            client: { company: selectedClientLabel, phonenumber: contactNumber, address },
           });
         }
       },
@@ -670,20 +769,29 @@ export default function QuotationModule() {
     const clientLogoData = await loadImageAsDataUrl(q.branding?.clientLogoUrl);
     if (brandLogoData) {
       try {
-        doc.addImage(brandLogoData, "PNG", 14, 10, 18, 18);
+        const ratio = Math.min(22 / brandLogoData.width, 20 / brandLogoData.height);
+        const w = brandLogoData.width * ratio;
+        const h = brandLogoData.height * ratio;
+        const yPos = 8 + (20 - h) / 2;
+        doc.addImage(brandLogoData.dataUrl, "PNG", 14, yPos, w, h);
       } catch {
         /* unsupported image format — skip embedding, PDF still generates */
       }
     }
     if (clientLogoData) {
       try {
-        doc.addImage(clientLogoData, "PNG", 178, 10, 18, 18);
+        const ratio = Math.min(22 / clientLogoData.width, 20 / clientLogoData.height);
+        const w = clientLogoData.width * ratio;
+        const h = clientLogoData.height * ratio;
+        const yPos = 8 + (20 - h) / 2;
+        const xPos = 196 - w;
+        doc.addImage(clientLogoData.dataUrl, "PNG", xPos, yPos, w, h);
       } catch {
         /* ignore */
       }
     }
 
-    const textX = brandLogoData ? 36 : 14;
+    const textX = brandLogoData ? 40 : 14;
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(18);
     doc.text(q.branding?.brandName || "Company Name", textX, 18);
@@ -694,18 +802,18 @@ export default function QuotationModule() {
 
     doc.setDrawColor(...primaryRgb);
     doc.setLineWidth(1);
-    doc.line(14, 33, 196, 33);
+    doc.line(14, 32, 196, 32);
 
     const flatBg = hexToRgb(docTheme.flatTypeBg);
     const flatText = hexToRgb(docTheme.flatTypeText);
     const headerTextRgb = hexToRgb(docTheme.headerText);
     const roomBg = hexToRgb(docTheme.roomHeaderBg);
     const clientName = q.client?.company || q.client?.name || "Client";
-    const clientPhone = q.client?.phonenumber || q.branding?.defaultContactNumber || "—";
+    const clientPhone = (q as any).contact_number || q.client?.phonenumber || "—";
     const fmtDate = (d?: string) =>
       d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
-    let y = 37;
+    let y = 36;
     const pageHeight = doc.internal.pageSize.getHeight();
     const ensureSpace = (needed: number) => {
       if (y + needed > pageHeight - 20) {
@@ -791,11 +899,12 @@ export default function QuotationModule() {
         y += 9;
 
         // Preload each item's photo (must happen before the synchronous didDrawCell hook runs).
-        const photoData: Record<number, string | null> = {};
+        const photoData: Record<number, LoadedImage | null> = {};
         const roomItems = room.items || [];
+        const shouldIncludeImages = (q as any).show_item_images !== false;
         for (let i = 0; i < roomItems.length; i++) {
           const url = roomItems[i]?.photo_url;
-          photoData[i] = url ? await loadImageAsDataUrl(url) : null;
+          photoData[i] = (shouldIncludeImages && url) ? await loadImageAsDataUrl(url) : null;
         }
 
         const body: any[] = [];
@@ -806,11 +915,12 @@ export default function QuotationModule() {
           const totalStr = pdfCurrency(roomItemTotal(it));
           const hasBreakdown = (it.sw || 0) + (it.fan || 0) + (it.soc || 0) + (it.mod || 0) > 0;
           const hasCaption = !!it.description?.trim() && it.description.trim() !== (it.series || "").trim();
+          const hasPhoto = !!photoData[itemIdx];
 
           photoRowIndex[body.length] = itemIdx;
           body.push([
             { content: it.series || "—", styles: { fontStyle: "bold", valign: "middle" } },
-            { content: "", styles: { minCellHeight: 24 } },
+            { content: "", styles: { minCellHeight: hasPhoto ? 24 : 10 } },
             { content: String(it.qty || 0), styles: { halign: "center", valign: "middle" } },
             { content: priceStr, styles: { halign: "center", valign: "middle" } },
             { content: `${it.disc_percent || 0}%`, styles: { halign: "center", valign: "middle" } },
@@ -858,12 +968,19 @@ export default function QuotationModule() {
             if (data.row.section !== "body" || data.column.index !== 1) return;
             const itemIdx = photoRowIndex[data.row.index];
             if (itemIdx === undefined) return;
-            const img = photoData[itemIdx];
-            if (!img) return;
+            const imgObj = photoData[itemIdx];
+            if (!imgObj) return;
             try {
-              const pad = 2;
-              const size = Math.min(data.cell.width, data.cell.height) - pad * 2;
-              doc.addImage(img, "PNG", data.cell.x + pad, data.cell.y + pad, size, size);
+              const pad = 2.5;
+              const maxW = data.cell.width - pad * 2;
+              const maxH = data.cell.height - pad * 2;
+              if (maxW <= 0 || maxH <= 0) return;
+              const ratio = Math.min(maxW / imgObj.width, maxH / imgObj.height);
+              const imgW = imgObj.width * ratio;
+              const imgH = imgObj.height * ratio;
+              const imgX = data.cell.x + (data.cell.width - imgW) / 2;
+              const imgY = data.cell.y + (data.cell.height - imgH) / 2;
+              doc.addImage(imgObj.dataUrl, "PNG", imgX, imgY, imgW, imgH);
             } catch {
               /* unsupported image format — skip embedding, PDF still generates */
             }
@@ -976,8 +1093,7 @@ export default function QuotationModule() {
   const moduleTitle = currentType?.name ? `${activeItem?.label || "Quotations"} — ${currentType.name}` : activeItem?.label || "Quotations";
 
   const segBtnClass = (active: boolean) =>
-    `flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
-      active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+    `flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
     }`;
 
   return (
@@ -1100,7 +1216,7 @@ export default function QuotationModule() {
                                   <button onClick={() => handleEdit(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Edit">
                                     <Edit className="h-3.5 w-3.5" />
                                   </button>
-                                  <button onClick={() => { if(window.confirm('Delete this quotation?')) deleteMutation.mutate(q._id) }} className="p-1.5 rounded-lg hover:red-50 text-muted-foreground hover:text-red-600 transition-colors">
+                                  <button onClick={() => { if (window.confirm('Delete this quotation?')) deleteMutation.mutate(q._id) }} className="p-1.5 rounded-lg hover:red-50 text-muted-foreground hover:text-red-600 transition-colors">
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
@@ -1203,9 +1319,11 @@ export default function QuotationModule() {
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Contact Number</Label>
                         <Input
-                          placeholder="+91 98765 43210"
+                          type="tel"
+                          maxLength={10}
+                          placeholder="e.g. 9876543210"
                           value={contactNumber}
-                          onChange={(e) => setContactNumber(e.target.value)}
+                          onChange={(e) => setContactNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
                           className="h-11"
                         />
                       </div>
@@ -1281,9 +1399,11 @@ export default function QuotationModule() {
                       <div className="space-y-1.5">
                         <Label className="text-xs font-medium text-muted-foreground">Default Contact Number</Label>
                         <Input
-                          placeholder="+91 98765 43210"
+                          type="tel"
+                          maxLength={10}
+                          placeholder="e.g. 9876543210 (10 digits)"
                           value={defaultContactNumber}
-                          onChange={(e) => setDefaultContactNumber(e.target.value)}
+                          onChange={(e) => setDefaultContactNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
                           className="h-11"
                         />
                       </div>
@@ -1291,54 +1411,121 @@ export default function QuotationModule() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Brand Logo</Label>
-                        <label className="flex flex-col items-center justify-center gap-2 h-32 rounded-xl border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors overflow-hidden">
-                          {uploadingKey === "brandLogo" ? (
-                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                          ) : brandLogoUrl ? (
-                            <img src={brandLogoUrl} alt="Brand logo preview" className="h-full w-full object-contain p-3" />
-                          ) : (
-                            <>
-                              <ImagePlus className="h-6 w-6 text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground">Upload brand logo</span>
-                            </>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Brand Logo</Label>
+                          {brandLogoUrl && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setBrandLogoUrl(null)}
+                              className="h-6 px-2 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 gap-1 rounded-md"
+                            >
+                              <Trash2 className="h-3 w-3" /> Remove Logo
+                            </Button>
                           )}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => handleBrandLogoPick(e.target.files?.[0])}
-                          />
-                        </label>
+                        </div>
+                        <div className="relative group">
+                          <label className="flex flex-col items-center justify-center gap-2 h-32 rounded-xl border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors overflow-hidden">
+                            {uploadingKey === "brandLogo" ? (
+                              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                            ) : brandLogoUrl ? (
+                              <img src={brandLogoUrl} alt="Brand logo preview" className="h-full w-full object-contain p-3" />
+                            ) : (
+                              <>
+                                <ImagePlus className="h-6 w-6 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">Upload brand logo</span>
+                              </>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleBrandLogoPick(e.target.files?.[0])}
+                            />
+                          </label>
+                          {brandLogoUrl && (
+                            <button
+                              type="button"
+                              title="Remove Brand Logo"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setBrandLogoUrl(null);
+                              }}
+                              className="absolute top-2 right-2 p-1.5 rounded-full bg-red-600/90 hover:bg-red-600 text-white transition-opacity shadow-md z-10"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
+
                       <div className="space-y-2">
-                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Client Logo</Label>
-                        <label className="flex flex-col items-center justify-center gap-2 h-32 rounded-xl border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors overflow-hidden">
-                          {uploadingKey === "clientLogo" ? (
-                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                          ) : clientLogoUrl ? (
-                            <img src={clientLogoUrl} alt="Client logo preview" className="h-full w-full object-contain p-3" />
-                          ) : (
-                            <>
-                              <ImagePlus className="h-6 w-6 text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground">Upload client logo</span>
-                            </>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Client Logo</Label>
+                          {clientLogoUrl && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setClientLogoUrl(null)}
+                              className="h-6 px-2 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 gap-1 rounded-md"
+                            >
+                              <Trash2 className="h-3 w-3" /> Remove Logo
+                            </Button>
                           )}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => handleClientLogoPick(e.target.files?.[0])}
-                          />
-                        </label>
+                        </div>
+                        <div className="relative group">
+                          <label className="flex flex-col items-center justify-center gap-2 h-32 rounded-xl border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors overflow-hidden">
+                            {uploadingKey === "clientLogo" ? (
+                              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                            ) : clientLogoUrl ? (
+                              <img src={clientLogoUrl} alt="Client logo preview" className="h-full w-full object-contain p-3" />
+                            ) : (
+                              <>
+                                <ImagePlus className="h-6 w-6 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">Upload client logo</span>
+                              </>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleClientLogoPick(e.target.files?.[0])}
+                            />
+                          </label>
+                          {clientLogoUrl && (
+                            <button
+                              type="button"
+                              title="Remove Client Logo"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setClientLogoUrl(null);
+                              }}
+                              className="absolute top-2 right-2 p-1.5 rounded-full bg-red-600/90 hover:bg-red-600 text-white transition-opacity shadow-md z-10"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 p-3 rounded-xl bg-blue-50/60 border border-blue-100">
-                      <Checkbox id="saveDefaults" checked={saveBrandingDefault} onCheckedChange={(c) => setSaveBrandingDefault(c as boolean)} />
-                      <Label htmlFor="saveDefaults" className="text-xs font-medium text-blue-800">
-                        Save branding details as my default for all future quotations
-                      </Label>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-blue-50/60 border border-blue-100">
+                      <div className="flex items-center gap-2">
+                        <Checkbox id="saveDefaults" checked={saveBrandingDefault} onCheckedChange={(c) => setSaveBrandingDefault(c as boolean)} />
+                        <Label htmlFor="saveDefaults" className="text-xs font-medium text-blue-800 cursor-pointer">
+                          Save branding details as default for future quotations
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2 border-t sm:border-t-0 sm:border-l border-blue-200 pt-2 sm:pt-0 sm:pl-4">
+                        <Checkbox id="showItemImages" checked={showItemImages} onCheckedChange={(c) => setShowItemImages(c as boolean)} />
+                        <Label htmlFor="showItemImages" className="text-xs font-semibold text-blue-900 cursor-pointer">
+                          Include item photos in quotation output &amp; PDF
+                        </Label>
+                      </div>
                     </div>
                   </CardContent>
 
@@ -1366,12 +1553,48 @@ export default function QuotationModule() {
                                 <tr key={item.id}>
                                   <td className="py-2.5 pr-3 text-muted-foreground">{idx + 1}</td>
                                   <td className="py-2.5 pr-3">
-                                    <Input
-                                      placeholder="Item description..."
-                                      value={item.description}
-                                      onChange={(e) => updateItem(item.id, "description", e.target.value)}
-                                      className="h-10"
-                                    />
+                                    <div className="flex items-center gap-2">
+                                      <div className="relative group shrink-0">
+                                        <label
+                                          title="Upload item image"
+                                          className="flex flex-col items-center justify-center h-10 w-10 rounded-lg border border-dashed border-border/60 cursor-pointer hover:border-primary/50 overflow-hidden bg-background shrink-0"
+                                        >
+                                          {uploadingKey === `simple-${item.id}` ? (
+                                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                          ) : item.photoUrl ? (
+                                            <img src={item.photoUrl} alt="" className="h-full w-full object-cover" />
+                                          ) : (
+                                            <ImagePlus className="h-4 w-4 text-muted-foreground" />
+                                          )}
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => handleSimpleItemPhotoPick(item.id, e.target.files?.[0])}
+                                          />
+                                        </label>
+                                        {item.photoUrl && (
+                                          <button
+                                            type="button"
+                                            title="Remove Image"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              updateItem(item.id, "photoUrl", "");
+                                            }}
+                                            className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-600 text-white flex items-center justify-center hover:bg-red-700 shadow transition-colors z-10"
+                                          >
+                                            <X className="h-2.5 w-2.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                      <Input
+                                        placeholder="Item description..."
+                                        value={item.description}
+                                        onChange={(e) => updateItem(item.id, "description", e.target.value)}
+                                        className="h-10 flex-1"
+                                      />
+                                    </div>
                                   </td>
                                   <td className="py-2.5 pr-3">
                                     <Input
@@ -1441,24 +1664,40 @@ export default function QuotationModule() {
                               {room.items.map((it) => (
                                 <div key={it.id} className="rounded-lg border border-border/40 p-4 space-y-3">
                                   <div className="flex items-start gap-3">
-                                    <label className="flex flex-col items-center justify-center gap-1 h-16 w-16 shrink-0 rounded-lg border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 transition-colors overflow-hidden">
-                                      {uploadingKey === `room-${room.id}-${it.id}` ? (
-                                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                      ) : it.photoUrl ? (
-                                        <img src={it.photoUrl} alt="" className="h-full w-full object-cover" />
-                                      ) : (
-                                        <>
-                                          <Plus className="h-4 w-4 text-muted-foreground" />
-                                          <span className="text-[10px] text-muted-foreground">Photo</span>
-                                        </>
+                                    <div className="relative group shrink-0">
+                                      <label className="flex flex-col items-center justify-center gap-1 h-16 w-16 rounded-lg border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 transition-colors overflow-hidden">
+                                        {uploadingKey === `room-${room.id}-${it.id}` ? (
+                                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                        ) : it.photoUrl ? (
+                                          <img src={it.photoUrl} alt="" className="h-full w-full object-cover" />
+                                        ) : (
+                                          <>
+                                            <Plus className="h-4 w-4 text-muted-foreground" />
+                                            <span className="text-[10px] text-muted-foreground">Photo</span>
+                                          </>
+                                        )}
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={(e) => handleRoomItemPhotoPick(room.id, it.id, e.target.files?.[0])}
+                                        />
+                                      </label>
+                                      {it.photoUrl && (
+                                        <button
+                                          type="button"
+                                          title="Remove Image"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            updateRoomItem(room.id, it.id, "photoUrl", "");
+                                          }}
+                                          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-600 text-white flex items-center justify-center hover:bg-red-700 shadow transition-colors z-10"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
                                       )}
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={(e) => handleRoomItemPhotoPick(room.id, it.id, e.target.files?.[0])}
-                                      />
-                                    </label>
+                                    </div>
                                     <div className="flex-1 space-y-1.5">
                                       <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Description</Label>
                                       <Input
@@ -1720,7 +1959,7 @@ export default function QuotationModule() {
                                   <button onClick={() => handleEdit(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Edit">
                                     <Edit className="h-3.5 w-3.5" />
                                   </button>
-                                  <button onClick={() => { if(window.confirm('Delete this quotation?')) deleteMutation.mutate(q._id) }} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors" title="Delete">
+                                  <button onClick={() => { if (window.confirm('Delete this quotation?')) deleteMutation.mutate(q._id) }} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors" title="Delete">
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
@@ -1759,6 +1998,7 @@ export default function QuotationModule() {
         gstPercent={gstPercent}
         gstAmount={gstAmount}
         grandTotal={grandTotal}
+        showItemImages={showItemImages}
       />
     </DashboardLayout>
   );
@@ -1785,6 +2025,7 @@ function QuotationPreviewDialog({
   gstPercent,
   gstAmount,
   grandTotal,
+  showItemImages = true,
 }: any) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1838,7 +2079,12 @@ function QuotationPreviewDialog({
                   .filter((i: ItemRow) => i.description.trim())
                   .map((i: ItemRow) => (
                     <tr key={i.id}>
-                      <td className="py-2">{i.description}</td>
+                      <td className="py-2 flex items-center gap-2">
+                        {showItemImages && (i.photoUrl || (i as any).photo_url) && (
+                          <img src={i.photoUrl || (i as any).photo_url} alt="" className="h-7 w-7 rounded object-cover border shrink-0" />
+                        )}
+                        <span>{i.description}</span>
+                      </td>
                       <td className="py-2 text-right">{i.qty}</td>
                       <td className="py-2 text-right">₹{Number(i.rate).toFixed(2)}</td>
                       <td className="py-2 text-right font-medium">₹{(i.qty * i.rate).toFixed(2)}</td>
@@ -1863,7 +2109,12 @@ function QuotationPreviewDialog({
                     <tbody className="divide-y divide-border/20">
                       {room.items.filter((i) => i.description.trim()).map((i) => (
                         <tr key={i.id}>
-                          <td className="py-2">{i.description}</td>
+                          <td className="py-2 flex items-center gap-2">
+                            {showItemImages && (i.photoUrl || (i as any).photo_url) && (
+                              <img src={i.photoUrl || (i as any).photo_url} alt="" className="h-7 w-7 rounded object-cover border shrink-0" />
+                            )}
+                            <span>{i.description}</span>
+                          </td>
                           <td className="py-2 text-right">{i.qty}</td>
                           <td className="py-2 text-right">{i.disc_percent}%</td>
                           <td className="py-2 text-right font-medium">₹{roomItemTotal(i).toFixed(2)}</td>
