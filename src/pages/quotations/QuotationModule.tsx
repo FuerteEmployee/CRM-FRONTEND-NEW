@@ -16,6 +16,7 @@ import { quotationService } from "@/api/services/quotation.service";
 import { customerService } from "@/api/services/customer.service";
 import { quotationTypeService } from "@/api/services/quotationType.service";
 import { mediaService } from "@/api/services/media.service";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import {
   LayoutDashboard,
   FilePlus,
@@ -182,10 +183,7 @@ const loadImageAsDataUrl = async (url?: string): Promise<LoadedImage | null> => 
   }
 
   // 2. Full URL resolution
-  let fullUrl = url;
-  if (url.startsWith("/")) {
-    fullUrl = `${BACKEND_ORIGIN}${url}`;
-  }
+  const fullUrl = resolveImageUrl(url);
 
   // 3. HTML Image + Canvas conversion (handles crossOrigin anonymous cleanly)
   try {
@@ -1430,7 +1428,7 @@ export default function QuotationModule() {
                             {uploadingKey === "brandLogo" ? (
                               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                             ) : brandLogoUrl ? (
-                              <img src={brandLogoUrl} alt="Brand logo preview" className="h-full w-full object-contain p-3" />
+                              <img src={resolveImageUrl(brandLogoUrl)} alt="Brand logo preview" className="h-full w-full object-contain p-3" onError={() => setBrandLogoUrl(null)} />
                             ) : (
                               <>
                                 <ImagePlus className="h-6 w-6 text-muted-foreground" />
@@ -1481,7 +1479,7 @@ export default function QuotationModule() {
                             {uploadingKey === "clientLogo" ? (
                               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                             ) : clientLogoUrl ? (
-                              <img src={clientLogoUrl} alt="Client logo preview" className="h-full w-full object-contain p-3" />
+                              <img src={resolveImageUrl(clientLogoUrl)} alt="Client logo preview" className="h-full w-full object-contain p-3" onError={() => setClientLogoUrl(null)} />
                             ) : (
                               <>
                                 <ImagePlus className="h-6 w-6 text-muted-foreground" />
@@ -2038,13 +2036,13 @@ function QuotationPreviewDialog({
           {/* Letterhead */}
           <div className="flex items-center justify-between pb-4 border-b border-border/40">
             <div className="flex items-center gap-3">
-              {brandLogoUrl && <img src={brandLogoUrl} alt="Brand" className="h-10 w-10 object-contain rounded" />}
+              {brandLogoUrl && <img src={resolveImageUrl(brandLogoUrl)} alt="Brand" className="h-10 w-10 object-contain rounded" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
               <div>
                 <p className="font-bold text-slate-900">{companyName || "Your Company"}</p>
                 {tagline && <p className="text-xs text-muted-foreground">{tagline}</p>}
               </div>
             </div>
-            {clientLogoUrl && <img src={clientLogoUrl} alt="Client" className="h-10 w-10 object-contain rounded" />}
+            {clientLogoUrl && <img src={resolveImageUrl(clientLogoUrl)} alt="Client" className="h-10 w-10 object-contain rounded" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
           </div>
 
           {/* Client info */}

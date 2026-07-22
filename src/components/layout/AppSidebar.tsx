@@ -197,6 +197,7 @@ export function AppSidebar() {
 
   const companyName = getSetting("companyName", "CRMPro");
   const logoLight = resolveImageUrl(getSetting("compLogoLight", ""));
+  const [logoError, setLogoError] = useState(false);
 
   const visibleSetupItems = setupMenuItems.filter((item) => {
     // If the item has a permission key, check it
@@ -510,8 +511,8 @@ export function AppSidebar() {
           className="flex items-center gap-2.5 group"
         >
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm group-hover:shadow-md transition-shadow duration-300 overflow-hidden">
-            {logoLight ? (
-              <img src={logoLight} alt="Logo" className="h-full w-full object-cover" />
+            {logoLight && !logoError ? (
+              <img src={logoLight} alt="Logo" className="h-full w-full object-cover" onError={() => setLogoError(true)} />
             ) : (
               companyName[0]
             )}
