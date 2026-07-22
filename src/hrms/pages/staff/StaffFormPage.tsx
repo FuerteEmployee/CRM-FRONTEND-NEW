@@ -29,7 +29,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/hrms/components/ui/tabs";
 import { staffService } from "@/hrms/services/staffService";
 import { salespersonService } from "@/hrms/services/salespersonService";
-import { roleService } from "@/hrms/services/roleService";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { departmentService } from "@/hrms/services/departmentService";
 import { designationService, type Designation } from "@/hrms/services/designationService";
@@ -108,7 +107,7 @@ const staffSchema = z.object({
   }).optional(),
 
   // Employment
-
+  role: z.string().optional(),
   hrmsBranchId: z.string().optional(),
   department: z.string().optional(),
   employmentType: z.string().optional(),
@@ -221,7 +220,6 @@ export default function StaffFormPage() {
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [branches, setBranches] = useState<any[]>([]);
-  const [roles, setRoles] = useState<any[]>([]);
   const [departments, setDepartments] = useState<any[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
@@ -353,9 +351,8 @@ export default function StaffFormPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [branchesData, rolesData, deptsData, desigsData, shiftsData, spList, companiesData] = await Promise.all([
+        const [branchesData, deptsData, desigsData, shiftsData, spList, companiesData] = await Promise.all([
           hrmsbranchService.getAll(),
-          roleService.getAll(),
           departmentService.getAll(),
           designationService.getAll(),
           shiftService.getAll(),
@@ -363,11 +360,6 @@ export default function StaffFormPage() {
           managingCompanyService.list()
         ]);
         setBranches(branchesData.data || []);
-        setRoles(rolesData.map((r: any) => ({
-          id: r._id || r.id,
-          label: r.label || r.name || "Unknown Role",
-          role: r.role
-        })));
         setDepartments(deptsData);
         setDesignations(desigsData);
         setShifts(shiftsData);
@@ -392,6 +384,7 @@ export default function StaffFormPage() {
               mobile: String(user.mobile || ""),
               dob: user.dob ? new Date(user.dob).toISOString().split('T')[0] : "",
               joiningDate: user.joiningDate ? new Date(user.joiningDate).toISOString().split('T')[0] : "",
+              gender: typeof user.gender === "string" ? user.gender : "",
               role: (user.role && typeof user.role === "object") ? ((user.role as any)._id || (user.role as any).id) : (user.role as string || ""),
               hrmsBranchId: ((user as any).hrmsBranchId && typeof (user as any).hrmsBranchId === "object")
                 ? ((user as any).hrmsBranchId._id || (user as any).hrmsBranchId.id || "")
@@ -490,7 +483,10 @@ export default function StaffFormPage() {
           const value = data[key];
           const fullKey = rootKey ? `${rootKey}.${key}` : key;
           const idFields = ["role", "hrmsBranchId", "department", "designation", "shiftId", "salaryTemplateId", "managingCompanyId"];
-          if (idFields.includes(key) && (value === "" || value === "none" || value === "__none__" || value === null || value === undefined)) return;
+          if (idFields.includes(key) && (value === "" || value === "none" || value === "__none__" || value === null || value === undefined)) {
+            formData.append(fullKey, "null");
+            return;
+          }
           if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date) && !(value instanceof File)) {
             appendToFormData(value, fullKey);
           } else if (value !== undefined && value !== null) {
@@ -562,12 +558,17 @@ export default function StaffFormPage() {
             console.log("No salesperson profile exists yet");
           }
 
-          if (existingSp) {
-            await salespersonService.update(existingSp._id, salespersonPayload);
-            toast({ title: "Synced", description: "Salesperson Master profile updated in sync" });
-          } else {
-            await salespersonService.create(salespersonPayload);
-            toast({ title: "Created", description: "Salesperson Master profile created automatically" });
+          try {
+            if (existingSp) {
+              await salespersonService.update(existingSp._id, salespersonPayload);
+              toast({ title: "Synced", description: "Salesperson Master profile updated in sync" });
+            } else {
+              await salespersonService.create(salespersonPayload);
+              toast({ title: "Created", description: "Salesperson Master profile created automatically" });
+            }
+          } catch (spError) {
+             console.warn("Salesperson sync failed", spError);
+             toast({ title: "Staff Saved", description: "Staff saved, but salesperson sync is not available yet.", variant: "default" });
           }
         } else {
           // If isSalesperson is false, remove/delete any existing salesperson profile automatically
@@ -575,9 +576,13 @@ export default function StaffFormPage() {
           try {
             existingSp = await salespersonService.getByUserId(userId);
           } catch (e) {}
-          if (existingSp) {
-            await salespersonService.delete(existingSp._id);
-            toast({ title: "Updated", description: "Salesperson Master profile removed successfully" });
+          try {
+            if (existingSp) {
+              await salespersonService.delete(existingSp._id);
+              toast({ title: "Updated", description: "Salesperson Master profile removed successfully" });
+            }
+          } catch (spError) {
+             console.warn("Salesperson sync failed", spError);
           }
         }
       }

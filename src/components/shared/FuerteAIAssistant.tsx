@@ -200,6 +200,13 @@ export function FuerteAIAssistant() {
 
   const { transcript, listening, resetTranscript, browserSupportsSpeechRecognition, isMicrophoneAvailable } = useSpeechRecognition();
 
+  // Speech recognition (like getUserMedia) only runs in a secure context —
+  // https or localhost. On plain http the browser never shows a permission
+  // prompt at all and isMicrophoneAvailable just stays stuck, so this is
+  // checked separately to give a distinct, accurate error instead of the
+  // generic "microphone blocked" message.
+  const isSecureCtx = typeof window !== "undefined" && window.isSecureContext;
+
 const changeState = (s: AIState) => {
   setAIState(s);
   aiStateRef.current = s;
@@ -243,6 +250,14 @@ useEffect(() => {
 // auto-listen toggle in the panel (persisted per browser).
 useEffect(() => {
   if (!browserSupportsSpeechRecognition || !autoListen) return;
+  if (!isSecureCtx) {
+    toast({
+      title: "Fuerte AI",
+      description: "Voice control needs a secure (https) connection. This page is loaded over plain http, so the browser won't allow microphone access here.",
+      variant: "destructive",
+    });
+    return;
+  }
   SpeechRecognition.startListening({ continuous: true, language: "en-US" });
   changeState("listening");
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -278,6 +293,12 @@ const toggleListening = () => {
     setTooltip(false);
     if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
     toast({ title: "Fuerte AI", description: "Microphone off. AI is sleeping." });
+  } else if (!isSecureCtx) {
+    toast({
+      title: "Fuerte AI",
+      description: "Voice control needs a secure (https) connection. This page is loaded over plain http, so the browser won't allow microphone access here.",
+      variant: "destructive",
+    });
   } else if (!isMicrophoneAvailable) {
     toast({
       title: "Fuerte AI",
