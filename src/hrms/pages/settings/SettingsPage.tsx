@@ -235,7 +235,13 @@ export default function SettingsPage() {
                     </Label>
                     <Input
                       value={generalForm[key as keyof typeof generalForm]}
-                      onChange={(e) => setGeneralForm((prev) => ({ ...prev, [key]: e.target.value }))}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const value = key === "phone" ? raw.replace(/\D/g, "").slice(0, 10) : raw;
+                        setGeneralForm((prev) => ({ ...prev, [key]: value }));
+                      }}
+                      maxLength={key === "phone" ? 10 : undefined}
+                      inputMode={key === "phone" ? "numeric" : undefined}
                       className="h-11 border-0 bg-background/50 backdrop-blur-md rounded-xl"
                     />
                   </div>

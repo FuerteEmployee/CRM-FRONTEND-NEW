@@ -537,7 +537,7 @@ const Vendors = () => {
                 </div>
                 <div className="space-y-1.5">
                   <Label className={labelCls}>Phone Number</Label>
-                  <Input value={formData.phone_number} onChange={(e) => setField("phone_number", e.target.value)} placeholder="e.g. +91 98765 43210" className={inputCls} />
+                  <Input value={formData.phone_number} onChange={(e) => setField("phone_number", e.target.value.replace(/\D/g, "").slice(0, 10))} maxLength={10} inputMode="numeric" placeholder="e.g. 9876543210" className={inputCls} />
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
                   <Label className={labelCls}>Address with State</Label>

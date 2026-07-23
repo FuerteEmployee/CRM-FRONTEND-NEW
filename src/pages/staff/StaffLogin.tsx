@@ -204,6 +204,7 @@ const StaffLogin = () => {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
+                  disableVoice
                   placeholder="Enter Your Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

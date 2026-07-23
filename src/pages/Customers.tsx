@@ -479,10 +479,12 @@ const Customers = () => {
                             type="tel"
                             placeholder="+1 555-0100"
                             value={newCustomer.phonenumber}
+                            maxLength={10}
+                            inputMode="numeric"
                             onChange={(e) =>
                               setNewCustomer({
                                 ...newCustomer,
-                                phonenumber: e.target.value,
+                                phonenumber: e.target.value.replace(/\D/g, "").slice(0, 10),
                               })
                             }
                           />

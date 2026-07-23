@@ -8,6 +8,7 @@ import { PermissionProvider, usePermissionContext } from "@/context/PermissionCo
 import { Loader2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import Login from "./pages/Login";
+import LandingPage from "./pages/LandingPage";
 import StaffLogin from "./pages/staff/StaffLogin";
 import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
@@ -195,8 +196,8 @@ const SmartRoot = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Nobody is logged in — go to Admin login
-  return <Navigate to="/admin/login" replace />;
+  // Nobody is logged in — show the public landing page (pricing + signup)
+  return <Navigate to="/welcome" replace />;
 };
 
 
@@ -387,6 +388,9 @@ const MainApp = () => {
       <Routes>
         {/* Root → smart redirect based on who is logged in */}
         <Route path="/" element={<SmartRoot />} />
+
+        {/* Public landing page — pricing plans + self-service signup */}
+        <Route path="/welcome" element={<LandingPage />} />
 
         {/* Client Side Routes */}
         <Route path="/client/login" element={<ClientLogin />} />
