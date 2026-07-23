@@ -334,6 +334,30 @@ export function AppSidebar() {
     setOpenSections((prev) => ({ ...prev, [title]: !prev[title] }));
   };
 
+  const checkIsActive = (url: string | undefined) => {
+    if (!url) return false;
+    const urlStr = getUrl(url);
+    const [urlPath, urlQuery] = urlStr.split("?");
+    let queryMatches = true;
+    if (urlQuery) {
+      const itemParams = new URLSearchParams(urlQuery);
+      const currentParams = new URLSearchParams(location.search);
+      queryMatches = Array.from(itemParams.entries()).every(
+        ([key, val]) => currentParams.get(key) === val
+      );
+    }
+    return (
+      (location.pathname === urlPath && queryMatches) ||
+      (urlPath !== "/admin/hrms" &&
+        urlPath !== "/hrms" &&
+        urlPath !== "/admin/dashboard" &&
+        urlPath !== "/staff/dashboard" &&
+        urlPath !== "/admin" &&
+        location.pathname.startsWith(urlPath + "/") &&
+        (!urlQuery || queryMatches))
+    );
+  };
+
   const renderItems = (
     items: any[],
     onItemClick?: () => void,
@@ -386,12 +410,7 @@ export function AppSidebar() {
       })
       .map((item: any) => {
         const urlStr = getUrl(item.url) || "";
-        // Quotation Maker links carry a `?type=<slug>` query string — compare
-        // path and query separately so highlighting still works for them.
-        const [urlPath, urlQuery] = urlStr.split("?");
-        const isActive =
-          (location.pathname === urlPath && (!urlQuery || location.search === `?${urlQuery}`)) ||
-          (urlPath !== "/admin/hrms" && urlPath !== "/hrms" && urlPath !== "/admin/dashboard" && urlPath !== "/staff/dashboard" && urlPath !== "/admin" && location.pathname.startsWith(urlPath + "/"));
+        const isActive = checkIsActive(item.url);
         const isExternal = urlStr.startsWith("http");
         const IconComponent = (Icons as any)[item.icon] || Icons.Circle;
 
@@ -424,7 +443,7 @@ export function AppSidebar() {
                   end
                   onClick={handleClick}
                   className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                  activeClassName="sidebar-active-item font-semibold"
+                  activeClassName={isActive ? "sidebar-active-item font-semibold" : ""}
                 >
                   {isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
@@ -464,9 +483,7 @@ export function AppSidebar() {
     const Icon = icon;
     const open = !!openSections[label];
     const isAnyChildActive = visibleItems.some(
-      (item) =>
-        location.pathname === getUrl(item.url) ||
-        location.pathname.startsWith(getUrl(item.url) + "/"),
+      (item) => checkIsActive(item.url),
     );
     return (
       <Collapsible open={open} onOpenChange={() => toggleSection(label)}>
@@ -613,9 +630,7 @@ export function AppSidebar() {
                     if (item.subItems && item.subItems.length > 0) {
                       const isOpen = !!openSections[item.title];
                       const isAnyChildActive = item.subItems.some(
-                        (sub: any) =>
-                          location.pathname === getUrl(sub.url) ||
-                          location.pathname.startsWith(getUrl(sub.url) + "/"),
+                        (sub: any) => checkIsActive(sub.url),
                       );
 
                       return (
@@ -655,11 +670,7 @@ export function AppSidebar() {
                               <SidebarGroupContent className="pl-3 border-l border-sidebar-border/60 ml-[18px] mt-0.5 space-y-0.5">
                                 <SidebarMenu className="gap-0.5">
                                   {item.subItems.map((sub: any) => {
-                                    const isSubActive =
-                                      location.pathname === getUrl(sub.url) ||
-                                      location.pathname.startsWith(
-                                        getUrl(sub.url) + "/",
-                                      );
+                                    const isSubActive = checkIsActive(sub.url);
                                     return (
                                       <SidebarMenuItem key={sub.title}>
                                         <SidebarMenuButton asChild isActive={isSubActive}>
@@ -671,7 +682,7 @@ export function AppSidebar() {
                                                 setOpenMobile(false);
                                             }}
                                             className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                                            activeClassName="sidebar-active-item font-semibold"
+                                            activeClassName={isSubActive ? "sidebar-active-item font-semibold" : ""}
                                           >
                                             {isSubActive && (
                                               <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary" />
@@ -693,8 +704,7 @@ export function AppSidebar() {
                     }
 
                     const urlStr = getUrl(item.url) || "";
-                    const isActive = location.pathname === urlStr ||
-                      (urlStr !== "/admin/hrms" && urlStr !== "/hrms" && urlStr !== "/admin/dashboard" && urlStr !== "/staff/dashboard" && urlStr !== "/admin" && location.pathname.startsWith(urlStr + "/"));
+                    const isActive = checkIsActive(item.url);
 
                     const isExternal = urlStr.startsWith("http");
 
@@ -723,7 +733,7 @@ export function AppSidebar() {
                               end
                               onClick={() => isMobile && setOpenMobile(false)}
                               className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                              activeClassName="sidebar-active-item font-semibold"
+                              activeClassName={isActive ? "sidebar-active-item font-semibold" : ""}
                             >
                               {isActive && (
                                 <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary" />

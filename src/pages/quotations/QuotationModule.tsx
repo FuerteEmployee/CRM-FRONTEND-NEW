@@ -21,6 +21,7 @@ import {
   LayoutDashboard,
   FilePlus,
   FileBarChart,
+  FileText,
   Plus,
   Edit,
   Trash2,
@@ -531,7 +532,7 @@ export default function QuotationModule() {
   const grandTotal = subtotal + gstAmount;
 
   const buildPayload = (status: string) => ({
-    client: clientId,
+    client: clientId || undefined,
     contact_number: contactNumber,
     client_address: address,
     date: quotationDate,
@@ -561,7 +562,7 @@ export default function QuotationModule() {
             mod: Number(it.mod) || 0,
             qty: Number(it.qty) || 1,
             disc_percent: Number(it.disc_percent) || 0,
-            photo_url: it.photoUrl,
+            photo_url: it.photoUrl || "",
           })),
         }))
         : [],
@@ -651,7 +652,7 @@ export default function QuotationModule() {
           description: i.description || "",
           qty: i.qty || 1,
           rate: i.rate || 0,
-          photoUrl: i.photo_url || "",
+          photoUrl: (i as any).photo_url || (i as any).photoUrl || "",
         }))
       );
     } else {
@@ -677,7 +678,7 @@ export default function QuotationModule() {
                 mod: it.mod || 0,
                 qty: it.qty || 1,
                 disc_percent: it.disc_percent || 0,
-                photoUrl: it.photo_url,
+                photoUrl: it.photo_url || it.photoUrl || "",
               }))
               : [emptyRoomItem()],
         }))
@@ -705,9 +706,10 @@ export default function QuotationModule() {
     setActiveTab("create");
   };
 
-  const validate = () => {
+  const validate = (isDraft = false) => {
+    if (isDraft) return true;
     if (!clientId) {
-      toast({ title: "Validation Error", description: "Please select a customer."});
+      toast({ title: "Validation Error", description: "Please select a customer.", variant: "destructive" });
       return false;
     }
     if (format === "simple" && !items.some((i) => i.description.trim())) {
@@ -721,28 +723,40 @@ export default function QuotationModule() {
     return true;
   };
 
-  const handleSaveAndDownload = () => {
-    if (!validate()) return;
+  const handleSaveDraft = () => {
+    if (!validate(true)) return;
     const mut = editingId ? updateMutation : createMutation;
     mut.mutate("draft", {
+      onSuccess: () => {
+        toast({
+          title: editingId ? "Draft updated" : "Draft saved",
+          description: "Your quotation has been saved as a draft.",
+        });
+      },
+    });
+  };
+
+  const handleSaveAndDownload = () => {
+    if (!validate(false)) return;
+    const currentStatus = editingId ? (allQuotations.find((q) => q._id === editingId)?.status || "sent") : "sent";
+    const payload = buildPayload(currentStatus);
+    const mut = editingId ? updateMutation : createMutation;
+    mut.mutate(currentStatus, {
       onSuccess: (saved: any) => {
-        // `saved.client` from the API is just the raw customer ID — the create/update
-        // endpoints don't populate it — so fill in the display fields we already have
-        // from the live form (sourced from the selected customer record) instead.
-        if (saved) {
-          handleDownloadPDF({
-            ...saved,
-            contact_number: contactNumber,
-            client_address: address,
-            client: { company: selectedClientLabel, phonenumber: contactNumber, address },
-          });
-        }
+        const fullData = saved || payload;
+        handleDownloadPDF({
+          ...fullData,
+          number: fullData.number || (editingId ? allQuotations.find((q) => q._id === editingId)?.number : undefined),
+          contact_number: contactNumber,
+          client_address: address,
+          client: { company: selectedClientLabel, phonenumber: contactNumber, address },
+        });
       },
     });
   };
 
   const handlePreviewAndSave = () => {
-    if (!validate()) return;
+    if (!validate(false)) return;
     setIsPreviewOpen(true);
   };
 
@@ -901,9 +915,12 @@ export default function QuotationModule() {
         const roomItems = room.items || [];
         const shouldIncludeImages = (q as any).show_item_images !== false;
         for (let i = 0; i < roomItems.length; i++) {
-          const url = roomItems[i]?.photo_url;
+          const url = roomItems[i]?.photo_url || roomItems[i]?.photoUrl;
           photoData[i] = (shouldIncludeImages && url) ? await loadImageAsDataUrl(url) : null;
         }
+
+        const roomHasAnyPhoto = roomItems.some((_, idx) => !!photoData[idx]);
+        const descHeaderLabel = roomHasAnyPhoto ? "PHOTO & DESCRIPTION" : "DESCRIPTION";
 
         const body: any[] = [];
         const photoRowIndex: Record<number, number> = {};
@@ -912,13 +929,21 @@ export default function QuotationModule() {
           const priceStr = pdfCurrency(it.unit_price);
           const totalStr = pdfCurrency(roomItemTotal(it));
           const hasBreakdown = (it.sw || 0) + (it.fan || 0) + (it.soc || 0) + (it.mod || 0) > 0;
-          const hasCaption = !!it.description?.trim() && it.description.trim() !== (it.series || "").trim();
           const hasPhoto = !!photoData[itemIdx];
+          const hasCaption = hasPhoto && !!it.description?.trim() && it.description.trim() !== (it.series || "").trim();
 
           photoRowIndex[body.length] = itemIdx;
           body.push([
             { content: it.series || "—", styles: { fontStyle: "bold", valign: "middle" } },
-            { content: "", styles: { minCellHeight: hasPhoto ? 24 : 10 } },
+            {
+              content: hasPhoto ? "" : (it.description || "—"),
+              styles: {
+                minCellHeight: hasPhoto ? 24 : 10,
+                valign: "middle",
+                halign: hasPhoto ? "center" : "left",
+                fontSize: 8,
+              },
+            },
             { content: String(it.qty || 0), styles: { halign: "center", valign: "middle" } },
             { content: priceStr, styles: { halign: "center", valign: "middle" } },
             { content: `${it.disc_percent || 0}%`, styles: { halign: "center", valign: "middle" } },
@@ -956,7 +981,7 @@ export default function QuotationModule() {
 
         autoTable(doc, {
           startY: y,
-          head: [["SERIES", "PHOTO & DESCRIPTION", "NOS", "PRICE", "DISCOUNT", "TOTAL"]],
+          head: [["SERIES", descHeaderLabel, "NOS", "PRICE", "DISCOUNT", "TOTAL"]],
           body,
           theme: "grid",
           headStyles: { fillColor: primaryRgb, fontSize: 8, halign: "center" },
@@ -987,7 +1012,15 @@ export default function QuotationModule() {
         y = (doc as any).lastAutoTable.finalY + 8;
       }
     } else {
-      const tableData = (q.items || []).map((item, index) => [
+      const shouldIncludeImages = (q as any).show_item_images !== false;
+      const simpleItems = q.items || [];
+      const photoData: Record<number, LoadedImage | null> = {};
+      for (let i = 0; i < simpleItems.length; i++) {
+        const url = simpleItems[i]?.photo_url || (simpleItems[i] as any)?.photoUrl;
+        photoData[i] = (shouldIncludeImages && url) ? await loadImageAsDataUrl(url) : null;
+      }
+
+      const tableData = simpleItems.map((item: any, index: number) => [
         index + 1,
         item.description || "—",
         item.qty || 0,
@@ -1001,6 +1034,25 @@ export default function QuotationModule() {
         body: tableData,
         headStyles: { fillColor: primaryRgb },
         margin: { left: 14, right: 14 },
+        didDrawCell: (data: any) => {
+          if (data.row.section !== "body" || data.column.index !== 1) return;
+          const itemIdx = data.row.index;
+          const imgObj = photoData[itemIdx];
+          if (!imgObj) return;
+          try {
+            const pad = 2;
+            const maxW = 16;
+            const maxH = 14;
+            const ratio = Math.min(maxW / imgObj.width, maxH / imgObj.height);
+            const imgW = imgObj.width * ratio;
+            const imgH = imgObj.height * ratio;
+            const imgX = data.cell.x + 2;
+            const imgY = data.cell.y + (data.cell.height - imgH) / 2;
+            doc.addImage(imgObj.dataUrl, "PNG", imgX, imgY, imgW, imgH);
+          } catch {
+            /* ignore */
+          }
+        },
       });
       y = (doc as any).lastAutoTable.finalY + 8;
     }
@@ -1088,7 +1140,10 @@ export default function QuotationModule() {
   const selectedClientLabel = customers.find((c: any) => c._id === clientId)?.company || "";
 
   const activeItem = sidebarItems.find((i) => i.id === activeTab);
-  const moduleTitle = currentType?.name ? `${activeItem?.label || "Quotations"} — ${currentType.name}` : activeItem?.label || "Quotations";
+  const activeLabel = activeTab === "create" && editingId ? "Edit Quotation" : (activeItem?.label || "Quotations");
+  const moduleTitle = currentType?.name
+    ? `${activeLabel} ${currentType.name}`
+    : activeLabel;
 
   const segBtnClass = (active: boolean) =>
     `flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
@@ -1554,13 +1609,18 @@ export default function QuotationModule() {
                                     <div className="flex items-center gap-2">
                                       <div className="relative group shrink-0">
                                         <label
-                                          title="Upload item image"
-                                          className="flex flex-col items-center justify-center h-10 w-10 rounded-lg border border-dashed border-border/60 cursor-pointer hover:border-primary/50 overflow-hidden bg-background shrink-0"
+                                          title="Upload or Change item photo"
+                                          className="flex flex-col items-center justify-center h-10 w-10 rounded-lg border border-dashed border-border/60 cursor-pointer hover:border-primary/50 overflow-hidden bg-background shrink-0 relative group"
                                         >
                                           {uploadingKey === `simple-${item.id}` ? (
                                             <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                                           ) : item.photoUrl ? (
-                                            <img src={item.photoUrl} alt="" className="h-full w-full object-cover" />
+                                            <>
+                                              <img src={resolveImageUrl(item.photoUrl)} alt="" className="h-full w-full object-cover" />
+                                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                <Edit className="h-3 w-3 text-white" />
+                                              </div>
+                                            </>
                                           ) : (
                                             <ImagePlus className="h-4 w-4 text-muted-foreground" />
                                           )}
@@ -1663,11 +1723,20 @@ export default function QuotationModule() {
                                 <div key={it.id} className="rounded-lg border border-border/40 p-4 space-y-3">
                                   <div className="flex items-start gap-3">
                                     <div className="relative group shrink-0">
-                                      <label className="flex flex-col items-center justify-center gap-1 h-16 w-16 rounded-lg border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 transition-colors overflow-hidden">
+                                      <label
+                                        title="Upload or Change item photo"
+                                        className="flex flex-col items-center justify-center gap-1 h-16 w-16 rounded-lg border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 transition-colors overflow-hidden relative group"
+                                      >
                                         {uploadingKey === `room-${room.id}-${it.id}` ? (
                                           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                                         ) : it.photoUrl ? (
-                                          <img src={it.photoUrl} alt="" className="h-full w-full object-cover" />
+                                          <>
+                                            <img src={resolveImageUrl(it.photoUrl)} alt="" className="h-full w-full object-cover" />
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity">
+                                              <Edit className="h-4 w-4 text-white" />
+                                              <span className="text-[9px] text-white font-medium">Edit</span>
+                                            </div>
+                                          </>
                                         ) : (
                                           <>
                                             <Plus className="h-4 w-4 text-muted-foreground" />
@@ -1855,7 +1924,7 @@ export default function QuotationModule() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/40">
+                    <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-border/40">
                       <Button
                         variant="ghost"
                         className="rounded-xl font-semibold"
@@ -1868,6 +1937,16 @@ export default function QuotationModule() {
                         Cancel
                       </Button>
                       <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-xl font-semibold gap-2 border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                        disabled={createMutation.isPending || updateMutation.isPending}
+                        onClick={handleSaveDraft}
+                      >
+                        <FileText className="h-4 w-4" />
+                        Save as Draft
+                      </Button>
+                      <Button
                         variant="outline"
                         className="rounded-xl font-semibold gap-2"
                         disabled={createMutation.isPending || updateMutation.isPending}
@@ -1876,7 +1955,7 @@ export default function QuotationModule() {
                         {(createMutation.isPending || updateMutation.isPending) && (createMutation.variables === "draft" || updateMutation.variables === "draft") ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          <Save className="h-4 w-4" />
+                          <Download className="h-4 w-4" />
                         )}
                         {editingId ? "Update & Download PDF" : "Save & Download PDF"}
                       </Button>
@@ -2079,7 +2158,7 @@ function QuotationPreviewDialog({
                     <tr key={i.id}>
                       <td className="py-2 flex items-center gap-2">
                         {showItemImages && (i.photoUrl || (i as any).photo_url) && (
-                          <img src={i.photoUrl || (i as any).photo_url} alt="" className="h-7 w-7 rounded object-cover border shrink-0" />
+                          <img src={resolveImageUrl(i.photoUrl || (i as any).photo_url)} alt="" className="h-7 w-7 rounded object-cover border shrink-0" />
                         )}
                         <span>{i.description}</span>
                       </td>
@@ -2109,7 +2188,7 @@ function QuotationPreviewDialog({
                         <tr key={i.id}>
                           <td className="py-2 flex items-center gap-2">
                             {showItemImages && (i.photoUrl || (i as any).photo_url) && (
-                              <img src={i.photoUrl || (i as any).photo_url} alt="" className="h-7 w-7 rounded object-cover border shrink-0" />
+                              <img src={resolveImageUrl(i.photoUrl || (i as any).photo_url)} alt="" className="h-7 w-7 rounded object-cover border shrink-0" />
                             )}
                             <span>{i.description}</span>
                           </td>
