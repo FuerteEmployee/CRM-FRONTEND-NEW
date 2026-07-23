@@ -161,7 +161,7 @@ export function DataTable<T extends Record<string, any>>({
 
   const getFormattedExportData = () => {
     let rawData: Record<string, any>[] = [];
-    
+
     if (getExportData) {
       rawData = getExportData(sortedData);
     } else {
@@ -255,11 +255,11 @@ export function DataTable<T extends Record<string, any>>({
       const body = dataToExport.map(row => headers.map(h => row[h] ? String(row[h]) : ""));
 
       const doc = new jsPDF("landscape");
-      
+
       doc.setFontSize(16);
       const titleText = `${exportFilename || "Export Data"}`.replace(/_/g, " ").toUpperCase();
       doc.text(titleText, 14, 15);
-      
+
       doc.setFontSize(10);
       doc.text(`Generated on ${new Date().toLocaleString()}`, 14, 22);
 
@@ -290,7 +290,7 @@ export function DataTable<T extends Record<string, any>>({
       if (dataToExport.length === 0) return;
 
       const headers = Object.keys(dataToExport[0]);
-      
+
       const html = `
         <html>
           <head>
