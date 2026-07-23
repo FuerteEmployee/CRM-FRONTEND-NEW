@@ -299,13 +299,14 @@ const toggleListening = () => {
       description: "Voice control needs a secure (https) connection. This page is loaded over plain http, so the browser won't allow microphone access here.",
       variant: "destructive",
     });
-  } else if (!isMicrophoneAvailable) {
-    toast({
-      title: "Fuerte AI",
-      description: "Microphone access is blocked for this site. Check your browser's site permissions and allow microphone access, then try again.",
-      variant: "destructive",
-    });
   } else {
+    // Always retry startListening() here, even if isMicrophoneAvailable was
+    // last seen as false — that flag only flips back to true once a fresh
+    // attempt succeeds, so refusing to retry would permanently lock the
+    // button out after a single denial, even after the user re-grants the
+    // permission in their browser's site settings. If it's still genuinely
+    // blocked, the isMicrophoneAvailable effect below reacts and shows the
+    // "blocked" toast once the failed attempt comes back.
     resetTranscript();
     consumedRef.current = 0;
     SpeechRecognition.startListening({ continuous: true, language: "en-US" });
