@@ -58,8 +58,12 @@ const LandingPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!companyName.trim() || !email.trim() || !password || !confirmPassword) {
+    if (!companyName.trim() || !email.trim() || !contactNo.trim() || !password || !confirmPassword) {
       toast.error("Please fill in all required fields.");
+      return;
+    }
+    if (contactNo.trim().length !== 10) {
+      toast.error("Contact number must be exactly 10 digits.");
       return;
     }
     if (password !== confirmPassword) {
@@ -233,9 +237,11 @@ const LandingPage = () => {
               <Input
                 id="contactNo"
                 type="tel"
-                placeholder="+91 98765 43210"
+                placeholder="9876543210"
                 value={contactNo}
-                onChange={(e) => setContactNo(e.target.value)}
+                onChange={(e) => setContactNo(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                maxLength={10}
+                inputMode="numeric"
               />
             </div>
 
