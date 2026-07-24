@@ -159,7 +159,7 @@ const Profile = () => {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phonenumber">Phone Number</Label>
-                    <Input id="phonenumber" name="phonenumber" type="tel" value={formData.phonenumber} onChange={handleChange} />
+                    <Input id="phonenumber" name="phonenumber" type="tel" value={formData.phonenumber} onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10); handleChange(e); }} maxLength={10} inputMode="numeric" />
                   </div>
                   <div className="space-y-2">
                     <Label>Notification Sound</Label>

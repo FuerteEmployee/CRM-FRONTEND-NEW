@@ -1437,7 +1437,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         placeholder="Enter phone number"
                         className="max-w-md"
                         value={compPhone}
-                        onChange={(e) => setCompPhone(e.target.value)}
+                        onChange={(e) => setCompPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                        maxLength={10}
+                        inputMode="numeric"
                       />
                     </div>
                     <div className="space-y-2 pt-4 border-t">

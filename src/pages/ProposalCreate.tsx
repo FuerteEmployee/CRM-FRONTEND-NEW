@@ -611,10 +611,12 @@ export default function ProposalCreate() {
                   <div className="space-y-2.5">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Phone</Label>
                     <div className="relative">
-                      <Input 
+                      <Input
                         className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold pl-10"
                         value={formData.phone}
-                        onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
+                        onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+                        maxLength={10}
+                        inputMode="numeric"
                       />
                       <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
                     </div>

@@ -520,7 +520,9 @@ const Contacts = () => {
                   <Input
                     id="phonenumber"
                     value={editContact?.phonenumber || ""}
-                    onChange={(e) => setEditContact({ ...editContact, phonenumber: e.target.value })}
+                    onChange={(e) => setEditContact({ ...editContact, phonenumber: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+                    maxLength={10}
+                    inputMode="numeric"
                   />
                 </div>
 
@@ -542,7 +544,8 @@ const Contacts = () => {
                       id="password"
                       value={editContact?.password || ""} 
                       onChange={(e) => setEditContact({ ...editContact, password: e.target.value })}
-                      type={showPassword ? "text" : "password"} 
+                      type={showPassword ? "text" : "password"}
+                      disableVoice
                     />
                     <button 
                       type="button"

@@ -211,8 +211,10 @@ export function AppSidebar() {
     return true;
   });
 
-  // The Setup button is ONLY visible when the user has Settings > View permission (or is admin)
-  const hasSetupAccess = isAdmin || canView("Settings");
+  // The Setup button is ONLY visible when the user has Settings > View permission (or is admin).
+  // HRMS-only self-service staff (added via HRMS Staff Directory) never get Setup access,
+  // regardless of any permission they might otherwise carry.
+  const hasSetupAccess = !user?.is_hrms_staff && (isAdmin || canView("Settings"));
 
   const getDaysRemaining = () => {
     if (!user?.tenant) return null;
@@ -558,40 +560,48 @@ export function AppSidebar() {
           <SidebarGroup className="py-2">
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {renderItems(dynamicNav.mainNav)}
-                {renderItems(dynamicNav.customersNav)}
-                {renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
-                {renderCollapsibleItem("Quotation Maker", Icons.FileBarChart, quotationMakerNav)}
-                {renderItems(dynamicNav.managementNav)}
-                {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav)}
-                {renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav)}
-                {renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav)}
-                {hasSetupAccess && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      id="tour-setup"
-                      onClick={() => {
-                        setMenuMode("setup");
-                        setOpenSections({});
-                        if (isMobile) setOpenMobile(false);
-                      }}
-                      className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative cursor-pointer"
-                    >
-                      <Icons.Settings className="mr-2.5 h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
-                      {!collapsed && (
-                        <span className="text-[13px] font-medium">Setup</span>
-                      )}
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                {renderItems(dynamicNav.mainNav.filter((i: any) => !user?.is_hrms_staff || i.title === "Dashboard"))}
+                {!user?.is_hrms_staff && (
+                  <>
+                    {renderItems(dynamicNav.customersNav)}
+                    {renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
+                    {renderCollapsibleItem("Quotation Maker", Icons.FileBarChart, quotationMakerNav)}
+                    {renderItems(dynamicNav.managementNav)}
+                  </>
                 )}
-                {renderItems([
-                  {
-                    title: "Subscription Details",
-                    url: "/admin/pricing",
-                    icon: "DollarSign",
-                    permission: "Subscriptions",
-                  }
-                ])}
+                {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav)}
+                {!user?.is_hrms_staff && (
+                  <>
+                    {renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav)}
+                    {renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav)}
+                    {hasSetupAccess && (
+                      <SidebarMenuItem>
+                        <SidebarMenuButton
+                          id="tour-setup"
+                          onClick={() => {
+                            setMenuMode("setup");
+                            setOpenSections({});
+                            if (isMobile) setOpenMobile(false);
+                          }}
+                          className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative cursor-pointer"
+                        >
+                          <Icons.Settings className="mr-2.5 h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
+                          {!collapsed && (
+                            <span className="text-[13px] font-medium">Setup</span>
+                          )}
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )}
+                    {renderItems([
+                      {
+                        title: "Subscription Details",
+                        url: "/admin/pricing",
+                        icon: "DollarSign",
+                        permission: "Subscriptions",
+                      }
+                    ])}
+                  </>
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>

@@ -529,7 +529,7 @@ const Leads = () => {
 
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Phone</Label>
-                        <Input readOnly={modalMode === "view"} value={leadForm.phonenumber} onChange={(e) => setLeadForm(prev => ({ ...prev, phonenumber: e.target.value }))} className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white" />
+                        <Input readOnly={modalMode === "view"} value={leadForm.phonenumber} onChange={(e) => setLeadForm(prev => ({ ...prev, phonenumber: e.target.value.replace(/\D/g, "").slice(0, 10) }))} maxLength={10} inputMode="numeric" className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white" />
                       </div>
                     </div>
 

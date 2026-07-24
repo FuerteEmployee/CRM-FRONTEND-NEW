@@ -644,6 +644,7 @@ export default function SetupStaffForm() {
                 <div className="relative group max-w-md">
                   <Input
                     type={showPassword ? "text" : "password"}
+                    disableVoice
                     value={formData.password}
                     onChange={(e) =>
                       setFormData({ ...formData, password: e.target.value })

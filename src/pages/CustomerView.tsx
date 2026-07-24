@@ -1895,7 +1895,7 @@ export default function CustomerView() {
                                 </div>
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground uppercase">Phone</Label>
-                                  <Input name="phonenumber" value={formData.phonenumber || ""} onChange={handleFormChange} placeholder="Phone Number" className="h-9" />
+                                  <Input name="phonenumber" value={formData.phonenumber || ""} onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10); handleFormChange(e); }} maxLength={10} inputMode="numeric" placeholder="Phone Number" className="h-9" />
                                 </div>
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground uppercase">Website</Label>
@@ -2265,7 +2265,7 @@ export default function CustomerView() {
                                     </div>
                                     <div className="space-y-1.5">
                                       <Label className="text-xs font-bold uppercase text-muted-foreground">Phone</Label>
-                                      <Input name="phonenumber" value={contactForm.phonenumber} onChange={handleContactFormChange} placeholder="Phone Number" />
+                                      <Input name="phonenumber" value={contactForm.phonenumber} onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10); handleContactFormChange(e); }} maxLength={10} inputMode="numeric" placeholder="Phone Number" />
                                     </div>
                                     <div className="space-y-1.5">
                                       <Label className="text-xs font-bold uppercase text-muted-foreground">Direction</Label>
@@ -2285,6 +2285,7 @@ export default function CustomerView() {
                                           value={contactForm.password}
                                           onChange={handleContactFormChange}
                                           type={showPassword ? "text" : "password"}
+                                          disableVoice
                                           placeholder="Password"
                                         />
                                         <button
@@ -6582,6 +6583,7 @@ function VaultEntryModal({ open, onOpenChange, formData, setFormData, onSave, is
               <div className="relative">
                 <Input
                   type={formData.showPassword ? "text" : "password"}
+                  disableVoice
                   placeholder="Password"
                   value={formData.password}
                   onChange={(e) => setFormData((p: any) => ({ ...p, password: e.target.value }))}
@@ -6756,7 +6758,9 @@ function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPen
                 <Input
                   placeholder="+1 (555) 000-0000"
                   value={formData.phonenumber || ""}
-                  onChange={(e) => setFormData((p: any) => ({ ...p, phonenumber: e.target.value }))}
+                  onChange={(e) => setFormData((p: any) => ({ ...p, phonenumber: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+                  maxLength={10}
+                  inputMode="numeric"
                   className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
                 />
               </div>
@@ -6779,6 +6783,7 @@ function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPen
                 <div className="relative">
                   <Input
                     type={formData.showPassword ? "text" : "password"}
+                    disableVoice
                     placeholder="••••••••"
                     value={formData.password || ""}
                     onChange={(e) => setFormData((p: any) => ({ ...p, password: e.target.value }))}

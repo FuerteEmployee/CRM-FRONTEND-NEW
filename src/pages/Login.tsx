@@ -207,6 +207,7 @@ const Login = () => {
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
+                  disableVoice
                   placeholder="Enter Your Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -265,6 +266,12 @@ const Login = () => {
           </form>
 
           {/* Footer */}
+          <p className="text-sm text-center text-muted-foreground">
+            Don&apos;t have an account?{" "}
+            <Link to="/welcome" className="text-primary font-medium hover:underline">
+              Sign up
+            </Link>
+          </p>
         </div>
       </div>
     </div>
