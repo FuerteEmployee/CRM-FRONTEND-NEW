@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { AdminDashboardSkeleton } from "@/components/ui/page-skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -134,7 +134,7 @@ const PlanExpiredModal = ({ plan }: { plan: any }) => {
 };
 
 const Dashboard = () => {
-  const { user, isModuleEnabled, canView } = usePermissionContext();
+  const { user, isModuleEnabled, canView, isStaff, isAdmin } = usePermissionContext();
   const { symbol, formatAmount } = useCurrency();
 
   const getDaysRemaining = (): number | null => {
@@ -220,7 +220,7 @@ const Dashboard = () => {
     enabled: !isExpired && isModuleEnabled("quotations")
   });
 
-  const { data: tasksList = [] } = useQuery({
+  const { data: rawTasksList = [] } = useQuery({
     queryKey: ["dashboard-tasks"],
     queryFn: async () => {
       const res = await taskService.getAll();
@@ -228,6 +228,23 @@ const Dashboard = () => {
     },
     enabled: !isExpired && isModuleEnabled("tasks")
   });
+
+  const tasksList = useMemo(() => {
+    if (isStaff && !isAdmin && user?._id) {
+      const currentUserId = String(user._id);
+      return rawTasksList.filter((t: any) => {
+        const isAssigned = Array.isArray(t.assignees) && t.assignees.some((a: any) => 
+          String(typeof a === 'object' ? a?._id || a?.value : a) === currentUserId
+        );
+        const isFollower = Array.isArray(t.followers) && t.followers.some((f: any) => 
+          String(typeof f === 'object' ? f?._id || f?.value : f) === currentUserId
+        );
+        const isCreator = String(typeof t.created_by === 'object' ? t.created_by?._id : t.created_by) === currentUserId;
+        return isAssigned || isFollower || isCreator;
+      });
+    }
+    return rawTasksList;
+  }, [rawTasksList, isStaff, isAdmin, user?._id]);
 
   const { data: projectsList = [] } = useQuery({
     queryKey: ["dashboard-projects"],

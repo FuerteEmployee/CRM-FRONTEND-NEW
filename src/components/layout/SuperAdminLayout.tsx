@@ -31,7 +31,7 @@ export function SuperAdminLayout() {
   const navigate = useNavigate();
   const { logout, user } = usePermissionContext();
   const { getSetting } = useSettings();
-  const companyName = getSetting("companyName", "FuerteCRM");
+  const companyName = getSetting("companyName", "Trinetra TechnoWorld");
   const [profileOpen, setProfileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);

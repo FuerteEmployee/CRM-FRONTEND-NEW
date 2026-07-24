@@ -92,7 +92,7 @@ const StaffLogin = () => {
                 {settings?.companyName?.charAt(0) || "C"}
               </div>
               <span className="text-2xl font-bold tracking-tight">
-                {settings?.companyName || "CRMPro"}
+                {settings?.companyName || "Trinetra TechnoWorld"}
               </span>
             </>
           )}
@@ -155,7 +155,7 @@ const StaffLogin = () => {
                   {settings?.companyName?.charAt(0) || "C"}
                 </div>
                 <span className="text-xl font-bold">
-                  {settings?.companyName || "CRMPro"}
+                  {settings?.companyName || "Trinetra TechnoWorld"}
                 </span>
               </>
             )}

@@ -142,7 +142,7 @@ const Tasks = () => {
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, user, isStaff, isAdmin } = usePermissions();
   const navigate = useNavigate();
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery<any[]>({
@@ -183,8 +183,23 @@ const Tasks = () => {
 
   // Normalize all tasks
   const allTasks = useMemo(() => {
+    let rawTasks = tasks;
+    if (isStaff && !isAdmin && user?._id) {
+      const currentUserId = String(user._id);
+      rawTasks = tasks.filter((t: any) => {
+        const isAssigned = Array.isArray(t.assignees) && t.assignees.some((a: any) => 
+          String(typeof a === 'object' ? a?._id || a?.value : a) === currentUserId
+        );
+        const isFollower = Array.isArray(t.followers) && t.followers.some((f: any) => 
+          String(typeof f === 'object' ? f?._id || f?.value : f) === currentUserId
+        );
+        const isCreator = String(typeof t.created_by === 'object' ? t.created_by?._id : t.created_by) === currentUserId;
+        return isAssigned || isFollower || isCreator;
+      });
+    }
+
     return [
-      ...tasks.map((t: any) => ({
+      ...rawTasks.map((t: any) => ({
         ...t,
         displayStatus: t.status || 1,
         displayPriority: t.priority || 2,
@@ -199,7 +214,7 @@ const Tasks = () => {
         isTodo: true,
       })),
     ];
-  }, [tasks, todos]);
+  }, [tasks, todos, isStaff, isAdmin, user?._id]);
 
   const filteredTasks = useMemo(() => {
     return allTasks.filter((t: any) => {
@@ -495,9 +510,11 @@ const Tasks = () => {
             <h1 className="text-2xl font-bold">Tasks</h1>
             <Link to="/admin/tasks/overview" className="text-sm text-primary hover:underline font-medium">Tasks Overview</Link>
           </div>
-          {can("Tasks", "Create") && (
+          {(isAdmin || isStaff || can("Tasks", "Create")) && (
             <div className="flex gap-2 items-center">
-              <ImportButton onData={processTaskRows} loading={importTasksMutation.isPending} label="Import Tasks" />
+              {(isAdmin || can("Tasks", "Create")) && (
+                <ImportButton onData={processTaskRows} loading={importTasksMutation.isPending} label="Import Tasks" />
+              )}
               <Dialog open={isNewTaskModalOpen} onOpenChange={setIsNewTaskModalOpen}>
             <DialogTrigger asChild>
               <Button onClick={() => setEditingTask(null)} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">

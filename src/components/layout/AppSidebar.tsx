@@ -45,7 +45,7 @@ import {
   Bookmark,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
   Sidebar,
@@ -183,8 +183,9 @@ export function AppSidebar() {
   const { state, setOpenMobile, isMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { user, permissions, isAdmin, isStaff, canView, isModuleEnabled } = usePermissions();
+  const { user, permissions, isAdmin, isStaff, can, canView, isModuleEnabled } = usePermissions();
   const basePath = isStaff ? "/staff" : "/admin";
+  const navigate = useNavigate();
 
   // Restrict the menu to Dashboard + HRMS for anyone whose role only grants
   // HRMS permissions — not just staff created via the old HRMS self-service
@@ -209,7 +210,7 @@ export function AppSidebar() {
   const { getSetting } = useSettings();
   const { chatUnreadCount } = useNotificationContext();
 
-  const companyName = getSetting("companyName", "CRMPro");
+  const companyName = getSetting("companyName", "Trinetra TechnoWorld");
   const logoLight = resolveImageUrl(getSetting("compLogoLight", ""));
   const [logoError, setLogoError] = useState(false);
 
@@ -388,12 +389,17 @@ export function AppSidebar() {
     };
 
     // Map sidebar URLs → plan module keys (SaasPlan.module_access)
+    // Note: staff users have basePath=/staff so URLs are rewritten; include both variants.
     const URL_MODULE_MAP: Record<string, string> = {
       // Finance module
       "/admin/invoices": "finance",
       "/admin/payments": "finance",
       "/admin/credit-notes": "finance",
       "/admin/items": "finance",
+      "/staff/invoices": "finance",
+      "/staff/payments": "finance",
+      "/staff/credit-notes": "finance",
+      "/staff/items": "finance",
       // Individual modules
       "/admin/tasks": "tasks",
       "/admin/projects": "projects",
@@ -413,6 +419,22 @@ export function AppSidebar() {
       "/admin/announcements": "announcements",
       "/admin/calendar": "calendar",
       "/admin/bookmarks": "bookmarks",
+      // Staff URL variants
+      "/staff/tasks": "tasks",
+      "/staff/projects": "projects",
+      "/staff/support": "support",
+      "/staff/leads": "leads",
+      "/staff/contracts": "contracts",
+      "/staff/chat": "chat",
+      "/staff/meetings": "meetings",
+      "/staff/subscriptions": "subscriptions",
+      "/staff/expenses": "expenses",
+      "/staff/proposals": "proposals",
+      "/staff/estimates": "estimates",
+      "/staff/announcements": "announcements",
+      "/staff/goals": "goals",
+      "/staff/calendar": "calendar",
+      "/staff/bookmarks": "bookmarks",
       // Reports sub-routes
       "/admin/reports/expenses": "reports",
       "/admin/reports/expenses-vs-income": "reports",
@@ -422,7 +444,7 @@ export function AppSidebar() {
     };
 
     return items
-      .filter((item: any) => !item.permission || canView(item.permission))
+      .filter((item: any) => !item.permission || canView(item.permission) || (isStaff && (item.title === "Tasks" || item.permission === "Tasks")))
       .filter((item: any) => {
         // Hide modules disabled in the tenant's plan
         const moduleKey = URL_MODULE_MAP[getUrl(item.url)];
@@ -484,6 +506,21 @@ export function AppSidebar() {
                 </NavLink>
               )}
             </SidebarMenuButton>
+            {/* Quick-create "+" button — always visible for Tasks row, works for both admin & staff */}
+            {!collapsed && item.title === "Tasks" && (isAdmin || isStaff || can("Tasks", "Create")) && (
+              <button
+                title="New Task"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isMobile) setOpenMobile(false);
+                  navigate(`${basePath}/tasks?new=1`);
+                }}
+                style={{ zIndex: 10 }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors duration-150 shrink-0"
+              >
+                <Icons.Plus className="h-3.5 w-3.5" />
+              </button>
+            )}
           </SidebarMenuItem>
         );
       });
@@ -579,13 +616,16 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
                 {renderItems(dynamicNav.mainNav.filter((i: any) => !isHrmsOnly || i.title === "Dashboard"))}
-                {!isHrmsOnly && (
+                {!isHrmsOnly ? (
                   <>
                     {renderItems(dynamicNav.customersNav)}
                     {renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
                     {renderCollapsibleItem("Quotation Maker", Icons.FileBarChart, quotationMakerNav)}
                     {renderItems(dynamicNav.managementNav)}
                   </>
+                ) : (
+                  /* HRMS-only staff can still be assigned tasks — always show Tasks link */
+                  isStaff && renderItems(dynamicNav.managementNav.filter((i: any) => i.title === "Tasks"))
                 )}
                 {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav)}
                 {!isHrmsOnly && (

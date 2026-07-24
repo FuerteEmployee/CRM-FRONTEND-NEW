@@ -106,7 +106,7 @@ const LandingPage = () => {
               {settings?.companyName?.charAt(0) || "C"}
             </div>
           )}
-          <span className="text-lg font-bold">{settings?.companyName || "CRMPro"}</span>
+          <span className="text-lg font-bold">{settings?.companyName || "Trinetra TechnoWorld"}</span>
         </div>
         <Link to="/admin/login">
           <Button variant="outline">Log In</Button>
