@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { useAuth } from "@/hrms/contexts/AuthContext";
 import { Button } from "@/hrms/components/ui/button";
 import { Input } from "@/hrms/components/ui/input";

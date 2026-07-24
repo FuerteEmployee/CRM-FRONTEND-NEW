@@ -63,7 +63,7 @@ export function ExportButton({ data, filename, columns }: ExportButtonProps) {
           ...rows.map(r => r.map(v => `"${v.replace(/"/g, '""')}"`).join(",")),
         ].join("\n");
         // UTF-8 BOM so Excel opens it correctly
-        downloadBlob(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" }), `${dated}.csv`);
+        downloadBlob(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }), `${dated}.csv`);
         toast.success(`Exported ${data.length} records as CSV`);
 
       } else if (type === "xlsx") {
