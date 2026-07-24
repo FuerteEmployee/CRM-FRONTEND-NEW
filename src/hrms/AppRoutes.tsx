@@ -76,6 +76,7 @@ const CollectionsPage = () => <UnderConstruction title="CollectionsPage" />;
 import AttendancePage from "./pages/staff/AttendancePage";
 import EnableTrackingSetup from "./pages/staff/EnableTrackingSetup";
 import MyLeavesPage from "./pages/staff/MyLeavesPage";
+import MySalaryPage from "./pages/staff/MySalaryPage";
 import ExpensePage from "./pages/staff/ExpensePage";
 import RolesPage from "./pages/staff/RolesPage";
 import UsersPage from "./pages/staff/UsersPage";
@@ -454,6 +455,7 @@ export function AppRoutes() {
 
         <Route path="staff/expenses" element={<ExpensePage />} />
         <Route path="staff/leaves" element={<MyLeavesPage />} />
+        <Route path="staff/salary" element={<MySalaryPage />} />
         <Route
           path="staff/roles"
           element={

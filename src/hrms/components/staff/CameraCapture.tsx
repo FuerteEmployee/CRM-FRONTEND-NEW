@@ -1,21 +1,51 @@
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/hrms/components/ui/button";
-import { Camera, FlipHorizontal } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/hrms/components/ui/select";
+import { Camera, FlipHorizontal, Video } from "lucide-react";
 
 interface CameraCaptureProps {
   onCapture: (blob: Blob) => void;
   onCancel: () => void;
 }
 
+// Some machines have a virtual camera app (OBS Virtual Camera, Snap Camera,
+// ManyCam, DroidCam, Iriun, etc.) registered as a video input device. If the
+// browser picks one of these as the default, the identity-verification
+// preview shows that app's own idle/branding output instead of a real face —
+// not a bug in this component, just the wrong device selected. Deprioritize
+// (but still allow selecting) anything whose label matches a known virtual
+// camera so the real webcam is picked by default when one is present.
+const VIRTUAL_CAMERA_HINTS = ["virtual", "obs", "snap camera", "manycam", "droidcam", "iriun", "epoccam", "camo"];
+const looksVirtual = (label: string) => VIRTUAL_CAMERA_HINTS.some((hint) => label.toLowerCase().includes(hint));
+
 export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCancel }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
 
-  const startCamera = useCallback(async (mode: "user" | "environment") => {
+  const refreshDeviceList = useCallback(async () => {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      const videoInputs = all.filter((d) => d.kind === "videoinput");
+      setDevices(videoInputs);
+      return videoInputs;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const startCamera = useCallback(async (constraints: { deviceId?: string; mode?: "user" | "environment" }) => {
     // Stop existing stream first
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
@@ -25,7 +55,9 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
     setError(null);
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: mode },
+        video: constraints.deviceId
+          ? { deviceId: { exact: constraints.deviceId } }
+          : { facingMode: constraints.mode || "user" },
         audio: false,
       });
       streamRef.current = mediaStream;
@@ -36,20 +68,46 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
         videoRef.current.play().catch(() => { /* ignored — autoPlay will retry */ });
       }
       setIsReady(true);
+
+      // Labels are blank on most browsers until permission is granted —
+      // re-enumerate now so the device picker shows real names, and lock in
+      // which device actually ended up active (deviceId constraint can
+      // still fall back if the exact one becomes unavailable).
+      const videoInputs = await refreshDeviceList();
+      const activeId = mediaStream.getVideoTracks()[0]?.getSettings().deviceId;
+      if (activeId) {
+        setSelectedDeviceId(activeId);
+      } else if (!constraints.deviceId && videoInputs.length) {
+        const preferred = videoInputs.find((d) => !looksVirtual(d.label)) || videoInputs[0];
+        setSelectedDeviceId(preferred.deviceId);
+      }
     } catch {
       setError("Could not access camera. Please ensure permissions are granted.");
     }
-  }, []);
+  }, [refreshDeviceList]);
 
   useEffect(() => {
-    startCamera(facingMode);
+    startCamera({ mode: facingMode });
     return () => {
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
-  }, [facingMode, startCamera]);
+    // Only re-run for the facingMode flip button — device switches are
+    // handled explicitly by handleDeviceChange below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const flipCamera = () => {
-    setFacingMode((prev) => (prev === "user" ? "environment" : "user"));
+    setSelectedDeviceId(null);
+    setFacingMode((prev) => {
+      const next = prev === "user" ? "environment" : "user";
+      startCamera({ mode: next });
+      return next;
+    });
+  };
+
+  const handleDeviceChange = (deviceId: string) => {
+    setSelectedDeviceId(deviceId);
+    startCamera({ deviceId });
   };
 
   const takePhoto = () => {
@@ -110,6 +168,30 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
           {facingMode === "user" ? "Front Camera" : "Back Camera"}
         </div>
       </div>
+
+      {/* Device picker — only shown when more than one camera is available,
+          e.g. a real webcam alongside a virtual camera app. Not seeing your
+          face here usually means the wrong device is selected below. */}
+      {!error && devices.length > 1 && (
+        <div className="w-full max-w-sm space-y-1">
+          <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            <Video className="h-3 w-3" /> Camera source
+          </label>
+          <Select value={selectedDeviceId || undefined} onValueChange={handleDeviceChange}>
+            <SelectTrigger className="h-9 rounded-xl text-sm">
+              <SelectValue placeholder="Select camera" />
+            </SelectTrigger>
+            <SelectContent>
+              {devices.map((d, i) => (
+                <SelectItem key={d.deviceId} value={d.deviceId}>
+                  {d.label || `Camera ${i + 1}`}
+                  {looksVirtual(d.label) ? " (virtual)" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="flex gap-4 w-full max-w-sm">
         <Button variant="outline" className="flex-1 rounded-2xl h-12" onClick={onCancel}>

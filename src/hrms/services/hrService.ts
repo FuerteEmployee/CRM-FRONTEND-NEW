@@ -141,6 +141,12 @@ export const employeeService = {
     return res.data?.data || res.data || [];
   },
 
+  // Self-service — always scoped server-side to the logged-in employee.
+  getMyPayroll: async (params: { month?: number; year?: number } = {}): Promise<any> => {
+    const res = await apiClient.get("/payroll/me", { params });
+    return res.data?.data || res.data || [];
+  },
+
   generatePayroll: async (data: { month: number; year: number; storeId: string }): Promise<any> => {
     const res = await apiClient.post("/payroll/generate", data);
     return res;

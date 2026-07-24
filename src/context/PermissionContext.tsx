@@ -15,6 +15,7 @@ interface User {
   // Backend returns this as boolean, 0/1, or "0"/"1"/"true" depending on version
   admin: any;
   is_superadmin?: boolean;
+  is_hrms_staff?: boolean;
   role?: any;
   tenant?: any;
 }

@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
+import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -28,7 +29,46 @@ export default defineConfig(({ mode }) => ({
       },
     },
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [
+    react(),
+    mode === "development" && componentTagger(),
+    VitePWA({
+      registerType: "autoUpdate",
+      injectRegister: "auto",
+      includeAssets: ["favicon.ico"],
+      devOptions: {
+        // Serve the manifest + a real service worker under `npm run dev` too,
+        // not just in a production build — otherwise the browser never sees
+        // an installable app while developing against localhost:5173.
+        enabled: true,
+        type: "module",
+      },
+      manifest: {
+        name: "CRMPro",
+        short_name: "CRMPro",
+        description: "CRMPro - Complete CRM and team management platform",
+        start_url: ".",
+        display: "standalone",
+        background_color: "#ffffff",
+        theme_color: "#1e293b",
+        icons: [
+          { src: "icons/icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "icons/icon-512.png", sizes: "512x512", type: "image/png" },
+          { src: "icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+        ],
+      },
+      workbox: {
+        // API/socket traffic must always hit the network live — only cache
+        // the app shell's own static build output.
+        navigateFallbackDenylist: [/^\/api\//, /^\/socket\.io\//],
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // The vendor-react chunk bundles react/router/radix-ui/recharts/etc.
+        // together (see manualChunks comment in this file) and exceeds
+        // workbox's 2 MiB default precache limit.
+        maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
+      },
+    }),
+  ].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

@@ -183,8 +183,22 @@ export function AppSidebar() {
   const { state, setOpenMobile, isMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { user, isAdmin, isStaff, canView, isModuleEnabled } = usePermissions();
+  const { user, permissions, isAdmin, isStaff, canView, isModuleEnabled } = usePermissions();
   const basePath = isStaff ? "/staff" : "/admin";
+
+  // Restrict the menu to Dashboard + HRMS for anyone whose role only grants
+  // HRMS permissions — not just staff created via the old HRMS self-service
+  // flow (`is_hrms_staff`), but also any staff assigned an HRMS-only role
+  // (e.g. the seeded "HRMS" role) through the normal Setup > Staff > Role
+  // dropdown. Driven by their actual granted permissions, not a fixed flag.
+  const hasAnyHrmsPermission = Object.keys(permissions).some(
+    (feature) => feature.startsWith("HRMS") && canView(feature)
+  );
+  const hasAnyOtherPermission = Object.keys(permissions).some(
+    (feature) => !feature.startsWith("HRMS") && canView(feature)
+  );
+  const isHrmsOnly =
+    !isAdmin && (user?.is_hrms_staff || (hasAnyHrmsPermission && !hasAnyOtherPermission));
 
   const getUrl = (url: string | undefined) => {
     if (!url) return "";
@@ -214,7 +228,7 @@ export function AppSidebar() {
   // The Setup button is ONLY visible when the user has Settings > View permission (or is admin).
   // HRMS-only self-service staff (added via HRMS Staff Directory) never get Setup access,
   // regardless of any permission they might otherwise carry.
-  const hasSetupAccess = !user?.is_hrms_staff && (isAdmin || canView("Settings"));
+  const hasSetupAccess = !isHrmsOnly && (isAdmin || canView("Settings"));
 
   const getDaysRemaining = () => {
     if (!user?.tenant) return null;
@@ -260,17 +274,21 @@ export function AppSidebar() {
     if (isUserAdminOrSuper) {
       // Admins see management items, hide "My ..." personal views
       filteredHrms = filteredHrms.filter(item => 
+        !item.title.startsWith("My ") &&
         item.title !== "My Attendance" &&
         item.title !== "My Leaves" &&
         item.title !== "My Expenses" &&
+        item.title !== "My Salary" &&
         item.title !== "My Advance Salary"
       );
     } else {
       // Non-admins see "My ..." personal views, hide management items
       filteredHrms = filteredHrms.filter(item => 
+        item.title.startsWith("My ") ||
         item.title === "My Attendance" ||
         item.title === "My Leaves" ||
         item.title === "My Expenses" ||
+        item.title === "My Salary" ||
         item.title === "My Advance Salary"
       );
     }
@@ -560,8 +578,8 @@ export function AppSidebar() {
           <SidebarGroup className="py-2">
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {renderItems(dynamicNav.mainNav.filter((i: any) => !user?.is_hrms_staff || i.title === "Dashboard"))}
-                {!user?.is_hrms_staff && (
+                {renderItems(dynamicNav.mainNav.filter((i: any) => !isHrmsOnly || i.title === "Dashboard"))}
+                {!isHrmsOnly && (
                   <>
                     {renderItems(dynamicNav.customersNav)}
                     {renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
@@ -570,7 +588,7 @@ export function AppSidebar() {
                   </>
                 )}
                 {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav)}
-                {!user?.is_hrms_staff && (
+                {!isHrmsOnly && (
                   <>
                     {renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav)}
                     {renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav)}

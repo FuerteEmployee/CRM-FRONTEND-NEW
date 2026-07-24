@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
+import { AlreadyLoggedInBanner } from "@/components/auth/AlreadyLoggedInBanner";
 
 const features = [
   { icon: BarChart3, label: "Real-time Analytics" },
@@ -169,6 +170,8 @@ const StaffLogin = () => {
               Sign in to access your staff dashboard
             </p>
           </div>
+
+          <AlreadyLoggedInBanner />
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">
