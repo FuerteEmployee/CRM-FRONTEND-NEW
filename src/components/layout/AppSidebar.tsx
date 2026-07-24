@@ -544,7 +544,7 @@ export function AppSidebar() {
     <Sidebar collapsible="offcanvas" id="tour-sidebar">
       <SidebarHeader className="p-4 pb-3">
         <NavLink
-          to="/admin/dashboard"
+          to={`${basePath}/dashboard`}
           className="flex items-center gap-2.5 group"
         >
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm group-hover:shadow-md transition-shadow duration-300 overflow-hidden">

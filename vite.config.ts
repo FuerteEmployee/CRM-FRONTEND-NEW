@@ -6,7 +6,7 @@ import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  base: "./",
+  base: "/",
   server: {
     host: "::",
     port: 5173,
@@ -47,7 +47,8 @@ export default defineConfig(({ mode }) => ({
         name: "CRMPro",
         short_name: "CRMPro",
         description: "CRMPro - Complete CRM and team management platform",
-        start_url: ".",
+        start_url: "/",
+        scope: "/",
         display: "standalone",
         background_color: "#ffffff",
         theme_color: "#1e293b",

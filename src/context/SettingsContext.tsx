@@ -12,7 +12,18 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [settings, setSettings] = useState<Record<string, any>>({});
+  const [settings, setSettings] = useState<Record<string, any>>(() => {
+    const cachedName = localStorage.getItem("crm_company_name");
+    const cachedFavicon = localStorage.getItem("crm_favicon");
+    const cachedLogoLight = localStorage.getItem("crm_comp_logo_light");
+    const cachedLogoDark = localStorage.getItem("crm_comp_logo_dark");
+    const initial: Record<string, any> = {};
+    if (cachedName) initial.companyName = cachedName;
+    if (cachedFavicon) initial.favicon = cachedFavicon;
+    if (cachedLogoLight) initial.compLogoLight = cachedLogoLight;
+    if (cachedLogoDark) initial.compLogoDark = cachedLogoDark;
+    return initial;
+  });
   const [loading, setLoading] = useState(true);
 
   const refreshSettings = useCallback(async () => {
@@ -50,6 +61,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       document.title = settings.companyName;
       localStorage.setItem("crm_company_name", settings.companyName);
     }
+    if (settings.compLogoLight) {
+      localStorage.setItem("crm_comp_logo_light", settings.compLogoLight);
+    }
+    if (settings.compLogoDark) {
+      localStorage.setItem("crm_comp_logo_dark", settings.compLogoDark);
+    }
     
     if (settings.favicon) {
       const link: HTMLLinkElement = document.querySelector("link[rel*='icon']") || document.createElement('link');
@@ -71,7 +88,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [settings]);
 
   const getSetting = (name: string, defaultValue: any = "") => {
-    return settings[name] !== undefined ? settings[name] : defaultValue;
+    if (settings[name] !== undefined) return settings[name];
+    if (name === "companyName" && localStorage.getItem("crm_company_name")) return localStorage.getItem("crm_company_name");
+    if (name === "compLogoLight" && localStorage.getItem("crm_comp_logo_light")) return localStorage.getItem("crm_comp_logo_light");
+    if (name === "compLogoDark" && localStorage.getItem("crm_comp_logo_dark")) return localStorage.getItem("crm_comp_logo_dark");
+    if (name === "favicon" && localStorage.getItem("crm_favicon")) return localStorage.getItem("crm_favicon");
+    return defaultValue;
   };
 
   return (
