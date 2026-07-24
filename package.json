@@ -11,7 +11,13 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy": "vite build && git add . && git commit -m \"deploy: update source and build\" && git push origin main"
+    "deploy": "vite build && git add . && git commit -m \"deploy: update source and build\" && git push origin main",
+    "cap:add": "npx cap add android",
+    "cap:sync": "npm run build && npx cap sync",
+    "cap:open": "npx cap open android",
+    "apk": "npm run build && npx @capacitor/cli@7 copy android && cd android && .\\gradlew.bat assembleRelease",
+    "apk:release": "npm run build && npx @capacitor/cli@7 copy android && cd android && .\\gradlew.bat assembleRelease",
+    "apk:debug": "npm run build && npx @capacitor/cli@7 copy android && cd android && .\\gradlew.bat assembleDebug"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",
