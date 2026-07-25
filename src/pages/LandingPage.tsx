@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,9 @@ type Plan = {
   price: number;
   billing_cycle: "monthly" | "yearly" | "lifetime";
   features?: { max_users?: number; max_storage_gb?: number; max_customers?: number };
+  module_access?: Record<string, boolean>;
+  is_popular?: boolean;
+  trial_days?: number;
 };
 
 const billingLabel = (cycle: Plan["billing_cycle"]) =>
@@ -33,9 +37,13 @@ const LandingPage = () => {
   const navigate = useNavigate();
   const { settings } = useSettings();
 
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [plansLoading, setPlansLoading] = useState(true);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+
+  const { data: plans = [], isLoading: plansLoading, isError } = useQuery<Plan[]>({
+    queryKey: ["public-plans"],
+    queryFn: () => publicService.getPlans() as Promise<Plan[]>,
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+  });
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -47,13 +55,10 @@ const LandingPage = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   useEffect(() => {
-    (async () => {
-      const data = await publicService.getPlans();
-      setPlans(data);
-      if (data.length) setSelectedPlanId(data[0]._id);
-      setPlansLoading(false);
-    })();
-  }, []);
+    if (plans.length > 0 && !selectedPlanId) {
+      setSelectedPlanId(plans[0]._id);
+    }
+  }, [plans, selectedPlanId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,57 +150,94 @@ const LandingPage = () => {
           </p>
 
           {plansLoading ? (
-            <p className="text-sm text-muted-foreground">Loading plans…</p>
+            <div className="flex justify-center py-10">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : isError ? (
+             <div className="p-4 bg-destructive/10 text-destructive rounded-lg text-sm text-center">
+               Failed to load plans. Please try refreshing the page.
+             </div>
           ) : plans.length === 0 ? (
             <p className="text-sm text-muted-foreground">No plans are available right now.</p>
           ) : (
             <div className="grid sm:grid-cols-2 gap-4">
               {plans.map((plan) => {
                 const selected = selectedPlanId === plan._id;
+                
+                // Construct dynamic feature list
+                const dynamicFeatures = [];
+                if (plan.features) {
+                  if (plan.features.max_users === -1) dynamicFeatures.push("Unlimited users");
+                  else if (plan.features.max_users != null) dynamicFeatures.push(`Up to ${plan.features.max_users} users`);
+                  
+                  if (plan.features.max_storage_gb === -1) dynamicFeatures.push("Unlimited storage");
+                  else if (plan.features.max_storage_gb != null) dynamicFeatures.push(`${plan.features.max_storage_gb} GB storage`);
+                  
+                  if (plan.features.max_customers === -1) dynamicFeatures.push("Unlimited customers");
+                  else if (plan.features.max_customers != null) dynamicFeatures.push(`Up to ${plan.features.max_customers} customers`);
+                }
+                if (plan.module_access) {
+                  Object.entries(plan.module_access).forEach(([key, val]) => {
+                    if (val) dynamicFeatures.push(key.charAt(0).toUpperCase() + key.slice(1).replace("_", " "));
+                  });
+                }
+
                 return (
                   <Card
                     key={plan._id}
                     onClick={() => setSelectedPlanId(plan._id)}
-                    className={`p-5 cursor-pointer transition-all border-2 ${
+                    className={`relative p-4 cursor-pointer transition-all border-2 flex flex-col h-full ${
                       selected ? "border-primary shadow-md" : "border-border/60 hover:border-primary/40"
-                    }`}
+                    } ${plan.is_popular ? "ring-2 ring-primary/20 bg-primary/5" : ""}`}
                   >
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-bold text-lg">{plan.name}</h3>
+                    {plan.is_popular && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm whitespace-nowrap">
+                        Most Popular
+                      </div>
+                    )}
+                    <div className="flex items-start justify-between mb-1.5 mt-0">
+                      <h3 className="font-bold text-base flex items-center gap-2 flex-wrap leading-tight">
+                        {plan.name}
+                        {plan.trial_days != null && plan.trial_days > 0 && (
+                          <Badge variant="outline" className="text-[9px] px-1.5 h-4 bg-violet-50 text-violet-600 border-violet-200 dark:bg-violet-950 dark:text-violet-400 dark:border-violet-800 shrink-0">
+                            {plan.trial_days}-Day Trial
+                          </Badge>
+                        )}
+                      </h3>
                       {selected && (
-                        <Badge className="gap-1">
+                        <Badge className="gap-1 bg-primary text-primary-foreground shrink-0 text-[10px] px-1.5 py-0">
                           <Check className="h-3 w-3" /> Selected
                         </Badge>
                       )}
                     </div>
                     {plan.description && (
-                      <p className="text-xs text-muted-foreground mb-3">{plan.description}</p>
+                      <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{plan.description}</p>
                     )}
-                    <div className="mb-3">
-                      <span className="text-2xl font-extrabold">
-                        {plan.price === 0 ? "Free" : `₹${plan.price}`}
+                    <div className="mb-2 flex items-baseline gap-1">
+                      <span className="text-xl font-extrabold">
+                        {plan.price === 0 ? "Free" : `₹${plan.price.toLocaleString("en-IN")}`}
                       </span>
                       {plan.price > 0 && (
-                        <span className="text-sm text-muted-foreground">{billingLabel(plan.billing_cycle)}</span>
+                        <span className="text-xs text-muted-foreground font-medium">{billingLabel(plan.billing_cycle)}</span>
                       )}
                     </div>
-                    <ul className="space-y-1 text-xs text-muted-foreground">
-                      {plan.features?.max_users != null && (
-                        <li>
-                          {plan.features.max_users === -1 ? "Unlimited" : plan.features.max_users} users
-                        </li>
-                      )}
-                      {plan.features?.max_storage_gb != null && (
-                        <li>
-                          {plan.features.max_storage_gb === -1 ? "Unlimited" : plan.features.max_storage_gb} GB storage
-                        </li>
-                      )}
-                      {plan.features?.max_customers != null && (
-                        <li>
-                          {plan.features.max_customers === -1 ? "Unlimited" : plan.features.max_customers} customers
-                        </li>
-                      )}
-                    </ul>
+                    
+                    <div className="mt-3 pt-3 border-t border-border/50 flex-1">
+                      <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Includes</p>
+                      <ul className="space-y-1.5 text-xs text-foreground/80">
+                        {dynamicFeatures.length > 0 ? dynamicFeatures.map((f, i) => (
+                          <li key={i} className="flex items-start gap-1.5">
+                            <CheckCircle2 className="h-3 w-3 text-primary shrink-0 mt-0.5" />
+                            <span className="leading-tight">{f}</span>
+                          </li>
+                        )) : (
+                          <li className="flex items-start gap-1.5">
+                            <CheckCircle2 className="h-3 w-3 text-primary shrink-0 mt-0.5" />
+                            <span className="leading-tight">Standard CRM features</span>
+                          </li>
+                        )}
+                      </ul>
+                    </div>
                   </Card>
                 );
               })}

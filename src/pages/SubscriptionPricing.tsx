@@ -4,13 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  CheckCircle2, Zap, Crown, Shield, ArrowRight, Gift,
+  CheckCircle2, Zap, Crown, Shield, ArrowRight, Gift, Target,
   Search, MessageCircle, X, Send, Bot
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { itemService } from "@/api/services/item.service";
+import { publicService } from "@/api/services/public.service";
 
 interface ChatMessage {
   from: "user" | "bot";
@@ -62,104 +62,55 @@ const SubscriptionPricing = () => {
     }, 700);
   };
 
-  const { data: items = [], isLoading } = useQuery({
-    queryKey: ["items"],
-    queryFn: () => itemService.getAll(),
+  const { data: allPlans = [], isLoading } = useQuery({
+    queryKey: ["public-plans"],
+    queryFn: () => publicService.getPlans(),
   });
 
-  // Free plan — always present
-  const freePlan = {
-    id: "free",
-    name: "Free",
-    description: "Get started at no cost. No credit card required.",
-    price: 0,
-    period: billingCycle === "monthly" ? "/mo" : "/yr",
-    icon: Gift,
-    color: "text-violet-500",
-    bgColor: "bg-violet-50 dark:bg-violet-950/30",
-    borderColor: "border-violet-200",
-    buttonVariant: "outline",
-    popular: false,
-    badge: "Forever Free",
-    features: [
-      "Up to 2 Users",
-      "Core CRM Features",
-      "1GB Cloud Storage",
-      "Community Support",
-      "Basic Reports",
-    ],
-  };
+  const activePlans = allPlans.filter((p: any) => p.active !== false);
 
-  let dynamicPlans = items.map((item: any, index: number) => {
-    const icons = [Shield, Zap, Crown];
-    const colors = ["text-blue-500", "text-emerald-500", "text-amber-500"];
-    const bgColors = ["bg-blue-50 dark:bg-blue-950/30", "bg-emerald-50 dark:bg-emerald-950/30", "bg-amber-50 dark:bg-amber-950/30"];
-    const i = index % 3;
-    const features = item.long_description
-      ? item.long_description.split("\n").filter((f: string) => f.trim() !== "")
-      : ["Basic CRM Features", "Email Support"];
+  const cycleMatch = billingCycle === "annually" ? "yearly" : "monthly";
+  const cyclePlans = activePlans.filter((p: any) => p.billing_cycle === cycleMatch || p.billing_cycle === "lifetime");
+
+  let dynamicPlans = cyclePlans.map((plan: any, index: number) => {
+    const icons = [Shield, Zap, Crown, Gift, Target];
+    const colors = ["text-blue-500", "text-emerald-500", "text-amber-500", "text-violet-500", "text-rose-500"];
+    const bgColors = ["bg-blue-50 dark:bg-blue-950/30", "bg-emerald-50 dark:bg-emerald-950/30", "bg-amber-50 dark:bg-amber-950/30", "bg-violet-50 dark:bg-violet-950/30", "bg-rose-50 dark:bg-rose-950/30"];
+    const i = index % 5;
+    
+    const features = [];
+    if (plan.features) {
+       if (plan.features.max_users === -1) features.push("Unlimited Users");
+       else features.push(`Up to ${plan.features.max_users} Users`);
+       features.push(`${plan.features.max_storage_gb}GB Cloud Storage`);
+    } else {
+       features.push("Basic CRM Features");
+    }
+
+    if (plan.module_access) {
+      Object.entries(plan.module_access).forEach(([key, val]) => {
+        if (val) features.push(key.charAt(0).toUpperCase() + key.slice(1).replace("_", " "));
+      });
+    }
+
     return {
-      id: item._id,
-      name: item.description,
-      description: item.group || "Subscription Plan",
-      price: billingCycle === "monthly" ? item.rate : item.rate * 12 * 0.84,
-      period: billingCycle === "monthly" ? "/mo" : "/yr",
+      id: plan._id || plan.id,
+      name: plan.name,
+      description: plan.description || "Subscription Plan",
+      price: plan.price,
+      period: plan.billing_cycle === "yearly" ? "/yr" : plan.billing_cycle === "lifetime" ? "/life" : "/mo",
       icon: icons[i],
       color: colors[i],
       bgColor: bgColors[i],
       buttonVariant: i === 1 ? "default" : "outline",
       popular: i === 1,
+      badge: plan.trial_days > 0 ? `${plan.trial_days}-Day Trial` : undefined,
       features,
     };
   });
 
-  const fallbackPlans = [
-    {
-      id: "basic",
-      name: "Basic",
-      description: "Perfect for small businesses just getting started.",
-      price: billingCycle === "monthly" ? 1499 : 14990,
-      period: billingCycle === "monthly" ? "/mo" : "/yr",
-      icon: Shield,
-      color: "text-blue-500",
-      bgColor: "bg-blue-50 dark:bg-blue-950/30",
-      buttonVariant: "outline",
-      popular: false,
-      features: ["Up to 5 Users", "Basic CRM Features", "5GB Cloud Storage", "Email Support", "Standard Reports"],
-    },
-    {
-      id: "professional",
-      name: "Professional",
-      description: "Everything you need to scale your growing business.",
-      price: billingCycle === "monthly" ? 3999 : 39990,
-      period: billingCycle === "monthly" ? "/mo" : "/yr",
-      icon: Zap,
-      color: "text-emerald-500",
-      bgColor: "bg-emerald-50 dark:bg-emerald-950/30",
-      buttonVariant: "default",
-      popular: true,
-      features: ["Up to 25 Users", "Advanced CRM Features", "50GB Cloud Storage", "24/7 Priority Support", "Custom Reports & Analytics", "Workflow Automation", "API Access"],
-    },
-    {
-      id: "enterprise",
-      name: "Enterprise",
-      description: "Advanced security and control for large organizations.",
-      price: billingCycle === "monthly" ? 9999 : 99990,
-      period: billingCycle === "monthly" ? "/mo" : "/yr",
-      icon: Crown,
-      color: "text-amber-500",
-      bgColor: "bg-amber-50 dark:bg-amber-950/30",
-      buttonVariant: "outline",
-      popular: false,
-      features: ["Unlimited Users", "All Professional Features", "Unlimited Storage", "Dedicated Account Manager", "White-label Solution", "Custom Integrations", "On-premise Deployment"],
-    },
-  ];
-
-  const paidPlans = dynamicPlans.length > 0 ? dynamicPlans : fallbackPlans;
-  const allPlans = [freePlan, ...paidPlans];
-
   // Filter plans by search
-  const filteredPlans = allPlans.filter(plan => {
+  const filteredPlans = dynamicPlans.filter((plan: any) => {
     const q = searchQuery.toLowerCase();
     return (
       plan.name.toLowerCase().includes(q) ||
