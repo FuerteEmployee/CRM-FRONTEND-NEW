@@ -28,6 +28,9 @@ export interface User {
   email: string;
   role: string | RoleDefinition;
   storeId: any; // Can be object or string based on backend
+  admin?: any;
+  is_superadmin?: boolean;
+  is_hrms_staff?: boolean;
   mobile?: string;
   avatar?: string;
   status: "active" | "inactive";
@@ -109,4 +112,14 @@ export interface User {
     bonus: { value: number; type: "amount" | "percent"; isIncluded: boolean };
   };
 }
+
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: "info" | "warning" | "error" | "success";
+  read: boolean;
+  createdAt: string;
+}
+
 

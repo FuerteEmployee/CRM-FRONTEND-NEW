@@ -427,9 +427,13 @@ function CanvasSlipRenderer({ slip, elements, canvasBg, canvasWidth, canvasHeigh
 interface Props {
   payrollId: string;
   onClose: () => void;
+  // Defaults to the admin-facing endpoint (any payrollId). The staff
+  // self-service page passes salaryTemplateService.getMyPayrollSlip instead,
+  // which is scoped server-side to the logged-in employee's own records.
+  fetchSlip?: (payrollId: string, templateId?: string) => Promise<SalarySlipData>;
 }
 
-export default function SalarySlipViewer({ payrollId, onClose }: Props) {
+export default function SalarySlipViewer({ payrollId, onClose, fetchSlip = salaryTemplateService.getPayrollSlip }: Props) {
   const [slip, setSlip] = useState<SalarySlipData | null>(null);
   const [templates, setTemplates] = useState<SalaryTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("__default__");
@@ -442,7 +446,7 @@ export default function SalarySlipViewer({ payrollId, onClose }: Props) {
       try {
         const [tmplList, slipData] = await Promise.all([
           salaryTemplateService.getAll(),
-          salaryTemplateService.getPayrollSlip(payrollId),
+          fetchSlip(payrollId),
         ]);
         setTemplates(tmplList);
         setSlip(slipData);
@@ -459,7 +463,7 @@ export default function SalarySlipViewer({ payrollId, onClose }: Props) {
     setIsLoading(true);
     try {
       const templateId = val === "__default__" ? undefined : val;
-      const slipData = await salaryTemplateService.getPayrollSlip(payrollId, templateId);
+      const slipData = await fetchSlip(payrollId, templateId);
       setSlip(slipData);
     } catch (err: any) {
       toast({ title: err.message || "Failed to reload slip", variant: "destructive" });

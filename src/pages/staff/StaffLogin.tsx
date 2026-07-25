@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
+import { AlreadyLoggedInBanner } from "@/components/auth/AlreadyLoggedInBanner";
 
 const features = [
   { icon: BarChart3, label: "Real-time Analytics" },
@@ -91,7 +92,7 @@ const StaffLogin = () => {
                 {settings?.companyName?.charAt(0) || "C"}
               </div>
               <span className="text-2xl font-bold tracking-tight">
-                {settings?.companyName || "CRMPro"}
+                {settings?.companyName || "Trinetra TechnoWorld"}
               </span>
             </>
           )}
@@ -154,7 +155,7 @@ const StaffLogin = () => {
                   {settings?.companyName?.charAt(0) || "C"}
                 </div>
                 <span className="text-xl font-bold">
-                  {settings?.companyName || "CRMPro"}
+                  {settings?.companyName || "Trinetra TechnoWorld"}
                 </span>
               </>
             )}
@@ -169,6 +170,8 @@ const StaffLogin = () => {
               Sign in to access your staff dashboard
             </p>
           </div>
+
+          <AlreadyLoggedInBanner />
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-5">

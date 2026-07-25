@@ -9,17 +9,40 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=block" rel="stylesheet" media="all" />
     <title>CRMPro - Management Dashboard</title>
     <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <meta name="theme-color" content="#1e293b" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <script>
       (function() {
         try {
-          const cachedFavicon = localStorage.getItem("crm_favicon");
+          const host = window.location.hostname;
+          const isTrinetra = host.includes("trinetratechnoworld") || host.includes("erp.");
+          
+          // Dynamically change the manifest file link for PWA install based on domain
+          const updateManifest = () => {
+            const manifestEl = document.querySelector("link[rel='manifest']");
+            if (manifestEl) {
+              const manifestUrl = isTrinetra ? "/manifest-trinetra.json" : "/manifest.webmanifest";
+              manifestEl.setAttribute("href", manifestUrl);
+            }
+          };
+          updateManifest();
+          window.addEventListener("DOMContentLoaded", updateManifest);
+          
+          // Determine default favicon and title
+          const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : "/favicon.ico";
+          const defaultTitle = isTrinetra ? "Trinetra TechnoWorld" : "Fuerte Developers";
+          
+          const cachedFavicon = localStorage.getItem("crm_favicon") || defaultFavicon;
           if (cachedFavicon) {
             const link = document.querySelector("link[rel*='icon']");
             if (link) {
               link.href = cachedFavicon;
             }
           }
-          const cachedTitle = localStorage.getItem("crm_company_name");
+          const cachedTitle = localStorage.getItem("crm_company_name") || defaultTitle;
           if (cachedTitle) {
             document.title = cachedTitle;
           }
@@ -40,9 +63,23 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="CRMPro Dashboard" />
     <meta name="twitter:description" content="A powerful CRM, sales, and team management platform." />
-    <script type="module" crossorigin src="/assets/index-DPtWxWbZ.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BXzDs_1F.css">
-  </head>
+    <script type="module" crossorigin src="/assets/index-A1FqG5GP.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-socket-R-GTksJU.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-B47RDcq8.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-etlqM2w_.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-export-Cf7c-JeY.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-utils-C3yvaaqy.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-reports-EdPNA6TG.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-quotations-Dt05K5k7.js">
+    <link rel="modulepreload" crossorigin href="/assets/auth.service-BypqJmB4.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-superadmin-CfVHlmep.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-capacitor-DjvnJFVp.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-hrms-Ba1VP5Mm.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-setup-D7l_Xo_U.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-client-CiS455R6.js">
+    <link rel="stylesheet" crossorigin href="/assets/vendor-react-CA_sXLh1.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-m2DN55eR.css">
+  <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
 
   <body>
     <div id="root"></div>

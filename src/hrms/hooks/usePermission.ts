@@ -1,9 +1,8 @@
 import { useAuth } from "@/hrms/contexts/AuthContext";
 import { useEffect, useState } from "react";
 import { roleService } from "@/hrms/services/roleService";
-import { RoleDefinition } from "@/hrms/types";
 
-const mapCrmToHrms = (permissionsMap: any): string[] => {
+export const mapCrmToHrms = (permissionsMap: any): string[] => {
   if (!permissionsMap) return [];
   if (Array.isArray(permissionsMap)) return permissionsMap;
 
@@ -44,8 +43,10 @@ const mapCrmToHrms = (permissionsMap: any): string[] => {
   if (getCap("HRMS Staff Directory", "View(Global)")) {
     hrmsPerms.push("manage_users");
     hrmsPerms.push("view_staff");
-    hrmsPerms.push("create_staff");
   }
+  if (getCap("HRMS Staff Directory", "Create")) hrmsPerms.push("create_staff");
+  if (getCap("HRMS Staff Directory", "Edit")) hrmsPerms.push("edit_staff");
+  if (getCap("HRMS Staff Directory", "Delete")) hrmsPerms.push("delete_staff");
 
   // Departments
   if (getCap("HRMS Departments", "View(Global)")) hrmsPerms.push("view_departments");
@@ -56,8 +57,11 @@ const mapCrmToHrms = (permissionsMap: any): string[] => {
   return hrmsPerms;
 };
 
-export function usePermission() {
-  const { user } = useAuth();
+// Takes `user` as a plain argument (rather than reading it via useAuth()) so it can be
+// called both from usePermission() (HRMS pages/route guards) AND from AuthContext.tsx's
+// own AuthProvider itself (which exposes `hasPermission` to ~26 files including the
+// sidebar) without a circular hook dependency — AuthProvider can't call useAuth().
+export function useResolvedHrmsPermissions(user: any) {
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -68,7 +72,7 @@ export function usePermission() {
       return;
     }
 
-    const roleKey = typeof user.role === "object" ? (user.role?.role || "") : (user.role || "");
+    const roleKey = (user.role && typeof user.role === "object") ? (user.role?.role || "") : (user.role || "");
     const rk = roleKey.toLowerCase();
 
     // Check if user is admin/owner (Full Access)
@@ -76,7 +80,7 @@ export function usePermission() {
     setIsAdmin(adminDetected);
 
     // If role is already a populated object with permissions, use them directly
-    if (typeof user.role === "object" && user.role.permissions) {
+    if (user.role && typeof user.role === "object" && user.role.permissions) {
       setUserPermissions(mapCrmToHrms(user.role.permissions));
     } else if (user.permissions) {
       setUserPermissions(mapCrmToHrms(user.permissions));
@@ -103,4 +107,9 @@ export function usePermission() {
   };
 
   return { hasPermission, hasAnyPermission, isAdmin, userPermissions };
+}
+
+export function usePermission() {
+  const { user } = useAuth();
+  return useResolvedHrmsPermissions(user);
 }

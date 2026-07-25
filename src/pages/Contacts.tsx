@@ -278,7 +278,7 @@ const Contacts = () => {
         XLSX.writeFile(wb, `${filenameBase}.xlsx`);
       } else {
         const csvData = [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
-        const blob = new Blob(["﻿" + csvData], { type: "text/csv;charset=utf-8;" });
+        const blob = new Blob(["\uFEFF" + csvData], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);

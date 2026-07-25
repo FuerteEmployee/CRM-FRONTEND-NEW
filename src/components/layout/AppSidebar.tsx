@@ -45,7 +45,7 @@ import {
   Bookmark,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
   Sidebar,
@@ -183,8 +183,23 @@ export function AppSidebar() {
   const { state, setOpenMobile, isMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { user, isAdmin, isStaff, canView, isModuleEnabled } = usePermissions();
+  const { user, permissions, isAdmin, isStaff, can, canView, isModuleEnabled } = usePermissions();
   const basePath = isStaff ? "/staff" : "/admin";
+  const navigate = useNavigate();
+
+  // Restrict the menu to Dashboard + HRMS for anyone whose role only grants
+  // HRMS permissions — not just staff created via the old HRMS self-service
+  // flow (`is_hrms_staff`), but also any staff assigned an HRMS-only role
+  // (e.g. the seeded "HRMS" role) through the normal Setup > Staff > Role
+  // dropdown. Driven by their actual granted permissions, not a fixed flag.
+  const hasAnyHrmsPermission = Object.keys(permissions).some(
+    (feature) => feature.startsWith("HRMS") && canView(feature)
+  );
+  const hasAnyOtherPermission = Object.keys(permissions).some(
+    (feature) => !feature.startsWith("HRMS") && canView(feature)
+  );
+  const isHrmsOnly =
+    !isAdmin && (user?.is_hrms_staff || (hasAnyHrmsPermission && !hasAnyOtherPermission));
 
   const getUrl = (url: string | undefined) => {
     if (!url) return "";
@@ -195,7 +210,7 @@ export function AppSidebar() {
   const { getSetting } = useSettings();
   const { chatUnreadCount } = useNotificationContext();
 
-  const companyName = getSetting("companyName", "CRMPro");
+  const companyName = getSetting("companyName", "Trinetra TechnoWorld");
   const logoLight = resolveImageUrl(getSetting("compLogoLight", ""));
   const [logoError, setLogoError] = useState(false);
 
@@ -214,7 +229,7 @@ export function AppSidebar() {
   // The Setup button is ONLY visible when the user has Settings > View permission (or is admin).
   // HRMS-only self-service staff (added via HRMS Staff Directory) never get Setup access,
   // regardless of any permission they might otherwise carry.
-  const hasSetupAccess = !user?.is_hrms_staff && (isAdmin || canView("Settings"));
+  const hasSetupAccess = !isHrmsOnly && (isAdmin || canView("Settings"));
 
   const getDaysRemaining = () => {
     if (!user?.tenant) return null;
@@ -260,17 +275,21 @@ export function AppSidebar() {
     if (isUserAdminOrSuper) {
       // Admins see management items, hide "My ..." personal views
       filteredHrms = filteredHrms.filter(item => 
+        !item.title.startsWith("My ") &&
         item.title !== "My Attendance" &&
         item.title !== "My Leaves" &&
         item.title !== "My Expenses" &&
+        item.title !== "My Salary" &&
         item.title !== "My Advance Salary"
       );
     } else {
       // Non-admins see "My ..." personal views, hide management items
       filteredHrms = filteredHrms.filter(item => 
+        item.title.startsWith("My ") ||
         item.title === "My Attendance" ||
         item.title === "My Leaves" ||
         item.title === "My Expenses" ||
+        item.title === "My Salary" ||
         item.title === "My Advance Salary"
       );
     }
@@ -370,12 +389,17 @@ export function AppSidebar() {
     };
 
     // Map sidebar URLs → plan module keys (SaasPlan.module_access)
+    // Note: staff users have basePath=/staff so URLs are rewritten; include both variants.
     const URL_MODULE_MAP: Record<string, string> = {
       // Finance module
       "/admin/invoices": "finance",
       "/admin/payments": "finance",
       "/admin/credit-notes": "finance",
       "/admin/items": "finance",
+      "/staff/invoices": "finance",
+      "/staff/payments": "finance",
+      "/staff/credit-notes": "finance",
+      "/staff/items": "finance",
       // Individual modules
       "/admin/tasks": "tasks",
       "/admin/projects": "projects",
@@ -395,6 +419,22 @@ export function AppSidebar() {
       "/admin/announcements": "announcements",
       "/admin/calendar": "calendar",
       "/admin/bookmarks": "bookmarks",
+      // Staff URL variants
+      "/staff/tasks": "tasks",
+      "/staff/projects": "projects",
+      "/staff/support": "support",
+      "/staff/leads": "leads",
+      "/staff/contracts": "contracts",
+      "/staff/chat": "chat",
+      "/staff/meetings": "meetings",
+      "/staff/subscriptions": "subscriptions",
+      "/staff/expenses": "expenses",
+      "/staff/proposals": "proposals",
+      "/staff/estimates": "estimates",
+      "/staff/announcements": "announcements",
+      "/staff/goals": "goals",
+      "/staff/calendar": "calendar",
+      "/staff/bookmarks": "bookmarks",
       // Reports sub-routes
       "/admin/reports/expenses": "reports",
       "/admin/reports/expenses-vs-income": "reports",
@@ -404,7 +444,7 @@ export function AppSidebar() {
     };
 
     return items
-      .filter((item: any) => !item.permission || canView(item.permission))
+      .filter((item: any) => !item.permission || canView(item.permission) || (isStaff && (item.title === "Tasks" || item.permission === "Tasks")))
       .filter((item: any) => {
         // Hide modules disabled in the tenant's plan
         const moduleKey = URL_MODULE_MAP[getUrl(item.url)];
@@ -466,6 +506,21 @@ export function AppSidebar() {
                 </NavLink>
               )}
             </SidebarMenuButton>
+            {/* Quick-create "+" button — always visible for Tasks row, works for both admin & staff */}
+            {!collapsed && item.title === "Tasks" && (isAdmin || isStaff || can("Tasks", "Create")) && (
+              <button
+                title="New Task"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isMobile) setOpenMobile(false);
+                  navigate(`${basePath}/tasks?new=1`);
+                }}
+                style={{ zIndex: 10 }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors duration-150 shrink-0"
+              >
+                <Icons.Plus className="h-3.5 w-3.5" />
+              </button>
+            )}
           </SidebarMenuItem>
         );
       });
@@ -526,7 +581,7 @@ export function AppSidebar() {
     <Sidebar collapsible="offcanvas" id="tour-sidebar">
       <SidebarHeader className="p-4 pb-3">
         <NavLink
-          to="/admin/dashboard"
+          to={`${basePath}/dashboard`}
           className="flex items-center gap-2.5 group"
         >
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm group-hover:shadow-md transition-shadow duration-300 overflow-hidden">
@@ -560,17 +615,20 @@ export function AppSidebar() {
           <SidebarGroup className="py-2">
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {renderItems(dynamicNav.mainNav.filter((i: any) => !user?.is_hrms_staff || i.title === "Dashboard"))}
-                {!user?.is_hrms_staff && (
+                {renderItems(dynamicNav.mainNav.filter((i: any) => !isHrmsOnly || i.title === "Dashboard"))}
+                {!isHrmsOnly ? (
                   <>
                     {renderItems(dynamicNav.customersNav)}
                     {renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
                     {renderCollapsibleItem("Quotation Maker", Icons.FileBarChart, quotationMakerNav)}
                     {renderItems(dynamicNav.managementNav)}
                   </>
+                ) : (
+                  /* HRMS-only staff can still be assigned tasks — always show Tasks link */
+                  isStaff && renderItems(dynamicNav.managementNav.filter((i: any) => i.title === "Tasks"))
                 )}
                 {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav)}
-                {!user?.is_hrms_staff && (
+                {!isHrmsOnly && (
                   <>
                     {renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav)}
                     {renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav)}

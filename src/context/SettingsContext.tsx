@@ -12,7 +12,28 @@ interface SettingsContextType {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [settings, setSettings] = useState<Record<string, any>>({});
+  const [settings, setSettings] = useState<Record<string, any>>(() => {
+    const host = window.location.hostname;
+    const isTrinetra = host.includes("trinetratechnoworld") || host.includes("erp.");
+    
+    const defaultCompanyName = isTrinetra ? "Trinetra TechnoWorld" : "Fuerte Developers";
+    const defaultLogoLight = isTrinetra ? "/trinetra-logo.jpg" : "/logo-icon.png";
+    const defaultLogoDark = isTrinetra ? "/trinetra-logo.jpg" : "/logo-icon.png";
+    const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : "/favicon.ico";
+
+    const cachedName = localStorage.getItem("crm_company_name") || defaultCompanyName;
+    const cachedFavicon = localStorage.getItem("crm_favicon") || defaultFavicon;
+    const cachedLogoLight = localStorage.getItem("crm_comp_logo_light") || defaultLogoLight;
+    const cachedLogoDark = localStorage.getItem("crm_comp_logo_dark") || defaultLogoDark;
+    
+    const initial: Record<string, any> = {
+      companyName: cachedName,
+      favicon: cachedFavicon,
+      compLogoLight: cachedLogoLight,
+      compLogoDark: cachedLogoDark
+    };
+    return initial;
+  });
   const [loading, setLoading] = useState(true);
 
   const refreshSettings = useCallback(async () => {
@@ -31,6 +52,38 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         
         settingsMap[s.name] = val;
       });
+
+      const host = window.location.hostname;
+      const isTrinetra = host.includes("trinetratechnoworld") || host.includes("erp.");
+      
+      // Override default branding dynamically if not customized in DB or if it's default
+      if (isTrinetra) {
+        if (!settingsMap.companyName || settingsMap.companyName === "CRMPro" || settingsMap.companyName === "Trinetra TechnoWorld" || settingsMap.companyName === "Fuerte Developers") {
+          settingsMap.companyName = "Trinetra TechnoWorld";
+        }
+        if (!settingsMap.compLogoLight || settingsMap.compLogoLight.startsWith("/logo") || settingsMap.compLogoLight === "") {
+          settingsMap.compLogoLight = "/trinetra-logo.jpg";
+        }
+        if (!settingsMap.compLogoDark || settingsMap.compLogoDark.startsWith("/logo") || settingsMap.compLogoDark === "") {
+          settingsMap.compLogoDark = "/trinetra-logo.jpg";
+        }
+        if (!settingsMap.favicon || settingsMap.favicon.startsWith("/favicon") || settingsMap.favicon === "") {
+          settingsMap.favicon = "/trinetra-icon.jpg";
+        }
+      } else {
+        if (!settingsMap.companyName || settingsMap.companyName === "CRMPro" || settingsMap.companyName === "Trinetra TechnoWorld" || settingsMap.companyName === "Fuerte Developers") {
+          settingsMap.companyName = "Fuerte Developers";
+        }
+        if (!settingsMap.compLogoLight || settingsMap.compLogoLight === "/trinetra-logo.jpg") {
+          settingsMap.compLogoLight = "/logo-icon.png";
+        }
+        if (!settingsMap.compLogoDark || settingsMap.compLogoDark === "/trinetra-logo.jpg") {
+          settingsMap.compLogoDark = "/logo-icon.png";
+        }
+        if (!settingsMap.favicon || settingsMap.favicon === "/trinetra-icon.jpg") {
+          settingsMap.favicon = "/favicon.ico";
+        }
+      }
       
       setSettings(settingsMap);
     } catch (error) {
@@ -49,6 +102,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (settings.companyName) {
       document.title = settings.companyName;
       localStorage.setItem("crm_company_name", settings.companyName);
+    }
+    if (settings.compLogoLight) {
+      localStorage.setItem("crm_comp_logo_light", settings.compLogoLight);
+    }
+    if (settings.compLogoDark) {
+      localStorage.setItem("crm_comp_logo_dark", settings.compLogoDark);
     }
     
     if (settings.favicon) {
@@ -71,7 +130,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [settings]);
 
   const getSetting = (name: string, defaultValue: any = "") => {
-    return settings[name] !== undefined ? settings[name] : defaultValue;
+    if (settings[name] !== undefined) return settings[name];
+    if (name === "companyName" && localStorage.getItem("crm_company_name")) return localStorage.getItem("crm_company_name");
+    if (name === "compLogoLight" && localStorage.getItem("crm_comp_logo_light")) return localStorage.getItem("crm_comp_logo_light");
+    if (name === "compLogoDark" && localStorage.getItem("crm_comp_logo_dark")) return localStorage.getItem("crm_comp_logo_dark");
+    if (name === "favicon" && localStorage.getItem("crm_favicon")) return localStorage.getItem("crm_favicon");
+    return defaultValue;
   };
 
   return (

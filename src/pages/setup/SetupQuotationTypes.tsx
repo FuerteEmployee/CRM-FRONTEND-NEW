@@ -72,7 +72,7 @@ const SetupQuotationTypes = () => {
   };
 
   const createMutation = useMutation({
-    mutationFn: quotationTypeService.createQuotationType,
+    mutationFn: (data: any) => quotationTypeService.createQuotationType(data),
     onSuccess: () => {
       invalidate();
       toast.success("Quotation type created");
@@ -92,7 +92,7 @@ const SetupQuotationTypes = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: quotationTypeService.deleteQuotationType,
+    mutationFn: (id: string) => quotationTypeService.deleteQuotationType(id),
     onSuccess: () => {
       invalidate();
       toast.success("Quotation type deleted");

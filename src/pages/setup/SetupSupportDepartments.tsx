@@ -475,7 +475,7 @@ export default function SetupSupportDepartments() {
               Close
             </Button>
             <Button
-              onClick={() => handleSave(true)}
+              onClick={handleSave}
               className="px-8 h-10 font-bold rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98] min-w-[100px]"
               disabled={
                 createMutation.isPending ||

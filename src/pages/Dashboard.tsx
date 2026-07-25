@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { AdminDashboardSkeleton } from "@/components/ui/page-skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -134,7 +134,7 @@ const PlanExpiredModal = ({ plan }: { plan: any }) => {
 };
 
 const Dashboard = () => {
-  const { user, isModuleEnabled, canView } = usePermissionContext();
+  const { user, isModuleEnabled, canView, isStaff, isAdmin } = usePermissionContext();
   const { symbol, formatAmount } = useCurrency();
 
   const getDaysRemaining = (): number | null => {
@@ -190,7 +190,7 @@ const Dashboard = () => {
       const res = await salesService.getInvoices();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("finance")
+    enabled: !isExpired && isModuleEnabled("finance") && canView("Invoices")
   });
 
   const { data: estimatesList = [] } = useQuery({
@@ -199,7 +199,7 @@ const Dashboard = () => {
       const res = await estimateService.getEstimates();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("estimates")
+    enabled: !isExpired && isModuleEnabled("estimates") && canView("Estimates")
   });
 
   const { data: proposalsList = [] } = useQuery({
@@ -208,7 +208,7 @@ const Dashboard = () => {
       const res = await salesService.getProposals();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("proposals")
+    enabled: !isExpired && isModuleEnabled("proposals") && canView("Proposals")
   });
 
   const { data: quotationsList = [] } = useQuery({
@@ -217,17 +217,34 @@ const Dashboard = () => {
       const res = await quotationService.getQuotations();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("quotations")
+    enabled: !isExpired && isModuleEnabled("quotations") && canView("Quotations")
   });
 
-  const { data: tasksList = [] } = useQuery({
+  const { data: rawTasksList = [] } = useQuery({
     queryKey: ["dashboard-tasks"],
     queryFn: async () => {
       const res = await taskService.getAll();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("tasks")
+    enabled: !isExpired && isModuleEnabled("tasks") && canView("Tasks")
   });
+
+  const tasksList = useMemo(() => {
+    if (isStaff && !isAdmin && user?._id) {
+      const currentUserId = String(user._id);
+      return rawTasksList.filter((t: any) => {
+        const isAssigned = Array.isArray(t.assignees) && t.assignees.some((a: any) => 
+          String(typeof a === 'object' ? a?._id || a?.value : a) === currentUserId
+        );
+        const isFollower = Array.isArray(t.followers) && t.followers.some((f: any) => 
+          String(typeof f === 'object' ? f?._id || f?.value : f) === currentUserId
+        );
+        const isCreator = String(typeof t.created_by === 'object' ? t.created_by?._id : t.created_by) === currentUserId;
+        return isAssigned || isFollower || isCreator;
+      });
+    }
+    return rawTasksList;
+  }, [rawTasksList, isStaff, isAdmin, user?._id]);
 
   const { data: projectsList = [] } = useQuery({
     queryKey: ["dashboard-projects"],
@@ -235,7 +252,7 @@ const Dashboard = () => {
       const res = await projectService.getAll();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("projects")
+    enabled: !isExpired && isModuleEnabled("projects") && canView("Projects")
   });
 
   const { data: ticketsList = [] } = useQuery({
@@ -244,7 +261,7 @@ const Dashboard = () => {
       const res = await supportService.getTickets();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("support")
+    enabled: !isExpired && isModuleEnabled("support") && canView("Support")
   });
 
   const { data: announcementsList = [] } = useQuery({
@@ -262,7 +279,7 @@ const Dashboard = () => {
       const res = await leadService.getAll();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("leads")
+    enabled: !isExpired && isModuleEnabled("leads") && canView("Leads")
   });
 
   const { data: todosList = [], refetch: refetchTodos } = useQuery({
@@ -280,7 +297,7 @@ const Dashboard = () => {
       const res = await salesService.getExpenses();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("expenses")
+    enabled: !isExpired && isModuleEnabled("expenses") && canView("Expenses")
   });
 
   const { data: activityLogsList = [] } = useQuery({
@@ -289,7 +306,7 @@ const Dashboard = () => {
       const res = await utilityService.getActivityLogs();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired
+    enabled: !isExpired && canView("Activity Log")
   });
 
   const { data: clientsRes = [] } = useQuery({
@@ -298,7 +315,7 @@ const Dashboard = () => {
       const res = await customerService.getAll();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired
+    enabled: !isExpired && canView("Customers")
   });
 
   // Fetch reminders for the first client if available
@@ -310,7 +327,7 @@ const Dashboard = () => {
       const res = await customerService.getReminders(firstClientId);
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && !!firstClientId
+    enabled: !isExpired && !!firstClientId && canView("Customers")
   });
 
   // mutations for Todo
@@ -1424,30 +1441,32 @@ const Dashboard = () => {
         </div>
 
         {/* Recent Activities */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {dynamicRecentActivities.map((a) => (
-                <div key={a.id} className="flex items-center gap-3 py-2 border-b last:border-0">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-primary/10 text-primary text-xs">{a.avatar}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm">
-                      <span className="font-medium">{a.user}</span>{" "}
-                      <span className="text-muted-foreground">{a.action}</span>{" "}
-                      <span className="font-medium">{a.target}</span>
-                    </p>
+        {canView("Activity Log") && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Recent Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {dynamicRecentActivities.map((a) => (
+                  <div key={a.id} className="flex items-center gap-3 py-2 border-b last:border-0">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-primary/10 text-primary text-xs">{a.avatar}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm">
+                        <span className="font-medium">{a.user}</span>{" "}
+                        <span className="text-muted-foreground">{a.action}</span>{" "}
+                        <span className="font-medium">{a.target}</span>
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{a.time}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">{a.time}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );

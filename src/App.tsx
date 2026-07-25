@@ -163,15 +163,14 @@ const SuperAdminProtectedRoute = ({ children }: { children: React.ReactNode }) =
   return <>{children}</>;
 };
 
-// Redirect already-logged-in users away from the login pages
+// Login pages are always shown, even with a cached session — a stale session
+// must never let someone in without submitting valid credentials for the
+// account they typed. AlreadyLoggedInBanner (rendered by the login pages
+// themselves) gives an already-logged-in user an explicit way to continue
+// to their dashboard or log out, instead of silently bouncing them there.
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading, isStaff } = usePermissionContext();
+  const { loading } = usePermissionContext();
   if (loading) return null;
-  if (user) {
-    if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
-    if (isStaff) return <Navigate to="/staff/dashboard" replace />;
-    return <Navigate to="/admin/dashboard" replace />;
-  }
   return <>{children}</>;
 };
 

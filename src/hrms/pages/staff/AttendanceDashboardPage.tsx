@@ -58,7 +58,9 @@ import {
   DialogDescription,
 } from "@/hrms/components/ui/dialog";
 import { toast } from "@/hrms/components/ui/use-toast";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { StatCard, safeFormat, statusColor } from "@/hrms/components/staff/HRMSShared";
+import { realtimeService } from "@/hrms/services/RealtimeService";
 
 const fmtTime = (time?: string) => {
   if (!time) return null;
@@ -172,50 +174,66 @@ const AttendanceDashboardPage: React.FC = () => {
   }, [viewingAttendance]);
 
   // Fetch attendance from server — all filters sent as query params (including Absent)
-  useEffect(() => {
-    const fetchAtt = async () => {
-      setAttLoading(true);
-      try {
-        const dateStr = format(selectedMonth, "yyyy-MM-dd");
-        const branchParam = selectedBranch === "all" ? undefined : selectedBranch;
-        const shiftParam = shiftFilter === "all" ? undefined : shiftFilter;
+  const fetchAtt = useCallback(async () => {
+    setAttLoading(true);
+    try {
+      const dateStr = format(selectedMonth, "yyyy-MM-dd");
+      const branchParam = selectedBranch === "all" ? undefined : selectedBranch;
+      const shiftParam = shiftFilter === "all" ? undefined : shiftFilter;
 
-        // Always pull the full unfiltered set for the selected date — this
-        // drives the "Present" stat tile and the absent list, independent of
-        // whichever status chip is currently selected.
-        const [allForDate, absentData] = await Promise.all([
-          employeeApi.getAttendance({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
-          employeeApi.getAbsentEmployees({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
-        ]);
-        setDatePresentCount(allForDate.length);
-        setDateAbsentees(absentData);
+      // Always pull the full unfiltered set for the selected date — this
+      // drives the "Present" stat tile and the absent list, independent of
+      // whichever status chip is currently selected.
+      const [allForDate, absentData] = await Promise.all([
+        employeeApi.getAttendance({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
+        employeeApi.getAbsentEmployees({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
+      ]);
+      setDatePresentCount(allForDate.length);
+      setDateAbsentees(absentData);
 
-        if (statusFilter === "Absent") {
-          setAbsentList(absentData);
-          setAttendance([]);
-        } else if (statusFilter === "all") {
-          setAttendance(allForDate);
-          setAbsentList([]);
-        } else {
-          const filtered = await employeeApi.getAttendance({
-            date: dateStr,
-            hrmsBranchId: branchParam,
-            shiftId: shiftParam,
-            statusFilter,
-          });
-          setAttendance(filtered);
-          setAbsentList([]);
-        }
-      } catch {
-        toast({ title: "Failed to load attendance", variant: "destructive" });
-      } finally {
-        setAttLoading(false);
+      if (statusFilter === "Absent") {
+        setAbsentList(absentData);
+        setAttendance([]);
+      } else if (statusFilter === "all") {
+        setAttendance(allForDate);
+        setAbsentList([]);
+      } else {
+        const filtered = await employeeApi.getAttendance({
+          date: dateStr,
+          hrmsBranchId: branchParam,
+          shiftId: shiftParam,
+          statusFilter,
+        });
+        setAttendance(filtered);
+        setAbsentList([]);
       }
-    };
-    fetchAtt();
+    } catch {
+      toast({ title: "Failed to load attendance", variant: "destructive" });
+    } finally {
+      setAttLoading(false);
+    }
   }, [selectedMonth, selectedBranch, shiftFilter, statusFilter]);
 
-  const getEmployeeName = (id: string | any) => {
+  useEffect(() => { fetchAtt(); }, [fetchAtt]);
+
+  // Live-refresh when anyone punches in/out today — without this, the stat
+  // tiles and Records table only ever update on a manual reload or filter
+  // change, even while this dashboard is open and being watched.
+  useEffect(() => {
+    realtimeService.init((user as any)?.token || "", (user as any)?._id || (user as any)?.id);
+    const handleAttendanceUpdate = (payload: any) => {
+      if (payload?.date === selectedDateStr) fetchAtt();
+    };
+    realtimeService.on("attendance_update", handleAttendanceUpdate);
+    return () => realtimeService.off("attendance_update");
+  }, [fetchAtt, selectedDateStr, user]);
+
+  // The attendance API already returns each record with `userId` populated
+  // (see getAllAttendance's populate("userId", "name ...")) — prefer that
+  // name directly. The local `employees` cross-reference is only a fallback
+  // for callers (like row actions) that only have a bare id to work with.
+  const getEmployeeName = (id: string | any, populatedName?: string) => {
+    if (populatedName) return populatedName;
     const emp = employees.find((e: User) => String((e as any)._id || e.id) === String(id));
     return emp ? emp.name : "Staff";
   };
@@ -313,7 +331,7 @@ const AttendanceDashboardPage: React.FC = () => {
     }
     return searchQuery
       ? attendance.filter((att: any) =>
-        getEmployeeName(att.userId?._id || att.userId)
+        getEmployeeName(att.userId?._id || att.userId, att.userId?.name)
           .toLowerCase()
           .includes(searchQuery.toLowerCase())
       )
@@ -358,7 +376,7 @@ const AttendanceDashboardPage: React.FC = () => {
           const m = Math.round((hours - h) * 60);
           return {
             "S.No": idx + 1,
-            "Employee": getEmployeeName(att.userId?._id || att.userId),
+            "Employee": getEmployeeName(att.userId?._id || att.userId, att.userId?.name),
             "Date": att.date || selectedDateStr,
             "Punch In": fmtTime(att.punchIn?.time || att.punchIn) || "--:--",
             "Punch Out": fmtTime(att.punchOut?.time || att.punchOut) || "--:--",
@@ -557,7 +575,7 @@ const AttendanceDashboardPage: React.FC = () => {
                 header: "Staff",
                 accessorKey: (att: any) => (
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">{getEmployeeName(att.userId?._id || att.userId)}</p>
+                    <p className="text-sm font-semibold text-slate-700">{getEmployeeName(att.userId?._id || att.userId, att.userId?.name)}</p>
                     <p className="text-[10px] text-slate-400 capitalize">{att.status}</p>
                   </div>
                 ),
@@ -621,44 +639,62 @@ const AttendanceDashboardPage: React.FC = () => {
               },
               {
                 header: "Selfie",
-                accessorKey: (att: any) => (
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex flex-col items-center gap-0.5">
-                      <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-wider">IN</span>
-                      <div
-                        className="h-8 w-8 rounded-lg overflow-hidden border border-emerald-100 cursor-pointer hover:scale-110 transition-transform"
-                        onClick={() => att.punchIn?.selfieUrl && window.open(att.punchIn.selfieUrl, "_blank")}
-                      >
-                        <img
-                          src={att.punchIn?.selfieUrl || `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`}
-                          alt="Punch In"
-                          className="h-full w-full object-cover"
-                          onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`)}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center gap-0.5">
-                      <span className="text-[8px] font-bold text-blue-500 uppercase tracking-wider">OUT</span>
-                      <div
-                        className="h-8 w-8 rounded-lg overflow-hidden border border-blue-100 cursor-pointer hover:scale-110 transition-transform"
-                        onClick={() => att.punchOut?.selfieUrl && window.open(att.punchOut.selfieUrl, "_blank")}
-                      >
-                        {att.punchOut?.selfieUrl ? (
+                id: "selfie",
+                accessorKey: (att: any) => {
+                  const punchInSelfie = resolveImageUrl(att.punchIn?.selfieUrl || att.selfieInUrl);
+                  const punchOutSelfie = resolveImageUrl(att.punchOut?.selfieUrl || att.selfieOutUrl);
+                  const punchInFailed = att.selfieVerificationStatus === "failed";
+                  return (
+                    <div className="flex items-center gap-1.5">
+                      <div className="relative group/selfie shrink-0">
+                        <button
+                          type="button"
+                          disabled={!punchInSelfie}
+                          onClick={() => punchInSelfie && window.open(punchInSelfie, "_blank")}
+                          className={`h-8 w-8 rounded-lg overflow-hidden border shadow-sm flex items-center justify-center bg-slate-50 transition active:scale-95 ${
+                            punchInFailed 
+                              ? "border-red-500 ring-2 ring-red-500/20" 
+                              : "border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
                           <img
-                            src={att.punchOut.selfieUrl}
-                            alt="Punch Out"
+                            src={punchInSelfie || `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`}
+                            alt="Punch In"
                             className="h-full w-full object-cover"
-                            onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=OUT&background=3b82f6&color=fff`)}
+                            onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`)}
                           />
-                        ) : (
-                          <div className="h-full w-full bg-slate-100 flex items-center justify-center">
-                            <span className="text-[7px] font-bold text-slate-400">—</span>
-                          </div>
-                        )}
+                        </button>
+                        <span className={`absolute -top-1.5 -right-1 px-1 rounded text-white font-black text-[7px] uppercase shadow-sm pointer-events-none ${
+                          punchInFailed ? "bg-red-500 animate-pulse" : "bg-emerald-500"
+                        }`}>
+                          {punchInFailed ? "Failed" : "IN"}
+                        </span>
                       </div>
+
+                      {punchOutSelfie ? (
+                        <div className="relative group/selfie shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => window.open(punchOutSelfie, "_blank")}
+                            className="h-8 w-8 rounded-lg overflow-hidden border border-slate-200 shadow-sm flex items-center justify-center bg-slate-50 transition hover:border-slate-300 active:scale-95"
+                          >
+                            <img
+                              src={punchOutSelfie}
+                              alt="Punch Out"
+                              className="h-full w-full object-cover"
+                              onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=OUT&background=3b82f6&color=fff`)}
+                            />
+                          </button>
+                          <span className="absolute -top-1.5 -right-1 px-1 rounded bg-rose-500 text-white font-black text-[7px] uppercase shadow-sm pointer-events-none">OUT</span>
+                        </div>
+                      ) : (
+                        <div className="h-8 w-8 rounded-lg border border-dashed border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-300 select-none shrink-0">
+                          OUT
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ),
+                  );
+                },
               },
               {
                 header: "Total Hrs",
@@ -748,7 +784,7 @@ const AttendanceDashboardPage: React.FC = () => {
                 id: "actions",
                 accessorKey: (att: any) => {
                   const staffId = att.userId?._id || att.userId;
-                  const empName = getEmployeeName(staffId);
+                  const empName = getEmployeeName(staffId, att.userId?.name);
                   return (
                     <div className="flex items-center gap-1">
                       <Button
@@ -991,46 +1027,50 @@ const AttendanceDashboardPage: React.FC = () => {
                 {[
                   { key: "punchIn", label: "Punch In", color: "emerald", bg: "10b981" },
                   { key: "punchOut", label: "Punch Out", color: "blue", bg: "3b82f6" },
-                ].map(({ key, label, color, bg }) => (
-                  <div key={key} className="space-y-2">
-                    <p className={`text-[10px] font-bold uppercase tracking-widest text-${color}-500`}>{label}</p>
-                    <div className="h-28 w-full rounded-xl overflow-hidden border border-slate-100">
-                      {viewingAttendance[key]?.selfieUrl ? (
-                        <img
-                          src={viewingAttendance[key].selfieUrl}
-                          alt={label}
-                          className="h-full w-full object-cover cursor-pointer"
-                          onClick={() => window.open(viewingAttendance[key].selfieUrl, "_blank")}
-                          onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=${label}&background=${bg}&color=fff&size=200`)}
-                        />
-                      ) : (
-                        <div className="h-full w-full bg-slate-50 flex items-center justify-center border border-dashed border-slate-200 rounded-xl">
-                          {/* A missing selfie is NOT the same as "no punch". Auto
-                              punch-outs, admin corrections and session 2+ punches
-                              have a valid time but no selfie — those must read
-                              "No Selfie", never "Still On Duty". Only a genuinely
-                              absent punch (no time at all) is Still On Duty /
-                              Not Recorded. */}
-                          <p className="text-[10px] text-slate-400 font-semibold uppercase">
-                            {(viewingAttendance[key]?.time || (key === "punchIn" && viewingAttendance[key]))
-                              ? "No Selfie"
-                              : key === "punchOut" ? "Still On Duty" : "Not Recorded"}
-                          </p>
-                        </div>
-                      )}
+                ].map(({ key, label, color, bg }) => {
+                  const rawSelfie = viewingAttendance[key]?.selfieUrl || (key === "punchIn" ? viewingAttendance.selfieInUrl : viewingAttendance.selfieOutUrl);
+                  const selfieUrl = resolveImageUrl(rawSelfie);
+                  return (
+                    <div key={key} className="space-y-2">
+                      <p className={`text-[10px] font-bold uppercase tracking-widest text-${color}-500`}>{label}</p>
+                      <div className="h-28 w-full rounded-xl overflow-hidden border border-slate-100">
+                        {selfieUrl ? (
+                          <img
+                            src={selfieUrl}
+                            alt={label}
+                            className="h-full w-full object-cover cursor-pointer"
+                            onClick={() => window.open(selfieUrl, "_blank")}
+                            onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=${label}&background=${bg}&color=fff&size=200`)}
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-slate-50 flex items-center justify-center border border-dashed border-slate-200 rounded-xl">
+                            {/* A missing selfie is NOT the same as "no punch". Auto
+                                punch-outs, admin corrections and session 2+ punches
+                                have a valid time but no selfie — those must read
+                                "No Selfie", never "Still On Duty". Only a genuinely
+                                absent punch (no time at all) is Still On Duty /
+                                Not Recorded. */}
+                            <p className="text-[10px] text-slate-400 font-semibold uppercase">
+                              {(viewingAttendance[key]?.time || (key === "punchIn" && viewingAttendance[key]))
+                                ? "No Selfie"
+                                : key === "punchOut" ? "Still On Duty" : "Not Recorded"}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <p className={`text-sm font-bold text-${color}-600 text-center`}>
+                        {fmtTime(viewingAttendance[key]?.time || viewingAttendance[key]) || "--:--"}
+                      </p>
+                      <p className="text-[10px] text-slate-500 text-center leading-tight px-1">
+                        {viewingAttendance[key]?.location?.address
+                          ? viewingAttendance[key].location.address
+                          : viewingAttendance[key]?.location?.lat
+                            ? resolvedAddresses[`${Number(viewingAttendance[key].location.lat).toFixed(5)},${Number(viewingAttendance[key].location.lng).toFixed(5)}`] || "Fetching address..."
+                            : ""}
+                      </p>
                     </div>
-                    <p className={`text-sm font-bold text-${color}-600 text-center`}>
-                      {fmtTime(viewingAttendance[key]?.time || viewingAttendance[key]) || "--:--"}
-                    </p>
-                    <p className="text-[10px] text-slate-500 text-center leading-tight px-1">
-                      {viewingAttendance[key]?.location?.address
-                        ? viewingAttendance[key].location.address
-                        : viewingAttendance[key]?.location?.lat
-                          ? resolvedAddresses[`${Number(viewingAttendance[key].location.lat).toFixed(5)},${Number(viewingAttendance[key].location.lng).toFixed(5)}`] || "Fetching address..."
-                          : ""}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Lunch In / Lunch Out */}

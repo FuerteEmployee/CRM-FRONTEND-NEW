@@ -198,4 +198,13 @@ export const salaryTemplateService = {
     const res = await apiClient.get(`/payroll/${payrollId}/slip`, { params });
     return res.data?.data || res.data;
   },
+
+  // Self-service — same rendering, but backed by a route that verifies the
+  // payroll record actually belongs to the logged-in employee.
+  getMyPayrollSlip: async (payrollId: string, templateId?: string): Promise<SalarySlipData> => {
+    const params: Record<string, string> = {};
+    if (templateId) params.templateId = templateId;
+    const res = await apiClient.get(`/payroll/me/${payrollId}/slip`, { params });
+    return res.data?.data || res.data;
+  },
 };

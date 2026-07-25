@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   Building2, Plus, Search, Activity, Trash2,
   Package, CheckCircle2, XCircle, Settings, Clock,
-  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell
+  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell, Globe
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -32,6 +32,7 @@ interface Tenant {
   _id: string;
   company_name: string;
   subdomain?: string;
+  custom_domains?: string[];
   plan_id: SaasPlan | null;
   owner_id: Owner | null;
   status: "active" | "inactive" | "trial" | "expired";
@@ -48,8 +49,11 @@ const STATUS_CONFIG = {
   expired:  { label: "Expired",  icon: AlertTriangle, cls: "bg-orange-50 text-orange-700 border-orange-200" },
 };
 
-const DEFAULT_CREATE = { company_name: "", email: "", password: "", plan_id: "" };
-const DEFAULT_MANAGE = { company_name: "", email: "", password: "", plan_id: "", status: "trial" as Tenant["status"] };
+const DEFAULT_CREATE = { company_name: "", email: "", password: "", plan_id: "", custom_domains: "" };
+const DEFAULT_MANAGE = { company_name: "", email: "", password: "", plan_id: "", status: "trial" as Tenant["status"], custom_domains: "" };
+
+const parseDomains = (value: string) =>
+  value.split(",").map((d) => d.trim().toLowerCase()).filter(Boolean);
 
 export default function SuperAdminCompanies() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -86,7 +90,10 @@ export default function SuperAdminCompanies() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post("/super-admin/tenants", createForm);
+      await api.post("/super-admin/tenants", {
+        ...createForm,
+        custom_domains: parseDomains(createForm.custom_domains),
+      });
       toast.success("Customer created successfully");
       setIsCreateOpen(false);
       setCreateForm(DEFAULT_CREATE);
@@ -100,7 +107,10 @@ export default function SuperAdminCompanies() {
     e.preventDefault();
     if (!selectedTenant) return;
     try {
-      await api.put(`/super-admin/tenants/${selectedTenant._id}`, manageForm);
+      await api.put(`/super-admin/tenants/${selectedTenant._id}`, {
+        ...manageForm,
+        custom_domains: parseDomains(manageForm.custom_domains),
+      });
       toast.success("Updated successfully");
       setIsManageOpen(false);
       fetchData();
@@ -128,6 +138,7 @@ export default function SuperAdminCompanies() {
       password: "",
       plan_id: tenant.plan_id?._id || "",
       status: tenant.status,
+      custom_domains: (tenant.custom_domains || []).join(", "),
     });
     setIsManageOpen(true);
   };
@@ -462,6 +473,24 @@ export default function SuperAdminCompanies() {
                 </div>
               </div>
 
+              {/* Custom Domain */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Custom Domain (optional)</label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={createForm.custom_domains}
+                    onChange={(e) => setCreateForm({ ...createForm, custom_domains: e.target.value })}
+                    className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    placeholder="e.g. erp.trinetratechnoworld.com"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400">
+                  Locks login + branding to this customer on this domain. Leave blank for the shared multi-tenant domain.
+                </p>
+              </div>
+
               {/* Email */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Email ID</label>
@@ -485,7 +514,6 @@ export default function SuperAdminCompanies() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type={showPassword ? "text" : "password"}
-                    disableVoice
                     required
                     value={createForm.password}
                     onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
@@ -576,6 +604,24 @@ export default function SuperAdminCompanies() {
                 </div>
               </div>
 
+              {/* Custom Domain */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Custom Domain (optional)</label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={manageForm.custom_domains}
+                    onChange={(e) => setManageForm({ ...manageForm, custom_domains: e.target.value })}
+                    className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    placeholder="e.g. erp.trinetratechnoworld.com"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400">
+                  Locks login + branding to this customer on this domain. Leave blank for the shared multi-tenant domain.
+                </p>
+              </div>
+
               {/* Email */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Email ID</label>
@@ -599,7 +645,6 @@ export default function SuperAdminCompanies() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type={showPassword ? "text" : "password"}
-                    disableVoice
                     value={manageForm.password}
                     onChange={(e) => setManageForm({ ...manageForm, password: e.target.value })}
                     className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-10 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"

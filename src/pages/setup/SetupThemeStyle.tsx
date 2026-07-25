@@ -23,6 +23,11 @@ interface ThemeState {
   tables: ThemeArea;
   general: ThemeArea;
   tags: ThemeArea;
+  customCss: {
+    both: string;
+    admin: string;
+    customers: string;
+  };
 }
 
 const defaultTheme: ThemeState = {

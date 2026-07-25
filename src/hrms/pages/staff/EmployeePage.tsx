@@ -72,6 +72,7 @@ import {
   format,
   isAfter,
 } from "date-fns";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { Input } from "@/hrms/components/ui/input";
 import {
   DropdownMenu,
@@ -840,40 +841,61 @@ const EmployeePage = () => {
                   },
                   {
                     header: "Selfie",
-                    accessorKey: (att: any) => (
-                      <div className="flex items-center gap-1.5">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-wider">IN</span>
-                          <div className="h-8 w-8 rounded-lg overflow-hidden border border-emerald-100 cursor-pointer hover:scale-110 transition-transform"
-                            onClick={() => att.punchIn?.selfieUrl && window.open(att.punchIn.selfieUrl, "_blank")}>
-                            <img
-                              src={att.punchIn?.selfieUrl || att.selfieInUrl || `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`}
-                              alt="Punch In"
-                              className="h-full w-full object-cover"
-                              onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`)}
-                            />
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-[8px] font-bold text-blue-500 uppercase tracking-wider">OUT</span>
-                          <div className="h-8 w-8 rounded-lg overflow-hidden border border-blue-100 cursor-pointer hover:scale-110 transition-transform"
-                            onClick={() => att.punchOut?.selfieUrl && window.open(att.punchOut.selfieUrl, "_blank")}>
-                            {att.punchOut?.selfieUrl ? (
+                    accessorKey: (att: any) => {
+                      const punchInSelfie = resolveImageUrl(att.punchIn?.selfieUrl || att.selfieInUrl);
+                      const punchOutSelfie = resolveImageUrl(att.punchOut?.selfieUrl || att.selfieOutUrl);
+                      const punchInFailed = att.selfieVerificationStatus === "failed";
+                      return (
+                        <div className="flex items-center gap-1.5">
+                          <div className="relative group/selfie shrink-0">
+                            <button
+                              type="button"
+                              disabled={!punchInSelfie}
+                              onClick={() => punchInSelfie && window.open(punchInSelfie, "_blank")}
+                              className={`h-8 w-8 rounded-lg overflow-hidden border shadow-sm flex items-center justify-center bg-slate-50 transition active:scale-95 ${
+                                punchInFailed 
+                                  ? "border-red-500 ring-2 ring-red-500/20" 
+                                  : "border-slate-200 hover:border-slate-300"
+                              }`}
+                            >
                               <img
-                                src={att.punchOut.selfieUrl}
-                                alt="Punch Out"
+                                src={punchInSelfie || `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`}
+                                alt="Punch In"
                                 className="h-full w-full object-cover"
-                                onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=OUT&background=3b82f6&color=fff`)}
+                                onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`)}
                               />
-                            ) : (
-                              <div className="h-full w-full bg-slate-100 flex items-center justify-center">
-                                <span className="text-[7px] font-bold text-slate-400">—</span>
-                              </div>
-                            )}
+                            </button>
+                            <span className={`absolute -top-1.5 -right-1 px-1 rounded text-white font-black text-[7px] uppercase shadow-sm pointer-events-none ${
+                              punchInFailed ? "bg-red-500 animate-pulse" : "bg-emerald-500"
+                            }`}>
+                              {punchInFailed ? "Failed" : "IN"}
+                            </span>
                           </div>
+
+                          {punchOutSelfie ? (
+                            <div className="relative group/selfie shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => window.open(punchOutSelfie, "_blank")}
+                                className="h-8 w-8 rounded-lg overflow-hidden border border-slate-200 shadow-sm flex items-center justify-center bg-slate-50 transition hover:border-slate-300 active:scale-95"
+                              >
+                                <img
+                                  src={punchOutSelfie}
+                                  alt="Punch Out"
+                                  className="h-full w-full object-cover"
+                                  onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=OUT&background=3b82f6&color=fff`)}
+                                />
+                              </button>
+                              <span className="absolute -top-1.5 -right-1 px-1 rounded bg-rose-500 text-white font-black text-[7px] uppercase shadow-sm pointer-events-none">OUT</span>
+                            </div>
+                          ) : (
+                            <div className="h-8 w-8 rounded-lg border border-dashed border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-300 select-none shrink-0">
+                              OUT
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ),
+                      );
+                    },
                   },
                   {
                     header: "Status",
@@ -1791,20 +1813,24 @@ const EmployeePage = () => {
                 {[
                   { key: "punchIn", label: "Punch In", color: "emerald", bgHex: "10b981" },
                   { key: "punchOut", label: "Punch Out", color: "blue", bgHex: "3b82f6" },
-                ].map(({ key, label, color, bgHex }) => (
-                  <div key={key} className="space-y-3">
-                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
-                      <Camera className="h-3 w-3" /> {label}
-                    </h4>
-                    {viewingAttendance[key]?.time || (key === "punchIn" && viewingAttendance[key]) ? (
-                      <div className="flex gap-3">
-                        <div className="h-20 w-20 rounded-xl overflow-hidden border border-slate-100 shrink-0">
-                          <img
-                            src={viewingAttendance[key]?.selfieUrl || `https://ui-avatars.com/api/?name=${label}&background=${bgHex}&color=fff`}
-                            className="w-full h-full object-cover"
-                            alt=""
-                          />
-                        </div>
+                ].map(({ key, label, color, bgHex }) => {
+                  const rawSelfie = viewingAttendance[key]?.selfieUrl || (key === "punchIn" ? viewingAttendance.selfieInUrl : viewingAttendance.selfieOutUrl);
+                  const selfieUrl = resolveImageUrl(rawSelfie);
+                  return (
+                    <div key={key} className="space-y-3">
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                        <Camera className="h-3 w-3" /> {label}
+                      </h4>
+                      {viewingAttendance[key]?.time || (key === "punchIn" && viewingAttendance[key]) ? (
+                        <div className="flex gap-3">
+                          <div className="h-20 w-20 rounded-xl overflow-hidden border border-slate-100 shrink-0">
+                            <img
+                              src={selfieUrl || `https://ui-avatars.com/api/?name=${label}&background=${bgHex}&color=fff`}
+                              className="w-full h-full object-cover"
+                              alt=""
+                              onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=${label}&background=${bgHex}&color=fff`)}
+                            />
+                          </div>
                         <div className="space-y-2">
                           <div>
                             <p className="text-[9px] uppercase font-bold text-slate-400">Time</p>
@@ -1826,7 +1852,8 @@ const EmployeePage = () => {
                       </div>
                     )}
                   </div>
-                ))}
+                );
+                })}
               </div>
 
               {/* Lunch In / Lunch Out */}

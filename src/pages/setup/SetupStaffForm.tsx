@@ -20,6 +20,18 @@ import {
   Linkedin,
   Globe,
   Type,
+  User,
+  Camera,
+  Briefcase,
+  Building2,
+  Landmark,
+  FileText,
+  Upload,
+  GraduationCap,
+  Droplet,
+  Phone,
+  MapPin,
+  HeartPulse,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { staffService } from "@/api/services/staff.service";
@@ -34,6 +46,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+// HRMS profile fields (Employment Details, Salary & Banking, Legal Documents) are
+// collected here too now, so Setup > Staff creates one complete record instead of
+// requiring a second visit to the HRMS Staff Directory edit screen. These are the
+// exact same services StaffFormPage.tsx (the HRMS "Add Employee" form) uses.
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
+import { departmentService as hrmsDepartmentService } from "@/hrms/services/departmentService";
+import { designationService as hrmsDesignationService } from "@/hrms/services/designationService";
+import { shiftService as hrmsShiftService } from "@/hrms/services/shiftService";
 
 interface Role {
   _id: string;
@@ -140,7 +160,54 @@ const FEATURES_CONFIG = [
   { name: "Announcements", caps: ["View(Global)"] },
   { name: "Activity Log", caps: ["View(Global)"] },
   { name: "Ticket Pipe Log", caps: ["View(Global)"] },
+  { name: "HRMS Staff Directory", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Attendance", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Leave Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Expense Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Salary Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Shift Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Branch Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Departments", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Designations", caps: ["View(Global)", "Create", "Edit", "Delete"] },
 ];
+
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+// Foreign-key selects that must be sent as the literal string "null" (not "" or
+// omitted) so the backend's expandDotNotation casts them to a real null instead
+// of leaving a stale/invalid ObjectId string in place.
+const ID_FIELDS = ["role", "hrmsBranchId", "department", "designation", "shiftId"];
+
+const emptyHrmsProfile = () => ({
+  gender: "",
+  dob: "",
+  bloodGroup: "",
+  education: "",
+  totalExperience: "",
+  residentialPhone: "",
+  emergencyContact: { name: "", phone: "", relation: "" },
+  address: { current: "", permanent: "" },
+  hrmsBranchId: "none",
+  department: "none",
+  designation: "none",
+  shiftId: "none",
+  joiningDate: "",
+  employmentType: "",
+  attendanceRequired: true,
+  isSalesperson: false,
+  weeklyHolidays: [] as string[],
+  bankInfo: { bankName: "", ifscCode: "", accountNumber: "", accountName: "", branchCity: "" },
+  payType: "Monthly",
+  salaryAmount: 0,
+  salaryConfig: {
+    basic: { value: 0 },
+    hra: { value: 0 },
+    pf: { value: 0 },
+    esic: { value: 0 },
+  },
+  legalDocuments: { panNumber: "", aadhaarNumber: "" },
+  avatar: "",
+});
 
 export default function SetupStaffForm() {
   const { id } = useParams();
@@ -167,7 +234,15 @@ export default function SetupStaffForm() {
     direction: "System Default",
     departments: [],
     send_welcome_email: true,
+    ...emptyHrmsProfile(),
   });
+
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [panFile, setPanFile] = useState<File | null>(null);
+  const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
+  const [passportPhotoFile, setPassportPhotoFile] = useState<File | null>(null);
+
+  const fieldsDisabled = id === "new" ? !can("Staff", "Create") : !can("Staff", "Edit");
 
   const { data: roles = [] } = useQuery<Role[]>({
     queryKey: ["roles"],
@@ -183,6 +258,29 @@ export default function SetupStaffForm() {
       const response = await supportService.getDepartments();
       return Array.isArray(response) ? response : response?.data || [];
     },
+  });
+
+  const { data: hrmsBranches = [] } = useQuery({
+    queryKey: ["hrms-branches-picker"],
+    queryFn: async () => {
+      const res = await hrmsbranchService.getAll();
+      return res?.data || [];
+    },
+  });
+
+  const { data: hrmsDepartments = [] } = useQuery({
+    queryKey: ["hrms-departments-picker"],
+    queryFn: () => hrmsDepartmentService.getAll(),
+  });
+
+  const { data: hrmsDesignations = [] } = useQuery({
+    queryKey: ["hrms-designations-picker"],
+    queryFn: () => hrmsDesignationService.getAll(),
+  });
+
+  const { data: hrmsShifts = [] } = useQuery({
+    queryKey: ["hrms-shifts-picker"],
+    queryFn: () => hrmsShiftService.getAll(),
   });
 
   const { isLoading: isLoadingStaff } = useQuery({
@@ -209,18 +307,88 @@ export default function SetupStaffForm() {
           }
         });
 
+        const defaults = emptyHrmsProfile();
         setFormData({
           ...member,
           role: member.role?._id || member.role || "none", // Normalize null/undefined to 'none' match SelectItem value
           password: "",
           permissions: finalPermissions,
           departments: member.departments || [],
+          gender: member.gender || defaults.gender,
+          dob: member.dob ? String(member.dob).substring(0, 10) : defaults.dob,
+          bloodGroup: member.bloodGroup || defaults.bloodGroup,
+          education: member.education || defaults.education,
+          totalExperience: member.totalExperience || defaults.totalExperience,
+          residentialPhone: member.residentialPhone || defaults.residentialPhone,
+          emergencyContact: { ...defaults.emergencyContact, ...(member.emergencyContact || {}) },
+          address: { ...defaults.address, ...(member.address || {}) },
+          hrmsBranchId: member.hrmsBranchId || defaults.hrmsBranchId,
+          department: member.department || defaults.department,
+          designation: member.designation || defaults.designation,
+          shiftId: member.shiftId || defaults.shiftId,
+          joiningDate: member.joiningDate ? String(member.joiningDate).substring(0, 10) : defaults.joiningDate,
+          employmentType: member.employmentType || defaults.employmentType,
+          attendanceRequired: member.attendanceRequired !== false,
+          isSalesperson: !!member.isSalesperson,
+          weeklyHolidays: member.weeklyHolidays || defaults.weeklyHolidays,
+          bankInfo: { ...defaults.bankInfo, ...(member.bankInfo || {}) },
+          payType: member.payType || defaults.payType,
+          salaryAmount: member.salaryAmount || 0,
+          salaryConfig: {
+            ...defaults.salaryConfig,
+            ...(member.salaryConfig || {}),
+            basic: { ...defaults.salaryConfig.basic, ...(member.salaryConfig?.basic || {}) },
+            hra: { ...defaults.salaryConfig.hra, ...(member.salaryConfig?.hra || {}) },
+            pf: { ...defaults.salaryConfig.pf, ...(member.salaryConfig?.pf || {}) },
+            esic: { ...defaults.salaryConfig.esic, ...(member.salaryConfig?.esic || {}) },
+          },
+          legalDocuments: { ...defaults.legalDocuments, ...(member.legalDocuments || {}) },
+          avatar: member.avatar || "",
         });
       }
       return member;
     },
     enabled: !!id && id !== "new",
   });
+
+  // Flattens the form's nested fields (bankInfo.accountName, emergencyContact.phone,
+  // permissions.<feature>.<cap>, etc.) into FormData with dot-notation keys, plus any
+  // selected files — same convention the HRMS "Add Employee" form
+  // (hrms/pages/staff/StaffFormPage.tsx) already uses, so the shared backend
+  // expandDotNotation() helper reconstructs it identically either way.
+  const buildFormData = (data: any): FormData => {
+    const fd = new FormData();
+    const append = (obj: any, rootKey?: string) => {
+      Object.keys(obj).forEach((key) => {
+        const value = obj[key];
+        const fullKey = rootKey ? `${rootKey}.${key}` : key;
+
+        if (ID_FIELDS.includes(key) && (value === "" || value === "none" || value === null || value === undefined)) {
+          fd.append(fullKey, "null");
+          return;
+        }
+        if (value && typeof value === "object" && !Array.isArray(value) && !(value instanceof File) && !(value instanceof Date)) {
+          append(value, fullKey);
+          return;
+        }
+        if (value === undefined || value === null) return;
+        if (fullKey === "password" && !value && id !== "new") return;
+        if ((fullKey === "dob" || fullKey === "joiningDate") && value === "") return;
+
+        if (Array.isArray(value)) {
+          value.forEach((v) => fd.append(fullKey, v));
+        } else {
+          fd.append(fullKey, value instanceof Date ? value.toISOString() : String(value));
+        }
+      });
+    };
+    append(data);
+    if (avatarFile) fd.append("avatar", avatarFile);
+    if (panFile) fd.append("pan", panFile);
+    if (aadhaarFile) fd.append("aadhaar", aadhaarFile);
+    if (passportPhotoFile) fd.append("passportPhoto", passportPhotoFile);
+    return fd;
+  };
 
   const createMutation = useMutation({
     mutationFn: (data: any) => staffService.create(data),
@@ -265,9 +433,9 @@ export default function SetupStaffForm() {
     if (id && id !== "new") {
       const { password, ...rest } = finalData;
       const payload = password ? { ...rest, password } : rest;
-      updateMutation.mutate(payload);
+      updateMutation.mutate(buildFormData(payload));
     } else {
-      createMutation.mutate(finalData);
+      createMutation.mutate(buildFormData(finalData));
     }
   };
 
@@ -298,6 +466,18 @@ export default function SetupStaffForm() {
       return {
         ...prev,
         permissions: { ...prev.permissions, [feature]: newFeaturePerms },
+      };
+    });
+  };
+
+  const toggleWeeklyHoliday = (day: string) => {
+    setFormData((prev: any) => {
+      const current: string[] = prev.weeklyHolidays || [];
+      return {
+        ...prev,
+        weeklyHolidays: current.includes(day)
+          ? current.filter((d) => d !== day)
+          : [...current, day],
       };
     });
   };
@@ -341,7 +521,7 @@ export default function SetupStaffForm() {
   const saveDisabled =
     createMutation.isPending ||
     updateMutation.isPending ||
-    (id === "new" ? !can("Staff", "Create") : !can("Staff", "Edit"));
+    fieldsDisabled;
 
   return (
     <DashboardLayout>
@@ -370,6 +550,24 @@ export default function SetupStaffForm() {
               Profile
             </TabsTrigger>
             <TabsTrigger
+              value="employment"
+              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
+            >
+              Employment Details
+            </TabsTrigger>
+            <TabsTrigger
+              value="salary"
+              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
+            >
+              Salary & Banking
+            </TabsTrigger>
+            <TabsTrigger
+              value="documents"
+              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
+            >
+              Legal Documents
+            </TabsTrigger>
+            <TabsTrigger
               value="permissions"
               className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
             >
@@ -381,6 +579,32 @@ export default function SetupStaffForm() {
             value="profile"
             className="bg-white border rounded-lg p-8 shadow-sm mt-6 space-y-8"
           >
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
+                {avatarFile ? (
+                  <img src={URL.createObjectURL(avatarFile)} alt="Avatar preview" className="w-full h-full object-cover" />
+                ) : formData.avatar ? (
+                  <img src={formData.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="h-6 w-6 text-slate-400" />
+                )}
+              </div>
+              <div className="space-y-1">
+                <label className="inline-flex items-center gap-2 text-sm font-semibold text-primary cursor-pointer">
+                  <Camera className="h-4 w-4" />
+                  Upload Photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={fieldsDisabled}
+                    onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
+                  />
+                </label>
+                <p className="text-xs text-muted-foreground">JPG or PNG.</p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
               {/* Left Column: Basic Info */}
               <div className="space-y-4">
@@ -394,11 +618,7 @@ export default function SetupStaffForm() {
                       setFormData({ ...formData, firstname: e.target.value })
                     }
                     className="h-10 border-slate-200"
-                    disabled={
-                      id === "new"
-                        ? !can("Staff", "Create")
-                        : !can("Staff", "Edit")
-                    }
+                    disabled={fieldsDisabled}
                   />
                 </div>
                 <div className="space-y-2">
@@ -411,11 +631,7 @@ export default function SetupStaffForm() {
                       setFormData({ ...formData, lastname: e.target.value })
                     }
                     className="h-10 border-slate-200"
-                    disabled={
-                      id === "new"
-                        ? !can("Staff", "Create")
-                        : !can("Staff", "Edit")
-                    }
+                    disabled={fieldsDisabled}
                   />
                 </div>
                 <div className="space-y-2">
@@ -429,11 +645,7 @@ export default function SetupStaffForm() {
                       setFormData({ ...formData, email: e.target.value })
                     }
                     className="h-10 border-slate-200"
-                    disabled={
-                      id === "new"
-                        ? !can("Staff", "Create")
-                        : !can("Staff", "Edit")
-                    }
+                    disabled={fieldsDisabled}
                   />
                 </div>
                 <div className="space-y-2">
@@ -457,6 +669,32 @@ export default function SetupStaffForm() {
                     onChange={(e) =>
                       setFormData({ ...formData, linkedin: e.target.value })
                     }
+                    className="h-10 border-slate-200"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Gender</label>
+                  <Select
+                    value={formData.gender || "none"}
+                    onValueChange={(v) => setFormData({ ...formData, gender: v === "none" ? "" : v })}
+                  >
+                    <SelectTrigger className="h-10 border-slate-200">
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not specified</SelectItem>
+                      <SelectItem value="Male">Male</SelectItem>
+                      <SelectItem value="Female">Female</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Date of Birth</label>
+                  <Input
+                    type="date"
+                    value={formData.dob}
+                    onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
                     className="h-10 border-slate-200"
                   />
                 </div>
@@ -534,6 +772,98 @@ export default function SetupStaffForm() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <Droplet className="h-4 w-4 text-slate-400" /> Blood Group
+                  </label>
+                  <Input
+                    value={formData.bloodGroup}
+                    onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
+                    placeholder="e.g. O+"
+                    className="h-10 border-slate-200"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-8 border-t grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <GraduationCap className="h-4 w-4 text-slate-400" /> Education
+                </label>
+                <Input
+                  value={formData.education}
+                  onChange={(e) => setFormData({ ...formData, education: e.target.value })}
+                  placeholder="e.g. MBA, B.Tech"
+                  className="h-10 border-slate-200"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Experience</label>
+                <Input
+                  value={formData.totalExperience}
+                  onChange={(e) => setFormData({ ...formData, totalExperience: e.target.value })}
+                  placeholder="e.g. 5 Years"
+                  className="h-10 border-slate-200"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Phone className="h-4 w-4 text-slate-400" /> Residential Phone
+                </label>
+                <Input
+                  value={formData.residentialPhone}
+                  onChange={(e) => setFormData({ ...formData, residentialPhone: e.target.value })}
+                  placeholder="10 digit number"
+                  className="h-10 border-slate-200"
+                />
+              </div>
+              <div />
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-slate-400" /> Current Address
+                </label>
+                <textarea
+                  value={formData.address.current}
+                  onChange={(e) => setFormData({ ...formData, address: { ...formData.address, current: e.target.value } })}
+                  className="w-full min-h-[70px] p-3 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-slate-400" /> Permanent Address
+                </label>
+                <textarea
+                  value={formData.address.permanent}
+                  onChange={(e) => setFormData({ ...formData, address: { ...formData.address, permanent: e.target.value } })}
+                  className="w-full min-h-[70px] p-3 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                />
+              </div>
+            </div>
+
+            <div className="pt-8 border-t space-y-4">
+              <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <HeartPulse className="h-4 w-4 text-primary" /> Emergency Contact
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input
+                  placeholder="Name"
+                  value={formData.emergencyContact.name}
+                  onChange={(e) => setFormData({ ...formData, emergencyContact: { ...formData.emergencyContact, name: e.target.value } })}
+                  className="h-10 border-slate-200"
+                />
+                <Input
+                  placeholder="Phone"
+                  value={formData.emergencyContact.phone}
+                  onChange={(e) => setFormData({ ...formData, emergencyContact: { ...formData.emergencyContact, phone: e.target.value } })}
+                  className="h-10 border-slate-200"
+                />
+                <Input
+                  placeholder="Relation"
+                  value={formData.emergencyContact.relation}
+                  onChange={(e) => setFormData({ ...formData, emergencyContact: { ...formData.emergencyContact, relation: e.target.value } })}
+                  className="h-10 border-slate-200"
+                />
               </div>
             </div>
 
@@ -569,11 +899,7 @@ export default function SetupStaffForm() {
                             });
                           }}
                           className="border-slate-300"
-                          disabled={
-                            id === "new"
-                              ? !can("Staff", "Create")
-                              : !can("Staff", "Edit")
-                          }
+                          disabled={fieldsDisabled}
                         />
                         <label
                           htmlFor={dept._id}
@@ -608,11 +934,7 @@ export default function SetupStaffForm() {
                         setFormData({ ...formData, admin: v })
                       }
                       className="data-[state=checked]:bg-primary"
-                      disabled={
-                        id === "new"
-                          ? !can("Staff", "Create")
-                          : !can("Staff", "Edit")
-                      }
+                      disabled={fieldsDisabled}
                     />
                   </div>
 
@@ -650,11 +972,7 @@ export default function SetupStaffForm() {
                       setFormData({ ...formData, password: e.target.value })
                     }
                     className="h-10 pr-20 border-slate-200"
-                    disabled={
-                      id === "new"
-                        ? !can("Staff", "Create")
-                        : !can("Staff", "Edit")
-                    }
+                    disabled={fieldsDisabled}
                   />
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                     <Button
@@ -674,16 +992,328 @@ export default function SetupStaffForm() {
                       size="icon"
                       className="h-7 w-7 text-slate-400 hover:text-primary"
                       onClick={generatePassword}
-                      disabled={
-                        id === "new"
-                          ? !can("Staff", "Create")
-                          : !can("Staff", "Edit")
-                      }
+                      disabled={fieldsDisabled}
                     >
                       <RefreshCw className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent
+            value="employment"
+            className="bg-white border rounded-lg p-8 shadow-sm mt-6 space-y-8"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-slate-400" /> Branch
+                </label>
+                <Select
+                  value={formData.hrmsBranchId}
+                  onValueChange={(v) => setFormData({ ...formData, hrmsBranchId: v })}
+                >
+                  <SelectTrigger className="h-10 border-slate-200">
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not assigned</SelectItem>
+                    {hrmsBranches.map((b: any) => (
+                      <SelectItem key={b._id || b.id} value={b._id || b.id}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Department</label>
+                <Select
+                  value={formData.department}
+                  onValueChange={(v) => setFormData({ ...formData, department: v })}
+                >
+                  <SelectTrigger className="h-10 border-slate-200">
+                    <SelectValue placeholder="Select department" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not assigned</SelectItem>
+                    {hrmsDepartments.map((d: any) => (
+                      <SelectItem key={d._id || d.id} value={d._id || d.id}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <Briefcase className="h-4 w-4 text-slate-400" /> Designation
+                </label>
+                <Select
+                  value={formData.designation}
+                  onValueChange={(v) => setFormData({ ...formData, designation: v })}
+                >
+                  <SelectTrigger className="h-10 border-slate-200">
+                    <SelectValue placeholder="Select designation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not assigned</SelectItem>
+                    {hrmsDesignations.map((d: any) => (
+                      <SelectItem key={d._id || d.id} value={d._id || d.id}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Work Shift</label>
+                <Select
+                  value={formData.shiftId}
+                  onValueChange={(v) => setFormData({ ...formData, shiftId: v })}
+                >
+                  <SelectTrigger className="h-10 border-slate-200">
+                    <SelectValue placeholder="Select shift" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not assigned</SelectItem>
+                    {hrmsShifts.map((s: any) => (
+                      <SelectItem key={s._id} value={s._id}>{s.name} ({s.startTime}-{s.endTime})</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Joining Date</label>
+                <Input
+                  type="date"
+                  value={formData.joiningDate}
+                  onChange={(e) => setFormData({ ...formData, joiningDate: e.target.value })}
+                  className="h-10 border-slate-200"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Employment Type</label>
+                <Select
+                  value={formData.employmentType || "none"}
+                  onValueChange={(v) => setFormData({ ...formData, employmentType: v === "none" ? "" : v })}
+                >
+                  <SelectTrigger className="h-10 border-slate-200">
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Not specified</SelectItem>
+                    <SelectItem value="permanent">Permanent</SelectItem>
+                    <SelectItem value="contract">Contract</SelectItem>
+                    <SelectItem value="intern">Intern</SelectItem>
+                    <SelectItem value="probation">Probation</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="pt-8 border-t grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-slate-800">Attendance Tracking</p>
+                  <p className="text-xs text-muted-foreground">Require this staff member to punch in/out.</p>
+                </div>
+                <Switch
+                  checked={formData.attendanceRequired}
+                  onCheckedChange={(v) => setFormData({ ...formData, attendanceRequired: v })}
+                  className="data-[state=checked]:bg-primary"
+                />
+              </div>
+              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
+                <div className="space-y-1">
+                  <p className="text-sm font-bold text-slate-800">Is Salesperson</p>
+                  <p className="text-xs text-muted-foreground">Include in salesperson-linked reports.</p>
+                </div>
+                <Switch
+                  checked={formData.isSalesperson}
+                  onCheckedChange={(v) => setFormData({ ...formData, isSalesperson: v })}
+                  className="data-[state=checked]:bg-primary"
+                />
+              </div>
+            </div>
+
+            <div className="pt-8 border-t space-y-4">
+              <p className="text-sm font-bold text-slate-800">Weekly Holidays</p>
+              <div className="flex flex-wrap gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200 border-dashed">
+                {WEEKDAYS.map((day) => (
+                  <div key={day} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`holiday-${day}`}
+                      checked={formData.weeklyHolidays.includes(day)}
+                      onCheckedChange={() => toggleWeeklyHoliday(day)}
+                      className="border-slate-300"
+                    />
+                    <label htmlFor={`holiday-${day}`} className="text-sm font-medium text-foreground cursor-pointer">
+                      {day}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent
+            value="salary"
+            className="bg-white border rounded-lg p-8 shadow-sm mt-6 space-y-8"
+          >
+            <div className="space-y-4">
+              <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                <Landmark className="h-4 w-4 text-primary" /> Bank Details
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  placeholder="Account Holder Name"
+                  value={formData.bankInfo.accountName}
+                  onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, accountName: e.target.value } })}
+                  className="h-10 border-slate-200"
+                />
+                <Input
+                  placeholder="Account Number"
+                  value={formData.bankInfo.accountNumber}
+                  onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, accountNumber: e.target.value } })}
+                  className="h-10 border-slate-200"
+                />
+                <Input
+                  placeholder="Bank Name"
+                  value={formData.bankInfo.bankName}
+                  onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, bankName: e.target.value } })}
+                  className="h-10 border-slate-200"
+                />
+                <Input
+                  placeholder="IFSC Code"
+                  value={formData.bankInfo.ifscCode}
+                  onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, ifscCode: e.target.value.toUpperCase() } })}
+                  className="h-10 border-slate-200"
+                />
+                <Input
+                  placeholder="Branch City"
+                  value={formData.bankInfo.branchCity}
+                  onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, branchCity: e.target.value } })}
+                  className="h-10 border-slate-200"
+                />
+              </div>
+            </div>
+
+            <div className="pt-8 border-t space-y-4">
+              <p className="text-sm font-bold text-slate-800">Salary</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Pay Type</label>
+                  <Select
+                    value={formData.payType}
+                    onValueChange={(v) => setFormData({ ...formData, payType: v })}
+                  >
+                    <SelectTrigger className="h-10 border-slate-200">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Monthly">Monthly</SelectItem>
+                      <SelectItem value="Weekly">Weekly</SelectItem>
+                      <SelectItem value="Daily">Daily</SelectItem>
+                      <SelectItem value="Hourly">Hourly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Salary Amount</label>
+                  <Input
+                    type="number"
+                    value={formData.salaryAmount}
+                    onChange={(e) => setFormData({ ...formData, salaryAmount: e.target.value })}
+                    className="h-10 border-slate-200"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Basic</label>
+                  <Input
+                    type="number"
+                    value={formData.salaryConfig.basic.value}
+                    onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, basic: { value: e.target.value } } })}
+                    className="h-10 border-slate-200"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">HRA</label>
+                  <Input
+                    type="number"
+                    value={formData.salaryConfig.hra.value}
+                    onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, hra: { value: e.target.value } } })}
+                    className="h-10 border-slate-200"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">PF</label>
+                  <Input
+                    type="number"
+                    value={formData.salaryConfig.pf.value}
+                    onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, pf: { value: e.target.value } } })}
+                    className="h-10 border-slate-200"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">ESIC</label>
+                  <Input
+                    type="number"
+                    value={formData.salaryConfig.esic.value}
+                    onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, esic: { value: e.target.value } } })}
+                    className="h-10 border-slate-200"
+                  />
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent
+            value="documents"
+            className="bg-white border rounded-lg p-8 shadow-sm mt-6 space-y-8"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-slate-400" /> PAN Number
+                  </label>
+                  <Input
+                    value={formData.legalDocuments.panNumber}
+                    onChange={(e) => setFormData({ ...formData, legalDocuments: { ...formData.legalDocuments, panNumber: e.target.value.toUpperCase() } })}
+                    className="h-10 border-slate-200"
+                  />
+                </div>
+                <label className="inline-flex items-center gap-2 text-sm font-semibold text-primary cursor-pointer">
+                  <Upload className="h-4 w-4" />
+                  {panFile ? panFile.name : formData.legalDocuments.panUrl ? "Replace PAN document" : "Upload PAN document"}
+                  <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setPanFile(e.target.files?.[0] || null)} />
+                </label>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-slate-400" /> Aadhaar Number
+                  </label>
+                  <Input
+                    value={formData.legalDocuments.aadhaarNumber}
+                    onChange={(e) => setFormData({ ...formData, legalDocuments: { ...formData.legalDocuments, aadhaarNumber: e.target.value } })}
+                    className="h-10 border-slate-200"
+                  />
+                </div>
+                <label className="inline-flex items-center gap-2 text-sm font-semibold text-primary cursor-pointer">
+                  <Upload className="h-4 w-4" />
+                  {aadhaarFile ? aadhaarFile.name : formData.legalDocuments.aadhaarUrl ? "Replace Aadhaar document" : "Upload Aadhaar document"}
+                  <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setAadhaarFile(e.target.files?.[0] || null)} />
+                </label>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-sm font-semibold text-slate-700">Passport-style Photo</p>
+                <label className="inline-flex items-center gap-2 text-sm font-semibold text-primary cursor-pointer">
+                  <Upload className="h-4 w-4" />
+                  {passportPhotoFile ? passportPhotoFile.name : formData.legalDocuments.passportPhotoUrl ? "Replace photo" : "Upload photo"}
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => setPassportPhotoFile(e.target.files?.[0] || null)} />
+                </label>
               </div>
             </div>
           </TabsContent>
@@ -748,11 +1378,7 @@ export default function SetupStaffForm() {
                                   handleTogglePermission(feature.name, cap)
                                 }
                                 className="border-slate-300 transition-all data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                                disabled={
-                                  id === "new"
-                                    ? !can("Staff", "Create")
-                                    : !can("Staff", "Edit")
-                                }
+                                disabled={fieldsDisabled}
                               />
                               <label
                                 htmlFor={`${feature.name}-${cap}`}

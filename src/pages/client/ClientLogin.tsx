@@ -37,18 +37,25 @@ const ClientLogin = () => {
       {/* Mini Header */}
       <header className="w-full h-14 border-b bg-white flex items-center justify-between px-6 md:px-10">
         <div className="flex items-center gap-2">
-           {settings?.compLogoDark && !logoError ? (
-             <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-8 w-auto object-contain" onError={() => setLogoError(true)} />
-           ) : (
-             <>
+            {settings?.compLogoDark && !logoError ? (
+              <div className="flex items-center gap-2">
+                <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-8 w-auto object-contain" onError={() => setLogoError(true)} />
+                {settings.compLogoDark === "/logo-icon.png" && (
+                  <span className="font-bold text-lg tracking-tight">
+                    {settings.companyName}
+                  </span>
+                )}
+              </div>
+            ) : (
+              <>
                 <div className="flex h-7 w-7 items-center justify-center rounded bg-primary font-bold text-[10px] uppercase shadow-sm">
-                   {settings?.companyName?.charAt(0) || "C"}
+                  {settings?.companyName?.charAt(0) || "C"}
                 </div>
                 <span className="font-bold text-lg tracking-tight">
-                  {settings?.companyName?.split(" ")[0] || "CRM"}<span className="text-primary">{settings?.companyName?.split(" ").slice(1).join(" ") || "Pro"}</span>
+                  {settings?.companyName}
                 </span>
-             </>
-           )}
+              </>
+            )}
         </div>
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" className="text-muted-foreground font-medium text-xs hover:bg-muted/50 transition-colors h-8" asChild>
