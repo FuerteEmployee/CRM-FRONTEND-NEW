@@ -317,7 +317,10 @@ export default function SuperAdminCompanies() {
                         })()}
                         {tenant.status === "active" && (() => {
                           const cycle = tenant.plan_id?.billing_cycle;
-                          const cycleDays = cycle === "yearly" ? 365 : cycle === "lifetime" ? 99999 : 30;
+                          if (cycle === "lifetime") {
+                            return <span className="text-[11px] font-semibold text-emerald-600">Lifetime Plan</span>;
+                          }
+                          const cycleDays = cycle === "yearly" ? 365 : 30;
                           const startDate = tenant.billing_cycle_start || tenant.createdAt;
                           const billingEnd = tenant.billing_cycle_end
                             || new Date(new Date(startDate).getTime() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
@@ -337,21 +340,28 @@ export default function SuperAdminCompanies() {
                       {(() => {
                         const joinedDate = new Date(tenant.billing_cycle_start || tenant.createdAt);
 
-                        // Calculate expiry: prefer stored date, fallback to start + billing days
                         let expiryDate: Date | null = null;
-                        if (tenant.status === "trial") {
+                        if (tenant.plan_id?.billing_cycle === "lifetime" && tenant.status === "active") {
+                          // Lifetime plans do not expire
+                          expiryDate = null;
+                        } else if (tenant.status === "trial") {
                           const trialDays = tenant.plan_id?.trial_days ?? 14;
                           expiryDate = tenant.trial_ends_at
                             ? new Date(tenant.trial_ends_at)
                             : new Date(new Date(tenant.createdAt).getTime() + trialDays * 86400000);
                         } else if (tenant.status === "active") {
                           const cycle = tenant.plan_id?.billing_cycle;
-                          const cycleDays = cycle === "yearly" ? 365 : cycle === "lifetime" ? 36500 : 30;
+                          const cycleDays = cycle === "yearly" ? 365 : 30;
                           expiryDate = tenant.billing_cycle_end
                             ? new Date(tenant.billing_cycle_end)
                             : new Date(joinedDate.getTime() + cycleDays * 86400000);
                         } else if (tenant.billing_cycle_end || tenant.trial_ends_at) {
                           expiryDate = new Date(tenant.billing_cycle_end || tenant.trial_ends_at!);
+                        } else {
+                          // Fallback for expired/inactive without specific end dates
+                          const cycle = tenant.plan_id?.billing_cycle;
+                          const cycleDays = cycle === "yearly" ? 365 : 30;
+                          expiryDate = new Date(joinedDate.getTime() + cycleDays * 86400000);
                         }
 
                         const daysLeft = expiryDate
@@ -373,7 +383,9 @@ export default function SuperAdminCompanies() {
                             <span className="text-sm text-gray-700">
                               {format(joinedDate, "MMM d, yyyy")}
                             </span>
-                            {expiryDate && (
+                            {tenant.plan_id?.billing_cycle === "lifetime" && tenant.status === "active" ? (
+                              <span className="text-[11px] text-emerald-600 font-medium">No expiry (Lifetime)</span>
+                            ) : expiryDate && (
                               <span className={`text-[11px] ${expiryColor}`}>
                                 Expires: {format(expiryDate, "MMM d, yyyy")}
                                 {daysLeft !== null && daysLeft > 0 && (

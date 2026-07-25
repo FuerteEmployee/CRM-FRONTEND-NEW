@@ -91,7 +91,7 @@ const Customers = () => {
   const queryClient = useQueryClient();
   const { can } = usePermissions();
   const navigate = useNavigate();
-  const itemsPerPage = 25;
+  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(25);
 
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
@@ -242,10 +242,11 @@ const Customers = () => {
     }
   };
 
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const itemsPerPageNum = itemsPerPage === "all" ? Math.max(filtered.length, 1) : itemsPerPage;
+  const totalPages = Math.ceil(filtered.length / itemsPerPageNum);
   const paginatedCustomers = filtered.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
+    (currentPage - 1) * itemsPerPageNum,
+    currentPage * itemsPerPageNum,
   );
 
   const totalCustomers = customers.length;
@@ -770,14 +771,22 @@ const Customers = () => {
           <CardContent className="p-0">
             <div className="flex items-center justify-between p-3 border-b">
               <div className="flex items-center gap-2">
-                <Select defaultValue="25">
-                  <SelectTrigger className="w-[70px] h-11 rounded-xl font-bold text-xs">
+                <Select 
+                  value={itemsPerPage.toString()} 
+                  onValueChange={(val) => {
+                    setItemsPerPage(val === "all" ? "all" : parseInt(val));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-[80px] h-11 rounded-xl font-bold text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="10">10</SelectItem>
                     <SelectItem value="25">25</SelectItem>
                     <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                    <SelectItem value="all">All</SelectItem>
                   </SelectContent>
                 </Select>
                 <DropdownMenu>

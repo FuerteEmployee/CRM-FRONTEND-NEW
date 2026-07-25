@@ -643,7 +643,7 @@ const Dashboard = () => {
     return activityLogsList.slice(0, 10).map((log: any, idx: number) => {
       const userFull = log.staff?.firstname ? `${log.staff.firstname} ${log.staff.lastname || ""}` : (log.created_by?.firstname ? `${log.created_by.firstname}` : "User");
       const initials = userFull.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase() || "US";
-      
+
       const logDate = new Date(log.createdAt || log.date);
       let timeStr = "";
       if (!isNaN(logDate.getTime())) {
@@ -878,47 +878,33 @@ const Dashboard = () => {
           </Button>
         </div>
 
-        {/* Subscription notification — shown within the plan's banner_warning_days window */}
-        {bannerVisible && daysRemaining !== null && (
-          <div className={`px-4 py-3 rounded-lg flex items-center justify-between shadow-sm border ${
-            daysRemaining <= 3
-              ? "bg-red-500/10 border-red-500 text-red-700 dark:text-red-400"
-              : daysRemaining <= 7
-              ? "bg-orange-500/10 border-orange-500 text-orange-700 dark:text-orange-400"
-              : daysRemaining <= 30
-              ? "bg-yellow-500/10 border-yellow-500 text-yellow-700 dark:text-yellow-500"
-              : "bg-blue-500/10 border-blue-500 text-blue-700 dark:text-blue-400"
-          }`}>
-            <div className="flex items-center gap-3">
-              <AlertTriangle className={`h-5 w-5 flex-shrink-0 ${daysRemaining > 30 ? "opacity-60" : ""}`} />
+        {/* Subscription Expiring Banner */}
+        {bannerVisible && daysRemaining !== null && daysRemaining <= 7 && (
+          <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4 md:p-5 shadow-sm mb-6 flex flex-col md:flex-row justify-between items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex items-start md:items-center gap-3">
+              <div className="bg-amber-100 dark:bg-amber-900/40 p-2 rounded-lg mt-0.5 md:mt-0 shrink-0">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500" />
+              </div>
               <div>
-                <p className="font-semibold text-sm">
-                  {user?.tenant?.status === "trial"
-                    ? daysRemaining <= 7 ? "Trial ending very soon" : "Free trial active"
-                    : daysRemaining <= 7 ? "Subscription expiring soon" : "Subscription expiring"}
-                </p>
-                <p className="text-xs opacity-90">
-                  {user?.tenant?.status === "trial"
-                    ? `You have ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"} remaining on your free trial. Upgrade now to avoid interruption.`
-                    : `Your plan expires in ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"}. Renew now to keep your CRM running.`}
+                <h3 className="text-base font-bold text-amber-800 dark:text-amber-400">
+                  Subscription expiring soon
+                </h3>
+                <p className="text-sm font-medium text-amber-700/80 dark:text-amber-500/80 mt-0.5">
+                  Your plan expires in {daysRemaining} days. Renew now to keep your CRM running.
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-4 shrink-0">
-              <div className="hidden sm:flex flex-col items-end gap-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">Days Left</span>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-24 h-1.5 rounded-full bg-current/20 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-current transition-all"
-                      style={{ width: `${Math.min(100, Math.max(2, (daysRemaining / bannerWarningDays) * 100))}%` }}
-                    />
-                  </div>
-                  <span className="text-sm font-black">{daysRemaining}</span>
-                </div>
+            <div className="flex items-center gap-5 w-full md:w-auto justify-between md:justify-end shrink-0 pl-11 md:pl-0">
+              <div className="text-left md:text-right flex flex-col">
+                <span className="text-[10px] font-bold text-amber-600/70 dark:text-amber-500/70 uppercase tracking-widest">Days Left</span>
+                <span className="text-xl font-black text-amber-700 dark:text-amber-400 leading-none mt-0.5">{daysRemaining}</span>
               </div>
-              <Button variant="default" size="sm" onClick={() => window.location.href = '/admin/pricing'} className="font-semibold shadow-md whitespace-nowrap">
-                {user?.tenant?.status === "trial" ? "Upgrade Plan" : "Renew Plan"}
+              <Button
+                onClick={() => window.location.href = '/admin/pricing'}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 h-10 rounded-lg flex items-center gap-2 shadow-sm transition-all"
+              >
+                Renew Plan
+                <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -942,51 +928,51 @@ const Dashboard = () => {
 
         {/* Invoice / Estimate / Proposal / Quotation Overview + To Do */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-          {((isModuleEnabled("finance") && canView("Invoices")) || 
-            (isModuleEnabled("estimates") && canView("Estimates")) || 
+          {((isModuleEnabled("finance") && canView("Invoices")) ||
+            (isModuleEnabled("estimates") && canView("Estimates")) ||
             (isModuleEnabled("proposals") && canView("Proposals")) ||
             (isModuleEnabled("quotations") && canView("Quotations"))) && (
-            <Card className="lg:col-span-3" id="tour-overview">
-              <CardContent className="p-5">
-                <div className={`grid grid-cols-1 ${[isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("quotations") && canView("Quotations")].filter(Boolean).length > 1 ? 'md:grid-cols-' + Math.min(4, [isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("quotations") && canView("Quotations")].filter(Boolean).length) : ''} gap-6 divide-y md:divide-y-0 md:divide-x divide-border`}>
-                  {isModuleEnabled("finance") && canView("Invoices") && (
-                    <OverviewSection
-                      title="Invoice overview"
-                      icon={FileText}
-                      items={invoiceItems}
-                    />
-                  )}
-                  {isModuleEnabled("estimates") && canView("Estimates") && (
-                    <div className={isModuleEnabled("finance") && canView("Invoices") ? "pt-4 md:pt-0 md:pl-6" : ""}>
+              <Card className="lg:col-span-3" id="tour-overview">
+                <CardContent className="p-5">
+                  <div className={`grid grid-cols-1 ${[isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("quotations") && canView("Quotations")].filter(Boolean).length > 1 ? 'md:grid-cols-' + Math.min(4, [isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("quotations") && canView("Quotations")].filter(Boolean).length) : ''} gap-6 divide-y md:divide-y-0 md:divide-x divide-border`}>
+                    {isModuleEnabled("finance") && canView("Invoices") && (
                       <OverviewSection
-                        title="Estimate overview"
-                        icon={ClipboardList}
-                        items={estimateItems}
-                      />
-                    </div>
-                  )}
-                  {isModuleEnabled("proposals") && canView("Proposals") && (
-                    <div className={(isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) ? "pt-4 md:pt-0 md:pl-6" : ""}>
-                      <OverviewSection
-                        title="Proposal overview"
+                        title="Invoice overview"
                         icon={FileText}
-                        items={proposalItems}
+                        items={invoiceItems}
                       />
-                    </div>
-                  )}
-                  {isModuleEnabled("quotations") && canView("Quotations") && (
-                    <div className={(isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) || (isModuleEnabled("proposals") && canView("Proposals")) ? "pt-4 md:pt-0 md:pl-6" : ""}>
-                      <OverviewSection
-                        title="Quotation overview"
-                        icon={FileBarChart}
-                        items={quotationItems}
-                      />
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                    )}
+                    {isModuleEnabled("estimates") && canView("Estimates") && (
+                      <div className={isModuleEnabled("finance") && canView("Invoices") ? "pt-4 md:pt-0 md:pl-6" : ""}>
+                        <OverviewSection
+                          title="Estimate overview"
+                          icon={ClipboardList}
+                          items={estimateItems}
+                        />
+                      </div>
+                    )}
+                    {isModuleEnabled("proposals") && canView("Proposals") && (
+                      <div className={(isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) ? "pt-4 md:pt-0 md:pl-6" : ""}>
+                        <OverviewSection
+                          title="Proposal overview"
+                          icon={FileText}
+                          items={proposalItems}
+                        />
+                      </div>
+                    )}
+                    {isModuleEnabled("quotations") && canView("Quotations") && (
+                      <div className={(isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) || (isModuleEnabled("proposals") && canView("Proposals")) ? "pt-4 md:pt-0 md:pl-6" : ""}>
+                        <OverviewSection
+                          title="Quotation overview"
+                          icon={FileBarChart}
+                          items={quotationItems}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
           {/* To Do Items */}
           <Card className={!((isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) || (isModuleEnabled("proposals") && canView("Proposals")) || (isModuleEnabled("quotations") && canView("Quotations"))) ? "lg:col-span-4" : ""} id="tour-todo">
@@ -1038,7 +1024,7 @@ const Dashboard = () => {
         {isModuleEnabled("finance") && canView("Invoices") && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card className="border-l-4 border-l-yellow-500">
-               <CardContent className="p-4">
+              <CardContent className="p-4">
                 <p className="text-sm text-yellow-600 font-medium">Outstanding Invoices</p>
                 <p className="text-xl font-bold">{formatAmount(outstandingInvoicesTotal)}</p>
               </CardContent>
@@ -1131,8 +1117,8 @@ const Dashboard = () => {
                                 <td className="py-2">
                                   <Badge variant="outline" className={
                                     t.priority === "High" || t.priority === "Urgent" ? "bg-destructive/10 text-destructive border-destructive/20" :
-                                    t.priority === "Medium" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
-                                    "bg-muted text-muted-foreground"
+                                      t.priority === "Medium" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
+                                        "bg-muted text-muted-foreground"
                                   }>
                                     {t.priority}
                                   </Badge>
@@ -1169,8 +1155,8 @@ const Dashboard = () => {
                                 <td className="py-2">
                                   <Badge variant="outline" className={
                                     p.status === "Active" || p.status === "In Progress" ? "bg-primary/10 text-primary border-primary/20" :
-                                    p.status === "Completed" || p.status === "Finished" ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400" :
-                                    "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400"
+                                      p.status === "Completed" || p.status === "Finished" ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400" :
+                                        "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400"
                                   }>
                                     {p.status}
                                   </Badge>
@@ -1224,8 +1210,8 @@ const Dashboard = () => {
                                 <td className="py-2">
                                   <Badge variant="outline" className={
                                     tk.status === "Open" ? "bg-primary/10 text-primary border-primary/20" :
-                                    tk.status === "In Progress" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
-                                    "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400"
+                                      tk.status === "In Progress" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
+                                        "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400"
                                   }>
                                     {tk.status}
                                   </Badge>
@@ -1233,8 +1219,8 @@ const Dashboard = () => {
                                 <td className="py-2">
                                   <Badge variant="outline" className={
                                     tk.priority === "High" || tk.priority === "Urgent" ? "bg-destructive/10 text-destructive border-destructive/20" :
-                                    tk.priority === "Medium" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
-                                    "bg-muted text-muted-foreground"
+                                      tk.priority === "Medium" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
+                                        "bg-muted text-muted-foreground"
                                   }>
                                     {tk.priority}
                                   </Badge>
@@ -1288,10 +1274,10 @@ const Dashboard = () => {
                                 <td className="py-2 pr-4">
                                   <Badge variant="outline" className={
                                     q.status.toLowerCase() === "accepted" ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400" :
-                                    q.status.toLowerCase() === "rejected" ? "bg-destructive/10 text-destructive border-destructive/20" :
-                                    q.status.toLowerCase() === "sent" ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400" :
-                                    q.status.toLowerCase() === "pending" ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400" :
-                                    "bg-muted text-muted-foreground"
+                                      q.status.toLowerCase() === "rejected" ? "bg-destructive/10 text-destructive border-destructive/20" :
+                                        q.status.toLowerCase() === "sent" ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400" :
+                                          q.status.toLowerCase() === "pending" ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400" :
+                                            "bg-muted text-muted-foreground"
                                   }>
                                     <span className="capitalize">{q.status}</span>
                                   </Badge>
@@ -1310,6 +1296,7 @@ const Dashboard = () => {
               </Tabs>
             </CardContent>
           </Card>
+
 
           {/* Leads Overview + Project Status */}
           <div className="space-y-4">
