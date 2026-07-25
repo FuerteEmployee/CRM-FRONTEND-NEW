@@ -844,40 +844,58 @@ const EmployeePage = () => {
                     accessorKey: (att: any) => {
                       const punchInSelfie = resolveImageUrl(att.punchIn?.selfieUrl || att.selfieInUrl);
                       const punchOutSelfie = resolveImageUrl(att.punchOut?.selfieUrl || att.selfieOutUrl);
+                      const punchInFailed = att.selfieVerificationStatus === "failed";
                       return (
                         <div className="flex items-center gap-1.5">
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-wider">IN</span>
-                            <div className="h-8 w-8 rounded-lg overflow-hidden border border-emerald-100 cursor-pointer hover:scale-110 transition-transform"
-                              onClick={() => punchInSelfie && window.open(punchInSelfie, "_blank")}>
+                          <div className="relative group/selfie shrink-0">
+                            <button
+                              type="button"
+                              disabled={!punchInSelfie}
+                              onClick={() => punchInSelfie && window.open(punchInSelfie, "_blank")}
+                              className={`h-8 w-8 rounded-lg overflow-hidden border shadow-sm flex items-center justify-center bg-slate-50 transition active:scale-95 ${
+                                punchInFailed 
+                                  ? "border-red-500 ring-2 ring-red-500/20" 
+                                  : "border-slate-200 hover:border-slate-300"
+                              }`}
+                            >
                               <img
                                 src={punchInSelfie || `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`}
                                 alt="Punch In"
                                 className="h-full w-full object-cover"
                                 onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`)}
                               />
-                            </div>
+                            </button>
+                            <span className={`absolute -top-1.5 -right-1 px-1 rounded text-white font-black text-[7px] uppercase shadow-sm pointer-events-none ${
+                              punchInFailed ? "bg-red-500 animate-pulse" : "bg-emerald-500"
+                            }`}>
+                              {punchInFailed ? "Failed" : "IN"}
+                            </span>
                           </div>
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className="text-[8px] font-bold text-blue-500 uppercase tracking-wider">OUT</span>
-                            <div className="h-8 w-8 rounded-lg overflow-hidden border border-blue-100 cursor-pointer hover:scale-110 transition-transform"
-                              onClick={() => punchOutSelfie && window.open(punchOutSelfie, "_blank")}>
-                              {punchOutSelfie ? (
+
+                          {punchOutSelfie ? (
+                            <div className="relative group/selfie shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => window.open(punchOutSelfie, "_blank")}
+                                className="h-8 w-8 rounded-lg overflow-hidden border border-slate-200 shadow-sm flex items-center justify-center bg-slate-50 transition hover:border-slate-300 active:scale-95"
+                              >
                                 <img
                                   src={punchOutSelfie}
                                   alt="Punch Out"
                                   className="h-full w-full object-cover"
                                   onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=OUT&background=3b82f6&color=fff`)}
                                 />
-                              ) : (
-                                <div className="h-full w-full bg-slate-100 flex items-center justify-center">
-                                <span className="text-[7px] font-bold text-slate-400">—</span>
-                              </div>
-                            )}
-                          </div>
+                              </button>
+                              <span className="absolute -top-1.5 -right-1 px-1 rounded bg-rose-500 text-white font-black text-[7px] uppercase shadow-sm pointer-events-none">OUT</span>
+                            </div>
+                          ) : (
+                            <div className="h-8 w-8 rounded-lg border border-dashed border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-300 select-none shrink-0">
+                              OUT
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ),
+                      );
+                    },
                   },
                   {
                     header: "Status",
@@ -1832,8 +1850,9 @@ const EmployeePage = () => {
                       <div className="h-20 rounded-xl bg-slate-50 border border-dashed border-slate-200 flex items-center justify-center">
                         <p className="text-[10px] text-slate-400 uppercase font-semibold">{key === "punchOut" ? "Still On Duty" : "Not Recorded"}</p>
                       </div>
-                    </div>
-                  );
+                    )}
+                  </div>
+                );
                 })}
               </div>
 

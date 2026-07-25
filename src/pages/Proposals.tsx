@@ -47,8 +47,10 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
   setIsFullscreen: (v: boolean) => void;
 }) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { formatAmount, symbol } = useCurrency();
-  const { data: currencies = [] } = useQuery({
+  const { data: currencies = [] } = useQuery<any>({
     queryKey: ["currencies"],
     queryFn: financeService.getCurrencies,
     staleTime: 5 * 60 * 1000,
@@ -495,7 +497,7 @@ const Proposals = () => {
   const navigate = useNavigate();
   const { can } = usePermissions();
   const { formatAmount, symbol } = useCurrency();
-  const { data: currencies = [] } = useQuery({
+  const { data: currencies = [] } = useQuery<any>({
     queryKey: ["currencies"],
     queryFn: financeService.getCurrencies,
     staleTime: 5 * 60 * 1000,

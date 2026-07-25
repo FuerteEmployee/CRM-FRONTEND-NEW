@@ -10,7 +10,7 @@ import {
 import { Camera, FlipHorizontal, Video } from "lucide-react";
 
 interface CameraCaptureProps {
-  onCapture: (blob: Blob) => void;
+  onCapture: (blob: Blob, faceDetected: boolean) => void;
   onCancel: () => void;
 }
 
@@ -33,6 +33,8 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [faceDetected, setFaceDetected] = useState(false);
+  const [trackerLoaded, setTrackerLoaded] = useState(false);
 
   const refreshDeviceList = useCallback(async () => {
     try {
@@ -63,16 +65,10 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
       streamRef.current = mediaStream;
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        // Some browsers' autoplay policy silently leaves the element paused
-        // (showing a black frame) unless playback is kicked explicitly.
         videoRef.current.play().catch(() => { /* ignored — autoPlay will retry */ });
       }
       setIsReady(true);
 
-      // Labels are blank on most browsers until permission is granted —
-      // re-enumerate now so the device picker shows real names, and lock in
-      // which device actually ended up active (deviceId constraint can
-      // still fall back if the exact one becomes unavailable).
       const videoInputs = await refreshDeviceList();
       const activeId = mediaStream.getVideoTracks()[0]?.getSettings().deviceId;
       if (activeId) {
@@ -86,13 +82,95 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
     }
   }, [refreshDeviceList]);
 
+  // Load tracking.js dynamically as a fallback for face detection
+  useEffect(() => {
+    if ('FaceDetector' in window) {
+      return; // Use native browser FaceDetector
+    }
+    let active = true;
+    const loadTrackingJs = async () => {
+      if ((window as any).tracking) {
+        if (active) setTrackerLoaded(true);
+        return;
+      }
+      try {
+        const s1 = document.createElement("script");
+        s1.src = "https://cdnjs.cloudflare.com/ajax/libs/tracking.js/1.1.3/tracking-min.js";
+        document.head.appendChild(s1);
+        await new Promise((resolve) => (s1.onload = resolve));
+
+        const s2 = document.createElement("script");
+        s2.src = "https://cdnjs.cloudflare.com/ajax/libs/tracking.js/1.1.3/data/face-min.js";
+        document.head.appendChild(s2);
+        await new Promise((resolve) => (s2.onload = resolve));
+
+        if (active) setTrackerLoaded(true);
+      } catch (err) {
+        console.error("Failed to load tracking.js fallback:", err);
+      }
+    };
+    loadTrackingJs();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  // Real-time face tracking scanner loop
+  useEffect(() => {
+    if (!videoRef.current || !isReady) return;
+
+    let active = true;
+    let trackerTask: any = null;
+    let nativeInterval: any = null;
+
+    if ('FaceDetector' in window) {
+      const detector = new (window as any).FaceDetector({ maxDetectedFaces: 1, fastMode: true });
+      const checkFaceNative = async () => {
+        if (!active || !videoRef.current) return;
+        try {
+          const faces = await detector.detect(videoRef.current);
+          if (active) setFaceDetected(faces.length > 0);
+        } catch {
+          // ignore
+        }
+        if (active) nativeInterval = setTimeout(checkFaceNative, 500);
+      };
+      checkFaceNative();
+    } else if (trackerLoaded) {
+      try {
+        const tracker = new (window as any).tracking.ObjectTracker("face");
+        tracker.setInitialScale(4);
+        tracker.setStepSize(2);
+        tracker.setEdgesDensity(0.1);
+
+        tracker.on("track", (event: any) => {
+          if (!active) return;
+          if (event.data && event.data.length > 0) {
+            setFaceDetected(true);
+          } else {
+            setFaceDetected(false);
+          }
+        });
+        trackerTask = (window as any).tracking.track(videoRef.current, tracker);
+      } catch (e) {
+        console.error("Tracker loop start error:", e);
+      }
+    } else {
+      setFaceDetected(false);
+    }
+
+    return () => {
+      active = false;
+      if (trackerTask) trackerTask.stop();
+      if (nativeInterval) clearTimeout(nativeInterval);
+    };
+  }, [isReady, trackerLoaded, facingMode]);
+
   useEffect(() => {
     startCamera({ mode: facingMode });
     return () => {
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
-    // Only re-run for the facingMode flip button — device switches are
-    // handled explicitly by handleDeviceChange below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -120,7 +198,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    // Mirror the image only for front camera (user-facing)
     if (facingMode === "user") {
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
@@ -128,7 +205,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     canvas.toBlob((blob) => {
-      if (blob) onCapture(blob);
+      if (blob) onCapture(blob, faceDetected);
     }, "image/jpeg", 0.8);
   };
 
@@ -140,14 +217,37 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
             <p className="text-sm font-bold">{error}</p>
           </div>
         ) : (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            // Mirror visually for front camera so it feels natural
-            className={`h-full w-full object-cover ${facingMode === "user" ? "scale-x-[-1]" : ""}`}
-          />
+          <>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`h-full w-full object-cover ${facingMode === "user" ? "scale-x-[-1]" : ""}`}
+            />
+            {isReady && (
+              <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-10">
+                {/* Real-time Status Badge */}
+                <div className="flex justify-between items-center w-full">
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-md transition-colors duration-300 ${faceDetected ? "bg-emerald-500/80" : "bg-rose-500/80 animate-pulse"}`}>
+                    {faceDetected ? "Face Detected" : "No Face Detected"}
+                  </span>
+                </div>
+
+                {/* Target Guides */}
+                <div className="flex-1 flex items-center justify-center">
+                  <div className={`w-48 h-48 rounded-full border-4 border-dashed transition-colors duration-300 ${faceDetected ? "border-emerald-400" : "border-rose-400/60 animate-pulse"}`} />
+                </div>
+
+                {/* Guide Text */}
+                <div className="w-full text-center">
+                  <p className="text-white text-[9px] bg-black/60 py-1 px-3 rounded-lg backdrop-blur-sm inline-block font-bold tracking-wide uppercase">
+                    {faceDetected ? "Ready to capture" : "Align your face in the center frame"}
+                  </p>
+                </div>
+              </div>
+            )}
+          </>
         )}
         <canvas ref={canvasRef} className="hidden" />
 
@@ -156,7 +256,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
           <button
             type="button"
             onClick={flipCamera}
-            className="absolute top-3 right-3 h-10 w-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors"
+            className="absolute top-3 right-3 h-10 w-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 transition-colors z-20"
             title={facingMode === "user" ? "Switch to back camera" : "Switch to front camera"}
           >
             <FlipHorizontal className="h-5 w-5" />
@@ -164,14 +264,11 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
         )}
 
         {/* Camera mode indicator */}
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/50 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-widest">
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/50 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-widest z-20">
           {facingMode === "user" ? "Front Camera" : "Back Camera"}
         </div>
       </div>
 
-      {/* Device picker — only shown when more than one camera is available,
-          e.g. a real webcam alongside a virtual camera app. Not seeing your
-          face here usually means the wrong device is selected below. */}
       {!error && devices.length > 1 && (
         <div className="w-full max-w-sm space-y-1">
           <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -198,7 +295,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
           Cancel
         </Button>
         <Button
-          className="flex-1 rounded-2xl h-12 gradient-primary"
+          className="flex-1 rounded-2xl h-12 gradient-primary text-white font-bold animate-pulse"
           onClick={takePhoto}
           disabled={!!error || !isReady}
         >

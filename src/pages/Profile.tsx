@@ -31,10 +31,12 @@ const statusConfig = [
 ];
 
 const Profile = () => {
-  const { user, refreshPermissions } = usePermissionContext();
-  const { data: projects = [], isLoading: isLoadingProjects } = useQuery({
+  const { user, refreshPermissions, canView } = usePermissionContext();
+  const hasProjectsView = canView("Projects");
+  const { data: projects = [], isLoading: isLoadingProjects } = useQuery<any>({
     queryKey: ["projects"],
     queryFn: projectService.getAll,
+    enabled: hasProjectsView,
   });
 
   const [formData, setFormData] = useState({
@@ -43,6 +45,8 @@ const Profile = () => {
     email: "",
     phonenumber: "",
     notification_sound: "default",
+    password: "",
+    confirmPassword: "",
   });
 
   useEffect(() => {
@@ -53,6 +57,8 @@ const Profile = () => {
         email: user.email || "",
         phonenumber: (user as any).phonenumber || "",
         notification_sound: (user as any).notification_sound || "default",
+        password: "",
+        confirmPassword: "",
       });
     }
   }, [user]);
@@ -62,6 +68,8 @@ const Profile = () => {
     onSuccess: () => {
       toast.success("Profile updated successfully!");
       refreshPermissions();
+      // Clear password fields after successful update
+      setFormData(prev => ({ ...prev, password: "", confirmPassword: "" }));
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.message || "Failed to update profile");
@@ -76,18 +84,34 @@ const Profile = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?._id) return;
-    updateProfileMutation.mutate(formData);
+
+    if (formData.password) {
+      if (formData.password.length < 8) {
+        toast.error("Password must be at least 8 characters long");
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        toast.error("Passwords do not match");
+        return;
+      }
+    }
+
+    const { confirmPassword, ...submitData } = formData;
+    if (!submitData.password) {
+      delete (submitData as any).password;
+    }
+    updateProfileMutation.mutate(submitData);
   };
 
   const userProjects = useMemo(() => {
-    if (!user) return [];
+    if (!user || !hasProjectsView) return [];
     if (user.admin) return projects;
     return projects.filter((p: any) => {
       const isTeamMember = p.team?.some((m: any) => m._id === user._id || m === user._id);
       const isCreator = p.created_by === user._id || p.addedfrom === user._id;
       return isTeamMember || isCreator;
     });
-  }, [projects, user]);
+  }, [projects, user, hasProjectsView]);
 
   const initials = user
     ? `${user.firstname?.[0] || ""}${user.lastname?.[0] || ""}`.toUpperCase()
@@ -161,6 +185,30 @@ const Profile = () => {
                     <Label htmlFor="phonenumber">Phone Number</Label>
                     <Input id="phonenumber" name="phonenumber" type="tel" value={formData.phonenumber} onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10); handleChange(e); }} maxLength={10} inputMode="numeric" />
                   </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="password">New Password (leave blank to keep current)</Label>
+                      <Input
+                        id="password"
+                        name="password"
+                        type="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        placeholder="Min. 8 characters"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                      <Input
+                        id="confirmPassword"
+                        name="confirmPassword"
+                        type="password"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        placeholder="Re-enter new password"
+                      />
+                    </div>
+                  </div>
                   <div className="space-y-2">
                     <Label>Notification Sound</Label>
                     <div className="flex gap-2 items-center">
@@ -208,43 +256,45 @@ const Profile = () => {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Briefcase className="h-5 w-5 text-primary" />
-                  My Projects
-                </CardTitle>
-                <Badge variant="outline">{userProjects.length} Total</Badge>
-              </CardHeader>
-              <CardContent>
-                {isLoadingProjects ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">Loading projects...</p>
-                ) : userProjects.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No projects assigned.</p>
-                ) : (
-                  <div className="space-y-4 mt-4">
-                    {userProjects.slice(0, 5).map((project: any) => (
-                      <div key={project._id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/30 transition-colors">
-                        <div>
-                          <p className="font-semibold text-sm">{project.name}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Deadline: {project.deadline ? formatDate(project.deadline) : "None"}
-                          </p>
+            {hasProjectsView && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Briefcase className="h-5 w-5 text-primary" />
+                    My Projects
+                  </CardTitle>
+                  <Badge variant="outline">{userProjects.length} Total</Badge>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingProjects ? (
+                    <p className="text-sm text-muted-foreground py-4 text-center">Loading projects...</p>
+                  ) : userProjects.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4 text-center">No projects assigned.</p>
+                  ) : (
+                    <div className="space-y-4 mt-4">
+                      {userProjects.slice(0, 5).map((project: any) => (
+                        <div key={project._id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/30 transition-colors">
+                          <div>
+                            <p className="font-semibold text-sm">{project.name}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Deadline: {project.deadline ? formatDate(project.deadline) : "None"}
+                            </p>
+                          </div>
+                          <Badge className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-tighter ${statusConfig.find((s: any) => s.id === project.status)?.color || statusConfig[0].color}`}>
+                            {statusConfig.find((s: any) => s.id === project.status)?.label || "Unknown"}
+                          </Badge>
                         </div>
-                        <Badge className={`rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-tighter ${statusConfig.find((s: any) => s.id === project.status)?.color || statusConfig[0].color}`}>
-                          {statusConfig.find((s: any) => s.id === project.status)?.label || "Unknown"}
-                        </Badge>
-                      </div>
-                    ))}
-                    {userProjects.length > 5 && (
-                      <p className="text-xs text-center text-muted-foreground pt-2">
-                        + {userProjects.length - 5} more projects
-                      </p>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      ))}
+                      {userProjects.length > 5 && (
+                        <p className="text-xs text-center text-muted-foreground pt-2">
+                          + {userProjects.length - 5} more projects
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>

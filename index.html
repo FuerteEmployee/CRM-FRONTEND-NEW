@@ -17,14 +17,32 @@
     <script>
       (function() {
         try {
-          const cachedFavicon = localStorage.getItem("crm_favicon");
+          const host = window.location.hostname;
+          const isTrinetra = host.includes("trinetratechnoworld") || host.includes("erp.");
+          
+          // Dynamically change the manifest file link for PWA install based on domain
+          const updateManifest = () => {
+            const manifestEl = document.querySelector("link[rel='manifest']");
+            if (manifestEl) {
+              const manifestUrl = isTrinetra ? "/manifest-trinetra.json" : "/manifest.webmanifest";
+              manifestEl.setAttribute("href", manifestUrl);
+            }
+          };
+          updateManifest();
+          window.addEventListener("DOMContentLoaded", updateManifest);
+          
+          // Determine default favicon and title
+          const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : "/favicon.ico";
+          const defaultTitle = isTrinetra ? "Trinetra TechnoWorld" : "Fuerte Developers";
+          
+          const cachedFavicon = localStorage.getItem("crm_favicon") || defaultFavicon;
           if (cachedFavicon) {
             const link = document.querySelector("link[rel*='icon']");
             if (link) {
               link.href = cachedFavicon;
             }
           }
-          const cachedTitle = localStorage.getItem("crm_company_name");
+          const cachedTitle = localStorage.getItem("crm_company_name") || defaultTitle;
           if (cachedTitle) {
             document.title = cachedTitle;
           }

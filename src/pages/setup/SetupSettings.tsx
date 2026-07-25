@@ -3841,7 +3841,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             <div className="flex items-center justify-between p-2 border-b">
                               <Button
                                 variant="ghost"
-                                size="xs"
+                                size="sm"
                                 className="text-[10px] h-7 w-full hover:bg-primary/10 hover:text-primary"
                                 onClick={() => setCustVisibleTabs(["notes", "statement", "invoices", "payments", "proposals", "credit notes", "estimates", "subscriptions", "expenses", "contracts", "projects", "tasks", "tickets", "files", "vault", "reminders", "map"])}
                               >
@@ -3849,7 +3849,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="xs"
+                                size="sm"
                                 className="text-[10px] h-7 w-full hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => setCustVisibleTabs([])}
                               >
@@ -3909,7 +3909,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             <div className="flex items-center justify-between p-2 border-b">
                               <Button
                                 variant="ghost"
-                                size="xs"
+                                size="sm"
                                 className="text-[10px] h-7 w-full hover:bg-primary/10 hover:text-primary"
                                 onClick={() => setCustRequiredFields([
                                   "firstname-contact", "lastname-contact", "emailaddress-contact",
@@ -3923,7 +3923,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="xs"
+                                size="sm"
                                 className="text-[10px] h-7 w-full hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => setCustRequiredFields([])}
                               >

@@ -11,6 +11,16 @@ export const resolveImageUrl = (val?: string) => {
   if (!trimmed) return "";
   if (trimmed.startsWith("data:") || trimmed.startsWith("http:") || trimmed.startsWith("https:") || trimmed.startsWith("blob:")) return trimmed;
   
+  // Do not prepend backend origin for static frontend assets
+  if (
+    trimmed.startsWith("/trinetra-") ||
+    trimmed.startsWith("/favicon.ico") ||
+    trimmed.startsWith("/logo-icon.png") ||
+    trimmed.startsWith("/icons/")
+  ) {
+    return trimmed;
+  }
+  
   // Handle absolute disk paths or paths containing "uploads"
   if (trimmed.includes("uploads")) {
     const parts = trimmed.split(/[/\\]/);

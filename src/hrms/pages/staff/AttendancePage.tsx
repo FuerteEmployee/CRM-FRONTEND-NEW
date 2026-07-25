@@ -577,7 +577,7 @@ const AttendancePage = () => {
     }
   };
 
-  const handleCapture = async (blob: Blob) => {
+  const handleCapture = async (blob: Blob, faceDetected: boolean) => {
     setIsCameraOpen(false);
     const action = cameraAction;
     const isDevOn = await checkDeveloperOptions();
@@ -600,13 +600,31 @@ const AttendancePage = () => {
       const location = { lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, fixAt: pos.fixAt };
 
       if (cameraAction === "punch-in") {
-        await attendanceService.punchIn(blob, location);
-        toast({ title: "Punched In", description: "Punched in successfully." });
+        await attendanceService.punchIn(blob, location, faceDetected);
+        if (!faceDetected) {
+          toast({
+            title: "Punch In Warning",
+            description: "No face was scanned. Verification marked as FAILED.",
+            variant: "destructive",
+            duration: 8000,
+          });
+        } else {
+          toast({ title: "Punched In", description: "Punched in successfully." });
+        }
         if (user) locationService.startTracking(user);
         gateTrackingSetup();
       } else if (cameraAction === "punch-out") {
-        await attendanceService.punchOut(blob, location);
-        toast({ title: "Punched Out", description: "Punched out successfully." });
+        await attendanceService.punchOut(blob, location, faceDetected);
+        if (!faceDetected) {
+          toast({
+            title: "Punch Out Warning",
+            description: "No face was scanned. Verification marked as FAILED.",
+            variant: "destructive",
+            duration: 8000,
+          });
+        } else {
+          toast({ title: "Punched Out", description: "Punched out successfully." });
+        }
         locationService.stopTracking();
       }
       await fetchToday();

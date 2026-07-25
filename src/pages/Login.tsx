@@ -88,14 +88,21 @@ const Login = () => {
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
           {settings?.compLogoLight && !logoLightError ? (
-            <img src={resolveImageUrl(settings.compLogoLight)} alt="Logo" className="h-10 w-auto object-contain" onError={() => setLogoLightError(true)} />
+            <div className="flex items-center gap-2">
+              <img src={resolveImageUrl(settings.compLogoLight)} alt="Logo" className="h-10 w-auto object-contain" onError={() => setLogoLightError(true)} />
+              {settings.compLogoLight === "/logo-icon.png" && (
+                <span className="text-2xl font-bold tracking-tight">
+                  {settings.companyName}
+                </span>
+              )}
+            </div>
           ) : (
             <>
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-primary font-extrabold text-lg shadow-lg">
                 {settings?.companyName?.charAt(0) || "C"}
               </div>
               <span className="text-2xl font-bold tracking-tight">
-                {settings?.companyName || "Trinetra TechnoWorld"}
+                {settings?.companyName}
               </span>
             </>
           )}
@@ -151,14 +158,21 @@ const Login = () => {
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center justify-center gap-2 mb-2">
             {settings?.compLogoDark && !logoDarkError ? (
-              <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-9 w-auto object-contain" onError={() => setLogoDarkError(true)} />
+              <div className="flex items-center gap-2">
+                <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-9 w-auto object-contain" onError={() => setLogoDarkError(true)} />
+                {settings.compLogoDark === "/logo-icon.png" && (
+                  <span className="text-xl font-bold text-foreground">
+                    {settings.companyName}
+                  </span>
+                )}
+              </div>
             ) : (
               <>
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-base">
                   {settings?.companyName?.charAt(0) || "C"}
                 </div>
                 <span className="text-xl font-bold">
-                  {settings?.companyName || "Trinetra TechnoWorld"}
+                  {settings?.companyName}
                 </span>
               </>
             )}

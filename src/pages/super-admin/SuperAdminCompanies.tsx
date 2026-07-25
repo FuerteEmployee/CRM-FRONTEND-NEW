@@ -502,7 +502,6 @@ export default function SuperAdminCompanies() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type={showPassword ? "text" : "password"}
-                    disableVoice
                     required
                     value={createForm.password}
                     onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
@@ -634,7 +633,6 @@ export default function SuperAdminCompanies() {
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type={showPassword ? "text" : "password"}
-                    disableVoice
                     value={manageForm.password}
                     onChange={(e) => setManageForm({ ...manageForm, password: e.target.value })}
                     className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-10 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"

@@ -55,13 +55,13 @@ const SetupMainSidebar = () => {
     active: true
   });
 
-  const { data: menuItems = [], isLoading } = useQuery({
+  const { data: menuItems = [], isLoading } = useQuery<any>({
     queryKey: ["mainsidebar"],
     queryFn: mainSidebarService.getSidebarItems,
   });
 
   const createMutation = useMutation({
-    mutationFn: mainSidebarService.createSidebarItem,
+    mutationFn: (data: any) => mainSidebarService.createSidebarItem(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mainsidebar"] });
       toast.success("Menu item created successfully");
@@ -81,7 +81,7 @@ const SetupMainSidebar = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: mainSidebarService.deleteSidebarItem,
+    mutationFn: (id: string) => mainSidebarService.deleteSidebarItem(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mainsidebar"] });
       toast.success("Menu item deleted successfully");

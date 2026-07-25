@@ -13,15 +13,25 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [settings, setSettings] = useState<Record<string, any>>(() => {
-    const cachedName = localStorage.getItem("crm_company_name");
-    const cachedFavicon = localStorage.getItem("crm_favicon");
-    const cachedLogoLight = localStorage.getItem("crm_comp_logo_light");
-    const cachedLogoDark = localStorage.getItem("crm_comp_logo_dark");
-    const initial: Record<string, any> = {};
-    if (cachedName) initial.companyName = cachedName;
-    if (cachedFavicon) initial.favicon = cachedFavicon;
-    if (cachedLogoLight) initial.compLogoLight = cachedLogoLight;
-    if (cachedLogoDark) initial.compLogoDark = cachedLogoDark;
+    const host = window.location.hostname;
+    const isTrinetra = host.includes("trinetratechnoworld") || host.includes("erp.");
+    
+    const defaultCompanyName = isTrinetra ? "Trinetra TechnoWorld" : "Fuerte Developers";
+    const defaultLogoLight = isTrinetra ? "/trinetra-logo.jpg" : "/logo-icon.png";
+    const defaultLogoDark = isTrinetra ? "/trinetra-logo.jpg" : "/logo-icon.png";
+    const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : "/favicon.ico";
+
+    const cachedName = localStorage.getItem("crm_company_name") || defaultCompanyName;
+    const cachedFavicon = localStorage.getItem("crm_favicon") || defaultFavicon;
+    const cachedLogoLight = localStorage.getItem("crm_comp_logo_light") || defaultLogoLight;
+    const cachedLogoDark = localStorage.getItem("crm_comp_logo_dark") || defaultLogoDark;
+    
+    const initial: Record<string, any> = {
+      companyName: cachedName,
+      favicon: cachedFavicon,
+      compLogoLight: cachedLogoLight,
+      compLogoDark: cachedLogoDark
+    };
     return initial;
   });
   const [loading, setLoading] = useState(true);
@@ -42,6 +52,38 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         
         settingsMap[s.name] = val;
       });
+
+      const host = window.location.hostname;
+      const isTrinetra = host.includes("trinetratechnoworld") || host.includes("erp.");
+      
+      // Override default branding dynamically if not customized in DB or if it's default
+      if (isTrinetra) {
+        if (!settingsMap.companyName || settingsMap.companyName === "CRMPro" || settingsMap.companyName === "Trinetra TechnoWorld" || settingsMap.companyName === "Fuerte Developers") {
+          settingsMap.companyName = "Trinetra TechnoWorld";
+        }
+        if (!settingsMap.compLogoLight || settingsMap.compLogoLight.startsWith("/logo") || settingsMap.compLogoLight === "") {
+          settingsMap.compLogoLight = "/trinetra-logo.jpg";
+        }
+        if (!settingsMap.compLogoDark || settingsMap.compLogoDark.startsWith("/logo") || settingsMap.compLogoDark === "") {
+          settingsMap.compLogoDark = "/trinetra-logo.jpg";
+        }
+        if (!settingsMap.favicon || settingsMap.favicon.startsWith("/favicon") || settingsMap.favicon === "") {
+          settingsMap.favicon = "/trinetra-icon.jpg";
+        }
+      } else {
+        if (!settingsMap.companyName || settingsMap.companyName === "CRMPro" || settingsMap.companyName === "Trinetra TechnoWorld" || settingsMap.companyName === "Fuerte Developers") {
+          settingsMap.companyName = "Fuerte Developers";
+        }
+        if (!settingsMap.compLogoLight || settingsMap.compLogoLight === "/trinetra-logo.jpg") {
+          settingsMap.compLogoLight = "/logo-icon.png";
+        }
+        if (!settingsMap.compLogoDark || settingsMap.compLogoDark === "/trinetra-logo.jpg") {
+          settingsMap.compLogoDark = "/logo-icon.png";
+        }
+        if (!settingsMap.favicon || settingsMap.favicon === "/trinetra-icon.jpg") {
+          settingsMap.favicon = "/favicon.ico";
+        }
+      }
       
       setSettings(settingsMap);
     } catch (error) {

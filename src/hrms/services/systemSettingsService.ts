@@ -23,6 +23,16 @@ export interface SystemSettings {
   invoiceFooter?: string;
   termsAndConditions?: string;
   authorisedSignature?: string;
+  buttonTextColor?: string;
+  sidebarBgColor?: string;
+  sidebarTextColor?: string;
+  sidebarActiveColor?: string;
+  bodyBgColor?: string;
+  navbarBgColor?: string;
+  navbarTextColor?: string;
+  bodyTextColor?: string;
+  stockAlerts?: any;
+  timezone?: string;
 }
 
 export const settingsService = {

@@ -10,6 +10,16 @@ export interface SystemSettings {
   notificationsEnabled: boolean;
   emailIntegration: boolean;
   smsIntegration: boolean;
+  buttonColor?: string;
+  buttonTextColor?: string;
+  sidebarBgColor?: string;
+  sidebarTextColor?: string;
+  sidebarActiveColor?: string;
+  bodyBgColor?: string;
+  navbarBgColor?: string;
+  navbarTextColor?: string;
+  bodyTextColor?: string;
+  stockAlerts?: any;
 }
 
 export const settingsService = {

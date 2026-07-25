@@ -246,7 +246,7 @@ const Tasks = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: taskService.create,
+    mutationFn: (data: any) => taskService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["todos"] });

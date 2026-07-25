@@ -480,18 +480,16 @@ export function AppRoutes() {
             </PermissionGuard>
           }
         />
+        {/* Staff are created only via Setup > Staff (main CRM) now — send anyone
+            who reaches this URL directly there instead of a second create form. */}
         <Route
           path="staff/users/new"
-          element={
-            <PermissionGuard requiredPermission="manage_users" mode="message">
-              <StaffFormPage />
-            </PermissionGuard>
-          }
+          element={<Navigate to="/admin/setup/staff/new" replace />}
         />
         <Route
           path="staff/users/edit/:id"
           element={
-            <PermissionGuard requiredPermission="manage_users" mode="message">
+            <PermissionGuard requiredPermission="edit_staff" mode="message">
               <StaffFormPage />
             </PermissionGuard>
           }

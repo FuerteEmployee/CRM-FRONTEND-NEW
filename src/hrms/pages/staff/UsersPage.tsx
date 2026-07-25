@@ -17,7 +17,6 @@ import {
   Info,
   Shield,
   ArrowUpDown,
-  UserPlus,
   Building2,
   Import,
   Download,
@@ -42,7 +41,7 @@ import { designationService, type Designation } from "@/hrms/services/designatio
 import { shiftService, type Shift } from "@/hrms/services/shiftService";
 import { API_BASE_URL } from "@/hrms/services/apiClient";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/hrms/contexts/AuthContext";
+import { usePermission } from "@/hrms/hooks/usePermission";
 import { toast } from "@/hrms/hooks/use-toast";
 import {
   AlertDialog,
@@ -90,7 +89,7 @@ const getFileUrl = (url?: string) => {
 export default function UsersPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { hasPermission } = useAuth();
+  const { hasPermission } = usePermission();
   const confirm = useConfirm();
   const [users, setUsers] = useState<User[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
@@ -346,14 +345,8 @@ export default function UsersPage() {
             </Button>
           </div>
           */}
-          {hasPermission("manage_users") && (
-            <Button size="sm" className="rounded-md h-9 px-4 gradient-primary font-medium shadow-sm flex items-center gap-2" onClick={() => {
-              const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
-              navigate(`${basePath}/staff/users/new`);
-            }}>
-              <UserPlus className="h-4 w-4" /> Add Staff
-            </Button>
-          )}
+          {/* Staff are created only via Setup > Staff (main CRM) — no create
+              entry point here, this directory only views/edits/deletes them. */}
         </div>
       </div>
 
@@ -491,8 +484,8 @@ export default function UsersPage() {
                 accessorKey: (u) => (
                   <Badge
                     variant="outline"
-                    className={`text-[10px] font-semibold rounded-md px-2 py-0.5 border transition-all ${hasPermission("manage_users") ? "cursor-pointer" : "cursor-default opacity-80"} ${u.status === "active" ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"}`}
-                    onClick={() => hasPermission("manage_users") && toggleUserStatus(u)}
+                    className={`text-[10px] font-semibold rounded-md px-2 py-0.5 border transition-all ${hasPermission("edit_staff") ? "cursor-pointer" : "cursor-default opacity-80"} ${u.status === "active" ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"}`}
+                    onClick={() => hasPermission("edit_staff") && toggleUserStatus(u)}
                   >
                     <span className="capitalize">{u.status}</span>
                   </Badge>
@@ -509,18 +502,18 @@ export default function UsersPage() {
                     }}>
                       <Eye className="h-4 w-4" />
                     </Button>
-                    {hasPermission("manage_users") && (
-                      <>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-amber-600 hover:bg-amber-50 transition-all" onClick={() => {
-                          const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
-                          navigate(`${basePath}/staff/users/edit/${u.id}`);
-                        }}>
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 transition-all" onClick={() => handleDeleteUser(u.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </>
+                    {hasPermission("edit_staff") && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-amber-600 hover:bg-amber-50 transition-all" onClick={() => {
+                        const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
+                        navigate(`${basePath}/staff/users/edit/${u.id}`);
+                      }}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {hasPermission("delete_staff") && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 transition-all" onClick={() => handleDeleteUser(u.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     )}
                   </div>
                 ),
