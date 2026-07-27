@@ -639,6 +639,7 @@ const Tasks = () => {
                         <SelectContent>
                           <SelectItem value="To-Do">To-Do</SelectItem>
                           <SelectItem value="Visit">Visit</SelectItem>
+                          <SelectItem value="Unit Visit">Unit Visit</SelectItem>
                           <SelectItem value="Trial">Trial</SelectItem>
                           <SelectItem value="Query">Query</SelectItem>
                           <SelectItem value="Inquiry">Inquiry</SelectItem>
@@ -878,6 +879,7 @@ const Tasks = () => {
                     <SelectItem value="all">All Categories</SelectItem>
                     <SelectItem value="To-Do">To-Do</SelectItem>
                     <SelectItem value="Visit">Visit</SelectItem>
+                    <SelectItem value="Unit Visit">Unit Visit</SelectItem>
                     <SelectItem value="Trial">Trial</SelectItem>
                     <SelectItem value="Query">Query</SelectItem>
                     <SelectItem value="Inquiry">Inquiry</SelectItem>

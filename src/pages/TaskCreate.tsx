@@ -279,6 +279,7 @@ const TaskCreate = () => {
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
                       <SelectItem value="Visit">Visit</SelectItem>
+                      <SelectItem value="Unit Visit">Unit Visit</SelectItem>
                       <SelectItem value="Trial">Trial</SelectItem>
                       <SelectItem value="Query">Query</SelectItem>
                       <SelectItem value="Inquiry">Inquiry</SelectItem>
