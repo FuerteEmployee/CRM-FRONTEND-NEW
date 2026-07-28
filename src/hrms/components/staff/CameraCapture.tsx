@@ -7,35 +7,74 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/hrms/components/ui/select";
-import { Camera, FlipHorizontal, Video } from "lucide-react";
+import { Camera, FlipHorizontal, Video, Loader2 } from "lucide-react";
 
 interface CameraCaptureProps {
   onCapture: (blob: Blob, faceDetected: boolean) => void;
   onCancel: () => void;
 }
 
-// Some machines have a virtual camera app (OBS Virtual Camera, Snap Camera,
-// ManyCam, DroidCam, Iriun, etc.) registered as a video input device. If the
-// browser picks one of these as the default, the identity-verification
-// preview shows that app's own idle/branding output instead of a real face —
-// not a bug in this component, just the wrong device selected. Deprioritize
-// (but still allow selecting) anything whose label matches a known virtual
-// camera so the real webcam is picked by default when one is present.
+// Deprioritize virtual cameras so the real webcam is picked by default
 const VIRTUAL_CAMERA_HINTS = ["virtual", "obs", "snap camera", "manycam", "droidcam", "iriun", "epoccam", "camo"];
 const looksVirtual = (label: string) => VIRTUAL_CAMERA_HINTS.some((hint) => label.toLowerCase().includes(hint));
+
+// face-api.js tiny model weights — hosted on jsDelivr CDN (no server needed)
+const MODEL_URL = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model";
 
 export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCancel }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const detectionLoopRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mountedRef = useRef(true);
+
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
-  const [trackerLoaded, setTrackerLoaded] = useState(false);
+  const [modelLoaded, setModelLoaded] = useState(false);
+  const [modelLoading, setModelLoading] = useState(true);
+  const [confidence, setConfidence] = useState(0);
 
+  // ── Load face-api.js + TinyFaceDetector model weights ──────────────────────
+  useEffect(() => {
+    mountedRef.current = true;
+    let cancelled = false;
+
+    const loadFaceApi = async () => {
+      try {
+        // Dynamically import face-api.js (avoids SSR issues)
+        const faceapi = await import("face-api.js");
+
+        if (cancelled) return;
+
+        // Load only the TinyFaceDetector model — smallest & fastest
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+
+        if (cancelled) return;
+        setModelLoaded(true);
+        setModelLoading(false);
+      } catch (err) {
+        console.error("face-api model load error:", err);
+        if (!cancelled) {
+          // If model fails to load (e.g. offline), allow capture anyway
+          setModelLoaded(false);
+          setModelLoading(false);
+          setFaceDetected(true); // Graceful degradation: don't block capture
+        }
+      }
+    };
+
+    loadFaceApi();
+    return () => {
+      cancelled = true;
+      mountedRef.current = false;
+    };
+  }, []);
+
+  // ── Enumerate camera devices ────────────────────────────────────────────────
   const refreshDeviceList = useCallback(async () => {
     try {
       const all = await navigator.mediaDevices.enumerateDevices();
@@ -47,25 +86,27 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
     }
   }, []);
 
+  // ── Start camera stream ─────────────────────────────────────────────────────
   const startCamera = useCallback(async (constraints: { deviceId?: string; mode?: "user" | "environment" }) => {
-    // Stop existing stream first
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
     setIsReady(false);
+    setFaceDetected(false);
     setError(null);
+
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: constraints.deviceId
-          ? { deviceId: { exact: constraints.deviceId } }
-          : { facingMode: constraints.mode || "user" },
+          ? { deviceId: { exact: constraints.deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }
+          : { facingMode: constraints.mode || "user", width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false,
       });
       streamRef.current = mediaStream;
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        videoRef.current.play().catch(() => { /* ignored — autoPlay will retry */ });
+        await videoRef.current.play().catch(() => {});
       }
       setIsReady(true);
 
@@ -82,103 +123,75 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
     }
   }, [refreshDeviceList]);
 
-  // Load tracking.js dynamically as a fallback for face detection
+  // ── Real-time face detection loop using face-api.js ─────────────────────────
   useEffect(() => {
+    if (!isReady || !modelLoaded) return;
+
     let active = true;
-    const loadTrackingJs = async () => {
-      if ((window as any).tracking) {
-        if (active) setTrackerLoaded(true);
+
+    const runDetection = async () => {
+      if (!active || !videoRef.current) return;
+
+      const video = videoRef.current;
+
+      // Skip if video not ready
+      if (video.readyState < 2 || video.videoWidth === 0) {
+        if (active) detectionLoopRef.current = setTimeout(runDetection, 300);
         return;
       }
+
       try {
-        const s1 = document.createElement("script");
-        s1.src = "https://cdnjs.cloudflare.com/ajax/libs/tracking.js/1.1.3/tracking-min.js";
-        document.head.appendChild(s1);
-        await new Promise((resolve) => (s1.onload = resolve));
+        const faceapi = await import("face-api.js");
 
-        const s2 = document.createElement("script");
-        s2.src = "https://cdnjs.cloudflare.com/ajax/libs/tracking.js/1.1.3/data/face-min.js";
-        document.head.appendChild(s2);
-        await new Promise((resolve) => (s2.onload = resolve));
-
-        if (active) setTrackerLoaded(true);
-      } catch (err) {
-        console.error("Failed to load tracking.js fallback:", err);
-      }
-    };
-    loadTrackingJs();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // Real-time face tracking scanner loop
-  useEffect(() => {
-    if (!videoRef.current || !isReady) return;
-
-    let active = true;
-    let trackerTask: any = null;
-    let nativeInterval: any = null;
-    let usingNative = 'FaceDetector' in window;
-    
-    const startTrackingJsFallback = () => {
-      if (!active || !trackerLoaded) return;
-      try {
-        const tracker = new (window as any).tracking.ObjectTracker("face");
-        tracker.setInitialScale(4);
-        tracker.setStepSize(2);
-        tracker.setEdgesDensity(0.1);
-
-        tracker.on("track", (event: any) => {
-          if (!active) return;
-          if (event.data && event.data.length > 0) {
-            setFaceDetected(true);
-          } else {
-            setFaceDetected(false);
-          }
+        // Use TinyFaceDetector — fast neural net, works in all lighting conditions
+        const options = new faceapi.TinyFaceDetectorOptions({
+          inputSize: 224,        // 128, 160, 224, 320, 416, 512, 608 — balance speed vs accuracy
+          scoreThreshold: 0.35,  // Lower = more sensitive (detects partial/angled faces)
         });
-        trackerTask = (window as any).tracking.track(videoRef.current, tracker);
-      } catch (e) {
-        console.error("Tracker loop start error:", e);
+
+        // Draw current video frame to offscreen canvas for detection
+        // This avoids the CSS mirror transform issue — we detect on raw pixels
+        const offscreen = document.createElement("canvas");
+        offscreen.width = video.videoWidth;
+        offscreen.height = video.videoHeight;
+        const ctx = offscreen.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(video, 0, 0);
+        }
+
+        const detection = await faceapi.detectSingleFace(offscreen, options);
+
+        if (active) {
+          const detected = !!detection;
+          const score = detection?.score ?? 0;
+          setFaceDetected(detected);
+          setConfidence(Math.round(score * 100));
+        }
+      } catch (err) {
+        console.error("Detection error:", err);
+        // On error, allow capture to continue
+        if (active) setFaceDetected(true);
+      }
+
+      if (active) {
+        detectionLoopRef.current = setTimeout(runDetection, 400); // Run at ~2.5 FPS
       }
     };
 
-    if (usingNative) {
-      try {
-        const detector = new (window as any).FaceDetector({ maxDetectedFaces: 1, fastMode: true });
-        const checkFaceNative = async () => {
-          if (!active || !videoRef.current) return;
-          try {
-            const faces = await detector.detect(videoRef.current);
-            if (active) setFaceDetected(faces.length > 0);
-            if (active) nativeInterval = setTimeout(checkFaceNative, 500);
-          } catch (err) {
-            console.warn("FaceDetector failed during detect, falling back to tracking.js", err);
-            usingNative = false;
-            if (active) startTrackingJsFallback();
-          }
-        };
-        checkFaceNative();
-      } catch (err) {
-        console.warn("FaceDetector instantiation failed, falling back to tracking.js", err);
-        usingNative = false;
-        startTrackingJsFallback();
-      }
-    } else {
-      startTrackingJsFallback();
-    }
+    runDetection();
 
     return () => {
       active = false;
-      if (trackerTask) trackerTask.stop();
-      if (nativeInterval) clearTimeout(nativeInterval);
+      if (detectionLoopRef.current) clearTimeout(detectionLoopRef.current);
     };
-  }, [isReady, trackerLoaded, facingMode]);
+  }, [isReady, modelLoaded]);
 
+  // ── Initial camera start ────────────────────────────────────────────────────
   useEffect(() => {
-    startCamera({ mode: facingMode });
+    startCamera({ mode: "user" });
     return () => {
       streamRef.current?.getTracks().forEach((t) => t.stop());
+      if (detectionLoopRef.current) clearTimeout(detectionLoopRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -210,6 +223,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
     canvas.width = vw;
     canvas.height = vh;
 
+    // Mirror front camera selfie so the saved image is correctly oriented
     if (facingMode === "user") {
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
@@ -221,10 +235,17 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
         onCapture(blob, faceDetected);
       } else {
         console.error("Camera capture failed: toBlob returned null.");
-        // We can't show a toast easily here without props, but at least it won't be silent in console
       }
-    }, "image/jpeg", 0.8);
+    }, "image/jpeg", 0.85);
   };
+
+  const statusLabel = !isReady
+    ? "Starting camera..."
+    : modelLoading
+    ? "Loading face AI..."
+    : faceDetected
+    ? `Face Detected ${confidence > 0 ? `(${confidence}%)` : ""}`
+    : "No Face Detected";
 
   return (
     <div className="flex flex-col items-center gap-4">
@@ -255,20 +276,39 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
               <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-10">
                 {/* Real-time Status Badge */}
                 <div className="flex justify-between items-center w-full">
-                  <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-md transition-colors duration-300 ${faceDetected ? "bg-emerald-500/80" : "bg-rose-500/80 animate-pulse"}`}>
-                    {faceDetected ? "Face Detected" : "No Face Detected"}
+                  <span
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider text-white backdrop-blur-md transition-colors duration-300 ${
+                      modelLoading
+                        ? "bg-blue-500/80"
+                        : faceDetected
+                        ? "bg-emerald-500/80"
+                        : "bg-rose-500/80 animate-pulse"
+                    }`}
+                  >
+                    {modelLoading && <Loader2 className="h-2.5 w-2.5 animate-spin" />}
+                    {statusLabel}
                   </span>
                 </div>
 
-                {/* Target Guides */}
+                {/* Oval face guide — glows green when detected */}
                 <div className="flex-1 flex items-center justify-center">
-                  <div className={`w-48 h-48 rounded-full border-4 border-dashed transition-colors duration-300 ${faceDetected ? "border-emerald-400" : "border-rose-400/60 animate-pulse"}`} />
+                  <div
+                    className={`w-44 h-56 rounded-full border-4 border-dashed transition-all duration-300 ${
+                      faceDetected
+                        ? "border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.4)]"
+                        : "border-rose-400/60 animate-pulse"
+                    }`}
+                  />
                 </div>
 
                 {/* Guide Text */}
                 <div className="w-full text-center">
                   <p className="text-white text-[9px] bg-black/60 py-1 px-3 rounded-lg backdrop-blur-sm inline-block font-bold tracking-wide uppercase">
-                    {faceDetected ? "Ready to capture" : "Align your face in the center frame"}
+                    {faceDetected
+                      ? "✓ Ready to capture — click Capture"
+                      : modelLoading
+                      ? "Loading AI model..."
+                      : "Move closer · Improve lighting · Look at camera"}
                   </p>
                 </div>
               </div>
@@ -277,7 +317,7 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
         )}
         <canvas ref={canvasRef} className="hidden" />
 
-        {/* Flip camera button — top-right corner */}
+        {/* Flip camera button */}
         {!error && (
           <button
             type="button"
@@ -321,11 +361,17 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
           Cancel
         </Button>
         <Button
-          className="flex-1 rounded-2xl h-12 gradient-primary text-white font-bold animate-pulse"
+          className={`flex-1 rounded-2xl h-12 gradient-primary text-white font-bold transition-all ${
+            faceDetected ? "animate-pulse" : ""
+          }`}
           onClick={takePhoto}
-          disabled={!!error || !isReady}
+          disabled={!!error || !isReady || modelLoading}
         >
-          <Camera className="mr-2 h-5 w-5" /> Capture
+          {modelLoading ? (
+            <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading AI...</>
+          ) : (
+            <><Camera className="mr-2 h-5 w-5" /> Capture</>
+          )}
         </Button>
       </div>
     </div>

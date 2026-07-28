@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
@@ -54,6 +54,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService } from "@/api/services/customer.service";
 import { financeService } from "@/api/services/finance.service";
+import { hrmsbranchService, type HRMSBranch } from "@/hrms/services/hrmsbranchService";
 import { Link, useNavigate } from "react-router-dom";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
@@ -128,6 +129,18 @@ const Customers = () => {
     queryKey: ["customerGroups"],
     queryFn: customerService.getGroups,
   });
+
+  // Fetched once and filtered on the client — city -> branch is derived locally, no per-city API call
+  const { data: branches = [] } = useQuery<HRMSBranch[]>({
+    queryKey: ["hrms-branches-for-customer"],
+    queryFn: async () => (await hrmsbranchService.getAll()).data,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const branchCities = useMemo(
+    () => Array.from(new Set(branches.map((b) => b.city).filter(Boolean))).sort() as string[],
+    [branches]
+  );
 
   const deleteMutation = useMutation({
     mutationFn: customerService.delete,
@@ -351,7 +364,17 @@ const Customers = () => {
     active: true,
   });
 
-  const handleCreate = () => {
+  const branchesForSelectedCity = useMemo(
+    () => branches.filter((b) => b.city === newCustomer.city),
+    [branches, newCustomer.city]
+  );
+
+  const resetCustomerForm = () => {
+    setNewCustomer({ company: "", active: true });
+    setEditItem(null);
+  };
+
+  const handleSaveCustomer = () => {
     if (!newCustomer.company) {
       toast({
         title: "Warning",
@@ -360,8 +383,12 @@ const Customers = () => {
       });
       return;
     }
-    createMutation.mutate(newCustomer);
-    setNewCustomer({ company: "", active: true });
+    if (editItem) {
+      updateMutation.mutate({ id: (editItem as any)._id, data: newCustomer });
+    } else {
+      createMutation.mutate(newCustomer);
+    }
+    resetCustomerForm();
     setIsNewCustomerOpen(false);
   };
 
@@ -425,17 +452,24 @@ const Customers = () => {
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex gap-2">
-            {can("Customers", "Create") && (
-              <Dialog open={isNewCustomerOpen} onOpenChange={setIsNewCustomerOpen}>
+            <Dialog
+              open={isNewCustomerOpen}
+              onOpenChange={(open) => {
+                setIsNewCustomerOpen(open);
+                if (!open) resetCustomerForm();
+              }}
+            >
+              {can("Customers", "Create") && (
                 <DialogTrigger asChild>
                   <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                     <Plus className="mr-2 h-4 w-4" />
                     New Customer
                   </Button>
                 </DialogTrigger>
+              )}
                 <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>Add New Customer</DialogTitle>
+                    <DialogTitle>{editItem ? "Edit Customer" : "Add New Customer"}</DialogTitle>
                   </DialogHeader>
                   <Tabs defaultValue="details" className="pt-2">
                     <TabsList className="grid w-full grid-cols-2">
@@ -569,19 +603,42 @@ const Customers = () => {
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>City</Label>
-                          <Input 
-                            placeholder="City" 
+                          <SearchableSelect
+                            options={branchCities.map(c => ({ label: c, value: c }))}
+                            placeholder="Select city"
                             value={newCustomer.city || ""}
-                            onChange={(e) => setNewCustomer({ ...newCustomer, city: e.target.value })}
+                            onValueChange={(val) => setNewCustomer({ ...newCustomer, city: val, branch: "" })}
                           />
                         </div>
                         <div className="space-y-2">
                           <Label>State</Label>
-                          <Input 
-                            placeholder="State" 
+                          <Input
+                            placeholder="State"
                             value={newCustomer.state || ""}
                             onChange={(e) => setNewCustomer({ ...newCustomer, state: e.target.value })}
                           />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Branch</Label>
+                          <Select
+                            value={newCustomer.branch || ""}
+                            onValueChange={(val) => setNewCustomer({ ...newCustomer, branch: val })}
+                            disabled={!newCustomer.city}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder={newCustomer.city ? "Select branch" : "Select a city first"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {branchesForSelectedCity.map((b) => (
+                                <SelectItem key={b._id || b.id} value={(b._id || b.id) as string}>{b.name}</SelectItem>
+                              ))}
+                              {newCustomer.city && branchesForSelectedCity.length === 0 && (
+                                <div className="p-2 text-sm text-muted-foreground text-center">No branches in this city</div>
+                              )}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
@@ -713,14 +770,13 @@ const Customers = () => {
                   </Tabs>
                   <div className="flex gap-2 pt-2">
                     <DialogTrigger asChild>
-                      <Button className="flex-1" onClick={handleCreate}>
-                        Save
+                      <Button className="flex-1" onClick={handleSaveCustomer}>
+                        {editItem ? "Update" : "Save"}
                       </Button>
                     </DialogTrigger>
                   </div>
                 </DialogContent>
               </Dialog>
-            )}
             {can("Customers", "Create") && (
               <div>
                 <input
@@ -996,6 +1052,8 @@ const Customers = () => {
                                 groups: c.groups?.map((g: any) => g._id || g)
                               };
                               setEditItem(normalized);
+                              setNewCustomer(normalized);
+                              setIsNewCustomerOpen(true);
                             } : undefined}
                             onDelete={can("Customers", "Delete") ? () => deleteMutation.mutate(c._id || "") : undefined}
                           />

@@ -45,7 +45,28 @@ class LocationService {
       this.user = user;
       this.sessionId = `session_${userId}_${Date.now()}`;
       this.isTracking = true;
-      await this.initNativeTracking();
+      // Try native plugin first; fall back to Capacitor Geolocation if the
+      // BackgroundTracker plugin is not registered in this build.
+      try {
+        await this.initNativeTracking();
+        return; // Native plugin took over — done
+      } catch (err) {
+        console.warn("[LocationService] Native BackgroundTracker unavailable, using Capacitor Geolocation fallback:", err);
+        // Fall through to Capacitor-based JS tracking below
+      }
+
+      // ── Capacitor Geolocation fallback (no BackgroundTracker plugin) ────
+      try {
+        await this.captureInitialFix();
+      } catch { /* ignore */ }
+      // Heartbeat: push location every 60 s using Capacitor Geolocation
+      this.heartbeatInterval = setInterval(async () => {
+        if (!this.isTracking) return;
+        try {
+          const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 });
+          await this.handleNewLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.speed ?? 0, true);
+        } catch { /* silent */ }
+      }, STATIONARY_HEARTBEAT);
       return;
     }
 
@@ -152,49 +173,46 @@ class LocationService {
   // ── Native (Android) — drive the custom foreground-service plugin ──────────
 
   private async initNativeTracking() {
-    try {
-      // Ensure at least foreground location is granted before we start.
-      // On Android 14+ starting the location foreground service without this
-      // permission throws a SecurityException in the native service and
-      // crashes the app, so we must NOT proceed unless it's actually granted.
-      let perms = await BackgroundTracker.checkAllPermissions();
-      if (perms.location !== "granted") {
-        perms = await BackgroundTracker.requestForegroundPermissions();
-      }
-      if (perms.location !== "granted") {
-        console.warn(
-          "[LocationService] Location permission not granted — skipping native tracking start."
-        );
-        return;
-      }
+    // Check that the BackgroundTracker plugin is actually available on this
+    // build — registerPlugin() returns a proxy that only throws when called.
+    // We detect availability by calling a lightweight method first.
+    let perms: any;
+    perms = await BackgroundTracker.checkAllPermissions();
 
-      // Mint a long-lived tracking-scoped token so syncs survive app-kill even
-      // after the 1d login token would have expired. Fall back to the login
-      // token if the endpoint is unreachable (degraded, but tracking still runs).
-      let token: string | null = null;
-      try { token = await employeeApi.getTrackingToken(); }
-      catch { /* fall through to login token */ }
-      const finalToken = token || getAuthToken() || "";
-      if (!token) {
-        console.warn("[LocationService] tracking-token unavailable; using login token (may expire mid-shift)");
-      }
-
-      const userId = this.user?._id || this.user?.id || this.user?.userId || "";
-      await BackgroundTracker.startTracking({
-        token: finalToken,
-        apiBase: this.resolveApiBase(),
-        sessionId: this.sessionId || "",
-        userId: String(userId),
-        storeId: this.user?.storeId,
-        distanceFilter: MIN_DISTANCE,
-        heartbeatMs: STATIONARY_HEARTBEAT,
-      });
-      this.watcherId = "native-bg";
-      this.isTracking = true;
-      console.log("[LocationService] Native background tracking started");
-    } catch (err) {
-      console.error("[LocationService] Native init failed:", err);
+    if (perms.location !== "granted") {
+      perms = await BackgroundTracker.requestForegroundPermissions();
     }
+    if (perms.location !== "granted") {
+      console.warn(
+        "[LocationService] Location permission not granted — skipping native tracking start."
+      );
+      throw new Error("Location permission denied");
+    }
+
+    // Mint a long-lived tracking-scoped token so syncs survive app-kill even
+    // after the 1d login token would have expired. Fall back to the login
+    // token if the endpoint is unreachable (degraded, but tracking still runs).
+    let token: string | null = null;
+    try { token = await employeeApi.getTrackingToken(); }
+    catch { /* fall through to login token */ }
+    const finalToken = token || getAuthToken() || "";
+    if (!token) {
+      console.warn("[LocationService] tracking-token unavailable; using login token (may expire mid-shift)");
+    }
+
+    const userId = this.user?._id || this.user?.id || this.user?.userId || "";
+    await BackgroundTracker.startTracking({
+      token: finalToken,
+      apiBase: this.resolveApiBase(),
+      sessionId: this.sessionId || "",
+      userId: String(userId),
+      storeId: this.user?.storeId,
+      distanceFilter: MIN_DISTANCE,
+      heartbeatMs: STATIONARY_HEARTBEAT,
+    });
+    this.watcherId = "native-bg";
+    this.isTracking = true;
+    console.log("[LocationService] Native background tracking started");
   }
 
   // ── Web tracking ──────────────────────────────────────────────────────────

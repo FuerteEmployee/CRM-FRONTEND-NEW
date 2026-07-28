@@ -184,11 +184,19 @@ export default function StaffBranchFormPage() {
 
   const selectPlace = (place: any) => {
     const displayLabel = formatPlaceName(place);
+    const a = place.address || {};
+    const city = a.city || a.town || a.village || a.district || "";
+    const state = a.state || "";
     setFormData(prev => ({
       ...prev,
       locationName: place.display_name,
       latitude:  parseFloat(place.lat).toFixed(6),
       longitude: parseFloat(place.lon).toFixed(6),
+      // The geofence search already resolves city/state via Nominatim — carry it
+      // into the plain address fields too, so picking a location here is enough
+      // (previously these stayed blank unless picked again in the City/State selects).
+      ...(city ? { city } : {}),
+      ...(state ? { state } : {}),
     }));
     setLocationSearch(displayLabel);
     setShowDropdown(false);
@@ -206,7 +214,15 @@ export default function StaffBranchFormPage() {
       );
       const data = await res.json();
       if (!data?.display_name) throw new Error("no result");
-      setFormData(prev => ({ ...prev, locationName: data.display_name }));
+      const a = data.address || {};
+      const city = a.city || a.town || a.village || a.district || "";
+      const state = a.state || "";
+      setFormData(prev => ({
+        ...prev,
+        locationName: data.display_name,
+        ...(city ? { city } : {}),
+        ...(state ? { state } : {}),
+      }));
       setLocationSearch(formatPlaceName(data));
     } catch {
       const fallback = `${lat}, ${lng}`;
