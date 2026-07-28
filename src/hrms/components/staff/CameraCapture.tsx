@@ -84,9 +84,6 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
 
   // Load tracking.js dynamically as a fallback for face detection
   useEffect(() => {
-    if ('FaceDetector' in window) {
-      return; // Use native browser FaceDetector
-    }
     let active = true;
     const loadTrackingJs = async () => {
       if ((window as any).tracking) {
@@ -122,21 +119,10 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
     let active = true;
     let trackerTask: any = null;
     let nativeInterval: any = null;
-
-    if ('FaceDetector' in window) {
-      const detector = new (window as any).FaceDetector({ maxDetectedFaces: 1, fastMode: true });
-      const checkFaceNative = async () => {
-        if (!active || !videoRef.current) return;
-        try {
-          const faces = await detector.detect(videoRef.current);
-          if (active) setFaceDetected(faces.length > 0);
-        } catch {
-          // ignore
-        }
-        if (active) nativeInterval = setTimeout(checkFaceNative, 500);
-      };
-      checkFaceNative();
-    } else if (trackerLoaded) {
+    let usingNative = 'FaceDetector' in window;
+    
+    const startTrackingJsFallback = () => {
+      if (!active || !trackerLoaded) return;
       try {
         const tracker = new (window as any).tracking.ObjectTracker("face");
         tracker.setInitialScale(4);
@@ -155,8 +141,31 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
       } catch (e) {
         console.error("Tracker loop start error:", e);
       }
+    };
+
+    if (usingNative) {
+      try {
+        const detector = new (window as any).FaceDetector({ maxDetectedFaces: 1, fastMode: true });
+        const checkFaceNative = async () => {
+          if (!active || !videoRef.current) return;
+          try {
+            const faces = await detector.detect(videoRef.current);
+            if (active) setFaceDetected(faces.length > 0);
+            if (active) nativeInterval = setTimeout(checkFaceNative, 500);
+          } catch (err) {
+            console.warn("FaceDetector failed during detect, falling back to tracking.js", err);
+            usingNative = false;
+            if (active) startTrackingJsFallback();
+          }
+        };
+        checkFaceNative();
+      } catch (err) {
+        console.warn("FaceDetector instantiation failed, falling back to tracking.js", err);
+        usingNative = false;
+        startTrackingJsFallback();
+      }
     } else {
-      setFaceDetected(false);
+      startTrackingJsFallback();
     }
 
     return () => {
@@ -195,8 +204,11 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const vw = video.videoWidth || video.clientWidth || 640;
+    const vh = video.videoHeight || video.clientHeight || 480;
+
+    canvas.width = vw;
+    canvas.height = vh;
 
     if (facingMode === "user") {
       ctx.translate(canvas.width, 0);
@@ -205,7 +217,12 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     canvas.toBlob((blob) => {
-      if (blob) onCapture(blob, faceDetected);
+      if (blob) {
+        onCapture(blob, faceDetected);
+      } else {
+        console.error("Camera capture failed: toBlob returned null.");
+        // We can't show a toast easily here without props, but at least it won't be silent in console
+      }
     }, "image/jpeg", 0.8);
   };
 
@@ -223,7 +240,16 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
               autoPlay
               playsInline
               muted
-              className={`h-full w-full object-cover ${facingMode === "user" ? "scale-x-[-1]" : ""}`}
+              style={{
+                minWidth: '100%',
+                minHeight: '100%',
+                width: 'auto',
+                height: 'auto',
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                transform: `translate(-50%, -50%) ${facingMode === "user" ? "scaleX(-1)" : ""}`,
+              }}
             />
             {isReady && (
               <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-10">

@@ -20,12 +20,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Search, Calendar, Clock, Users, Trash2, Edit, Video, Copy } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { meetingService } from "@/api/services/meeting.service";
+import { staffService } from "@/api/services/staff.service";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate } from "@/lib/dateFormat";
 import { Badge } from "@/components/ui/badge";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const memberLabel = (m: any) =>
+  typeof m === "string" ? m : [m?.firstname, m?.lastname].filter(Boolean).join(" ") || m?.email || m?._id;
 
 export default function Meetings() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -42,7 +47,7 @@ export default function Meetings() {
     date: "",
     time: "",
     status: "Scheduled",
-    members: "",
+    members: [] as string[],
     summary: "",
     meeting_link: "",
     reminder_time: "15",
@@ -55,6 +60,26 @@ export default function Meetings() {
       return res || [];
     },
   });
+
+  // Members are picked from actual Staff accounts, fetched dynamically —
+  // each entry shows whether it's a regular Staff member or an Admin.
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-for-meetings"],
+    queryFn: async () => {
+      const res = await staffService.getAll();
+      return res || [];
+    },
+    retry: false,
+  });
+
+  const toggleMember = (staffId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      members: prev.members.includes(staffId)
+        ? prev.members.filter((id) => id !== staffId)
+        : [...prev.members, staffId],
+    }));
+  };
 
   const filteredMeetings = useMemo(() => {
     return meetings.filter((m: any) =>
@@ -137,7 +162,7 @@ export default function Meetings() {
       date: "",
       time: "",
       status: "Scheduled",
-      members: "",
+      members: [],
       summary: "",
       meeting_link: "",
       reminder_time: "15",
@@ -152,7 +177,9 @@ export default function Meetings() {
       date: meeting.date ? new Date(meeting.date).toISOString().split('T')[0] : "",
       time: meeting.time || "",
       status: meeting.status || "Scheduled",
-      members: Array.isArray(meeting.members) ? meeting.members.join(", ") : meeting.members || "",
+      members: Array.isArray(meeting.members)
+        ? meeting.members.map((m: any) => (typeof m === "string" ? m : m._id)).filter(Boolean)
+        : [],
       summary: meeting.summary || "",
       meeting_link: meeting.meeting_link || "",
       reminder_time: meeting.reminder_time?.toString() || "15",
@@ -164,12 +191,6 @@ export default function Meetings() {
     if (window.confirm("Are you sure you want to delete this meeting?")) {
       deleteMutation.mutate(id);
     }
-  };
-
-  const generateMeetLink = () => {
-    const chars = 'abcdefghijklmnopqrstuvwxyz';
-    const getChars = (len: number) => Array.from({length: len}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-    setFormData(prev => ({ ...prev, meeting_link: `https://meet.google.com/${getChars(3)}-${getChars(4)}-${getChars(3)}` }));
   };
 
   const openGoogleMeet = (link: string) => {
@@ -200,7 +221,6 @@ export default function Meetings() {
 
     const payload = {
       ...formData,
-      members: formData.members ? formData.members.split(",").map((m) => m.trim()) : [],
       reminder_time: parseInt(formData.reminder_time, 10) || 15,
     };
 
@@ -227,7 +247,7 @@ export default function Meetings() {
                 { header: "Topic", key: "topic" },
                 { header: "Date", key: "date" },
                 { header: "Time", key: "time" },
-                { header: "Members", key: (m) => Array.isArray(m.members) ? m.members.join(", ") : m.members },
+                { header: "Members", key: (m) => Array.isArray(m.members) ? m.members.map(memberLabel).join(", ") : m.members },
                 { header: "Status", key: "status" },
                 { header: "Agenda", key: "agenda" },
                 { header: "Summary", key: "summary" }
@@ -261,8 +281,25 @@ export default function Meetings() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="members" className="text-xs font-bold uppercase tracking-wider">Members</Label>
-                  <Input id="members" value={formData.members} onChange={handleInputChange} placeholder="Comma-separated emails or names" />
+                  <Label className="text-xs font-bold uppercase tracking-wider">Members</Label>
+                  <div className="max-h-40 overflow-y-auto border rounded-lg divide-y">
+                    {staffList.length === 0 ? (
+                      <div className="p-3 text-xs text-muted-foreground">No staff found.</div>
+                    ) : (
+                      staffList.map((s: any) => (
+                        <label key={s._id} className="flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-slate-50">
+                          <Checkbox
+                            checked={formData.members.includes(s._id)}
+                            onCheckedChange={() => toggleMember(s._id)}
+                          />
+                          <span className="flex-1">{s.firstname} {s.lastname}</span>
+                          <Badge variant={s.is_superadmin || s.admin ? "default" : "secondary"} className="text-[10px] uppercase">
+                            {s.is_superadmin || s.admin ? "Admin" : "Staff"}
+                          </Badge>
+                        </label>
+                      ))
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -293,15 +330,10 @@ export default function Meetings() {
                 </div>
                 
                 <div className="space-y-2 p-4 bg-blue-50/50 border border-blue-100 rounded-xl">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="meeting_link" className="text-xs font-bold uppercase tracking-wider text-blue-700">Google Meet Link <span className="text-red-500">*</span></Label>
-                    <Button type="button" variant="ghost" size="sm" onClick={generateMeetLink} className="h-6 text-[10px] bg-blue-100 hover:bg-blue-200 text-blue-700">
-                      Auto-Generate Link
-                    </Button>
-                  </div>
+                  <Label htmlFor="meeting_link" className="text-xs font-bold uppercase tracking-wider text-blue-700">Google Meet Link <span className="text-red-500">*</span></Label>
                   <Input id="meeting_link" value={formData.meeting_link} onChange={handleInputChange} placeholder="https://meet.google.com/xxx-xxxx-xxx" className="bg-white" />
                   <p className="text-[10px] text-blue-600/80 font-semibold mt-1">
-                    Please note: Auto-generated Google Meet links require Google Workspace API to be officially valid. You can also paste your own link.
+                    Go to <a href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer" className="underline">meet.google.com/new</a> to create a real meeting, then paste its link here.
                   </p>
                 </div>
                 
@@ -386,7 +418,7 @@ export default function Meetings() {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-1.5">
                             <Users className="h-4 w-4 text-slate-400" />
-                            <span>{meeting.members && meeting.members.length > 0 ? meeting.members.join(", ") : "None"}</span>
+                            <span>{meeting.members && meeting.members.length > 0 ? meeting.members.map(memberLabel).join(", ") : "None"}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4">

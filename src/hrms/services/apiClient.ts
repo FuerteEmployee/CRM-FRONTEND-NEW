@@ -64,6 +64,7 @@ const forceLogout = () => {
   if (_loggingOut) return;
   _loggingOut = true;
   localStorage.removeItem("std_user");
+  localStorage.removeItem("crm_token");
   toast({ title: "Session Expired", description: "Please log in again.", variant: "destructive" });
   setTimeout(() => { window.location.href = "/login"; }, 1200);
 };
@@ -80,7 +81,7 @@ const attemptRefresh = (): Promise<boolean> => {
       const currentToken = getAuthToken();
       if (!currentToken) return false;
 
-      const res = await fetch(`${API_BASE_URL}/users/refresh`, {
+      const res = await fetch(`${API_BASE_URL}/hrms/users/refresh`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${currentToken}` },
       });
