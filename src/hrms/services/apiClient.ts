@@ -188,7 +188,12 @@ const _request = async (endpoint: string, method: HttpMethod, options: FetchOpti
     if (!options.silent && response.status !== 404) {
       toast({ title: "Server Communication Error", description: msg, variant: "destructive" });
     }
-    throw new Error(msg);
+    // Attach full server response body on the error so callers can inspect
+    // fields like geoFenceViolation, distance, allowedRadius, etc.
+    const err: any = new Error(msg);
+    err.responseData = json;
+    err.status = response.status;
+    throw err;
   }
 
   return json;

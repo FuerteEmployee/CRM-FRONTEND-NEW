@@ -103,8 +103,9 @@ export default function Meetings() {
   };
 
   // FuerteAI is always on — no wake word needed. Every fresh, finalized chunk
-  // of speech that looks like a question is sent to the backend, which decides
-  // answer/clarify/not_found/stay_silent itself (RULE 1/2/4 in the prompt).
+  // of speech that looks like a question is sent to the backend, which picks
+  // the right module first (RULE 1) then decides "a": ans/clarify/none/silent/
+  // blocked/no_module itself, after running the RULE 5 data checks.
   const maybeTriggerScribeTurn = async (fullText: string, meeting: any) => {
     if (!meeting || scribeProcessingRef.current) return;
     if (fullText.length <= scribeProcessedLenRef.current) return; // nothing new since last check
@@ -130,21 +131,25 @@ export default function Meetings() {
         hasExternalParticipant,
         Array.from(scribeAnsweredRef.current.keys())
       );
-      if (turn?.action !== "answer" && turn?.action !== "clarify" && turn?.action !== "not_found") return;
+      // "a" is one of: ans | clarify | none | silent | blocked | no_module.
+      // Only "silent" means nothing to show — everything else carries a reply.
+      if (!turn?.a || turn.a === "silent") return;
 
       // Client-side dedup guard: even if the model slips and answers a key we
       // already have, don't re-display it — unless it's an explicit repeat request.
-      if (turn.answer_key && scribeAnsweredRef.current.has(turn.answer_key) && !turn.is_repeat_request) return;
+      if (turn.k && scribeAnsweredRef.current.has(turn.k) && !turn.is_repeat) return;
 
       setScribeText((prev) => {
-        const qLine = turn.question_en ? `\n❓ ${turn.asked_by ? turn.asked_by + ": " : ""}${turn.question_en}` : "";
-        const aLine = turn.reply_hi ? `\n✅ FuerteAI: ${turn.reply_hi}` : "";
+        // question_en/asked_by aren't in this schema — fall back to the raw
+        // speech chunk that triggered this turn as the "question heard" line.
+        const qLine = newChunk.trim() ? `\n❓ ${newChunk.trim()}` : "";
+        const aLine = turn.r ? `\n✅ FuerteAI: ${turn.r}` : "";
         const updated = `${prev}${qLine}${aLine}`;
         scribeProcessedLenRef.current = updated.length; // don't answer our own Q&A entry
         return updated;
       });
-      if (turn.answer_key) scribeAnsweredRef.current.set(turn.answer_key, { reply: turn.reply_hi, at: Date.now() });
-      if (turn.reply_hi) speakScribeReply(turn.reply_hi);
+      if (turn.k) scribeAnsweredRef.current.set(turn.k, { reply: turn.r, at: Date.now() });
+      if (turn.r) speakScribeReply(turn.r);
     } catch (err) {
       // A failed live-answer attempt should never interrupt the meeting itself.
       console.error("FuerteAI Scribe live turn failed:", err);

@@ -158,8 +158,8 @@ export default function ProjectView() {
   );
 
   const { data: staff = [] } = useQuery<any[]>({
-    queryKey: ["staff"],
-    queryFn: () => staffService.getAll().then((r: any) => r.data || r),
+    queryKey: ["staff", "assignable"],
+    queryFn: staffService.getAssignable,
   });
 
   const statusMutation = useMutation({

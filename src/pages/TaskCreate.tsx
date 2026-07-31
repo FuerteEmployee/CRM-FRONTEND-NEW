@@ -72,8 +72,8 @@ const TaskCreate = () => {
   });
 
   const { data: staff = [] } = useQuery({
-    queryKey: ["staff"],
-    queryFn: staffService.getAll,
+    queryKey: ["staff", "assignable"],
+    queryFn: staffService.getAssignable,
   });
 
   const { data: task } = useQuery({

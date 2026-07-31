@@ -156,8 +156,8 @@ const Tasks = () => {
   });
 
   const { data: staffMembers = [] } = useQuery<any[]>({
-    queryKey: ["staff"],
-    queryFn: staffService.getAll,
+    queryKey: ["staff", "assignable"],
+    queryFn: staffService.getAssignable,
   });
 
   const { data: customers = [] } = useQuery<any[]>({
