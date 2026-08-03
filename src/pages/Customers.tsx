@@ -1058,6 +1058,8 @@ const Customers = () => {
                     <th className="p-3 font-medium">Primary Contact</th>
                     <th className="p-3 font-medium">Primary Email</th>
                     <th className="p-3 font-medium">Phone</th>
+                    <th className="p-3 font-medium">Pan Number</th>
+                    <th className="p-3 font-medium">Gst Number</th>
                     <th className="p-3 font-medium">Active</th>
                     <th className="p-3 font-medium">Groups</th>
                     <th className="p-3 font-medium">Branch</th>
@@ -1069,7 +1071,7 @@ const Customers = () => {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="border-b">
-                        <td colSpan={10} className="p-8">
+                        <td colSpan={12} className="p-8">
                           <Skeleton className="h-8 w-full" />
                         </td>
                       </tr>
@@ -1077,7 +1079,7 @@ const Customers = () => {
                   ) : paginatedCustomers.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={10}
+                        colSpan={12}
                         className="p-10 text-center text-muted-foreground"
                       >
                         No customers found.
@@ -1120,6 +1122,12 @@ const Customers = () => {
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
                           {c.phonenumber}
+                        </td>
+                        <td className="p-3 text-sm text-muted-foreground">
+                          {c.pan_number || "-"}
+                        </td>
+                        <td className="p-3 text-sm text-muted-foreground">
+                          {c.gst_number || "-"}
                         </td>
                         <td className="p-3">
                           <Switch

@@ -43,7 +43,8 @@ import {
   Bold, Italic, Underline, Strikethrough,
   Highlighter, Link2, Image, Type,
   List, ListOrdered, CheckSquare,
-  Undo2, Redo2, MoreHorizontal, Paperclip
+  Undo2, Redo2, MoreHorizontal, Paperclip,
+  KanbanSquare
 } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
@@ -57,13 +58,14 @@ import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { customerService } from "@/api/services/customer.service";
 import { TaskViewModal } from "@/components/tasks/TaskViewModal";
 import { InquiryOutcomeDialog } from "@/components/tasks/InquiryOutcomeDialog";
+import { TasksKanban, type KanbanTask } from "@/pages/TasksKanban";
 
-const taskStatusConfig = [
+export const taskStatusConfig = [
   { id: 1, label: "Not Started", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" },
   { id: 2, label: "In Progress", bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
   { id: 3, label: "Testing", bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200" },
@@ -86,6 +88,8 @@ const priorityLabels: Record<number, string> = {
 };
 
 const Tasks = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = searchParams.get("view") === "kanban" ? "kanban" : "list";
   const [formData, setFormData] = useState({
     public: false,
     billable: false,
@@ -510,6 +514,25 @@ const Tasks = () => {
             <h1 className="text-2xl font-bold">Tasks</h1>
             <Link to="/admin/tasks/overview" className="text-sm text-primary hover:underline font-medium">Tasks Overview</Link>
           </div>
+          <div className="flex gap-2 items-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-11 w-11 rounded-xl border-slate-200"
+                  onClick={() => setSearchParams(prev => {
+                    const next = new URLSearchParams(prev);
+                    next.set("view", view === "kanban" ? "list" : "kanban");
+                    return next;
+                  })}
+                  aria-label={view === "kanban" ? "Switch to List view" : "Switch to Kanban view"}
+                >
+                  {view === "kanban" ? <List className="h-4 w-4" /> : <KanbanSquare className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{view === "kanban" ? "Switch to List view" : "Switch to Kanban view"}</TooltipContent>
+            </Tooltip>
           {(isAdmin || isStaff || can("Tasks", "Create")) && (
             <div className="flex gap-2 items-center">
               {(isAdmin || can("Tasks", "Create")) && (
@@ -823,6 +846,7 @@ const Tasks = () => {
               </Dialog>
             </div>
           )}
+          </div>
         </div>
 
         {/* Real-time Status Cards */}
@@ -841,6 +865,21 @@ const Tasks = () => {
           ))}
         </div>
 
+        {view === "kanban" ? (
+          <TasksKanban
+            tasks={filteredTasks as unknown as KanbanTask[]}
+            staff={staffMembers}
+            isLoading={isLoading}
+            onOpenTask={(task) => handleView(task)}
+            onStatusChange={(task, newStatusId) =>
+              handleInlineUpdate(
+                task,
+                task.isTodo ? "finished" : "status",
+                task.isTodo ? newStatusId === 5 : newStatusId
+              )
+            }
+          />
+        ) : (
         <Card>
           <CardContent className="p-0">
             {/* Control Bar */}
@@ -1242,6 +1281,7 @@ const Tasks = () => {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
     </DashboardLayout>
   );
