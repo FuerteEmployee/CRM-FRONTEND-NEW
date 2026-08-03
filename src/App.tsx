@@ -61,7 +61,7 @@ import GoalCreate from "./pages/GoalCreate";
 import Meetings from "./pages/Meetings";
 import MeetingRoom from "./pages/MeetingRoom";
 import Bookmarks from "./pages/Bookmarks";
-import { ReportSales, ReportExpenses, ReportExpensesVsIncome, ReportLeads, ReportTimesheets, ReportKBArticles } from "./pages/ReportPages";
+import { ReportSales, ReportExpenses, ReportExpensesVsIncome, ReportLeads, ReportTimesheets, ReportKBArticles, ReportPurchase } from "./pages/ReportPages";
 import CustomerView from "./pages/CustomerView";
 import InvoiceCreate from "./pages/InvoiceCreate";
 import QuotationModule from "./pages/quotations/QuotationModule";
@@ -270,6 +270,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="reports/sales" element={<Wrapper><ReportSales /></Wrapper>} />
     <Route path="reports/expenses" element={<Wrapper><ReportExpenses /></Wrapper>} />
     <Route path="reports/expenses-vs-income" element={<Wrapper><ReportExpensesVsIncome /></Wrapper>} />
+    <Route path="reports/purchase" element={<Wrapper><ReportPurchase /></Wrapper>} />
     <Route path="reports/leads" element={<Wrapper><ReportLeads /></Wrapper>} />
     <Route path="reports/timesheets" element={<Wrapper><ReportTimesheets /></Wrapper>} />
     <Route path="reports/kb-articles" element={<Wrapper><ReportKBArticles /></Wrapper>} />

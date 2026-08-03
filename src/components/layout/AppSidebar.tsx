@@ -439,6 +439,7 @@ export function AppSidebar() {
       "/admin/reports/expenses": "reports",
       "/admin/reports/expenses-vs-income": "reports",
       "/admin/reports/sales": "reports",
+      "/admin/reports/purchase": "reports",
       "/admin/reports/leads": "reports",
       "/admin/reports": "reports",
     };

@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo } from "react";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Layers, AlertCircle, Edit, Trash2, Zap } from "lucide-react";
+import { Plus, Search, Layers, Edit, Zap } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
 import { TableActions } from "@/components/TableActions";
@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { itemService } from "@/api/services/item.service";
 import { financeService } from "@/api/services/finance.service";
+import { customFieldService } from "@/api/services/custom-field.service";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -52,22 +53,28 @@ const Items = () => {
   const [bulkState, setBulkState] = useState({ massDelete: false });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
 
-  const [createForm, setCreateForm] = useState({
-    description: "",
+  const [createForm, setCreateForm] = useState<any>({
+    name: "",
     long_description: "",
-    rate: "",
+    quantity: "1",
+    rate: "0",
+    amount: "0",
     unit: "",
     group: "",
     tax: "none",
+    custom_fields: {},
   });
 
-  const [editForm, setEditForm] = useState({
-    description: "",
+  const [editForm, setEditForm] = useState<any>({
+    name: "",
     long_description: "",
-    rate: "",
+    quantity: "1",
+    rate: "0",
+    amount: "0",
     unit: "",
     group: "",
     tax: "none",
+    custom_fields: {},
   });
 
   // Fetch Items
@@ -88,6 +95,23 @@ const Items = () => {
     },
   });
 
+  // Fetch Custom Fields for "items"
+  const { data: customFieldsRaw = [] } = useQuery<any[]>({
+    queryKey: ["custom-fields", "items"],
+    queryFn: async () => {
+      const response = await customFieldService.getAll("items");
+      return Array.isArray(response) ? response : response?.data || [];
+    },
+  });
+
+  const customFieldDefs = useMemo(() => {
+    return (Array.isArray(customFieldsRaw) ? customFieldsRaw : []).filter((cf: any) => cf.active !== false);
+  }, [customFieldsRaw]);
+
+  const tableCustomFields = useMemo(() => {
+    return customFieldDefs.filter((cf: any) => cf.show_on_table);
+  }, [customFieldDefs]);
+
   // Create Mutation
   const createMutation = useMutation({
     mutationFn: (data: any) => itemService.create(data),
@@ -100,12 +124,15 @@ const Items = () => {
       });
       setIsCreateOpen(false);
       setCreateForm({
-        description: "",
+        name: "",
         long_description: "",
-        rate: "",
+        quantity: "1",
+        rate: "0",
+        amount: "0",
         unit: "",
         group: "",
         tax: "none",
+        custom_fields: {},
       });
     },
     onError: (err: any) => {
@@ -144,14 +171,21 @@ const Items = () => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
       const count = data?.data?.count ?? data?.count ?? 0;
       const skipped = data?.data?.skipped ?? data?.skipped ?? 0;
-      toast({ title: count === 0 ? "No New Items" : "Import Successful", description: count === 0 ? "All items already exist." : `Imported ${count} item(s)${skipped ? `, skipped ${skipped} duplicate(s)` : ""}.`, variant: count === 0 ? "destructive" : "default" });
+      toast({
+        title: count === 0 ? "No New Items" : "Import Successful",
+        description: count === 0 ? "All items already exist." : `Imported ${count} item(s)${skipped ? `, skipped ${skipped} duplicate(s)` : ""}.`,
+        variant: count === 0 ? "destructive" : "default"
+      });
     },
     onError: (err: any) => toast({ title: "Import Failed", description: err?.response?.data?.message || err.message, variant: "destructive" }),
   });
 
   const handleImportData = (rows: Record<string, any>[]) => {
-    const valid = rows.filter(r => r["Item Name"] || r["description"] || r["Description"] || r["Name"]);
-    if (!valid.length) { toast({ title: "No valid rows", description: "Each row needs an 'Item Name' or 'description' column.", variant: "destructive" }); return; }
+    const valid = rows.filter(r => r["Item Name"] || r["Name"] || r["name"] || r["description"] || r["Description"]);
+    if (!valid.length) {
+      toast({ title: "No valid rows", description: "Each row needs a 'Name' or 'Item Name' column.", variant: "destructive" });
+      return;
+    }
     importMutation.mutate(valid as any);
   };
 
@@ -178,7 +212,7 @@ const Items = () => {
   const filtered = useMemo(() => {
     return items.filter(
       (i: any) =>
-        (i.description || "").toLowerCase().includes(search.toLowerCase()) ||
+        (i.name || i.description || "").toLowerCase().includes(search.toLowerCase()) ||
         (i.long_description || "").toLowerCase().includes(search.toLowerCase()) ||
         (i.group || "").toLowerCase().includes(search.toLowerCase())
     );
@@ -212,15 +246,70 @@ const Items = () => {
     }
   };
 
+  // Auto-calculation handlers
+  const handleCreateQuantityChange = (val: string) => {
+    const qty = Number(val) || 0;
+    const rate = Number(createForm.rate) || 0;
+    setCreateForm((p: any) => ({ ...p, quantity: val, amount: String(qty * rate) }));
+  };
+
+  const handleCreateRateChange = (val: string) => {
+    const qty = Number(createForm.quantity) || 0;
+    const rate = Number(val) || 0;
+    setCreateForm((p: any) => ({ ...p, rate: val, amount: String(qty * rate) }));
+  };
+
+  const handleEditQuantityChange = (val: string) => {
+    const qty = Number(val) || 0;
+    const rate = Number(editForm.rate) || 0;
+    setEditForm((p: any) => ({ ...p, quantity: val, amount: String(qty * rate) }));
+  };
+
+  const handleEditRateChange = (val: string) => {
+    const qty = Number(editForm.quantity) || 0;
+    const rate = Number(val) || 0;
+    setEditForm((p: any) => ({ ...p, rate: val, amount: String(qty * rate) }));
+  };
+
+  const validateForm = (form: any) => {
+    if (!form.name || !form.name.trim()) {
+      toast({ title: "Required Field", description: "Item Name is required.", variant: "destructive" });
+      return false;
+    }
+    if (form.quantity === "" || isNaN(Number(form.quantity)) || Number(form.quantity) <= 0) {
+      toast({ title: "Required Field", description: "Quantity must be greater than 0.", variant: "destructive" });
+      return false;
+    }
+    if (form.rate === "" || isNaN(Number(form.rate)) || Number(form.rate) < 0) {
+      toast({ title: "Required Field", description: "Rate is required.", variant: "destructive" });
+      return false;
+    }
+    if (form.amount === "" || isNaN(Number(form.amount)) || Number(form.amount) < 0) {
+      toast({ title: "Required Field", description: "Amount is required.", variant: "destructive" });
+      return false;
+    }
+
+    for (const cf of customFieldDefs) {
+      if (cf.required) {
+        const val = form.custom_fields?.[cf._id] ?? form.custom_fields?.[cf.slug];
+        if (val === undefined || val === null || String(val).trim() === "") {
+          toast({ title: "Required Field", description: `${cf.name} is required.`, variant: "destructive" });
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!createForm.description) {
-      toast({ title: "Required Field", description: "Item description/name is required.", variant: "destructive" });
-      return;
-    }
+    if (!validateForm(createForm)) return;
+
     const payload = {
       ...createForm,
+      quantity: Number(createForm.quantity) || 1,
       rate: Number(createForm.rate) || 0,
+      amount: Number(createForm.amount) || 0,
       tax: createForm.tax === "none" ? undefined : createForm.tax,
     };
     createMutation.mutate(payload);
@@ -228,13 +317,13 @@ const Items = () => {
 
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editForm.description) {
-      toast({ title: "Required Field", description: "Item description/name is required.", variant: "destructive" });
-      return;
-    }
+    if (!validateForm(editForm)) return;
+
     const payload = {
       ...editForm,
+      quantity: Number(editForm.quantity) || 1,
       rate: Number(editForm.rate) || 0,
+      amount: Number(editForm.amount) || 0,
       tax: editForm.tax === "none" ? null : editForm.tax,
     };
     updateMutation.mutate({ id: editItem._id, data: payload });
@@ -243,14 +332,120 @@ const Items = () => {
   const openEdit = (item: any) => {
     setEditItem(item);
     setEditForm({
-      description: item.description || "",
+      name: item.name || item.description || "",
       long_description: item.long_description || "",
-      rate: String(item.rate || ""),
+      quantity: String(item.quantity ?? 1),
+      rate: String(item.rate ?? 0),
+      amount: String(item.amount ?? ((item.quantity ?? 1) * (item.rate ?? 0))),
       unit: item.unit || "",
       group: item.group || "",
       tax: item.tax?._id || item.tax || "none",
+      custom_fields: item.custom_fields || {},
     });
   };
+
+  const renderCustomFieldInput = (field: any, formState: any, setFormState: React.Dispatch<React.SetStateAction<any>>) => {
+    const val = formState.custom_fields?.[field._id] ?? formState.custom_fields?.[field.slug] ?? field.default_value ?? "";
+
+    const handleChange = (newVal: any) => {
+      setFormState((prev: any) => ({
+        ...prev,
+        custom_fields: {
+          ...prev.custom_fields,
+          [field._id]: newVal,
+          [field.slug]: newVal,
+        },
+      }));
+    };
+
+    return (
+      <div key={field._id} className="space-y-2">
+        <Label className="text-xs font-bold text-slate-700">
+          {field.name} {field.required && <span className="text-destructive">*</span>}
+        </Label>
+        {field.type === "textarea" ? (
+          <Textarea
+            value={val}
+            onChange={(e) => handleChange(e.target.value)}
+            className="rounded-xl min-h-[70px] border-slate-200 resize-none text-xs"
+          />
+        ) : field.type === "select" || field.type === "multiselect" ? (
+          <Select value={val} onValueChange={handleChange}>
+            <SelectTrigger className="rounded-xl h-11 border-slate-200 bg-white text-xs">
+              <SelectValue placeholder={`Select ${field.name}`} />
+            </SelectTrigger>
+            <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+              {(field.options || "").split(",").map((opt: string) => {
+                const trimmed = opt.trim();
+                return (
+                  <SelectItem key={trimmed} value={trimmed} className="text-xs">
+                    {trimmed}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        ) : field.type === "checkbox" ? (
+          <div className="flex items-center gap-2 pt-2">
+            <Checkbox
+              checked={val === true || val === "true"}
+              onCheckedChange={(checked) => handleChange(!!checked)}
+            />
+            <span className="text-xs font-medium text-slate-600">Enable</span>
+          </div>
+        ) : field.type === "date_picker" || field.type === "date_picker_time" ? (
+          <Input
+            type={field.type === "date_picker_time" ? "datetime-local" : "date"}
+            value={val}
+            onChange={(e) => handleChange(e.target.value)}
+            className="rounded-xl h-11 border-slate-200 text-xs"
+          />
+        ) : field.type === "colorpicker" ? (
+          <Input
+            type="color"
+            value={val || "#000000"}
+            onChange={(e) => handleChange(e.target.value)}
+            className="rounded-xl h-11 w-20 border-slate-200 p-1 cursor-pointer"
+          />
+        ) : field.type === "number" ? (
+          <Input
+            type="number"
+            value={val}
+            onChange={(e) => handleChange(e.target.value)}
+            className="rounded-xl h-11 border-slate-200 text-xs"
+          />
+        ) : (
+          <Input
+            type={field.type === "link" ? "url" : "text"}
+            placeholder={field.type === "link" ? "https://" : ""}
+            value={val}
+            onChange={(e) => handleChange(e.target.value)}
+            className="rounded-xl h-11 border-slate-200 text-xs"
+          />
+        )}
+      </div>
+    );
+  };
+
+  const exportColumns = useMemo(() => {
+    const cols = [
+      { header: "Name", key: (i: any) => i.name || i.description },
+      { header: "Group", key: (i: any) => i.group || "-" },
+      { header: "Description", key: (i: any) => i.long_description || "-" },
+      { header: "Quantity", key: (i: any) => i.quantity ?? 1 },
+      { header: "Rate", key: "rate" },
+      { header: "Amount", key: (i: any) => i.amount ?? ((i.quantity ?? 1) * (i.rate ?? 0)) },
+      { header: "Unit", key: (i: any) => i.unit || "item" },
+      { header: "Tax", key: (i: any) => i.tax ? (typeof i.tax === "object" ? `${i.tax.name} (${i.tax.taxrate}%)` : "Active Tax") : "-" }
+    ];
+    tableCustomFields.forEach((cf: any) => {
+      cols.push({
+        header: cf.name,
+        key: (i: any) => i.custom_fields?.[cf.slug] ?? i.custom_fields?.[cf._id] ?? "-"
+      });
+    });
+    return cols;
+  }, [tableCustomFields]);
 
   return (
     <DashboardLayout>
@@ -277,7 +472,7 @@ const Items = () => {
                   New Item
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg rounded-3xl p-6 border-none shadow-2xl bg-white">
+              <DialogContent className="max-w-lg rounded-3xl p-6 border-none shadow-2xl bg-white max-h-[90vh] overflow-y-auto">
                 <DialogHeader className="border-b border-border/50 pb-4 mb-4">
                   <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
                     <Plus className="h-5 w-5 text-primary" />
@@ -286,32 +481,54 @@ const Items = () => {
                 </DialogHeader>
                 <form onSubmit={handleCreateSubmit} className="space-y-4 pt-2">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-700">Item Name / Description <span className="text-destructive">*</span></Label>
+                    <Label className="text-xs font-bold text-slate-700">Name <span className="text-destructive">*</span></Label>
                     <Input
                       placeholder="e.g. Graphic Design Services"
-                      value={createForm.description}
-                      onChange={(e) => setCreateForm((p) => ({ ...p, description: e.target.value }))}
+                      value={createForm.name}
+                      onChange={(e) => setCreateForm((p: any) => ({ ...p, name: e.target.value }))}
                       className="rounded-xl h-11 border-slate-200"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-700">Long Description</Label>
+                    <Label className="text-xs font-bold text-slate-700">Description</Label>
                     <Textarea
                       placeholder="Detailed item description for invoices and proposals..."
                       value={createForm.long_description}
-                      onChange={(e) => setCreateForm((p) => ({ ...p, long_description: e.target.value }))}
+                      onChange={(e) => setCreateForm((p: any) => ({ ...p, long_description: e.target.value }))}
                       className="rounded-xl min-h-[80px] border-slate-200 resize-none"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-700">Quantity <span className="text-destructive">*</span></Label>
+                      <Input
+                        type="number"
+                        placeholder="1"
+                        value={createForm.quantity}
+                        onChange={(e) => handleCreateQuantityChange(e.target.value)}
+                        className="rounded-xl h-11 border-slate-200"
+                      />
+                    </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-700">Rate ({symbol}) <span className="text-destructive">*</span></Label>
                       <Input
                         type="number"
                         placeholder="0.00"
                         value={createForm.rate}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, rate: e.target.value }))}
+                        onChange={(e) => handleCreateRateChange(e.target.value)}
                         className="rounded-xl h-11 border-slate-200"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-700">Amount ({symbol}) <span className="text-destructive">*</span></Label>
+                      <Input
+                        type="number"
+                        placeholder="0.00"
+                        value={createForm.amount}
+                        onChange={(e) => setCreateForm((p: any) => ({ ...p, amount: e.target.value }))}
+                        className="rounded-xl h-11 border-slate-200 font-bold text-slate-900"
                       />
                     </div>
                     <div className="space-y-2">
@@ -319,7 +536,7 @@ const Items = () => {
                       <Input
                         placeholder="e.g. hr, qty, month"
                         value={createForm.unit}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, unit: e.target.value }))}
+                        onChange={(e) => setCreateForm((p: any) => ({ ...p, unit: e.target.value }))}
                         className="rounded-xl h-11 border-slate-200"
                       />
                     </div>
@@ -330,13 +547,13 @@ const Items = () => {
                       <Input
                         placeholder="e.g. Services, Hosting"
                         value={createForm.group}
-                        onChange={(e) => setCreateForm((p) => ({ ...p, group: e.target.value }))}
+                        onChange={(e) => setCreateForm((p: any) => ({ ...p, group: e.target.value }))}
                         className="rounded-xl h-11 border-slate-200"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-700">Tax Class</Label>
-                      <Select value={createForm.tax} onValueChange={(v) => setCreateForm((p) => ({ ...p, tax: v }))}>
+                      <Select value={createForm.tax} onValueChange={(v) => setCreateForm((p: any) => ({ ...p, tax: v }))}>
                         <SelectTrigger className="rounded-xl h-11 border-slate-200 bg-white">
                           <SelectValue placeholder="No Tax" />
                         </SelectTrigger>
@@ -351,6 +568,15 @@ const Items = () => {
                       </Select>
                     </div>
                   </div>
+
+                  {/* Render Custom Fields */}
+                  {customFieldDefs.length > 0 && (
+                    <div className="border-t border-border/50 pt-4 space-y-4">
+                      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Custom Fields</p>
+                      {customFieldDefs.map((cf: any) => renderCustomFieldInput(cf, createForm, setCreateForm))}
+                    </div>
+                  )}
+
                   <Button type="submit" className="w-full h-11 rounded-xl font-bold mt-4" disabled={createMutation.isPending}>
                     {createMutation.isPending ? "Creating..." : "Create Item"}
                   </Button>
@@ -414,14 +640,7 @@ const Items = () => {
             <ExportButton
               data={filtered}
               filename="items"
-              columns={[
-                { header: "Item Name", key: "description" },
-                { header: "Group", key: (i) => i.group || "-" },
-                { header: "Description", key: (i) => i.long_description || "-" },
-                { header: "Rate", key: "rate" },
-                { header: "Unit", key: (i) => i.unit || "item" },
-                { header: "Tax", key: (i) => i.tax ? (typeof i.tax === "object" ? `${i.tax.name} (${i.tax.taxrate}%)` : "Active Tax") : "-" }
-              ]}
+              columns={exportColumns}
             />
             <ImportButton onData={handleImportData} loading={importMutation.isPending} />
           </div>
@@ -454,11 +673,20 @@ const Items = () => {
                         onChange={(e) => handleSelectAll(e.target.checked)}
                       />
                     </th>
-                    {["Item Name", "Group", "Description", "Rate", "Unit", "Tax", "Actions"].map((h) => (
-                      <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
-                        {h}
+                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Name</th>
+                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Group</th>
+                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Description</th>
+                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Quantity</th>
+                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Rate</th>
+                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Amount</th>
+                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Unit</th>
+                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Tax</th>
+                    {tableCustomFields.map((cf: any) => (
+                      <th key={cf._id} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
+                        {cf.name}
                       </th>
                     ))}
+                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
@@ -467,14 +695,14 @@ const Items = () => {
                       .fill(0)
                       .map((_, i) => (
                         <tr key={i}>
-                          <td colSpan={8} className="p-4">
+                          <td colSpan={10 + tableCustomFields.length} className="p-4">
                             <Skeleton className="h-10 w-full" />
                           </td>
                         </tr>
                       ))
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
+                      <td colSpan={10 + tableCustomFields.length} className="px-6 py-12 text-center text-muted-foreground italic">
                         No database items found. Use "New Item" to populate the list.
                       </td>
                     </tr>
@@ -494,7 +722,7 @@ const Items = () => {
                             }}
                           />
                         </td>
-                        <td className="px-6 py-4 font-bold text-slate-800">{item.description}</td>
+                        <td className="px-6 py-4 font-bold text-slate-800">{item.name || item.description}</td>
                         <td className="px-6 py-4">
                           {item.group ? (
                             <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 font-bold uppercase tracking-wider text-[9px] px-2 py-0.5">
@@ -505,8 +733,12 @@ const Items = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 text-muted-foreground max-w-xs truncate">{item.long_description || "-"}</td>
+                        <td className="px-6 py-4 font-bold text-slate-800">{item.quantity ?? 1}</td>
                         <td className="px-6 py-4 font-black text-slate-900">
-                          ₹{(item.rate || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          {symbol}{(item.rate || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-6 py-4 font-black text-slate-900">
+                          {symbol}{(item.amount ?? ((item.quantity ?? 1) * (item.rate ?? 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </td>
                         <td className="px-6 py-4 font-medium text-slate-500">{item.unit || "item"}</td>
                         <td className="px-6 py-4">
@@ -519,6 +751,14 @@ const Items = () => {
                             <span className="text-slate-400 font-medium">-</span>
                           )}
                         </td>
+                        {tableCustomFields.map((cf: any) => {
+                          const val = item.custom_fields?.[cf.slug] ?? item.custom_fields?.[cf._id] ?? "-";
+                          return (
+                            <td key={cf._id} className="px-6 py-4 font-medium text-slate-600">
+                              {typeof val === "boolean" ? (val ? "Yes" : "No") : String(val || "-")}
+                            </td>
+                          );
+                        })}
                         <td className="px-6 py-4">
                           <TableActions
                             onView={() => setViewItem(item)}
@@ -556,7 +796,7 @@ const Items = () => {
 
       {/* View Item Details */}
       <Dialog open={!!viewItem} onOpenChange={() => setViewItem(null)}>
-        <DialogContent className="max-w-md rounded-3xl p-6 border-none shadow-2xl bg-white">
+        <DialogContent className="max-w-md rounded-3xl p-6 border-none shadow-2xl bg-white max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b border-border/50 pb-4 mb-4">
             <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
               <Layers className="h-5 w-5 text-primary" />
@@ -567,25 +807,33 @@ const Items = () => {
             <div className="space-y-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Item Name</p>
-                <p className="text-sm font-bold text-slate-800">{viewItem.description}</p>
+                <p className="text-sm font-bold text-slate-800">{viewItem.name || viewItem.description}</p>
               </div>
               {viewItem.long_description && (
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Long Description</p>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Description</p>
                   <p className="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-xl p-3 leading-relaxed">{viewItem.long_description}</p>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Quantity</p>
+                  <p className="text-sm font-extrabold text-slate-900">{viewItem.quantity ?? 1}</p>
+                </div>
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Rate</p>
-                  <p className="text-sm font-extrabold text-slate-900">₹{(viewItem.rate || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  <p className="text-sm font-extrabold text-slate-900">{symbol}{(viewItem.rate || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                 </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Amount</p>
+                  <p className="text-sm font-extrabold text-slate-900">{symbol}{(viewItem.amount ?? ((viewItem.quantity ?? 1) * (viewItem.rate ?? 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Unit</p>
                   <p className="text-sm font-bold text-slate-700">{viewItem.unit || "item"}</p>
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Group / Category</p>
                   <p className="text-xs font-bold text-slate-700">{viewItem.group || "N/A"}</p>
@@ -597,6 +845,26 @@ const Items = () => {
                   </p>
                 </div>
               </div>
+
+              {customFieldDefs.length > 0 && viewItem.custom_fields && (
+                <div className="border-t border-border/50 pt-3 space-y-2">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Custom Fields</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {customFieldDefs.map((cf: any) => {
+                      const val = viewItem.custom_fields?.[cf.slug] ?? viewItem.custom_fields?.[cf._id];
+                      if (val === undefined || val === null || val === "") return null;
+                      return (
+                        <div key={cf._id}>
+                          <p className="text-[10px] font-bold text-slate-500">{cf.name}</p>
+                          <p className="text-xs font-semibold text-slate-800">
+                            {typeof val === "boolean" ? (val ? "Yes" : "No") : String(val)}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
@@ -604,7 +872,7 @@ const Items = () => {
 
       {/* Edit Item Details */}
       <Dialog open={!!editItem} onOpenChange={() => setEditItem(null)}>
-        <DialogContent className="max-w-lg rounded-3xl p-6 border-none shadow-2xl bg-white">
+        <DialogContent className="max-w-lg rounded-3xl p-6 border-none shadow-2xl bg-white max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b border-border/50 pb-4 mb-4">
             <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
               <Edit className="h-5 w-5 text-primary" />
@@ -614,32 +882,54 @@ const Items = () => {
           {editItem && (
             <form onSubmit={handleEditSubmit} className="space-y-4 pt-2">
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-700">Item Name / Description <span className="text-destructive">*</span></Label>
+                <Label className="text-xs font-bold text-slate-700">Name <span className="text-destructive">*</span></Label>
                 <Input
                   placeholder="Item Name"
-                  value={editForm.description}
-                  onChange={(e) => setEditForm((p) => ({ ...p, description: e.target.value }))}
+                  value={editForm.name}
+                  onChange={(e) => setEditForm((p: any) => ({ ...p, name: e.target.value }))}
                   className="rounded-xl h-11 border-slate-200"
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-700">Long Description</Label>
+                <Label className="text-xs font-bold text-slate-700">Description</Label>
                 <Textarea
                   placeholder="Detailed description..."
                   value={editForm.long_description}
-                  onChange={(e) => setEditForm((p) => ({ ...p, long_description: e.target.value }))}
+                  onChange={(e) => setEditForm((p: any) => ({ ...p, long_description: e.target.value }))}
                   className="rounded-xl min-h-[80px] border-slate-200 resize-none"
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-700">Quantity <span className="text-destructive">*</span></Label>
+                  <Input
+                    type="number"
+                    placeholder="1"
+                    value={editForm.quantity}
+                    onChange={(e) => handleEditQuantityChange(e.target.value)}
+                    className="rounded-xl h-11 border-slate-200"
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-700">Rate ({symbol}) <span className="text-destructive">*</span></Label>
                   <Input
                     type="number"
                     placeholder="0.00"
                     value={editForm.rate}
-                    onChange={(e) => setEditForm((p) => ({ ...p, rate: e.target.value }))}
+                    onChange={(e) => handleEditRateChange(e.target.value)}
                     className="rounded-xl h-11 border-slate-200"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-700">Amount ({symbol}) <span className="text-destructive">*</span></Label>
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={editForm.amount}
+                    onChange={(e) => setEditForm((p: any) => ({ ...p, amount: e.target.value }))}
+                    className="rounded-xl h-11 border-slate-200 font-bold text-slate-900"
                   />
                 </div>
                 <div className="space-y-2">
@@ -647,7 +937,7 @@ const Items = () => {
                   <Input
                     placeholder="e.g. hr, qty"
                     value={editForm.unit}
-                    onChange={(e) => setEditForm((p) => ({ ...p, unit: e.target.value }))}
+                    onChange={(e) => setEditForm((p: any) => ({ ...p, unit: e.target.value }))}
                     className="rounded-xl h-11 border-slate-200"
                   />
                 </div>
@@ -658,13 +948,13 @@ const Items = () => {
                   <Input
                     placeholder="e.g. Services"
                     value={editForm.group}
-                    onChange={(e) => setEditForm((p) => ({ ...p, group: e.target.value }))}
+                    onChange={(e) => setEditForm((p: any) => ({ ...p, group: e.target.value }))}
                     className="rounded-xl h-11 border-slate-200"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-700">Tax Class</Label>
-                  <Select value={editForm.tax} onValueChange={(v) => setEditForm((p) => ({ ...p, tax: v }))}>
+                  <Select value={editForm.tax} onValueChange={(v) => setEditForm((p: any) => ({ ...p, tax: v }))}>
                     <SelectTrigger className="rounded-xl h-11 border-slate-200 bg-white">
                       <SelectValue placeholder="No Tax" />
                     </SelectTrigger>
@@ -679,6 +969,15 @@ const Items = () => {
                   </Select>
                 </div>
               </div>
+
+              {/* Custom Fields in Edit */}
+              {customFieldDefs.length > 0 && (
+                <div className="border-t border-border/50 pt-4 space-y-4">
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Custom Fields</p>
+                  {customFieldDefs.map((cf: any) => renderCustomFieldInput(cf, editForm, setEditForm))}
+                </div>
+              )}
+
               <Button type="submit" className="w-full h-11 rounded-xl font-bold mt-4" disabled={updateMutation.isPending}>
                 {updateMutation.isPending ? "Saving..." : "Save Changes"}
               </Button>

@@ -43,7 +43,8 @@ import {
   DollarSign,
   User,
   TrendingUp,
-  Clock
+  Clock,
+  Search
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -3129,6 +3130,338 @@ export const ReportKBArticles = () => {
             </CardContent>
           </Card>
         </div>
+      </div>
+    </DashboardLayout>
+  );
+};
+
+export const ReportPurchase = () => {
+  const [period, setPeriod] = useState("all_time");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [search, setSearch] = useState("");
+
+  const { data = {}, isLoading } = useQuery({
+    queryKey: ["purchaseReport", period, fromDate, toDate],
+    queryFn: () => utilityService.getPurchaseReport(period, fromDate, toDate),
+  });
+
+  const purchasesReport = data.purchasesReport || [];
+  const kpis = data.kpis || { totalPurchaseAmount: 0, totalPaid: 0, totalOutstanding: 0, totalGST: 0, count: 0 };
+  const purchaseTrend = data.purchaseTrend || [];
+  const supplierDistribution = data.supplierDistribution || [];
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const exportCSV = () => {
+    let csv = "Bill No,Supplier Name,Bill Date,Due Date,Qty,Rate,Amount,GST Rate (%),Total,Payment Status\n";
+    purchasesReport.forEach((p: any) => {
+      const bDate = p.bill_date ? format(new Date(p.bill_date), "yyyy-MM-dd") : "";
+      const dDate = p.due_date ? format(new Date(p.due_date), "yyyy-MM-dd") : "";
+      csv += `"${p.bill_no || ''}","${p.supplier_name || ''}","${bDate}","${dDate}",${p.quantity || 0},${p.rate || 0},${p.amount || 0},${p.gst_rate || 0},${p.total || 0},"${p.payment_status || ''}"\n`;
+    });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `purchase_report_${format(new Date(), "yyyy-MM-dd")}.csv`);
+    link.click();
+  };
+
+  const filteredPurchases = purchasesReport.filter((p: any) =>
+    (p.bill_no || "").toLowerCase().includes(search.toLowerCase()) ||
+    (p.supplier_name || "").toLowerCase().includes(search.toLowerCase())
+  );
+
+  const COLORS = ["hsl(213, 44%, 25%)", "hsl(152, 69%, 40%)", "hsl(38, 92%, 50%)", "hsl(0, 70%, 55%)", "hsl(270, 60%, 50%)"];
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6 animate-fade-in pb-12 print:p-0 print:space-y-4">
+        {/* Header section */}
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-background p-1.5 rounded-2xl print:hidden">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Purchase Report</h1>
+            <p className="text-muted-foreground text-sm font-medium">Review and analyze purchase bills, supplier metrics, and payment status breakdown</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Period Selector */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Period</span>
+              <Select value={period} onValueChange={setPeriod}>
+                <SelectTrigger className="w-[140px] h-9 rounded-lg border-border/45 bg-background text-xs font-bold shadow-none">
+                  <SelectValue placeholder="All Time" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-border/50">
+                  <SelectItem value="all_time" className="text-xs font-medium">All Time</SelectItem>
+                  <SelectItem value="this_month" className="text-xs font-medium">This Month</SelectItem>
+                  <SelectItem value="last_month" className="text-xs font-medium">Last Month</SelectItem>
+                  <SelectItem value="this_quarter" className="text-xs font-medium">This Quarter</SelectItem>
+                  <SelectItem value="this_year" className="text-xs font-medium">This Year</SelectItem>
+                  <SelectItem value="custom" className="text-xs font-medium">Custom Range</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {period === "custom" && (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">From</span>
+                  <Input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="h-9 w-[130px] text-xs font-medium rounded-lg"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">To</span>
+                  <Input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="h-9 w-[130px] text-xs font-medium rounded-lg"
+                  />
+                </div>
+              </>
+            )}
+
+            <Button onClick={exportCSV} variant="outline" size="sm" className="h-9 rounded-lg gap-2 font-bold text-xs mt-auto">
+              <Download className="h-3.5 w-3.5" />
+              Export CSV
+            </Button>
+            <Button onClick={handlePrint} variant="outline" size="sm" className="h-9 rounded-lg gap-2 font-bold text-xs mt-auto">
+              <Printer className="h-3.5 w-3.5" />
+              Print
+            </Button>
+          </div>
+        </div>
+
+        {/* KPI Cards Row */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <Card className="rounded-2xl border-border/50 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-black uppercase tracking-wider text-muted-foreground">Total Purchases</CardTitle>
+              <Package className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-black text-slate-900">₹{(kpis.totalPurchaseAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              <p className="text-[11px] text-muted-foreground mt-1 font-medium">{kpis.count} total bills</p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-border/50 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-black uppercase tracking-wider text-muted-foreground">Total Paid</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-black text-emerald-700">₹{(kpis.totalPaid || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              <p className="text-[11px] text-emerald-600/80 mt-1 font-medium">Cleared bills</p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-border/50 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-black uppercase tracking-wider text-muted-foreground">Outstanding</CardTitle>
+              <AlertCircle className="h-4 w-4 text-rose-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-black text-rose-700">₹{(kpis.totalOutstanding || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              <p className="text-[11px] text-rose-600/80 mt-1 font-medium">Unpaid / Partial</p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-border/50 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-black uppercase tracking-wider text-muted-foreground">Total GST</CardTitle>
+              <Wallet className="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-black text-blue-700">₹{(kpis.totalGST || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              <p className="text-[11px] text-blue-600/80 mt-1 font-medium">CGST + SGST + IGST</p>
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-border/50 shadow-sm">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-black uppercase tracking-wider text-muted-foreground">Bill Count</CardTitle>
+              <FileText className="h-4 w-4 text-purple-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl font-black text-purple-700">{kpis.count}</div>
+              <p className="text-[11px] text-purple-600/80 mt-1 font-medium">Purchase Invoices</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:hidden">
+          <Card className="lg:col-span-2 rounded-2xl border-border/50 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-primary" />
+                Monthly Purchase Trend
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="h-[250px] flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : purchaseTrend.length === 0 ? (
+                <div className="h-[250px] flex items-center justify-center text-muted-foreground text-xs italic">
+                  No trend data available for this range.
+                </div>
+              ) : (
+                <div className="h-[250px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={purchaseTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="purchaseGrad" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(213, 44%, 25%)" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="hsl(213, 44%, 25%)" stopOpacity={0.0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                      <XAxis dataKey="label" stroke="#888888" fontSize={11} fontWeight={600} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#888888" fontSize={11} fontWeight={600} tickLine={false} axisLine={false} />
+                      <Tooltip formatter={(value: any) => [`₹${Number(value).toLocaleString()}`, "Amount"]} />
+                      <Area type="monotone" dataKey="amount" stroke="hsl(213, 44%, 25%)" strokeWidth={3} fillOpacity={1} fill="url(#purchaseGrad)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="rounded-2xl border-border/50 shadow-sm">
+            <CardHeader>
+              <CardTitle className="text-sm font-bold flex items-center gap-2">
+                <User className="h-4 w-4 text-primary" />
+                Supplier Breakdown
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="h-[250px] flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : supplierDistribution.length === 0 ? (
+                <div className="h-[250px] flex items-center justify-center text-muted-foreground text-xs italic">
+                  No supplier data available.
+                </div>
+              ) : (
+                <div className="h-[250px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={supplierDistribution}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={4}
+                        dataKey="value"
+                      >
+                        {supplierDistribution.map((entry: any, index: number) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: any) => [`₹${Number(value).toLocaleString()}`, "Purchases"]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Detailed Data Table */}
+        <Card className="rounded-2xl border-border/50 shadow-sm overflow-hidden">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted/20 pb-4">
+            <CardTitle className="text-base font-bold">Purchases Detailed Ledger</CardTitle>
+            <div className="relative w-full sm:w-64 print:hidden">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Search bill no or supplier..."
+                className="pl-9 h-8 bg-background border-none shadow-sm rounded-lg text-xs"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-muted/40">
+                  <TableRow>
+                    <TableHead className="font-bold text-xs">Bill No</TableHead>
+                    <TableHead className="font-bold text-xs">Supplier Name</TableHead>
+                    <TableHead className="font-bold text-xs">Bill Date</TableHead>
+                    <TableHead className="font-bold text-xs">Due Date</TableHead>
+                    <TableHead className="font-bold text-xs text-right">Qty</TableHead>
+                    <TableHead className="font-bold text-xs text-right">Rate</TableHead>
+                    <TableHead className="font-bold text-xs text-right">Amount</TableHead>
+                    <TableHead className="font-bold text-xs text-right">GST %</TableHead>
+                    <TableHead className="font-bold text-xs text-right">Total</TableHead>
+                    <TableHead className="font-bold text-xs text-center">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredPurchases.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground italic text-xs">
+                        No purchase records match the selected filter.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredPurchases.map((p: any) => (
+                      <TableRow key={p._id} className="hover:bg-muted/30 transition-colors">
+                        <TableCell className="font-bold text-xs text-slate-800">{p.bill_no}</TableCell>
+                        <TableCell className="font-medium text-xs">{p.supplier_name}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {p.bill_date ? format(new Date(p.bill_date), "MMM dd, yyyy") : "-"}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {p.due_date ? format(new Date(p.due_date), "MMM dd, yyyy") : "-"}
+                        </TableCell>
+                        <TableCell className="text-xs text-right font-medium">{p.quantity || 1}</TableCell>
+                        <TableCell className="text-xs text-right font-medium">₹{(p.rate || 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-xs text-right font-medium">₹{(p.amount || 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-xs text-right font-medium">{p.gst_rate || 0}%</TableCell>
+                        <TableCell className="text-xs text-right font-bold text-slate-900">₹{(p.total || 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge
+                            className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase tracking-wide border shadow-none ${
+                              p.payment_status === "Paid"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : p.payment_status === "Partially Paid"
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : "bg-rose-50 text-rose-700 border-rose-200"
+                            }`}
+                          >
+                            {p.payment_status || "Unpaid"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );
