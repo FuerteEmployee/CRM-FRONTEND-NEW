@@ -38,6 +38,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService } from "@/api/services/customer.service";
 import { financeService } from "@/api/services/finance.service";
+import { hrmsbranchService, type HRMSBranch } from "@/hrms/services/hrmsbranchService";
 import { staffService } from "@/api/services/staff.service";
 import { noteService } from "@/api/services/note.service";
 import { salesService } from "@/api/services/sales.service";
@@ -628,6 +629,17 @@ export default function CustomerView() {
     queryKey: ["customerGroups"],
     queryFn: customerService.getGroups,
   });
+
+  const { data: branches = [] } = useQuery<HRMSBranch[]>({
+    queryKey: ["hrms-branches-for-customer"],
+    queryFn: async () => (await hrmsbranchService.getAll()).data,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const branchesForFormCity = useMemo(
+    () => branches.filter((b) => b.city === formData.city),
+    [branches, formData.city]
+  );
 
   const { data: staff = [] } = useQuery({
     queryKey: ["staff", "assignable"],
@@ -1673,7 +1685,8 @@ export default function CustomerView() {
     if (customer) {
       setFormData({
         ...customer,
-        groups: customer.groups?.map((g: any) => g._id || g) || []
+        groups: customer.groups?.map((g: any) => g._id || g) || [],
+        branch: (customer as any).branch?._id || (customer as any).branch || "",
       });
     }
   }, [customer]);
@@ -1941,6 +1954,25 @@ export default function CustomerView() {
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground uppercase">Address</Label>
                                   <VoiceTextarea name="address" value={formData.address || ""} onChange={handleFormChange} placeholder="Address" className="h-20" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs text-muted-foreground uppercase">Branch</Label>
+                                    <Select
+                                      value={formData.branch || ""}
+                                      onValueChange={(v) => handleSelectChange("branch", v)}
+                                      disabled={!formData.city}
+                                    >
+                                      <SelectTrigger className="h-9">
+                                        <SelectValue placeholder={formData.city ? "Select branch" : "Set a city first"} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {branchesForFormCity.map((b) => (
+                                          <SelectItem key={b._id || b.id} value={(b._id || b.id) as string}>{b.name}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                   <div className="space-y-1.5">

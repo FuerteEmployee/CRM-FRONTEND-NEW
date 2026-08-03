@@ -35,4 +35,7 @@ export const utilityService = {
 
   getExpensesReport: (year, excludeBillable) =>
     apiClient.get(`/reports/expenses?year=${year || new Date().getFullYear()}&excludeBillable=${excludeBillable || false}`),
+
+  getPurchaseReport: (period, fromDate, toDate) =>
+    apiClient.get(`/reports/purchase?period=${period || 'all_time'}&fromDate=${fromDate || ''}&toDate=${toDate || ''}`),
 };

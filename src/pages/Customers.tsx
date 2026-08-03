@@ -954,6 +954,7 @@ const Customers = () => {
                     <th className="p-3 font-medium">Phone</th>
                     <th className="p-3 font-medium">Active</th>
                     <th className="p-3 font-medium">Groups</th>
+                    <th className="p-3 font-medium">Branch</th>
                     <th className="p-3 font-medium">Date Created</th>
                     <th className="p-3 font-medium">Actions</th>
                   </tr>
@@ -1041,6 +1042,9 @@ const Customers = () => {
                           </div>
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
+                          {(c.branch as any)?.name || "-"}
+                        </td>
+                        <td className="p-3 text-sm text-muted-foreground">
                           {formatDate(c.datecreated)}
                         </td>
                         <td className="p-3">
@@ -1049,7 +1053,8 @@ const Customers = () => {
                             onEdit={can("Customers", "Edit") ? () => {
                               const normalized = {
                                 ...c,
-                                groups: c.groups?.map((g: any) => g._id || g)
+                                groups: c.groups?.map((g: any) => g._id || g),
+                                branch: (c.branch as any)?._id || c.branch || "",
                               };
                               setEditItem(normalized);
                               setNewCustomer(normalized);

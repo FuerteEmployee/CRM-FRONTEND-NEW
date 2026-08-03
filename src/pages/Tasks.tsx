@@ -105,7 +105,7 @@ const Tasks = () => {
     category: "To-Do",
     inquiry_outcome: ""
   });
-  
+
   const handleInputChange = (e: any) => {
     const { id, value, type, checked } = e.target;
     setFormData(prev => ({ ...prev, [id]: type === 'checkbox' ? checked : value }));
@@ -165,19 +165,19 @@ const Tasks = () => {
     queryFn: customerService.getAll,
   });
 
-  const customerOptions = useMemo(() => 
+  const customerOptions = useMemo(() =>
     customers.map((c: any) => ({
       label: c.company || c.firstname + ' ' + c.lastname,
       value: c._id
     }))
-  , [customers]);
+    , [customers]);
 
-  const staffOptions = useMemo(() => 
+  const staffOptions = useMemo(() =>
     staffMembers.map((member: any) => ({
       label: `${member.firstname || ''} ${member.lastname || ''}`.trim() || member.email,
       value: member._id
     }))
-  , [staffMembers]);
+    , [staffMembers]);
 
   const isLoading = tasksLoading || todosLoading;
 
@@ -187,10 +187,10 @@ const Tasks = () => {
     if (isStaff && !isAdmin && user?._id) {
       const currentUserId = String(user._id);
       rawTasks = tasks.filter((t: any) => {
-        const isAssigned = Array.isArray(t.assignees) && t.assignees.some((a: any) => 
+        const isAssigned = Array.isArray(t.assignees) && t.assignees.some((a: any) =>
           String(typeof a === 'object' ? a?._id || a?.value : a) === currentUserId
         );
-        const isFollower = Array.isArray(t.followers) && t.followers.some((f: any) => 
+        const isFollower = Array.isArray(t.followers) && t.followers.some((f: any) =>
           String(typeof f === 'object' ? f?._id || f?.value : f) === currentUserId
         );
         const isCreator = String(typeof t.created_by === 'object' ? t.created_by?._id : t.created_by) === currentUserId;
@@ -233,7 +233,7 @@ const Tasks = () => {
   }, [allTasks]);
 
   const deleteMutation = useMutation({
-    mutationFn: ({ id, isTodo }: { id: string; isTodo: boolean }) => 
+    mutationFn: ({ id, isTodo }: { id: string; isTodo: boolean }) =>
       isTodo ? utilityService.deleteTodo(id) : taskService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -332,7 +332,7 @@ const Tasks = () => {
 
   const handleBulkAction = async () => {
     if (selectedTasks.length === 0) {
-      toast({ title: "Error", description: "No tasks selected."});
+      toast({ title: "Error", description: "No tasks selected." });
       return;
     }
     setIsBulkLoading(true);
@@ -372,7 +372,7 @@ const Tasks = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false, status: "", priority: "", assignee: "", billable: "", tags: "" });
     } catch (err: any) {
-      toast({ title: "Error", description: "Failed to perform bulk action."});
+      toast({ title: "Error", description: "Failed to perform bulk action." });
     } finally {
       setIsBulkLoading(false);
     }
@@ -463,7 +463,7 @@ const Tasks = () => {
       return;
     }
     if (formData.category === "Inquiry" && formData.status === 5 && !formData.inquiry_outcome) {
-      toast({ title: "Error", description: "Please select Won or Lost for the closed inquiry."});
+      toast({ title: "Error", description: "Please select Won or Lost for the closed inquiry." });
       return;
     }
 
@@ -474,7 +474,7 @@ const Tasks = () => {
       priority: parseInt(formData.priority),
       inquiry_outcome: formData.inquiry_outcome || null
     };
-    
+
     if (editingTask) {
       updateMutation.mutate({ id: editingTask._id, isTodo: editingTask.isTodo, data: payload });
     } else {
@@ -516,310 +516,310 @@ const Tasks = () => {
                 <ImportButton onData={processTaskRows} loading={importTasksMutation.isPending} label="Import Tasks" />
               )}
               <Dialog open={isNewTaskModalOpen} onOpenChange={setIsNewTaskModalOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={() => setEditingTask(null)} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
-                <Plus className="mr-2 h-4 w-4" />
-                New Task
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden flex flex-col bg-white">
-              <DialogHeader className="p-6 bg-white border-b border-slate-100 flex-shrink-0">
-                <DialogTitle className="text-xl font-bold text-slate-800">
-                  {editingTask ? "Edit task" : "Add new task"}
-                </DialogTitle>
-              </DialogHeader>
-              <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                {/* Top Checkboxes */}
-                <div className="flex items-center gap-6 pb-2 border-b border-slate-200">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="public" checked={formData.public} onCheckedChange={(checked) => setFormData(prev => ({...prev, public: !!checked}))} className="border-slate-300 data-[state=checked]:bg-primary h-5 w-5" />
-                    <Label htmlFor="public" className="font-bold text-sm text-slate-700 cursor-pointer">Public</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="billable" checked={formData.billable} onCheckedChange={(checked) => setFormData(prev => ({...prev, billable: !!checked}))} className="border-slate-300 data-[state=checked]:bg-primary h-5 w-5" />
-                    <Label htmlFor="billable" className="font-bold text-sm text-slate-700 cursor-pointer">Billable</Label>
-                  </div>
-                </div>
-
-                  <div className="space-y-6">
-                  <div className="space-y-4">
-                    <span 
-                      className="text-primary text-sm font-bold flex items-center gap-2 cursor-pointer hover:underline w-fit transition-colors"
-                      onClick={() => setShowAttachment(!showAttachment)}
-                    >
-                      <Plus className="h-4 w-4" />
-                      Attach Files
-                    </span>
-                    
-                    {showAttachment && (
-                      <div className="space-y-1 animate-in fade-in slide-in-from-top-2 duration-300">
-                        <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Attachment</Label>
-                        <Input type="file" className="h-12 bg-white rounded-xl border-slate-200 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-all cursor-pointer" />
+                <DialogTrigger asChild>
+                  <Button onClick={() => setEditingTask(null)} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Task
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden flex flex-col bg-white">
+                  <DialogHeader className="p-6 bg-white border-b border-slate-100 flex-shrink-0">
+                    <DialogTitle className="text-xl font-bold text-slate-800">
+                      {editingTask ? "Edit task" : "Add new task"}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                    {/* Top Checkboxes */}
+                    <div className="flex items-center gap-6 pb-2 border-b border-slate-200">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="public" checked={formData.public} onCheckedChange={(checked) => setFormData(prev => ({ ...prev, public: !!checked }))} className="border-slate-300 data-[state=checked]:bg-primary h-5 w-5" />
+                        <Label htmlFor="public" className="font-bold text-sm text-slate-700 cursor-pointer">Public</Label>
                       </div>
-                    )}
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="billable" checked={formData.billable} onCheckedChange={(checked) => setFormData(prev => ({ ...prev, billable: !!checked }))} className="border-slate-300 data-[state=checked]:bg-primary h-5 w-5" />
+                        <Label htmlFor="billable" className="font-bold text-sm text-slate-700 cursor-pointer">Billable</Label>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="space-y-4">
+                        <span
+                          className="text-primary text-sm font-bold flex items-center gap-2 cursor-pointer hover:underline w-fit transition-colors"
+                          onClick={() => setShowAttachment(!showAttachment)}
+                        >
+                          <Plus className="h-4 w-4" />
+                          Attach Files
+                        </span>
+
+                        {showAttachment && (
+                          <div className="space-y-1 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Attachment</Label>
+                            <Input type="file" className="h-12 bg-white rounded-xl border-slate-200 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-all cursor-pointer" />
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-6">
+                        <div className="col-span-2 space-y-1">
+                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
+                            <span className="text-red-500">*</span> Subject
+                          </Label>
+                          <Input id="name" value={formData.name} onChange={handleInputChange} className="h-12 bg-white rounded-xl border-slate-200 font-medium" placeholder="e.g. Design Homepage" />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Hourly Rate</Label>
+                          <Input id="hourly_rate" value={formData.hourly_rate} onChange={handleInputChange} type="number" className="h-12 bg-white rounded-xl border-slate-200 font-medium" placeholder="0.00" />
+                        </div>
+
+                        {/* Related To */}
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Related To</Label>
+                          <Select value={formData.related_to} onValueChange={(v) => handleSelectChange('related_to', v)}>
+                            <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
+                              <SelectValue placeholder="Nothing Selected" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="project">Project</SelectItem>
+                              <SelectItem value="invoice">Invoice</SelectItem>
+                              <SelectItem value="customer">Customer</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {formData.related_to === 'customer' && (
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
+                              <span className="text-red-500">*</span> Customer
+                            </Label>
+                            <SearchableSelect
+                              options={customerOptions}
+                              value={formData.rel_id}
+                              onValueChange={(v) => handleSelectChange('rel_id', v)}
+                              placeholder="Search customer..."
+                              className="h-12 rounded-xl border-slate-200 shadow-none bg-white"
+                            />
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
+                            <span className="text-red-500">*</span> Start Date
+                          </Label>
+                          <Input id="startdate" value={formData.startdate} onChange={handleInputChange} type="date" className="h-12 bg-white rounded-xl border-slate-200 font-medium" />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Due Date</Label>
+                          <Input id="duedate" value={formData.duedate} onChange={handleInputChange} type="date" className="h-12 bg-white rounded-xl border-slate-200 font-medium" />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Status</Label>
+                          <Select value={formData.status.toString()} onValueChange={(v) => handleSelectChange('status', parseInt(v))}>
+                            <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
+                              <SelectValue placeholder="Select Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {taskStatusConfig.map(s => (
+                                <SelectItem key={s.id} value={s.id.toString()}>{s.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
+                            <span className="text-red-500">*</span> Category
+                          </Label>
+                          <Select value={formData.category} onValueChange={(v) => handleSelectChange('category', v)}>
+                            <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
+                              <SelectValue placeholder="Select Category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="To-Do">To-Do</SelectItem>
+                              <SelectItem value="Visit">Visit</SelectItem>
+                              <SelectItem value="Unique Visit">Unique Visits</SelectItem>
+                              <SelectItem value="Trial">Trial</SelectItem>
+                              <SelectItem value="Query">Query</SelectItem>
+                              <SelectItem value="Inquiry">Inquiry</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {formData.category === "Inquiry" && formData.status === 5 && (
+                          <div className="space-y-1 col-span-2">
+                            <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
+                              <span className="text-red-500">*</span> Inquiry Outcome
+                            </Label>
+                            <Select value={formData.inquiry_outcome} onValueChange={(v) => handleSelectChange('inquiry_outcome', v)}>
+                              <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
+                                <SelectValue placeholder="Select Outcome" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Won">Won</SelectItem>
+                                <SelectItem value="Lost">Lost</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Priority</Label>
+                          <Select value={formData.priority.toString()} onValueChange={(v) => handleSelectChange('priority', v)}>
+                            <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
+                              <SelectValue placeholder="Select Priority" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="1">Low</SelectItem>
+                              <SelectItem value="2">Medium</SelectItem>
+                              <SelectItem value="3">High</SelectItem>
+                              <SelectItem value="4">Urgent</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Repeat Every</Label>
+                          <Select value={formData.repeat_every} onValueChange={(v) => handleSelectChange('repeat_every', v)}>
+                            <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
+                              <SelectValue placeholder="None" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              <SelectItem value="1_week">1 Week</SelectItem>
+                              <SelectItem value="2_weeks">2 Weeks</SelectItem>
+                              <SelectItem value="1_month">1 Month</SelectItem>
+                              <SelectItem value="2_months">2 Months</SelectItem>
+                              <SelectItem value="3_months">3 Months</SelectItem>
+                              <SelectItem value="6_months">6 Months</SelectItem>
+                              <SelectItem value="1_year">1 Year</SelectItem>
+                              <SelectItem value="custom">Custom</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Assignees</Label>
+                          <SearchableSelect
+                            options={staffOptions}
+                            value={formData.assignees}
+                            onValueChange={(v) => handleSelectChange('assignees', v)}
+                            multiple
+                            placeholder="Select Assignees"
+                            className="h-12 rounded-xl border-slate-200 shadow-none"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Followers</Label>
+                          <SearchableSelect
+                            options={staffOptions}
+                            value={formData.followers}
+                            onValueChange={(v) => handleSelectChange('followers', v)}
+                            multiple
+                            placeholder="Select Followers"
+                            className="h-12 rounded-xl border-slate-200 shadow-none"
+                          />
+                        </div>
+
+                        <div className="col-span-2 space-y-1">
+                          <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tags</Label>
+                          <Input id="tags" value={formData.tags} onChange={handleInputChange} className="h-12 bg-white rounded-xl border-slate-200 font-medium" placeholder="Type and press enter..." />
+                        </div>
+                      </div>
+
+                      {/* Task Description Editor */}
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Task Description</Label>
+                        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col transition-all focus-within:ring-2 ring-primary/20 ring-offset-2">
+                          {/* Toolbar Tier 1 */}
+                          <div className="flex items-center gap-1 p-2 bg-slate-50/80 border-b border-slate-100 flex-wrap">
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Undo2 className="h-4 w-4 opacity-70" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Redo2 className="h-4 w-4 opacity-70" /></Button>
+                            </div>
+                            <div className="w-px h-5 bg-slate-200 mx-1" />
+                            <Select value={editorFont} onValueChange={setEditorFont}>
+                              <SelectTrigger className="h-8 w-[130px] border-transparent bg-transparent hover:bg-slate-200 rounded-lg text-xs font-semibold focus:ring-0">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="System Font">System Font</SelectItem>
+                                <SelectItem value="Inter">Inter</SelectItem>
+                                <SelectItem value="Georgia">Georgia</SelectItem>
+                                <SelectItem value="Monospace">Monospace</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <div className="w-px h-5 bg-slate-200 mx-1" />
+                            <Select value={editorFontSize} onValueChange={setEditorFontSize}>
+                              <SelectTrigger className="h-8 w-[60px] border-transparent bg-transparent hover:bg-slate-200 rounded-lg text-xs font-semibold focus:ring-0">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[8, 9, 10, 11, 12, 14, 18, 24, 30, 36].map(size => (
+                                  <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <div className="w-px h-5 bg-slate-200 mx-1" />
+                            <div className="flex items-center gap-0.5">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Bold className="h-4 w-4 font-bold opacity-80" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Italic className="h-4 w-4 italic opacity-80" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Underline className="h-4 w-4 underline opacity-80" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Strikethrough className="h-4 w-4 line-through opacity-80" /></Button>
+                            </div>
+                            <div className="w-px h-5 bg-slate-200 mx-1" />
+                            <div className="flex items-center gap-0.5">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Highlighter className="h-4 w-4 opacity-70 text-yellow-500" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Type className="h-4 w-4 opacity-70" /></Button>
+                            </div>
+                            <div className="w-px h-5 bg-slate-200 mx-1" />
+                            <div className="flex items-center gap-0.5">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Link2 className="h-4 w-4 opacity-70" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Image className="h-4 w-4 opacity-70" /></Button>
+                            </div>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 transition-colors ml-auto">
+                              <MoreHorizontal className="h-4 w-4 opacity-40" />
+                            </Button>
+                          </div>
+                          {/* Toolbar Tier 2 */}
+                          <div className="flex items-center gap-2 p-2 bg-slate-50/50 border-b border-slate-100 overflow-x-auto no-scrollbar">
+                            <div className="flex items-center gap-0.5 ml-2">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignLeft className="h-3.5 w-3.5 opacity-60" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignCenter className="h-3.5 w-3.5 opacity-60" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignRight className="h-3.5 w-3.5 opacity-60" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignJustify className="h-3.5 w-3.5 opacity-60" /></Button>
+                            </div>
+                            <div className="w-px h-5 bg-slate-200 mx-1" />
+                            <div className="flex items-center gap-0.5">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><List className="h-3.5 w-3.5 opacity-60" /></Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><ListOrdered className="h-3.5 w-3.5 opacity-60" /></Button>
+                            </div>
+                            <div className="w-px h-5 bg-slate-200 mx-1" />
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><CheckSquare className="h-3.5 w-3.5 opacity-60" /></Button>
+                          </div>
+                          <Textarea
+                            id="description"
+                            value={formData.description}
+                            onChange={handleInputChange}
+                            className="border-none focus-visible:ring-0 min-h-[200px] p-6 text-sm leading-relaxed font-medium resize-none bg-white rounded-none"
+                            placeholder="Start writing task description..."
+                            style={{ fontFamily: editorFont === 'System Font' ? 'inherit' : editorFont, fontSize: `${editorFontSize}pt` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="col-span-2 space-y-1">
-                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
-                        <span className="text-red-500">*</span> Subject
-                      </Label>
-                      <Input id="name" value={formData.name} onChange={handleInputChange} className="h-12 bg-white rounded-xl border-slate-200 font-medium" placeholder="e.g. Design Homepage" />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Hourly Rate</Label>
-                      <Input id="hourly_rate" value={formData.hourly_rate} onChange={handleInputChange} type="number" className="h-12 bg-white rounded-xl border-slate-200 font-medium" placeholder="0.00" />
-                    </div>
-                    
-                    {/* Related To */}
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Related To</Label>
-                      <Select value={formData.related_to} onValueChange={(v) => handleSelectChange('related_to', v)}>
-                        <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
-                          <SelectValue placeholder="Nothing Selected" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="project">Project</SelectItem>
-                          <SelectItem value="invoice">Invoice</SelectItem>
-                          <SelectItem value="customer">Customer</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {formData.related_to === 'customer' && (
-                      <div className="space-y-1">
-                        <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
-                          <span className="text-red-500">*</span> Customer
-                        </Label>
-                        <SearchableSelect 
-                          options={customerOptions} 
-                          value={formData.rel_id} 
-                          onValueChange={(v) => handleSelectChange('rel_id', v)}
-                          placeholder="Search customer..."
-                          className="h-12 rounded-xl border-slate-200 shadow-none bg-white"
-                        />
-                      </div>
-                    )}
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
-                        <span className="text-red-500">*</span> Start Date
-                      </Label>
-                      <Input id="startdate" value={formData.startdate} onChange={handleInputChange} type="date" className="h-12 bg-white rounded-xl border-slate-200 font-medium" />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Due Date</Label>
-                      <Input id="duedate" value={formData.duedate} onChange={handleInputChange} type="date" className="h-12 bg-white rounded-xl border-slate-200 font-medium" />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Status</Label>
-                      <Select value={formData.status.toString()} onValueChange={(v) => handleSelectChange('status', parseInt(v))}>
-                        <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
-                          <SelectValue placeholder="Select Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {taskStatusConfig.map(s => (
-                            <SelectItem key={s.id} value={s.id.toString()}>{s.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
-                        <span className="text-red-500">*</span> Category
-                      </Label>
-                      <Select value={formData.category} onValueChange={(v) => handleSelectChange('category', v)}>
-                        <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
-                          <SelectValue placeholder="Select Category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="To-Do">To-Do</SelectItem>
-                          <SelectItem value="Visit">Visit</SelectItem>
-                          <SelectItem value="Unit Visit">Unit Visit</SelectItem>
-                          <SelectItem value="Trial">Trial</SelectItem>
-                          <SelectItem value="Query">Query</SelectItem>
-                          <SelectItem value="Inquiry">Inquiry</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {formData.category === "Inquiry" && formData.status === 5 && (
-                      <div className="space-y-1 col-span-2">
-                        <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
-                          <span className="text-red-500">*</span> Inquiry Outcome
-                        </Label>
-                        <Select value={formData.inquiry_outcome} onValueChange={(v) => handleSelectChange('inquiry_outcome', v)}>
-                          <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
-                            <SelectValue placeholder="Select Outcome" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Won">Won</SelectItem>
-                            <SelectItem value="Lost">Lost</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Priority</Label>
-                      <Select value={formData.priority.toString()} onValueChange={(v) => handleSelectChange('priority', v)}>
-                        <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
-                          <SelectValue placeholder="Select Priority" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="1">Low</SelectItem>
-                          <SelectItem value="2">Medium</SelectItem>
-                          <SelectItem value="3">High</SelectItem>
-                          <SelectItem value="4">Urgent</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Repeat Every</Label>
-                      <Select value={formData.repeat_every} onValueChange={(v) => handleSelectChange('repeat_every', v)}>
-                        <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
-                          <SelectValue placeholder="None" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          <SelectItem value="1_week">1 Week</SelectItem>
-                          <SelectItem value="2_weeks">2 Weeks</SelectItem>
-                          <SelectItem value="1_month">1 Month</SelectItem>
-                          <SelectItem value="2_months">2 Months</SelectItem>
-                          <SelectItem value="3_months">3 Months</SelectItem>
-                          <SelectItem value="6_months">6 Months</SelectItem>
-                          <SelectItem value="1_year">1 Year</SelectItem>
-                          <SelectItem value="custom">Custom</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Assignees</Label>
-                      <SearchableSelect 
-                        options={staffOptions} 
-                        value={formData.assignees} 
-                        onValueChange={(v) => handleSelectChange('assignees', v)}
-                        multiple
-                        placeholder="Select Assignees"
-                        className="h-12 rounded-xl border-slate-200 shadow-none"
-                      />
-                    </div>
-
-                    <div className="space-y-1">
-                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Followers</Label>
-                      <SearchableSelect 
-                        options={staffOptions} 
-                        value={formData.followers} 
-                        onValueChange={(v) => handleSelectChange('followers', v)}
-                        multiple
-                        placeholder="Select Followers"
-                        className="h-12 rounded-xl border-slate-200 shadow-none"
-                      />
-                    </div>
-
-                    <div className="col-span-2 space-y-1">
-                      <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tags</Label>
-                      <Input id="tags" value={formData.tags} onChange={handleInputChange} className="h-12 bg-white rounded-xl border-slate-200 font-medium" placeholder="Type and press enter..." />
-                    </div>
-                  </div>
-
-                  {/* Task Description Editor */}
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Task Description</Label>
-                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col transition-all focus-within:ring-2 ring-primary/20 ring-offset-2">
-                      {/* Toolbar Tier 1 */}
-                      <div className="flex items-center gap-1 p-2 bg-slate-50/80 border-b border-slate-100 flex-wrap">
-                        <div className="flex items-center gap-1">
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Undo2 className="h-4 w-4 opacity-70" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Redo2 className="h-4 w-4 opacity-70" /></Button>
-                        </div>
-                        <div className="w-px h-5 bg-slate-200 mx-1" />
-                        <Select value={editorFont} onValueChange={setEditorFont}>
-                          <SelectTrigger className="h-8 w-[130px] border-transparent bg-transparent hover:bg-slate-200 rounded-lg text-xs font-semibold focus:ring-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="System Font">System Font</SelectItem>
-                            <SelectItem value="Inter">Inter</SelectItem>
-                            <SelectItem value="Georgia">Georgia</SelectItem>
-                            <SelectItem value="Monospace">Monospace</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <div className="w-px h-5 bg-slate-200 mx-1" />
-                        <Select value={editorFontSize} onValueChange={setEditorFontSize}>
-                          <SelectTrigger className="h-8 w-[60px] border-transparent bg-transparent hover:bg-slate-200 rounded-lg text-xs font-semibold focus:ring-0">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {[8, 9, 10, 11, 12, 14, 18, 24, 30, 36].map(size => (
-                              <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <div className="w-px h-5 bg-slate-200 mx-1" />
-                        <div className="flex items-center gap-0.5">
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Bold className="h-4 w-4 font-bold opacity-80" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Italic className="h-4 w-4 italic opacity-80" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Underline className="h-4 w-4 underline opacity-80" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Strikethrough className="h-4 w-4 line-through opacity-80" /></Button>
-                        </div>
-                        <div className="w-px h-5 bg-slate-200 mx-1" />
-                        <div className="flex items-center gap-0.5">
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Highlighter className="h-4 w-4 opacity-70 text-yellow-500" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Type className="h-4 w-4 opacity-70" /></Button>
-                        </div>
-                        <div className="w-px h-5 bg-slate-200 mx-1" />
-                        <div className="flex items-center gap-0.5">
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Link2 className="h-4 w-4 opacity-70" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Image className="h-4 w-4 opacity-70" /></Button>
-                        </div>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 transition-colors ml-auto">
-                          <MoreHorizontal className="h-4 w-4 opacity-40" />
-                        </Button>
-                      </div>
-                      {/* Toolbar Tier 2 */}
-                      <div className="flex items-center gap-2 p-2 bg-slate-50/50 border-b border-slate-100 overflow-x-auto no-scrollbar">
-                        <div className="flex items-center gap-0.5 ml-2">
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignLeft className="h-3.5 w-3.5 opacity-60" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignCenter className="h-3.5 w-3.5 opacity-60" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignRight className="h-3.5 w-3.5 opacity-60" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignJustify className="h-3.5 w-3.5 opacity-60" /></Button>
-                        </div>
-                        <div className="w-px h-5 bg-slate-200 mx-1" />
-                        <div className="flex items-center gap-0.5">
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><List className="h-3.5 w-3.5 opacity-60" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><ListOrdered className="h-3.5 w-3.5 opacity-60" /></Button>
-                        </div>
-                        <div className="w-px h-5 bg-slate-200 mx-1" />
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><CheckSquare className="h-3.5 w-3.5 opacity-60" /></Button>
-                      </div>
-                      <Textarea 
-                        id="description"
-                        value={formData.description}
-                        onChange={handleInputChange}
-                        className="border-none focus-visible:ring-0 min-h-[200px] p-6 text-sm leading-relaxed font-medium resize-none bg-white rounded-none" 
-                        placeholder="Start writing task description..."
-                        style={{ fontFamily: editorFont === 'System Font' ? 'inherit' : editorFont, fontSize: `${editorFontSize}pt` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter className="p-6 bg-slate-50 border-t border-slate-100 flex-shrink-0">
-                <DialogClose asChild>
-                  <Button variant="outline" onClick={handleCloseModal} className="font-bold uppercase tracking-wider text-xs px-4 h-9 bg-white hover:bg-slate-100 border-slate-300">Close</Button>
-                </DialogClose>
-                <Button onClick={handleSave} className="font-bold uppercase tracking-wider text-xs px-4 h-9 bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/20">
-                  {editingTask ? "Update" : "Save"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
+                  <DialogFooter className="p-6 bg-slate-50 border-t border-slate-100 flex-shrink-0">
+                    <DialogClose asChild>
+                      <Button variant="outline" onClick={handleCloseModal} className="font-bold uppercase tracking-wider text-xs px-4 h-9 bg-white hover:bg-slate-100 border-slate-300">Close</Button>
+                    </DialogClose>
+                    <Button onClick={handleSave} className="font-bold uppercase tracking-wider text-xs px-4 h-9 bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/20">
+                      {editingTask ? "Update" : "Save"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
               </Dialog>
             </div>
           )}
@@ -828,8 +828,8 @@ const Tasks = () => {
         {/* Real-time Status Cards */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {stats.map((status) => (
-            <Card 
-              key={status.id} 
+            <Card
+              key={status.id}
               className={`cursor-pointer transition-all hover:shadow-sm border-t-2 ${activeStatus === status.id ? 'ring-2 ring-primary border-t-primary' : 'border-t-transparent hover:border-t-primary/50'}`}
               onClick={() => setActiveStatus(activeStatus === status.id ? "all" : status.id)}
             >
@@ -846,8 +846,8 @@ const Tasks = () => {
             {/* Control Bar */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border-b gap-4">
               <div className="flex flex-wrap items-center gap-2">
-                <Select 
-                  value={itemsPerPage.toString()} 
+                <Select
+                  value={itemsPerPage.toString()}
                   onValueChange={(val) => {
                     setItemsPerPage(val === "All" ? 999999 : Number(val));
                     setCurrentPage(1);
@@ -865,8 +865,8 @@ const Tasks = () => {
                   </SelectContent>
                 </Select>
 
-                <Select 
-                  value={activeCategory} 
+                <Select
+                  value={activeCategory}
                   onValueChange={(val) => {
                     setActiveCategory(val);
                     setCurrentPage(1);
@@ -879,7 +879,7 @@ const Tasks = () => {
                     <SelectItem value="all">All Categories</SelectItem>
                     <SelectItem value="To-Do">To-Do</SelectItem>
                     <SelectItem value="Visit">Visit</SelectItem>
-                    <SelectItem value="Unit Visit">Unit Visit</SelectItem>
+                    <SelectItem value="Unique Visit">Unique Visits</SelectItem>
                     <SelectItem value="Trial">Trial</SelectItem>
                     <SelectItem value="Query">Query</SelectItem>
                     <SelectItem value="Inquiry">Inquiry</SelectItem>
@@ -903,7 +903,7 @@ const Tasks = () => {
 
                 <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                   if (open && selectedTasks.length === 0) {
-                    toast({ title: "Error", description: "Please select at least one task first."});
+                    toast({ title: "Error", description: "Please select at least one task first." });
                     return;
                   }
                   setBulkActionOpen(open);
@@ -919,18 +919,18 @@ const Tasks = () => {
                     </DialogHeader>
                     <div className="space-y-5 pt-4">
                       <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id="massDelete" 
+                        <Checkbox
+                          id="massDelete"
                           className="border-red-500 data-[state=checked]:bg-red-500"
                           checked={bulkState.massDelete}
-                          onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                          onCheckedChange={(checked) => setBulkState({ ...bulkState, massDelete: checked as boolean })}
                         />
                         <Label htmlFor="massDelete" className="text-red-600 font-bold">Mass Delete</Label>
                       </div>
                       <div className="grid grid-cols-1 gap-5 mt-2 pt-5 border-t">
                         <div className="space-y-2">
                           <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Status</Label>
-                          <Select value={bulkState.status} onValueChange={(val) => setBulkState({...bulkState, status: val})} disabled={bulkState.massDelete}>
+                          <Select value={bulkState.status} onValueChange={(val) => setBulkState({ ...bulkState, status: val })} disabled={bulkState.massDelete}>
                             <SelectTrigger className="h-10"><SelectValue placeholder="Select Status" /></SelectTrigger>
                             <SelectContent>
                               {taskStatusConfig.map(s => (
@@ -941,7 +941,7 @@ const Tasks = () => {
                         </div>
                         <div className="space-y-2">
                           <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Priority</Label>
-                          <Select value={bulkState.priority} onValueChange={(val) => setBulkState({...bulkState, priority: val})} disabled={bulkState.massDelete}>
+                          <Select value={bulkState.priority} onValueChange={(val) => setBulkState({ ...bulkState, priority: val })} disabled={bulkState.massDelete}>
                             <SelectTrigger className="h-10"><SelectValue placeholder="Select Priority" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="1">Low</SelectItem>
@@ -965,7 +965,7 @@ const Tasks = () => {
                               </Tooltip>
                             </TooltipProvider>
                           </div>
-                          <Select value={bulkState.assignee} onValueChange={(val) => setBulkState({...bulkState, assignee: val})} disabled={bulkState.massDelete}>
+                          <Select value={bulkState.assignee} onValueChange={(val) => setBulkState({ ...bulkState, assignee: val })} disabled={bulkState.massDelete}>
                             <SelectTrigger className="h-10"><SelectValue placeholder="Select Member" /></SelectTrigger>
                             <SelectContent>
                               {staffOptions.map((s: any) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
@@ -974,7 +974,7 @@ const Tasks = () => {
                         </div>
                         <div className="space-y-2">
                           <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Billable</Label>
-                          <Select value={bulkState.billable} onValueChange={(val) => setBulkState({...bulkState, billable: val})} disabled={bulkState.massDelete}>
+                          <Select value={bulkState.billable} onValueChange={(val) => setBulkState({ ...bulkState, billable: val })} disabled={bulkState.massDelete}>
                             <SelectTrigger className="h-10"><SelectValue placeholder="Select Option" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="yes">Yes</SelectItem>
@@ -984,11 +984,11 @@ const Tasks = () => {
                         </div>
                         <div className="space-y-2">
                           <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Tags</Label>
-                          <Input 
-                            placeholder="Enter tags separated by commas" 
+                          <Input
+                            placeholder="Enter tags separated by commas"
                             className="h-10"
                             value={bulkState.tags}
-                            onChange={(e) => setBulkState({...bulkState, tags: e.target.value})}
+                            onChange={(e) => setBulkState({ ...bulkState, tags: e.target.value })}
                             disabled={bulkState.massDelete}
                           />
                         </div>
@@ -998,7 +998,7 @@ const Tasks = () => {
                       <DialogClose asChild>
                         <Button variant="outline" className="font-bold uppercase tracking-wider text-xs">Close</Button>
                       </DialogClose>
-                      <Button 
+                      <Button
                         className="font-bold uppercase tracking-wider text-xs bg-slate-900 text-white hover:bg-slate-800"
                         onClick={handleBulkAction}
                         disabled={isBulkLoading}
@@ -1029,8 +1029,8 @@ const Tasks = () => {
                 <thead>
                   <tr className="border-b text-left text-[11px] text-slate-500 uppercase tracking-widest bg-slate-50/80">
                     <th className="p-4 font-bold w-12">
-                      <Checkbox 
-                        className="border-slate-300" 
+                      <Checkbox
+                        className="border-slate-300"
                         checked={paginatedTasks.length > 0 && selectedTasks.length === paginatedTasks.length}
                         onCheckedChange={handleSelectAll}
                       />
@@ -1071,8 +1071,8 @@ const Tasks = () => {
                       return (
                         <tr key={task._id} className="border-b last:border-0 hover:bg-slate-50/50 transition-colors group">
                           <td className="p-4">
-                            <Checkbox 
-                              className="border-slate-300 data-[state=checked]:bg-primary" 
+                            <Checkbox
+                              className="border-slate-300 data-[state=checked]:bg-primary"
                               checked={selectedTasks.includes(task._id)}
                               onCheckedChange={(checked) => {
                                 if (checked) setSelectedTasks([...selectedTasks, task._id]);
@@ -1085,7 +1085,7 @@ const Tasks = () => {
                           </td>
                           <td className="p-4">
                             <div className="flex flex-col">
-                              <span 
+                              <span
                                 onClick={() => handleView(task)}
                                 className="font-semibold text-primary hover:underline cursor-pointer"
                               >
@@ -1105,8 +1105,8 @@ const Tasks = () => {
                             </Badge>
                           </td>
                           <td className="p-4">
-                            <Select 
-                              value={task.displayStatus.toString()} 
+                            <Select
+                              value={task.displayStatus.toString()}
                               onValueChange={(v) => handleInlineUpdate(task, task.isTodo ? 'finished' : 'status', task.isTodo ? v === '5' : parseInt(v))}
                             >
                               <SelectTrigger className={`h-8 w-[140px] text-[10px] font-bold uppercase tracking-wider border rounded-md ${status.bg} ${status.text} ${status.border} focus:ring-0 focus:ring-offset-0 shadow-none hover:opacity-80 transition-opacity`}>
@@ -1169,8 +1169,8 @@ const Tasks = () => {
                           </td>
                           <td className="p-4">
                             {!task.isTodo ? (
-                              <Select 
-                                value={task.displayPriority.toString()} 
+                              <Select
+                                value={task.displayPriority.toString()}
                                 onValueChange={(v) => handleInlineUpdate(task, 'priority', parseInt(v))}
                               >
                                 <SelectTrigger className={`h-8 w-[100px] text-[10px] font-bold uppercase tracking-wider border rounded-md ${priorityColor} focus:ring-0 focus:ring-offset-0`}>
@@ -1212,25 +1212,25 @@ const Tasks = () => {
                   Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="h-8 px-3 text-xs font-bold"
                     onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
                     disabled={currentPage === 1}
                   >
                     Previous
                   </Button>
-                  <Button 
-                    variant="default" 
-                    size="sm" 
+                  <Button
+                    variant="default"
+                    size="sm"
                     className="h-8 w-8 p-0 text-xs font-bold bg-primary text-primary-foreground"
                   >
                     {currentPage}
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="h-8 px-3 text-xs font-bold"
                     onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                     disabled={currentPage === totalPages || totalPages === 0}
