@@ -14,9 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  ArrowLeft, 
-  Save, 
+import {
+  ArrowLeft,
+  Save,
   Paperclip,
   Trash2,
   X
@@ -93,8 +93,8 @@ const TaskCreate = () => {
   }, [task]);
 
   const mutation = useMutation({
-    mutationFn: (data: any) => isEditing 
-      ? taskService.update(id!, data) 
+    mutationFn: (data: any) => isEditing
+      ? taskService.update(id!, data)
       : taskService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -135,7 +135,7 @@ const TaskCreate = () => {
       return;
     }
     if (formData.category === "Inquiry" && formData.status === 5 && !formData.inquiry_outcome) {
-      toast({ title: "Error", description: "Please select Won or Lost for the closed inquiry."});
+      toast({ title: "Error", description: "Please select Won or Lost for the closed inquiry." });
       return;
     }
     mutation.mutate(formData);
@@ -148,8 +148,8 @@ const TaskCreate = () => {
       <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-700 pb-20">
         {/* Header */}
         <div className="flex items-center gap-4 bg-white/50 backdrop-blur-md p-4 rounded-2xl border border-slate-100 shadow-sm">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="icon"
             className="rounded-full h-10 w-10 hover:bg-slate-100 transition-all group"
             onClick={() => navigate(-1)}
@@ -169,22 +169,22 @@ const TaskCreate = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/80 backdrop-blur-xl overflow-hidden border border-slate-50">
             <CardContent className="p-10 space-y-8">
-              
+
               {/* Toggles */}
               <div className="flex flex-wrap gap-8 items-center bg-slate-50/50 p-6 rounded-3xl border border-slate-100">
                 <div className="flex items-center space-x-3">
-                  <Checkbox 
-                    id="visible_to_client" 
-                    checked={formData.visible_to_client} 
+                  <Checkbox
+                    id="visible_to_client"
+                    checked={formData.visible_to_client}
                     onCheckedChange={(checked) => handleSelectChange("visible_to_client", checked)}
                     className="h-5 w-5 rounded-md"
                   />
                   <Label htmlFor="visible_to_client" className="text-[10px] font-black uppercase tracking-widest text-slate-600 cursor-pointer">Public</Label>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <Checkbox 
-                    id="billable" 
-                    checked={formData.billable} 
+                  <Checkbox
+                    id="billable"
+                    checked={formData.billable}
                     onCheckedChange={(checked) => handleSelectChange("billable", checked)}
                     className="h-5 w-5 rounded-md"
                   />
@@ -225,11 +225,11 @@ const TaskCreate = () => {
               <div className="grid grid-cols-1 gap-8">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">* Subject</Label>
-                  <Input 
-                    name="name" 
-                    value={formData.name} 
-                    onChange={handleInputChange} 
-                    className="rounded-xl h-12 text-sm font-bold border-slate-200 shadow-none" 
+                  <Input
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className="rounded-xl h-12 text-sm font-bold border-slate-200 shadow-none"
                     placeholder="Enter task subject..."
                   />
                 </div>
@@ -238,12 +238,12 @@ const TaskCreate = () => {
                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Hourly Rate</Label>
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
-                    <Input 
-                      type="number" 
-                      name="hourly_rate" 
-                      value={formData.hourly_rate} 
-                      onChange={handleInputChange} 
-                      className="rounded-xl h-12 pl-8 text-sm font-black border-slate-200 shadow-none" 
+                    <Input
+                      type="number"
+                      name="hourly_rate"
+                      value={formData.hourly_rate}
+                      onChange={handleInputChange}
+                      className="rounded-xl h-12 pl-8 text-sm font-black border-slate-200 shadow-none"
                       placeholder="0.00"
                     />
                   </div>
@@ -251,22 +251,22 @@ const TaskCreate = () => {
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">* Start Date</Label>
-                  <Input 
-                    type="date" 
-                    name="startdate" 
-                    value={formData.startdate} 
-                    onChange={handleInputChange} 
+                  <Input
+                    type="date"
+                    name="startdate"
+                    value={formData.startdate}
+                    onChange={handleInputChange}
                     className="rounded-xl h-12 text-sm font-bold border-slate-200 shadow-none"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Due Date</Label>
-                  <Input 
-                    type="date" 
-                    name="duedate" 
-                    value={formData.duedate} 
-                    onChange={handleInputChange} 
+                  <Input
+                    type="date"
+                    name="duedate"
+                    value={formData.duedate}
+                    onChange={handleInputChange}
                     className="rounded-xl h-12 text-sm font-bold border-slate-200 shadow-none"
                   />
                 </div>
@@ -279,7 +279,7 @@ const TaskCreate = () => {
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
                       <SelectItem value="Visit">Visit</SelectItem>
-                      <SelectItem value="Unit Visit">Unit Visit</SelectItem>
+                      <SelectItem value="Unique Visit">Unique Visits</SelectItem>
                       <SelectItem value="Trial">Trial</SelectItem>
                       <SelectItem value="Query">Query</SelectItem>
                       <SelectItem value="Inquiry">Inquiry</SelectItem>
@@ -339,22 +339,22 @@ const TaskCreate = () => {
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Related To</Label>
-                  <SearchableSelect 
-                    options={customers.map((c: any) => ({ value: c._id, label: c.company }))} 
-                    value={formData.rel_id} 
-                    onValueChange={(val) => handleSelectChange("rel_id", val)} 
-                    placeholder="Search for customer..." 
+                  <SearchableSelect
+                    options={customers.map((c: any) => ({ value: c._id, label: c.company }))}
+                    value={formData.rel_id}
+                    onValueChange={(val) => handleSelectChange("rel_id", val)}
+                    placeholder="Search for customer..."
                     className="rounded-xl h-12 text-sm font-bold border-slate-200 shadow-none bg-white"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Assignees</Label>
-                  <SearchableSelect 
-                    options={staffOptions} 
-                    value={formData.assignees} 
-                    onValueChange={(val) => handleSelectChange("assignees", val)} 
-                    placeholder="Select assignees..." 
+                  <SearchableSelect
+                    options={staffOptions}
+                    value={formData.assignees}
+                    onValueChange={(val) => handleSelectChange("assignees", val)}
+                    placeholder="Select assignees..."
                     multiple
                     className="rounded-xl h-12 text-sm font-bold border-slate-200 shadow-none bg-white"
                   />
@@ -362,11 +362,11 @@ const TaskCreate = () => {
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Followers</Label>
-                  <SearchableSelect 
-                    options={staffOptions} 
-                    value={formData.followers} 
-                    onValueChange={(val) => handleSelectChange("followers", val)} 
-                    placeholder="Select followers..." 
+                  <SearchableSelect
+                    options={staffOptions}
+                    value={formData.followers}
+                    onValueChange={(val) => handleSelectChange("followers", val)}
+                    placeholder="Select followers..."
                     multiple
                     className="rounded-xl h-12 text-sm font-bold border-slate-200 shadow-none bg-white"
                   />
@@ -375,8 +375,8 @@ const TaskCreate = () => {
                 <div className="space-y-4">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Tags</Label>
                   <div className="flex gap-2">
-                    <Input 
-                      value={tagInput} 
+                    <Input
+                      value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -387,7 +387,7 @@ const TaskCreate = () => {
                           }
                         }
                       }}
-                      className="rounded-xl h-12 text-sm font-bold border-slate-200 shadow-none bg-white" 
+                      className="rounded-xl h-12 text-sm font-bold border-slate-200 shadow-none bg-white"
                       placeholder="Add tags (press Enter)..."
                     />
                   </div>
@@ -395,8 +395,8 @@ const TaskCreate = () => {
                     {formData.tags.map((tag: string, i: number) => (
                       <Badge key={i} className="bg-slate-900 text-white px-3 py-1.5 rounded-lg flex items-center gap-2 group">
                         {tag}
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => handleSelectChange("tags", formData.tags.filter((t: string) => t !== tag))}
                           className="hover:text-rose-400 transition-colors"
                         >
@@ -409,11 +409,11 @@ const TaskCreate = () => {
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Task Description</Label>
-                  <Textarea 
-                    name="description" 
-                    value={formData.description} 
-                    onChange={handleInputChange} 
-                    className="rounded-xl min-h-[150px] text-sm font-medium border-slate-200 shadow-none p-4 resize-none bg-white" 
+                  <Textarea
+                    name="description"
+                    value={formData.description}
+                    onChange={handleInputChange}
+                    className="rounded-xl min-h-[150px] text-sm font-medium border-slate-200 shadow-none p-4 resize-none bg-white"
                     placeholder="Describe the task in detail..."
                   />
                 </div>
@@ -424,17 +424,17 @@ const TaskCreate = () => {
 
           {/* Action Footer */}
           <div className="flex justify-center items-center gap-4 pt-4">
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               variant="ghost"
               onClick={() => navigate(-1)}
               className="h-10 px-8 rounded-xl font-black uppercase tracking-widest text-[10px] text-slate-500 hover:bg-slate-100 transition-all"
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
-              size="sm" 
+            <Button
+              type="submit"
+              size="sm"
               className="h-10 px-12 rounded-xl shadow-lg shadow-primary/20 font-black uppercase tracking-widest text-[10px] gap-2 transition-all hover:scale-[1.02] active:scale-95 bg-primary hover:bg-primary/90"
               disabled={mutation.isPending}
             >
