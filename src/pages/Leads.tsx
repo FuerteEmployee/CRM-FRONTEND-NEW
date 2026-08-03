@@ -1,6 +1,7 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
-import { Plus, Search, ChevronDown, FileJson, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon } from "lucide-react";
+import { Plus, Search, ChevronDown, FileJson, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon, KanbanSquare, List } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { LANGUAGE_NAMES } from "@/lib/languages";
@@ -47,8 +48,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { LeadsKanban } from "@/pages/LeadsKanban";
 
 const Leads = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = searchParams.get("view") === "kanban" ? "kanban" : "list";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [itemsPerPage, setItemsPerPage] = useState(25);
@@ -417,6 +422,25 @@ const Leads = () => {
             <h1 className="text-3xl font-black text-slate-900 tracking-tight">Leads</h1>
             <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Management Pipeline</p>
           </div>
+          <div className="flex gap-2 items-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-11 w-11 rounded-xl border-slate-200"
+                  onClick={() => setSearchParams(prev => {
+                    const next = new URLSearchParams(prev);
+                    next.set("view", view === "kanban" ? "list" : "kanban");
+                    return next;
+                  })}
+                  aria-label={view === "kanban" ? "Switch to List view" : "Switch to Kanban view"}
+                >
+                  {view === "kanban" ? <List className="h-4 w-4" /> : <KanbanSquare className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{view === "kanban" ? "Switch to List view" : "Switch to Kanban view"}</TooltipContent>
+            </Tooltip>
           {can("Leads", "Create") && (
             <div className="flex gap-2 items-center">
               <ImportButton onData={processLeadRows} loading={importLeadsMutation.isPending} label="Import Leads" />
@@ -703,6 +727,7 @@ const Leads = () => {
             </Dialog>
             </div>
           )}
+          </div>
         </div>
 
         {/* Status Cards - Filters */}
@@ -734,6 +759,9 @@ const Leads = () => {
           })}
         </div>
 
+        {view === "kanban" ? (
+          <LeadsKanban leads={filtered} statuses={statuses} staff={staff} isLoading={isLoading} />
+        ) : (
         <Card className="border shadow-sm rounded-xl overflow-hidden bg-white">
           <CardContent className="p-0">
             {/* Table Controls */}
@@ -1085,6 +1113,7 @@ const Leads = () => {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
     </DashboardLayout>
   );

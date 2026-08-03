@@ -31,6 +31,7 @@ import TicketCreate from "./pages/TicketCreate";
 import TicketView from "./pages/TicketView";
 import Calendar from "./pages/Calendar";
 import Leads from "./pages/Leads";
+import LeadView from "./pages/LeadView";
 import Subscriptions from "./pages/Subscriptions";
 import SubscriptionCreate from "./pages/SubscriptionCreate";
 import SubscriptionWebsite from "./pages/SubscriptionWebsite";
@@ -225,6 +226,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="ticket-pipe-log" element={<Wrapper><TicketPipeLog /></Wrapper>} />
     <Route path="calendar" element={<Wrapper><Calendar /></Wrapper>} />
     <Route path="leads" element={<Wrapper><Leads /></Wrapper>} />
+    <Route path="leads/:id" element={<Wrapper><LeadView /></Wrapper>} />
     <Route path="subscriptions" element={<Wrapper><Subscriptions /></Wrapper>} />
     <Route path="subscriptions/create" element={<Wrapper><SubscriptionCreate /></Wrapper>} />
     <Route path="subscriptions/create/:clientId" element={<Wrapper><SubscriptionCreate /></Wrapper>} />
