@@ -217,8 +217,11 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const vw = video.videoWidth || video.clientWidth || 640;
+    const vh = video.videoHeight || video.clientHeight || 480;
+
+    canvas.width = vw;
+    canvas.height = vh;
 
     // Mirror front camera selfie so the saved image is correctly oriented
     if (facingMode === "user") {
@@ -228,7 +231,11 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     canvas.toBlob((blob) => {
-      if (blob) onCapture(blob, faceDetected);
+      if (blob) {
+        onCapture(blob, faceDetected);
+      } else {
+        console.error("Camera capture failed: toBlob returned null.");
+      }
     }, "image/jpeg", 0.85);
   };
 
@@ -254,7 +261,16 @@ export const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onCance
               autoPlay
               playsInline
               muted
-              className={`h-full w-full object-cover ${facingMode === "user" ? "scale-x-[-1]" : ""}`}
+              style={{
+                minWidth: '100%',
+                minHeight: '100%',
+                width: 'auto',
+                height: 'auto',
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                transform: `translate(-50%, -50%) ${facingMode === "user" ? "scaleX(-1)" : ""}`,
+              }}
             />
             {isReady && (
               <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-10">

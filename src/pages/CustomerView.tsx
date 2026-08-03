@@ -630,8 +630,8 @@ export default function CustomerView() {
   });
 
   const { data: staff = [] } = useQuery({
-    queryKey: ["staff"],
-    queryFn: staffService.getAll,
+    queryKey: ["staff", "assignable"],
+    queryFn: staffService.getAssignable,
   });
 
   const staffOptions = useMemo(() =>

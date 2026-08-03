@@ -156,8 +156,8 @@ const Tasks = () => {
   });
 
   const { data: staffMembers = [] } = useQuery<any[]>({
-    queryKey: ["staff"],
-    queryFn: staffService.getAll,
+    queryKey: ["staff", "assignable"],
+    queryFn: staffService.getAssignable,
   });
 
   const { data: customers = [] } = useQuery<any[]>({
@@ -879,7 +879,7 @@ const Tasks = () => {
                     <SelectItem value="all">All Categories</SelectItem>
                     <SelectItem value="To-Do">To-Do</SelectItem>
                     <SelectItem value="Visit">Visit</SelectItem>
-                    <SelectItem value="Unique Visit">Unique Visit</SelectItem>
+                    <SelectItem value="Unique Visit">Unique Visits</SelectItem>
                     <SelectItem value="Trial">Trial</SelectItem>
                     <SelectItem value="Query">Query</SelectItem>
                     <SelectItem value="Inquiry">Inquiry</SelectItem>

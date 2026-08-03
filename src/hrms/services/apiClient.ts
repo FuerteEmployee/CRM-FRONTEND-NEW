@@ -64,6 +64,7 @@ const forceLogout = () => {
   if (_loggingOut) return;
   _loggingOut = true;
   localStorage.removeItem("std_user");
+  localStorage.removeItem("crm_token");
   toast({ title: "Session Expired", description: "Please log in again.", variant: "destructive" });
   setTimeout(() => { window.location.href = "/login"; }, 1200);
 };
@@ -80,7 +81,7 @@ const attemptRefresh = (): Promise<boolean> => {
       const currentToken = getAuthToken();
       if (!currentToken) return false;
 
-      const res = await fetch(`${API_BASE_URL}/users/refresh`, {
+      const res = await fetch(`${API_BASE_URL}/hrms/users/refresh`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${currentToken}` },
       });
@@ -187,7 +188,12 @@ const _request = async (endpoint: string, method: HttpMethod, options: FetchOpti
     if (!options.silent && response.status !== 404) {
       toast({ title: "Server Communication Error", description: msg, variant: "destructive" });
     }
-    throw new Error(msg);
+    // Attach full server response body on the error so callers can inspect
+    // fields like geoFenceViolation, distance, allowedRadius, etc.
+    const err: any = new Error(msg);
+    err.responseData = json;
+    err.status = response.status;
+    throw err;
   }
 
   return json;

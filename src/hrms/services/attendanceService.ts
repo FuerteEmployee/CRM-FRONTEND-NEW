@@ -11,7 +11,8 @@ export const attendanceService = {
     if (location.fixAt !== undefined) formData.append("fixAt", new Date(location.fixAt).toISOString());
     if (faceDetected !== undefined) formData.append("faceDetected", faceDetected.toString());
 
-    const response = await apiClient.post("/attendance/punch-in", formData);
+    // silent:true — handleDirectPunch in AttendancePage shows its own specific toasts
+    const response = await apiClient.post("/attendance/punch-in", formData, { silent: true } as any);
     return response.data;
   },
 
@@ -25,7 +26,8 @@ export const attendanceService = {
     if (location.fixAt !== undefined) formData.append("fixAt", new Date(location.fixAt).toISOString());
     if (faceDetected !== undefined) formData.append("faceDetected", faceDetected.toString());
 
-    const response = await apiClient.post("/attendance/punch-out", formData);
+    // silent:true — handleDirectPunch in AttendancePage shows its own specific toasts
+    const response = await apiClient.post("/attendance/punch-out", formData, { silent: true } as any);
     return response.data;
   },
 

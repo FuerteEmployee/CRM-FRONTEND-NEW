@@ -234,7 +234,14 @@ class LocationService {
         pos.coords.accuracy,
         pos.coords.speed ?? 0
       ),
-      (err) => console.warn("[LocationService] Web GPS error:", err.message),
+      (err) => {
+        if (err?.code === 1 || String(err?.message || "").toLowerCase().includes("denied")) {
+          console.warn("[LocationService] Geolocation permission denied by user. Stopping background location tracker.");
+          this.stopTracking();
+        } else {
+          console.warn("[LocationService] Web GPS error:", err.message);
+        }
+      },
       opts
     );
     this.watcherId = id.toString();
@@ -450,8 +457,12 @@ class LocationService {
         pos.coords.speed ?? 0,
         true
       );
-    } catch (err) {
-      console.warn("[LocationService] Initial fix failed:", err);
+    } catch (err: any) {
+      if (err?.code === 1 || String(err?.message || "").toLowerCase().includes("denied")) {
+        console.warn("[LocationService] Geolocation permission denied by user.");
+      } else {
+        console.warn("[LocationService] Initial fix failed:", err?.message || err);
+      }
     }
   }
 
