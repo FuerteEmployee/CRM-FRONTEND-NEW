@@ -22,6 +22,7 @@ import Contacts from "./pages/Contacts";
 import Expenses from "./pages/Expenses";
 import Purchases from "./pages/Purchases";
 import Vendors from "./pages/Vendors";
+import VendorView from "./pages/VendorView";
 import ExpenseCreate from "./pages/ExpenseCreate";
 
 import Profile from "./pages/Profile";
@@ -218,6 +219,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="quotations" element={<Wrapper><QuotationModule /></Wrapper>} />
     <Route path="purchases" element={<Wrapper><Purchases /></Wrapper>} />
     <Route path="vendors" element={<Wrapper><Vendors /></Wrapper>} />
+    <Route path="vendors/:id" element={<Wrapper><VendorView /></Wrapper>} />
     <Route path="expenses" element={<Wrapper><Expenses /></Wrapper>} />
     <Route path="expenses/create" element={<Wrapper><ExpenseCreate /></Wrapper>} />
     <Route path="expenses/edit/:id" element={<Wrapper><ExpenseCreate /></Wrapper>} />

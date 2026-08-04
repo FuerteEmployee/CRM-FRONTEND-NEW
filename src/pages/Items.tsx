@@ -62,6 +62,9 @@ const Items = () => {
     unit: "",
     group: "",
     tax: "none",
+    hsn_sac_code: "",
+    cess_rate: "0",
+    tax_inclusive: false,
     custom_fields: {},
   });
 
@@ -74,6 +77,9 @@ const Items = () => {
     unit: "",
     group: "",
     tax: "none",
+    hsn_sac_code: "",
+    cess_rate: "0",
+    tax_inclusive: false,
     custom_fields: {},
   });
 
@@ -132,6 +138,9 @@ const Items = () => {
         unit: "",
         group: "",
         tax: "none",
+        hsn_sac_code: "",
+        cess_rate: "0",
+        tax_inclusive: false,
         custom_fields: {},
       });
     },
@@ -298,6 +307,7 @@ const Items = () => {
       quantity: Number(createForm.quantity) || 1,
       rate: Number(createForm.rate) || 0,
       amount: Number(createForm.amount) || 0,
+      cess_rate: Number(createForm.cess_rate) || 0,
       tax: createForm.tax === "none" ? undefined : createForm.tax,
     };
     createMutation.mutate(payload);
@@ -312,6 +322,7 @@ const Items = () => {
       quantity: Number(editForm.quantity) || 1,
       rate: Number(editForm.rate) || 0,
       amount: Number(editForm.amount) || 0,
+      cess_rate: Number(editForm.cess_rate) || 0,
       tax: editForm.tax === "none" ? null : editForm.tax,
     };
     updateMutation.mutate({ id: editItem._id, data: payload });
@@ -328,6 +339,9 @@ const Items = () => {
       unit: item.unit || "",
       group: item.group || "",
       tax: item.tax?._id || item.tax || "none",
+      hsn_sac_code: item.hsn_sac_code || "",
+      cess_rate: String(item.cess_rate ?? 0),
+      tax_inclusive: item.tax_inclusive || false,
       custom_fields: item.custom_fields || {},
     });
   };
@@ -424,7 +438,16 @@ const Items = () => {
       { header: "Rate", key: "rate" },
       { header: "Amount", key: (i: any) => i.amount ?? ((i.quantity ?? 1) * (i.rate ?? 0)) },
       { header: "Unit", key: (i: any) => i.unit || "item" },
-      { header: "Tax", key: (i: any) => i.tax ? (typeof i.tax === "object" ? `${i.tax.name} (${i.tax.taxrate}%)` : "Active Tax") : "-" }
+      { header: "Tax", key: (i: any) => i.tax ? (typeof i.tax === "object" ? `${i.tax.name} (${i.tax.taxrate}%)` : "Active Tax") : "-" },
+      { header: "HSN/SAC", key: (i: any) => i.hsn_sac_code || "-" },
+      {
+        header: "GST %",
+        key: (i: any) => {
+          const rate1 = typeof i.tax === "object" ? i.tax?.taxrate || 0 : 0;
+          const rate2 = typeof i.tax2 === "object" ? i.tax2?.taxrate || 0 : 0;
+          return rate1 + rate2;
+        },
+      },
     ];
     tableCustomFields.forEach((cf: any) => {
       cols.push({
@@ -556,6 +579,37 @@ const Items = () => {
                       </Select>
                     </div>
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-700">HSN/SAC Code</Label>
+                      <Input
+                        placeholder="e.g. 998314"
+                        value={createForm.hsn_sac_code}
+                        onChange={(e) => setCreateForm((p: any) => ({ ...p, hsn_sac_code: e.target.value }))}
+                        className="rounded-xl h-11 border-slate-200"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-700">Cess Rate (%)</Label>
+                      <Input
+                        type="number"
+                        placeholder="0"
+                        value={createForm.cess_rate}
+                        onChange={(e) => setCreateForm((p: any) => ({ ...p, cess_rate: e.target.value }))}
+                        className="rounded-xl h-11 border-slate-200"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="create-tax-inclusive"
+                      checked={createForm.tax_inclusive}
+                      onCheckedChange={(v) => setCreateForm((p: any) => ({ ...p, tax_inclusive: !!v }))}
+                    />
+                    <Label htmlFor="create-tax-inclusive" className="text-xs font-bold text-slate-700 cursor-pointer">
+                      Rate is tax-inclusive
+                    </Label>
+                  </div>
 
                   {/* Render Custom Fields */}
                   {customFieldDefs.length > 0 && (
@@ -669,6 +723,7 @@ const Items = () => {
                     <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Amount</th>
                     <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Unit</th>
                     <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Tax</th>
+                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">HSN/SAC</th>
                     {tableCustomFields.map((cf: any) => (
                       <th key={cf._id} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
                         {cf.name}
@@ -683,14 +738,14 @@ const Items = () => {
                       .fill(0)
                       .map((_, i) => (
                         <tr key={i}>
-                          <td colSpan={10 + tableCustomFields.length} className="p-4">
+                          <td colSpan={11 + tableCustomFields.length} className="p-4">
                             <Skeleton className="h-10 w-full" />
                           </td>
                         </tr>
                       ))
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={10 + tableCustomFields.length} className="px-6 py-12 text-center text-muted-foreground italic">
+                      <td colSpan={11 + tableCustomFields.length} className="px-6 py-12 text-center text-muted-foreground italic">
                         No database items found. Use "New Item" to populate the list.
                       </td>
                     </tr>
@@ -739,6 +794,7 @@ const Items = () => {
                             <span className="text-slate-400 font-medium">-</span>
                           )}
                         </td>
+                        <td className="px-6 py-4 font-medium text-slate-500">{item.hsn_sac_code || "-"}</td>
                         {tableCustomFields.map((cf: any) => {
                           const val = item.custom_fields?.[cf.slug] ?? item.custom_fields?.[cf._id] ?? "-";
                           return (
@@ -831,6 +887,21 @@ const Items = () => {
                   <p className="text-xs font-bold text-emerald-700">
                     {viewItem.tax ? `${typeof viewItem.tax === "object" ? viewItem.tax.name : "Active Tax"} (${typeof viewItem.tax === "object" ? viewItem.tax.taxrate : 0}%)` : "No Tax"}
                   </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">HSN/SAC</p>
+                  <p className="text-sm font-bold text-slate-700">{viewItem.hsn_sac_code || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Cess Rate</p>
+                  <p className="text-sm font-bold text-slate-700">{viewItem.cess_rate || 0}%</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Pricing</p>
+                  <p className="text-sm font-bold text-slate-700">{viewItem.tax_inclusive ? "Tax-inclusive" : "Tax-exclusive"}</p>
                 </div>
               </div>
 
@@ -956,6 +1027,37 @@ const Items = () => {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-700">HSN/SAC Code</Label>
+                  <Input
+                    placeholder="e.g. 998314"
+                    value={editForm.hsn_sac_code}
+                    onChange={(e) => setEditForm((p: any) => ({ ...p, hsn_sac_code: e.target.value }))}
+                    className="rounded-xl h-11 border-slate-200"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-700">Cess Rate (%)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    value={editForm.cess_rate}
+                    onChange={(e) => setEditForm((p: any) => ({ ...p, cess_rate: e.target.value }))}
+                    className="rounded-xl h-11 border-slate-200"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="edit-tax-inclusive"
+                  checked={editForm.tax_inclusive}
+                  onCheckedChange={(v) => setEditForm((p: any) => ({ ...p, tax_inclusive: !!v }))}
+                />
+                <Label htmlFor="edit-tax-inclusive" className="text-xs font-bold text-slate-700 cursor-pointer">
+                  Rate is tax-inclusive
+                </Label>
               </div>
 
               {/* Custom Fields in Edit */}

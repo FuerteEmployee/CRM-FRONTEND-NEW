@@ -34,6 +34,11 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useCurrency } from "@/context/CurrencyContext";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
+import { useSettings } from "@/context/SettingsContext";
+import { VendorSelect, type VendorRecord } from "@/components/VendorSelect";
+import { vendorService } from "@/api/services/vendor.service";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemSelect";
 
 const HOME_STATE = "Gujarat";
 const HOME_STATE_GST_CODE = "24";
@@ -48,6 +53,20 @@ const INDIAN_STATES = [
 
 const GST_RATES = ["0", "5", "12", "18", "28"];
 
+// Mirrors Backend/src/utils/gstStateCodes.js — used only for the live
+// supplier_state preview when a vendor is selected; the server recomputes
+// this authoritatively from the vendor's GSTIN on save.
+const GST_STATE_CODES: Record<string, string> = {
+  "01": "Jammu and Kashmir", "02": "Himachal Pradesh", "03": "Punjab", "04": "Chandigarh",
+  "05": "Uttarakhand", "06": "Haryana", "07": "Delhi", "08": "Rajasthan", "09": "Uttar Pradesh",
+  "10": "Bihar", "11": "Sikkim", "12": "Arunachal Pradesh", "13": "Nagaland", "14": "Manipur",
+  "15": "Mizoram", "16": "Tripura", "17": "Meghalaya", "18": "Assam", "19": "West Bengal",
+  "20": "Jharkhand", "21": "Odisha", "22": "Chhattisgarh", "23": "Madhya Pradesh", "24": "Gujarat",
+  "26": "Dadra and Nagar Haveli and Daman and Diu", "27": "Maharashtra", "29": "Karnataka",
+  "30": "Goa", "31": "Lakshadweep", "32": "Kerala", "33": "Tamil Nadu", "34": "Puducherry",
+  "35": "Andaman and Nicobar Islands", "36": "Telangana", "37": "Andhra Pradesh", "38": "Ladakh",
+};
+
 // Mirrors the backend rule: GSTIN state code wins, otherwise the state name
 const isIntraState = (state: string, gstin: string) => {
   const g = (gstin || "").trim();
@@ -56,6 +75,8 @@ const isIntraState = (state: string, gstin: string) => {
 };
 
 const emptyForm = {
+  vendor_id: "",
+  item_id: "",
   supplier_name: "",
   supplier_address: "",
   supplier_state: HOME_STATE,
@@ -86,6 +107,20 @@ const Purchases = () => {
   const queryClient = useQueryClient();
   const { can } = usePermissions();
   const { symbol } = useCurrency();
+  const { getSetting } = useSettings();
+  // Gated per-tenant (see Backend/src/utils/featureFlags.js) — off for every
+  // tenant except the ones explicitly turned on, so free-text supplier entry
+  // keeps working unchanged everywhere else.
+  const vendorLinkageEnabled = !!getSetting("vendor_linked_purchases", false);
+  const [vendorFilter, setVendorFilter] = useState<string[]>([]);
+
+  // Always fetched (not gated by vendorLinkageEnabled) — used both by the
+  // vendor filter/select above and, independently, to resolve a company
+  // name from a GST Number during import when the file has no name column.
+  const { data: vendors = [] } = useQuery<VendorRecord[]>({
+    queryKey: ["vendors"],
+    queryFn: vendorService.getAll,
+  });
 
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -173,6 +208,11 @@ const Purchases = () => {
     return "";
   };
 
+  // Numbers coming out of Excel/CSV often carry thousand separators
+  // ("33,164.50") or a currency symbol ("Rs. 872.75") — plain parseFloat()
+  // stops at the first comma and silently returns just the leading digits.
+  const parseNum = (val: any) => parseFloat(String(val ?? "").replace(/[^0-9.-]/g, "")) || 0;
+
   // Matches the bill format headers: Company Name | Adress with State | GST number |
   // Bill date | Due date | Bill reference | Payment Method | Payment Date | Journal |
   // Bank details | Product | HSN/SAC code | Quantity | Rate | Price | Freight charge |
@@ -180,24 +220,24 @@ const Purchases = () => {
   // (GST/IGST, Total and Round Off are computed automatically — never read from the file.)
   const processPurchaseRows = (rows: any[]) => {
     const purchasesData = rows.map((row: any) => ({
-      supplier_name: String(getField(row, "company name", "company", "supplier name", "supplier", "vendor", "party")),
+      supplier_name: String(getField(row, "company name", "company", "supplier name", "supplier", "vendor", "vendor name", "party", "party name", "firm name")),
       supplier_address: String(getField(row, "address with state", "adress with state", "address", "adress")),
       supplier_state: String(getField(row, "supplier state", "state", "place of supply")),
       supplier_gstin: String(getField(row, "gst number", "gstin", "gst no", "supplier gstin")),
       bill_date: getField(row, "bill date", "date", "invoice date"),
       due_date: getField(row, "due date"),
-      bill_no: String(getField(row, "bill reference", "bill ref", "bill no", "billno", "bill number", "invoice no")),
+      bill_no: String(getField(row, "bill reference", "bill ref", "bill no", "billno", "bill number", "invoice no", "invoice number", "invoice reference", "ref no", "bill ref no")),
       paymentmode: String(getField(row, "payment method", "payment mode", "mode")),
       payment_date: getField(row, "payment date", "paid date", "paid on"),
       journal: String(getField(row, "journal")),
       bank_details: String(getField(row, "bank details", "bank")),
       product: String(getField(row, "product", "item", "description of goods")),
       hsn_code: String(getField(row, "hsn/sac code", "hsn sac code", "hsn code", "hsn", "sac")),
-      quantity: parseFloat(getField(row, "quantity", "qty")) || 0,
-      rate: parseFloat(getField(row, "rate")) || 0,
-      amount: parseFloat(getField(row, "price", "amount", "taxable value", "taxable amount")) || 0,
-      freight_charge: parseFloat(getField(row, "freight charge", "freight", "shipping")) || 0,
-      gst_rate: parseFloat(getField(row, "gst rate", "gst rate %", "tax rate", "gst %")) || 18,
+      quantity: parseNum(getField(row, "quantity", "qty")),
+      rate: parseNum(getField(row, "rate")),
+      amount: parseNum(getField(row, "price", "amount", "taxable value", "taxable amount")),
+      freight_charge: parseNum(getField(row, "freight charge", "freight", "shipping")),
+      gst_rate: parseNum(getField(row, "gst rate", "gst rate %", "tax rate", "gst %")) || 18,
       sales_person: String(getField(row, "sales person", "salesperson", "sales man")),
       note: String(getField(row, "note", "remarks")),
     }));
@@ -206,9 +246,14 @@ const Purchases = () => {
       (p) => p.bill_no && p.supplier_name && (p.amount > 0 || (p.quantity > 0 && p.rate > 0))
     );
     if (valid.length === 0) {
+      const missing: string[] = [];
+      if (!purchasesData.some((p) => p.bill_no)) missing.push("Bill Reference");
+      if (!purchasesData.some((p) => p.supplier_name)) missing.push("Company Name");
+      if (!purchasesData.some((p) => p.amount > 0 || (p.quantity > 0 && p.rate > 0))) missing.push("Price (or Quantity + Rate)");
+      const foundHeaders = rows[0] ? Object.keys(rows[0]).join(", ") : "(file appears empty)";
       toast({
         title: "Error",
-        description: "No valid rows found. The file needs 'Bill reference', 'Company Name' and 'Price' (or Quantity + Rate) columns.",
+        description: `Missing or unreadable: ${missing.join(", ")}. Columns found in the file: ${foundHeaders}`,
         variant: "destructive",
       });
       return;
@@ -225,6 +270,8 @@ const Purchases = () => {
   const handleEdit = (p: any) => {
     setEditingPurchase(p);
     setFormData({
+      vendor_id: p.vendor_id?._id || p.vendor_id || "",
+      item_id: p.item_id?._id || p.item_id || "",
       supplier_name: p.supplier_name || "",
       supplier_address: p.supplier_address || "",
       supplier_state: p.supplier_state || HOME_STATE,
@@ -253,6 +300,53 @@ const Purchases = () => {
   const setField = (field: string, value: any) =>
     setFormData((f: any) => ({ ...f, [field]: value }));
 
+  // Selecting a vendor snapshots its fields onto the form; changing vendor on
+  // an existing bill re-derives the GST/IGST split since the state may differ.
+  const handleVendorChange = (vendor: VendorRecord | null) => {
+    if (!vendor) {
+      setField("vendor_id", "");
+      return;
+    }
+    const hadDifferentVendor = formData.vendor_id && formData.vendor_id !== vendor._id;
+    const gstin = String(vendor.gst_number || "").trim();
+    const stateCode = /^\d{2}/.test(gstin) ? gstin.substring(0, 2) : "";
+    const detectedState = GST_STATE_CODES[stateCode];
+
+    setFormData((f: any) => ({
+      ...f,
+      vendor_id: vendor._id,
+      supplier_name: vendor.company_name,
+      supplier_gstin: vendor.gst_number || "",
+      supplier_address: vendor.address || "",
+      supplier_state: detectedState || f.supplier_state,
+    }));
+
+    if (hadDifferentVendor && parseFloat(formData.amount) > 0) {
+      toast({ title: "Vendor changed", description: "GST/IGST split has been recalculated for the new vendor's state." });
+    }
+  };
+
+  // Auto-fills product/HSN/rate/GST% from the catalog item — every field
+  // stays a plain editable input afterward, so the user can override any of
+  // them without a later item-master edit silently changing this bill.
+  const handleItemChange = (item: ItemRecord) => {
+    setFormData((f: any) => {
+      const next = {
+        ...f,
+        item_id: item._id,
+        product: item.name,
+        hsn_code: item.hsn_sac_code || f.hsn_code,
+        rate: item.rate != null ? String(item.rate) : f.rate,
+      };
+      const gstRate = gstRateFromItem(item);
+      if (gstRate) next.gst_rate = String(gstRate);
+      const q = parseFloat(next.quantity) || 0;
+      const r = parseFloat(next.rate) || 0;
+      if (q > 0 && r > 0) next.amount = (Math.round(q * r * 100) / 100).toString();
+      return next;
+    });
+  };
+
   // Quantity/rate changes recompute Price automatically
   const setQtyRate = (field: "quantity" | "rate", value: string) => {
     setFormData((f: any) => {
@@ -267,6 +361,10 @@ const Purchases = () => {
   const handleSave = () => {
     if (!formData.bill_no || !formData.supplier_name || !(parseFloat(formData.amount) > 0)) {
       toast({ title: "Error", description: "Bill Reference, Company Name and Price are required", variant: "destructive" });
+      return;
+    }
+    if (vendorLinkageEnabled && !formData.vendor_id) {
+      toast({ title: "Error", description: "Please select a vendor", variant: "destructive" });
       return;
     }
     const payload = {
@@ -309,17 +407,20 @@ const Purchases = () => {
 
   const filteredPurchases = useMemo(() => {
     const q = search.toLowerCase();
-    return (purchases as any[]).filter((p) =>
-      !q ||
-      p.bill_no?.toLowerCase().includes(q) ||
-      p.supplier_name?.toLowerCase().includes(q) ||
-      p.supplier_state?.toLowerCase().includes(q) ||
-      p.supplier_gstin?.toLowerCase().includes(q) ||
-      p.product?.toLowerCase().includes(q) ||
-      p.hsn_code?.toLowerCase().includes(q) ||
-      p.sales_person?.toLowerCase().includes(q)
-    );
-  }, [purchases, search]);
+    return (purchases as any[]).filter((p) => {
+      const matchesSearch = !q ||
+        p.bill_no?.toLowerCase().includes(q) ||
+        p.supplier_name?.toLowerCase().includes(q) ||
+        p.supplier_state?.toLowerCase().includes(q) ||
+        p.supplier_gstin?.toLowerCase().includes(q) ||
+        p.product?.toLowerCase().includes(q) ||
+        p.hsn_code?.toLowerCase().includes(q) ||
+        p.sales_person?.toLowerCase().includes(q);
+      const matchesVendor = vendorFilter.length === 0 ||
+        vendorFilter.includes(typeof p.vendor_id === "object" ? p.vendor_id?._id : p.vendor_id);
+      return matchesSearch && matchesVendor;
+    });
+  }, [purchases, search, vendorFilter]);
 
   const totals = useMemo(() => {
     return filteredPurchases.reduce(
@@ -394,32 +495,35 @@ const Purchases = () => {
   };
 
   // Export headers match the company's bill format exactly
+  // Column headers/order match the bill-format the importer reads (see
+  // processPurchaseRows above) so an exported file can be edited and
+  // re-imported without renaming columns. Amount/date columns are typed
+  // "number"/"date" so Excel gets real numeric/date cells — not text — and
+  // SUM/AutoFilter/date-sort work without a manual "convert to number" step.
   const exportColumns = [
     { header: "Company Name", key: "supplier_name" },
     { header: "Address with State", key: "supplier_address" },
     { header: "GST Number", key: "supplier_gstin" },
-    { header: "Bill Date", key: (p: any) => (p.bill_date ? formatDate(p.bill_date) : "") },
-    { header: "Due Date", key: (p: any) => (p.due_date ? formatDate(p.due_date) : "") },
+    { header: "Bill Date", key: "bill_date", type: "date" as const },
+    { header: "Due Date", key: "due_date", type: "date" as const },
     { header: "Bill Reference", key: "bill_no" },
     { header: "Payment Method", key: "paymentmode" },
-    { header: "Payment Date", key: (p: any) => (p.payment_date ? formatDate(p.payment_date) : "") },
+    { header: "Payment Date", key: "payment_date", type: "date" as const },
     { header: "Journal", key: "journal" },
     { header: "Bank Details", key: "bank_details" },
     { header: "Product", key: "product" },
     { header: "HSN/SAC Code", key: "hsn_code" },
-    { header: "Quantity", key: (p: any) => String(p.quantity ?? 0) },
-    { header: "Rate", key: (p: any) => (p.rate || 0).toFixed(2) },
-    { header: "Price", key: (p: any) => (p.amount || 0).toFixed(2) },
-    { header: "Freight Charge", key: (p: any) => (p.freight_charge || 0).toFixed(2) },
-    {
-      header: "GST/IGST",
-      key: (p: any) =>
-        p.tax_type === "IGST"
-          ? `IGST ${(p.igst || 0).toFixed(2)}`
-          : `CGST ${(p.cgst || 0).toFixed(2)} + SGST ${(p.sgst || 0).toFixed(2)}`,
-    },
-    { header: "Total", key: (p: any) => (p.total || 0).toFixed(2) },
-    { header: "Round Off", key: (p: any) => (p.round_off || 0).toFixed(2) },
+    { header: "Quantity", key: "quantity", type: "number" as const },
+    { header: "Rate", key: "rate", type: "number" as const },
+    { header: "Price", key: "amount", type: "number" as const },
+    { header: "Freight Charge", key: "freight_charge", type: "number" as const },
+    { header: "GST Rate %", key: "gst_rate", type: "number" as const },
+    { header: "Tax Type", key: "tax_type" },
+    { header: "CGST", key: "cgst", type: "number" as const },
+    { header: "SGST", key: "sgst", type: "number" as const },
+    { header: "IGST", key: "igst", type: "number" as const },
+    { header: "Total", key: "total", type: "number" as const },
+    { header: "Round Off", key: "round_off", type: "number" as const },
     { header: "Sales Person", key: "sales_person" },
     { header: "Payment Status", key: "payment_status" },
   ];
@@ -573,14 +677,26 @@ const Purchases = () => {
                 )}
               </div>
 
-              <div className="relative w-full sm:w-auto">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Search bill, company, product, HSN, GSTIN..."
-                  className="pl-9 h-9 w-full sm:w-[280px] text-sm bg-slate-50 border-slate-200 focus-visible:ring-primary/20"
-                  value={search}
-                  onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-                />
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {vendorLinkageEnabled && (
+                  <SearchableSelect
+                    multiple
+                    options={vendors.map((v) => ({ label: v.company_name, value: v._id }))}
+                    value={vendorFilter}
+                    onValueChange={(v) => { setVendorFilter(v); setCurrentPage(1); }}
+                    placeholder="Filter by vendor"
+                    className="h-9 w-full sm:w-[200px] text-sm bg-slate-50 border-slate-200"
+                  />
+                )}
+                <div className="relative w-full sm:w-auto">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder="Search bill, company, product, HSN, GSTIN..."
+                    className="pl-9 h-9 w-full sm:w-[280px] text-sm bg-slate-50 border-slate-200 focus-visible:ring-primary/20"
+                    value={search}
+                    onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+                  />
+                </div>
               </div>
             </div>
 
@@ -763,6 +879,12 @@ const Purchases = () => {
               {/* Supplier */}
               <div>
                 <div className="text-xs font-black uppercase tracking-widest text-primary mb-3">Supplier</div>
+                {vendorLinkageEnabled ? (
+                  <div className="space-y-1.5">
+                    <Label className={labelCls}>* Vendor</Label>
+                    <VendorSelect value={formData.vendor_id} onChange={handleVendorChange} />
+                  </div>
+                ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label className={labelCls}>* Company Name</Label>
@@ -790,6 +912,7 @@ const Purchases = () => {
                     </Select>
                   </div>
                 </div>
+                )}
               </div>
 
               {/* Bill */}
@@ -822,6 +945,14 @@ const Purchases = () => {
               {/* Product & Amount */}
               <div>
                 <div className="text-xs font-black uppercase tracking-widest text-primary mb-3">Product & Amount</div>
+                <div className="mb-4 space-y-1.5">
+                  <Label className={labelCls}>Pick from catalog (optional)</Label>
+                  <ItemSelect
+                    value={formData.item_id}
+                    onChange={handleItemChange}
+                    placeholder="Search catalog items, or just type below..."
+                  />
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-1.5 col-span-2">
                     <Label className={labelCls}>Product</Label>

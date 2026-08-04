@@ -22,7 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Pencil, Trash2, Truck } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, Truck, Eye } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { vendorService } from "@/api/services/vendor.service";
 import { useToast } from "@/hooks/use-toast";
@@ -48,6 +49,7 @@ const Vendors = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const navigate = useNavigate();
 
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -453,6 +455,9 @@ const Vendors = () => {
                         <td className="p-4 text-xs font-medium text-slate-600">{v.sales_person || "-"}</td>
                         <td className="p-4">
                           <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => navigate(`/vendors/${v._id}`)}>
+                              <Eye className="h-3.5 w-3.5 text-slate-500" />
+                            </Button>
                             {can("Vendors", "Edit") && (
                               <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleEdit(v)}>
                                 <Pencil className="h-3.5 w-3.5 text-slate-500" />
