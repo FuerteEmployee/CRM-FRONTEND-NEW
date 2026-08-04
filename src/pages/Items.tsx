@@ -313,18 +313,6 @@ const Items = () => {
       toast({ title: "Required Field", description: "Item Name is required.", variant: "destructive" });
       return false;
     }
-    if (form.quantity === "" || isNaN(Number(form.quantity)) || Number(form.quantity) <= 0) {
-      toast({ title: "Required Field", description: "Quantity must be greater than 0.", variant: "destructive" });
-      return false;
-    }
-    if (form.rate === "" || isNaN(Number(form.rate)) || Number(form.rate) < 0) {
-      toast({ title: "Required Field", description: "Rate is required.", variant: "destructive" });
-      return false;
-    }
-    if (form.amount === "" || isNaN(Number(form.amount)) || Number(form.amount) < 0) {
-      toast({ title: "Required Field", description: "Amount is required.", variant: "destructive" });
-      return false;
-    }
 
     for (const cf of customFieldDefs) {
       if (cf.required) {
@@ -537,7 +525,7 @@ const Items = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-700">Quantity <span className="text-destructive">*</span></Label>
+                      <Label className="text-xs font-bold text-slate-700">Quantity</Label>
                       <Input
                         type="number"
                         placeholder="1"
@@ -547,7 +535,7 @@ const Items = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-700">Rate ({symbol}) <span className="text-destructive">*</span></Label>
+                      <Label className="text-xs font-bold text-slate-700">Rate ({symbol})</Label>
                       <Input
                         type="number"
                         placeholder="0.00"
@@ -559,7 +547,7 @@ const Items = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-xs font-bold text-slate-700">Amount ({symbol}) <span className="text-destructive">*</span></Label>
+                      <Label className="text-xs font-bold text-slate-700">Amount ({symbol})</Label>
                       <Input
                         type="number"
                         placeholder="0.00"
@@ -938,7 +926,7 @@ const Items = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-700">Quantity <span className="text-destructive">*</span></Label>
+                  <Label className="text-xs font-bold text-slate-700">Quantity</Label>
                   <Input
                     type="number"
                     placeholder="1"
@@ -948,7 +936,7 @@ const Items = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-700">Rate ({symbol}) <span className="text-destructive">*</span></Label>
+                  <Label className="text-xs font-bold text-slate-700">Rate ({symbol})</Label>
                   <Input
                     type="number"
                     placeholder="0.00"
@@ -960,7 +948,7 @@ const Items = () => {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-slate-700">Amount ({symbol}) <span className="text-destructive">*</span></Label>
+                  <Label className="text-xs font-bold text-slate-700">Amount ({symbol})</Label>
                   <Input
                     type="number"
                     placeholder="0.00"

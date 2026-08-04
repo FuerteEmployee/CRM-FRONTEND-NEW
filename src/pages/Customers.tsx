@@ -54,6 +54,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService } from "@/api/services/customer.service";
 import { financeService } from "@/api/services/finance.service";
+import { staffService } from "@/api/services/staff.service";
 import { hrmsbranchService, type HRMSBranch } from "@/hrms/services/hrmsbranchService";
 import { Link, useNavigate } from "react-router-dom";
 import { formatDate } from "@/lib/dateFormat";
@@ -128,6 +129,11 @@ const Customers = () => {
   const { data: groups = [] } = useQuery<any[]>({
     queryKey: ["customerGroups"],
     queryFn: customerService.getGroups,
+  });
+
+  const { data: staff = [] } = useQuery<any[]>({
+    queryKey: ["staff"],
+    queryFn: staffService.getAll,
   });
 
   // Fetched once and filtered on the client — city -> branch is derived locally, no per-city API call
@@ -216,12 +222,34 @@ const Customers = () => {
     }
 
     if (type === "csv" || type === "xlsx") {
-      const headers = ["Company", "Primary Contact", "Primary Email", "Phone", "Active", "Groups", "Date Created"];
+      const headers = [
+        "Company Name",
+        "Customer Reference",
+        "Connect Person",
+        "Phone Number",
+        "Address with State",
+        "Email",
+        "Pan Number",
+        "GST Number",
+        "Account details",
+        "Sales Person",
+        "Branch Name",
+        "Active",
+        "Groups",
+        "Date Created",
+      ];
       const rows = filtered.map((c: any) => [
         c.company || "",
-        c.primaryContact ? `${c.primaryContact.firstname} ${c.primaryContact.lastname}` : "-",
-        c.primaryContact?.email || "-",
+        c.customer_reference || "",
+        c.contact_person || "",
         c.phonenumber || "-",
+        [c.address, c.city, c.state].filter(Boolean).join(", ") || "-",
+        c.email || "-",
+        c.pan_number || "",
+        c.gst_number || "",
+        c.account_details || "",
+        c.sales_person ? `${c.sales_person.firstname || ""} ${c.sales_person.lastname || ""}`.trim() : "",
+        c.branch?.name || "",
         c.active ? "Yes" : "No",
         c.groups ? c.groups.map((g: any) => g.name || g).join(", ") : "",
         c.datecreated ? formatDate(c.datecreated) : "-"
@@ -496,6 +524,28 @@ const Customers = () => {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
+                          <Label>Customer Reference</Label>
+                          <Input
+                            placeholder="Customer reference"
+                            value={newCustomer.customer_reference || ""}
+                            onChange={(e) =>
+                              setNewCustomer({ ...newCustomer, customer_reference: e.target.value })
+                            }
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Connect Person</Label>
+                          <Input
+                            placeholder="Contact person name"
+                            value={newCustomer.contact_person || ""}
+                            onChange={(e) =>
+                              setNewCustomer({ ...newCustomer, contact_person: e.target.value })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
                           <Label>VAT Number</Label>
                           <Input
                             placeholder="VAT number"
@@ -525,14 +575,70 @@ const Customers = () => {
                           />
                         </div>
                       </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Email</Label>
+                          <Input
+                            type="email"
+                            placeholder="company@example.com"
+                            value={newCustomer.email || ""}
+                            onChange={(e) => setNewCustomer({ ...newCustomer, email: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Website</Label>
+                          <Input
+                            type="url"
+                            placeholder="https://example.com"
+                            value={newCustomer.website || ""}
+                            onChange={(e) => setNewCustomer({ ...newCustomer, website: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>PAN Number</Label>
+                          <Input
+                            placeholder="PAN number"
+                            value={newCustomer.pan_number || ""}
+                            onChange={(e) => setNewCustomer({ ...newCustomer, pan_number: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>GST Number</Label>
+                          <Input
+                            placeholder="GST number"
+                            value={newCustomer.gst_number || ""}
+                            onChange={(e) => setNewCustomer({ ...newCustomer, gst_number: e.target.value })}
+                          />
+                        </div>
+                      </div>
                       <div className="space-y-2">
-                        <Label>Website</Label>
-                        <Input 
-                          type="url" 
-                          placeholder="https://example.com" 
-                          value={newCustomer.website || ""}
-                          onChange={(e) => setNewCustomer({ ...newCustomer, website: e.target.value })}
+                        <Label>Account Details</Label>
+                        <Textarea
+                          placeholder="Bank name, account number, IFSC, etc."
+                          rows={2}
+                          value={newCustomer.account_details || ""}
+                          onChange={(e) => setNewCustomer({ ...newCustomer, account_details: e.target.value })}
                         />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Sales Person</Label>
+                        <Select
+                          value={newCustomer.sales_person || ""}
+                          onValueChange={(val) => setNewCustomer({ ...newCustomer, sales_person: val })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select sales person" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {staff.map((s: any) => (
+                              <SelectItem key={s._id} value={s._id}>
+                                {s.firstname} {s.lastname}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -952,6 +1058,8 @@ const Customers = () => {
                     <th className="p-3 font-medium">Primary Contact</th>
                     <th className="p-3 font-medium">Primary Email</th>
                     <th className="p-3 font-medium">Phone</th>
+                    <th className="p-3 font-medium">Pan Number</th>
+                    <th className="p-3 font-medium">Gst Number</th>
                     <th className="p-3 font-medium">Active</th>
                     <th className="p-3 font-medium">Groups</th>
                     <th className="p-3 font-medium">Branch</th>
@@ -963,7 +1071,7 @@ const Customers = () => {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="border-b">
-                        <td colSpan={10} className="p-8">
+                        <td colSpan={12} className="p-8">
                           <Skeleton className="h-8 w-full" />
                         </td>
                       </tr>
@@ -971,7 +1079,7 @@ const Customers = () => {
                   ) : paginatedCustomers.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={10}
+                        colSpan={12}
                         className="p-10 text-center text-muted-foreground"
                       >
                         No customers found.
@@ -1015,6 +1123,12 @@ const Customers = () => {
                         <td className="p-3 text-sm text-muted-foreground">
                           {c.phonenumber}
                         </td>
+                        <td className="p-3 text-sm text-muted-foreground">
+                          {c.pan_number || "-"}
+                        </td>
+                        <td className="p-3 text-sm text-muted-foreground">
+                          {c.gst_number || "-"}
+                        </td>
                         <td className="p-3">
                           <Switch
                             checked={c.active}
@@ -1055,6 +1169,7 @@ const Customers = () => {
                                 ...c,
                                 groups: c.groups?.map((g: any) => g._id || g),
                                 branch: (c.branch as any)?._id || c.branch || "",
+                                sales_person: (c.sales_person as any)?._id || c.sales_person || "",
                               };
                               setEditItem(normalized);
                               setNewCustomer(normalized);

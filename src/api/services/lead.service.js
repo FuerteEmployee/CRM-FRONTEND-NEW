@@ -10,6 +10,8 @@ export const leadService = {
   
   update: (id, data) => apiClient.put(`/leads/${id}`, data),
 
+  updateStatus: (id, status) => apiClient.patch(`/leads/${id}/status`, { status }),
+
   delete: (id) => apiClient.delete(`/leads/${id}`),
 
   convertToCustomer: (id) => apiClient.post(`/leads/${id}/convert`),
