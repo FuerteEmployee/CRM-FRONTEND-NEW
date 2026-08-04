@@ -180,10 +180,31 @@ const Items = () => {
     onError: (err: any) => toast({ title: "Import Failed", description: err?.response?.data?.message || err.message, variant: "destructive" }),
   });
 
+  const getRowValue = (row: Record<string, any>, aliases: string[]) => {
+    if (!row || typeof row !== "object") return "";
+    const keys = Object.keys(row);
+    for (const alias of aliases) {
+      const cleanAlias = alias.trim().toLowerCase().replace(/[\s_]+/g, "");
+      for (const k of keys) {
+        const cleanK = k.trim().toLowerCase().replace(/[\s_]+/g, "");
+        if (cleanK === cleanAlias) {
+          const val = row[k];
+          if (val !== undefined && val !== null && String(val).trim() !== "") {
+            return String(val).trim();
+          }
+        }
+      }
+    }
+    return "";
+  };
+
   const handleImportData = (rows: Record<string, any>[]) => {
-    const valid = rows.filter(r => r["Item Name"] || r["Name"] || r["name"] || r["description"] || r["Description"]);
+    const valid = rows.filter(r => {
+      const name = getRowValue(r, ["item_name", "item name", "name", "item", "title", "product", "product_name", "description", "item_description"]);
+      return name && name !== "-";
+    });
     if (!valid.length) {
-      toast({ title: "No valid rows", description: "Each row needs a 'Name' or 'Item Name' column.", variant: "destructive" });
+      toast({ title: "No valid rows", description: "Each row needs an 'Item Name', 'Name', or 'Description' column.", variant: "destructive" });
       return;
     }
     importMutation.mutate(valid as any);
@@ -220,27 +241,43 @@ const Items = () => {
 
   const handleSelectAll = (checked: boolean) => {
     const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
-    if (checked) setSelectedItems(pageData.map((item: any) => item._id));
+    if (checked) setSelectedItems(pageData.map((item: any) => item._id).filter(Boolean));
     else setSelectedItems([]);
   };
 
   const handleBulkAction = async () => {
     if (selectedItems.length === 0) {
-      toast({ title: "Error", description: "No items selected."});
+      toast({ title: "Error", description: "No items selected." });
+      return;
+    }
+    if (!bulkState.massDelete) {
+      toast({ title: "Action Required", description: "Please select Mass Delete to proceed.", variant: "destructive" });
       return;
     }
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedItems.map(id => itemService.delete(id)));
-        toast({ title: "Success", description: `Deleted ${selectedItems.length} items.` });
+        try {
+          await itemService.bulkDelete(selectedItems);
+        } catch {
+          await Promise.allSettled(selectedItems.map(id => itemService.delete(id)));
+        }
+        toast({
+          title: "Success",
+          description: `Deleted ${selectedItems.length} selected item(s).`,
+          className: "bg-emerald-600 text-white border-none"
+        });
       }
       queryClient.invalidateQueries({ queryKey: ["items"] });
       setSelectedItems([]);
       setBulkActionOpen(false);
       setBulkState({ massDelete: false });
-    } catch {
-      toast({ title: "Error", description: "Failed to perform bulk action."});
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.response?.data?.message || err.message || "Failed to perform bulk action.",
+        variant: "destructive"
+      });
     } finally {
       setIsBulkLoading(false);
     }
