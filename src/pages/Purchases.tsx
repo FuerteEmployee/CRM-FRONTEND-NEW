@@ -84,6 +84,7 @@ const emptyForm = {
   bill_no: "",
   bill_date: new Date().toISOString().split("T")[0],
   due_date: "",
+  voucher_type: "",
   product: "",
   hsn_code: "",
   quantity: "1",
@@ -112,6 +113,15 @@ const Purchases = () => {
   // tenant except the ones explicitly turned on, so free-text supplier entry
   // keeps working unchanged everywhere else.
   const vendorLinkageEnabled = !!getSetting("vendor_linked_purchases", false);
+  // Gated per-tenant (see Backend/src/utils/featureFlags.js) — only the
+  // rudraverse tenant runs on this simplified Bill Date/Voucher No./
+  // Particulars/Voucher Type/Qty/Rate/Amount/Total layout that matches its
+  // Tally-exported Purchase Register; every other tenant keeps the full form.
+  const simplifiedRegister = !!getSetting("simplified_purchase_register", false);
+  // The GST Rate field is hidden for simplified-register tenants, so a fresh
+  // form must start at 0% instead of emptyForm's 18% default — otherwise a
+  // manually-created bill would silently get taxed at a rate no one set.
+  const getNewPurchaseForm = () => ({ ...emptyForm, gst_rate: simplifiedRegister ? "0" : emptyForm.gst_rate });
   const [vendorFilter, setVendorFilter] = useState<string[]>([]);
 
   // Always fetched (not gated by vendorLinkageEnabled) — used both by the
@@ -137,7 +147,7 @@ const Purchases = () => {
     payment_date: "",
     paymentmode: "",
   });
-  useOpenCreateModal(() => { setEditingPurchase(null); setFormData(emptyForm); setIsModalOpen(true); });
+  useOpenCreateModal(() => { setEditingPurchase(null); setFormData(getNewPurchaseForm()); setIsModalOpen(true); });
 
   const { data: purchases = [], isLoading } = useQuery({
     queryKey: ["purchases"],
@@ -227,6 +237,7 @@ const Purchases = () => {
       bill_date: getField(row, "bill date", "date", "invoice date"),
       due_date: getField(row, "due date"),
       bill_no: String(getField(row, "bill reference", "bill ref", "bill no", "billno", "bill number", "invoice no", "invoice number", "invoice reference", "ref no", "bill ref no")),
+      voucher_type: String(getField(row, "voucher type")),
       paymentmode: String(getField(row, "payment method", "payment mode", "mode")),
       payment_date: getField(row, "payment date", "paid date", "paid on"),
       journal: String(getField(row, "journal")),
@@ -261,6 +272,82 @@ const Purchases = () => {
     importMutation.mutate(valid as any);
   };
 
+  // Detects a Tally-exported "Purchase Register": one rollup row per bill
+  // (Bill Date, Particulars = party name, Voucher Type, Voucher No., a
+  // Quantity/Amount that is the SUM of every item below it, and the bill's
+  // tax-inclusive grand Total), followed by one row per line item where
+  // Bill Date/Voucher No./Total are blank and Particulars holds the item name.
+  const isTallyPurchaseRegister = (rows: any[]) => {
+    if (!rows.length) return false;
+    const keys = Object.keys(rows[0]).map(normalizeKey);
+    return keys.includes("particulars") && keys.some((k) => k.includes("voucherno"));
+  };
+
+  // Carries Bill Date/Voucher No./Party Name/Voucher Type down from each
+  // rollup row onto the item rows beneath it. The rollup row's own
+  // Quantity/Rate/Amount is never turned into a Purchase line — it's just
+  // the sum of the item rows that follow, so including it would double the
+  // bill's total. GST rate defaults to 0% since the register has no tax
+  // column at all (verified against PURCHASE25-26.xlsx: every rollup row's
+  // Amount/Quantity equals the sum of its item rows to the rupee).
+  const processTallyPurchaseRows = (rows: any[]) => {
+    let currentBillNo = "";
+    let currentSupplier = "";
+    let currentBillDate: any = "";
+    let currentVoucherType = "";
+
+    const purchasesData: any[] = [];
+    rows.forEach((row: any) => {
+      const voucherNo = String(getField(row, "voucher no.", "voucher no", "voucher number")).trim();
+      const particulars = String(getField(row, "particulars")).trim();
+      const qty = parseNum(getField(row, "quantity", "qty"));
+      const rate = parseNum(getField(row, "rate"));
+      const amount = parseNum(getField(row, "amount"));
+
+      if (voucherNo) {
+        // Rollup row for a new bill — capture context, skip creating a line.
+        currentBillNo = voucherNo;
+        currentSupplier = particulars;
+        currentBillDate = getField(row, "bill date", "date");
+        currentVoucherType = String(getField(row, "voucher type")).trim();
+        return;
+      }
+
+      if (!currentBillNo || !particulars || !(amount > 0 || (qty > 0 && rate > 0))) return;
+
+      purchasesData.push({
+        bill_no: currentBillNo,
+        supplier_name: currentSupplier,
+        bill_date: currentBillDate,
+        voucher_type: currentVoucherType,
+        product: particulars,
+        quantity: qty,
+        rate,
+        amount,
+        gst_rate: 0,
+      });
+    });
+
+    if (purchasesData.length === 0) {
+      toast({
+        title: "Error",
+        description: "No item rows found under any bill in this Purchase Register.",
+        variant: "destructive",
+      });
+      return;
+    }
+    importMutation.mutate(purchasesData as any);
+  };
+
+  // Import entry point wired to the Import button — picks the parser based
+  // on which column headers the uploaded file actually has, so the full
+  // bill-format sheet and a Tally Purchase Register export both work from
+  // the same button.
+  const handlePurchaseImport = (rows: any[]) => {
+    if (isTallyPurchaseRegister(rows)) processTallyPurchaseRows(rows);
+    else processPurchaseRows(rows);
+  };
+
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingPurchase(null);
@@ -279,6 +366,7 @@ const Purchases = () => {
       bill_no: p.bill_no || "",
       bill_date: toDateInput(p.bill_date),
       due_date: toDateInput(p.due_date),
+      voucher_type: p.voucher_type || "",
       product: p.product || "",
       hsn_code: p.hsn_code || "",
       quantity: (p.quantity ?? 1).toString(),
@@ -507,6 +595,7 @@ const Purchases = () => {
     { header: "Bill Date", key: "bill_date", type: "date" as const },
     { header: "Due Date", key: "due_date", type: "date" as const },
     { header: "Bill Reference", key: "bill_no" },
+    { header: "Voucher Type", key: "voucher_type" },
     { header: "Payment Method", key: "paymentmode" },
     { header: "Payment Date", key: "payment_date", type: "date" as const },
     { header: "Journal", key: "journal" },
@@ -528,6 +617,10 @@ const Purchases = () => {
     { header: "Payment Status", key: "payment_status" },
   ];
 
+  // Checkbox + Bill Ref + Date + Company + Product + Qty×Rate + Price + Total + Actions
+  // = 9 always-shown columns, plus whichever set (simplified vs full) is active.
+  const tableColSpan = 9 + (simplifiedRegister ? 1 : 3);
+
   const inputCls = "h-11 rounded-xl border-slate-200";
   const labelCls = "text-[10px] font-black uppercase tracking-widest text-slate-500";
 
@@ -541,12 +634,12 @@ const Purchases = () => {
           </div>
           <div className="flex gap-2 items-center">
             {can("Purchases", "Create") && (
-              <ImportButton onData={processPurchaseRows} loading={importMutation.isPending} label="Import Purchases" />
+              <ImportButton onData={handlePurchaseImport} loading={importMutation.isPending} label="Import Purchases" />
             )}
             <ExportButton data={filteredPurchases} filename="purchases" columns={exportColumns} />
             {can("Purchases", "Create") && (
               <Button
-                onClick={() => { setEditingPurchase(null); setFormData(emptyForm); setIsModalOpen(true); }}
+                onClick={() => { setEditingPurchase(null); setFormData(getNewPurchaseForm()); setIsModalOpen(true); }}
                 className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
               >
                 <Plus className="h-4 w-4" />
@@ -557,12 +650,14 @@ const Purchases = () => {
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className={`grid grid-cols-2 gap-4 ${simplifiedRegister ? "md:grid-cols-2" : "md:grid-cols-5"}`}>
           {[
             { label: "Taxable Amount", value: totals.amount, color: "text-slate-800" },
-            { label: "CGST", value: totals.cgst, color: "text-blue-600" },
-            { label: "SGST", value: totals.sgst, color: "text-blue-600" },
-            { label: "IGST", value: totals.igst, color: "text-violet-600" },
+            ...(simplifiedRegister ? [] : [
+              { label: "CGST", value: totals.cgst, color: "text-blue-600" },
+              { label: "SGST", value: totals.sgst, color: "text-blue-600" },
+              { label: "IGST", value: totals.igst, color: "text-violet-600" },
+            ]),
             { label: "Grand Total", value: totals.total, color: "text-green-600" },
           ].map((c) => (
             <Card key={c.label} className="rounded-2xl border-slate-100 shadow-sm">
@@ -711,12 +806,13 @@ const Purchases = () => {
                     <th className="p-4 font-bold">Bill / Due Date</th>
                     <th className="p-4 font-bold">Company</th>
                     <th className="p-4 font-bold">Product</th>
+                    {simplifiedRegister && <th className="p-4 font-bold">Voucher Type</th>}
                     <th className="p-4 font-bold">Qty × Rate</th>
                     <th className="p-4 font-bold">Price</th>
-                    <th className="p-4 font-bold">GST/IGST</th>
+                    {!simplifiedRegister && <th className="p-4 font-bold">GST/IGST</th>}
                     <th className="p-4 font-bold">Total</th>
-                    <th className="p-4 font-bold">Payment</th>
-                    <th className="p-4 font-bold">Sales Person</th>
+                    {!simplifiedRegister && <th className="p-4 font-bold">Payment</th>}
+                    {!simplifiedRegister && <th className="p-4 font-bold">Sales Person</th>}
                     <th className="p-4 font-bold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -724,12 +820,12 @@ const Purchases = () => {
                   {isLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
                       <tr key={i} className="border-b">
-                        <td colSpan={12} className="p-4"><Skeleton className="h-6 w-full" /></td>
+                        <td colSpan={tableColSpan} className="p-4"><Skeleton className="h-6 w-full" /></td>
                       </tr>
                     ))
                   ) : paginatedPurchases.length === 0 ? (
                     <tr>
-                      <td colSpan={12} className="p-10 text-center text-slate-400 font-medium">
+                      <td colSpan={tableColSpan} className="p-10 text-center text-slate-400 font-medium">
                         No purchase bills found. Create one or import from Excel.
                       </td>
                     </tr>
@@ -758,6 +854,9 @@ const Purchases = () => {
                           <div className="text-xs font-medium text-slate-700">{p.product || "-"}</div>
                           {p.hsn_code && <div className="text-[10px] font-bold text-slate-400">HSN {p.hsn_code}</div>}
                         </td>
+                        {simplifiedRegister && (
+                          <td className="p-4 text-xs font-medium text-slate-600">{p.voucher_type || "-"}</td>
+                        )}
                         <td className="p-4 text-xs font-medium text-slate-600">
                           {p.quantity ? `${p.quantity} × ${money(p.rate)}` : "-"}
                         </td>
@@ -767,43 +866,49 @@ const Purchases = () => {
                             <div className="text-[10px] font-bold text-slate-400">+ freight {money(p.freight_charge)}</div>
                           )}
                         </td>
-                        <td className="p-4">
-                          {p.tax_type === "IGST" ? (
-                            <Badge variant="outline" className="bg-violet-50 text-violet-700 border-violet-200 font-bold text-[10px]">
-                              IGST {money(p.igst)}
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-bold text-[10px]">
-                              CGST {money(p.cgst)} + SGST {money(p.sgst)}
-                            </Badge>
-                          )}
-                          <div className="text-[10px] font-bold text-slate-400 mt-1">@ {p.gst_rate || 0}%</div>
-                        </td>
+                        {!simplifiedRegister && (
+                          <td className="p-4">
+                            {p.tax_type === "IGST" ? (
+                              <Badge variant="outline" className="bg-violet-50 text-violet-700 border-violet-200 font-bold text-[10px]">
+                                IGST {money(p.igst)}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-bold text-[10px]">
+                                CGST {money(p.cgst)} + SGST {money(p.sgst)}
+                              </Badge>
+                            )}
+                            <div className="text-[10px] font-bold text-slate-400 mt-1">@ {p.gst_rate || 0}%</div>
+                          </td>
+                        )}
                         <td className="p-4 font-black text-green-700">
                           {money(p.total)}
                           {p.round_off !== 0 && p.round_off != null && (
                             <div className="text-[10px] font-bold text-slate-400">r/o {p.round_off > 0 ? "+" : ""}{p.round_off.toFixed(2)}</div>
                           )}
                         </td>
-                        <td className="p-4">
-                          <Badge
-                            variant="outline"
-                            className={`font-bold text-[10px] ${p.payment_status === "Paid"
-                              ? "bg-green-50 text-green-700 border-green-200"
-                              : p.payment_status === "Partially Paid"
-                                ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                                : "bg-red-50 text-red-700 border-red-200"}`}
-                          >
-                            {p.payment_status || "Unpaid"}
-                          </Badge>
-                          {p.payment_date && (
-                            <div className="text-[10px] font-bold text-slate-400 mt-1">{formatDate(p.payment_date)}</div>
-                          )}
-                          {p.paymentmode && (
-                            <div className="text-[10px] font-medium text-slate-400">{p.paymentmode}</div>
-                          )}
-                        </td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{p.sales_person || "-"}</td>
+                        {!simplifiedRegister && (
+                          <td className="p-4">
+                            <Badge
+                              variant="outline"
+                              className={`font-bold text-[10px] ${p.payment_status === "Paid"
+                                ? "bg-green-50 text-green-700 border-green-200"
+                                : p.payment_status === "Partially Paid"
+                                  ? "bg-yellow-50 text-yellow-700 border-yellow-200"
+                                  : "bg-red-50 text-red-700 border-red-200"}`}
+                            >
+                              {p.payment_status || "Unpaid"}
+                            </Badge>
+                            {p.payment_date && (
+                              <div className="text-[10px] font-bold text-slate-400 mt-1">{formatDate(p.payment_date)}</div>
+                            )}
+                            {p.paymentmode && (
+                              <div className="text-[10px] font-medium text-slate-400">{p.paymentmode}</div>
+                            )}
+                          </td>
+                        )}
+                        {!simplifiedRegister && (
+                          <td className="p-4 text-xs font-medium text-slate-600">{p.sales_person || "-"}</td>
+                        )}
                         <td className="p-4">
                           <div className="flex justify-end gap-1">
                             {can("Purchases", "Edit") && (
@@ -884,6 +989,11 @@ const Purchases = () => {
                     <Label className={labelCls}>* Vendor</Label>
                     <VendorSelect value={formData.vendor_id} onChange={handleVendorChange} />
                   </div>
+                ) : simplifiedRegister ? (
+                  <div className="space-y-1.5">
+                    <Label className={labelCls}>* Particulars (Party Name)</Label>
+                    <Input value={formData.supplier_name} onChange={(e) => setField("supplier_name", e.target.value)} placeholder="Supplier / party name" className={inputCls} />
+                  </div>
                 ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
@@ -920,61 +1030,76 @@ const Purchases = () => {
                 <div className="text-xs font-black uppercase tracking-widest text-primary mb-3">Bill</div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
-                    <Label className={labelCls}>* Bill Reference</Label>
-                    <Input value={formData.bill_no} onChange={(e) => setField("bill_no", e.target.value)} placeholder="e.g. PB-1024" className={inputCls} />
+                    <Label className={labelCls}>{simplifiedRegister ? "* Voucher No." : "* Bill Reference"}</Label>
+                    <Input value={formData.bill_no} onChange={(e) => setField("bill_no", e.target.value)} placeholder={simplifiedRegister ? "e.g. 1648" : "e.g. PB-1024"} className={inputCls} />
                   </div>
                   <div className="space-y-1.5">
                     <Label className={labelCls}>Bill Date</Label>
                     <Input type="date" value={formData.bill_date} onChange={(e) => setField("bill_date", e.target.value)} className={inputCls} />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className={labelCls}>Due Date</Label>
-                    <Input type="date" value={formData.due_date} onChange={(e) => setField("due_date", e.target.value)} className={inputCls} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className={labelCls}>Journal</Label>
-                    <Input value={formData.journal} onChange={(e) => setField("journal", e.target.value)} placeholder="Journal entry / ledger" className={inputCls} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className={labelCls}>Sales Person</Label>
-                    <Input value={formData.sales_person} onChange={(e) => setField("sales_person", e.target.value)} placeholder="Supplier's sales person" className={inputCls} />
-                  </div>
+                  {simplifiedRegister ? (
+                    <div className="space-y-1.5">
+                      <Label className={labelCls}>Voucher Type</Label>
+                      <Input value={formData.voucher_type} onChange={(e) => setField("voucher_type", e.target.value)} placeholder="e.g. Purchase" className={inputCls} />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className={labelCls}>Due Date</Label>
+                        <Input type="date" value={formData.due_date} onChange={(e) => setField("due_date", e.target.value)} className={inputCls} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className={labelCls}>Journal</Label>
+                        <Input value={formData.journal} onChange={(e) => setField("journal", e.target.value)} placeholder="Journal entry / ledger" className={inputCls} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className={labelCls}>Sales Person</Label>
+                        <Input value={formData.sales_person} onChange={(e) => setField("sales_person", e.target.value)} placeholder="Supplier's sales person" className={inputCls} />
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
               {/* Product & Amount */}
               <div>
                 <div className="text-xs font-black uppercase tracking-widest text-primary mb-3">Product & Amount</div>
-                <div className="mb-4 space-y-1.5">
-                  <Label className={labelCls}>Pick from catalog (optional)</Label>
-                  <ItemSelect
-                    value={formData.item_id}
-                    onChange={handleItemChange}
-                    placeholder="Search catalog items, or just type below..."
-                  />
-                </div>
+                {!simplifiedRegister && (
+                  <div className="mb-4 space-y-1.5">
+                    <Label className={labelCls}>Pick from catalog (optional)</Label>
+                    <ItemSelect
+                      value={formData.item_id}
+                      onChange={handleItemChange}
+                      placeholder="Search catalog items, or just type below..."
+                    />
+                  </div>
+                )}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-1.5 col-span-2">
-                    <Label className={labelCls}>Product</Label>
+                    <Label className={labelCls}>{simplifiedRegister ? "Particulars (Item)" : "Product"}</Label>
                     <Input value={formData.product} onChange={(e) => setField("product", e.target.value)} placeholder="Product / goods description" className={inputCls} />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className={labelCls}>HSN/SAC Code</Label>
-                    <Input value={formData.hsn_code} onChange={(e) => setField("hsn_code", e.target.value)} placeholder="e.g. 8471" className={inputCls} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className={labelCls}>GST Rate %</Label>
-                    <Select value={formData.gst_rate} onValueChange={(v) => setField("gst_rate", v)}>
-                      <SelectTrigger className={`${inputCls} bg-white font-medium`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {GST_RATES.map((r) => (
-                          <SelectItem key={r} value={r}>{r}%</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {!simplifiedRegister && (
+                    <>
+                      <div className="space-y-1.5">
+                        <Label className={labelCls}>HSN/SAC Code</Label>
+                        <Input value={formData.hsn_code} onChange={(e) => setField("hsn_code", e.target.value)} placeholder="e.g. 8471" className={inputCls} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className={labelCls}>GST Rate %</Label>
+                        <Select value={formData.gst_rate} onValueChange={(v) => setField("gst_rate", v)}>
+                          <SelectTrigger className={`${inputCls} bg-white font-medium`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {GST_RATES.map((r) => (
+                              <SelectItem key={r} value={r}>{r}%</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </>
+                  )}
                   <div className="space-y-1.5">
                     <Label className={labelCls}>Quantity</Label>
                     <Input type="number" value={formData.quantity} onChange={(e) => setQtyRate("quantity", e.target.value)} placeholder="1" className={inputCls} />
@@ -987,23 +1112,32 @@ const Purchases = () => {
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className={labelCls}>* Price (Qty × Rate)</Label>
+                    <Label className={labelCls}>{simplifiedRegister ? "* Amount" : "* Price (Qty × Rate)"}</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
                       <Input type="number" value={formData.amount} onChange={(e) => setField("amount", e.target.value)} placeholder="0.00" className={`${inputCls} pl-7`} />
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className={labelCls}>Freight Charge</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
-                      <Input type="number" value={formData.freight_charge} onChange={(e) => setField("freight_charge", e.target.value)} placeholder="0.00" className={`${inputCls} pl-7`} />
+                  {!simplifiedRegister && (
+                    <div className="space-y-1.5">
+                      <Label className={labelCls}>Freight Charge</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
+                        <Input type="number" value={formData.freight_charge} onChange={(e) => setField("freight_charge", e.target.value)} placeholder="0.00" className={`${inputCls} pl-7`} />
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
               {/* Auto tax preview */}
+              {simplifiedRegister ? (
+                <div className="space-y-1.5">
+                  <div className="rounded-xl border p-4 text-sm font-bold bg-slate-50 border-slate-200 text-slate-800">
+                    <span>Total: {money(taxPreview.total)}</span>
+                  </div>
+                </div>
+              ) : (
               <div className="space-y-1.5">
                 <Label className={labelCls}>GST / IGST (Automatic)</Label>
                 <div className={`rounded-xl border p-4 text-sm font-bold flex flex-wrap items-center gap-x-6 gap-y-1 ${taxPreview.intra ? "bg-blue-50/50 border-blue-200 text-blue-800" : "bg-violet-50/50 border-violet-200 text-violet-800"}`}>
@@ -1023,8 +1157,10 @@ const Purchases = () => {
                   <span className="ml-auto text-slate-800">Total: {money(taxPreview.total)}</span>
                 </div>
               </div>
+              )}
 
               {/* Payment */}
+              {!simplifiedRegister && (
               <div>
                 <div className="text-xs font-black uppercase tracking-widest text-primary mb-3">Payment</div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1055,6 +1191,7 @@ const Purchases = () => {
                   </div>
                 </div>
               </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label className={labelCls}>Note</Label>
