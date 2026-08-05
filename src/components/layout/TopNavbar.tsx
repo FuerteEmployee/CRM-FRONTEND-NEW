@@ -126,6 +126,7 @@ export function TopNavbar() {
     { code: "fr", name: "French" },
     { code: "de", name: "German" },
     { code: "el", name: "Greek" },
+    { code: "gu", name: "Gujarati" },
     { code: "hi", name: "Hindi" },
     { code: "id", name: "Indonesia" },
     { code: "it", name: "Italian" },

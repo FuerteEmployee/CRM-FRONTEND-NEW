@@ -11,6 +11,24 @@
     <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <meta name="theme-color" content="#1e293b" />
+    <style>
+      /* Google Translate normally injects a top banner iframe and pushes
+         <body> down with an inline "top" offset. We drive translation from
+         our own profile-menu dropdown, not Google's UI, so hide all of it. */
+      .goog-te-banner-frame.skiptranslate,
+      .goog-te-gadget-icon,
+      #goog-gt-tt,
+      .goog-te-balloon-frame {
+        display: none !important;
+      }
+      body {
+        top: 0 !important;
+      }
+      .goog-text-highlight {
+        background: none !important;
+        box-shadow: none !important;
+      }
+    </style>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -67,6 +85,24 @@
 
   <body>
     <div id="root"></div>
+    <!--
+      Powers the "Language" item in the profile-picture dropdown menu
+      (Frontend/src/components/layout/TopNavbar.tsx). That menu only sets a
+      `googtrans` cookie and reloads — it relies on this widget actually
+      being present to read that cookie and translate the page. Hidden
+      off-screen: we drive it entirely via the cookie + profile-menu UI,
+      never Google's own dropdown widget.
+    -->
+    <div id="google_translate_element" style="position:absolute;top:-9999px;left:-9999px;"></div>
+    <script type="text/javascript">
+      function googleTranslateElementInit() {
+        new google.translate.TranslateElement(
+          { pageLanguage: "en", autoDisplay: false },
+          "google_translate_element"
+        );
+      }
+    </script>
+    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
