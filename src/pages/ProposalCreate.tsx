@@ -635,13 +635,13 @@ export default function ProposalCreate() {
                 <div className="flex-1 max-w-sm">
                   <SearchableSelect 
                     placeholder="Add Item"
-                    options={availableItems.map((i: any) => ({ value: i._id, label: i.description }))}
+                    options={availableItems.map((i: any) => ({ value: i._id, label: i.name }))}
                     value=""
                     onValueChange={(val) => {
                       const item = availableItems.find((i: any) => i._id === val);
                       if (item) {
                         setNewItem({
-                          description: item.description,
+                          description: item.name,
                           long_description: item.long_description || "",
                           qty: 1,
                           rate: item.rate,

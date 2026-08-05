@@ -9,30 +9,66 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+type CellType = "string" | "number" | "date";
+type CellValue = string | number | Date | null;
+
+interface ExportColumn {
+  header: string;
+  key: string | ((row: any) => string | number);
+  // "number"/"date" keep the cell as a real Excel number/date cell instead
+  // of text, so SUM/AutoFilter/date-sort work on the exported file. Default
+  // "string" preserves the original pre-formatted-text behavior.
+  type?: CellType;
+}
+
 interface ExportButtonProps {
   data: any[];
   filename: string;
-  columns?: { header: string; key: string | ((row: any) => string | number) }[];
+  columns?: ExportColumn[];
 }
+
+// Raw (untyped-to-string) value for a column — a real number/Date when the
+// column says so, otherwise whatever the key/path lookup returns.
+const resolveRawValue = (item: any, col: ExportColumn): CellValue => {
+  const raw = typeof col.key === "function"
+    ? col.key(item)
+    : col.key.split(".").reduce((obj: any, k) => (obj || {})[k], item);
+
+  if (raw === undefined || raw === null || raw === "") return col.type === "number" ? 0 : null;
+
+  if (col.type === "number") {
+    const n = typeof raw === "number" ? raw : parseFloat(String(raw).replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (col.type === "date") {
+    const d = raw instanceof Date ? raw : new Date(raw);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return raw;
+};
+
+const cellToDisplayString = (val: CellValue): string => {
+  if (val === null || val === undefined) return "";
+  if (val instanceof Date) {
+    const day = String(val.getUTCDate()).padStart(2, "0");
+    const month = String(val.getUTCMonth() + 1).padStart(2, "0");
+    return `${day}-${month}-${val.getUTCFullYear()}`;
+  }
+  return String(val);
+};
 
 const buildRows = (
   data: any[],
   columns?: ExportButtonProps["columns"],
-): { headers: string[]; rows: string[][] } => {
+): { headers: string[]; rows: CellValue[][] } => {
   if (columns && columns.length > 0) {
     return {
       headers: columns.map(c => c.header),
-      rows: data.map(item =>
-        columns.map(c => {
-          if (typeof c.key === "function") return String(c.key(item));
-          const value = c.key.split(".").reduce((obj: any, k) => (obj || {})[k], item);
-          return String(value ?? "");
-        }),
-      ),
+      rows: data.map(item => columns.map(c => resolveRawValue(item, c))),
     };
   }
   const headers = Object.keys(data[0]).filter(k => k !== "_id" && k !== "__v");
-  return { headers, rows: data.map(item => headers.map(k => String(item[k] ?? ""))) };
+  return { headers, rows: data.map(item => headers.map(k => item[k] ?? null)) };
 };
 
 const downloadBlob = (blob: Blob, filename: string) => {
@@ -60,7 +96,7 @@ export function ExportButton({ data, filename, columns }: ExportButtonProps) {
         const { headers, rows } = buildRows(data, columns);
         const csv = [
           headers.join(","),
-          ...rows.map(r => r.map(v => `"${v.replace(/"/g, '""')}"`).join(",")),
+          ...rows.map(r => r.map(v => `"${cellToDisplayString(v).replace(/"/g, '""')}"`).join(",")),
         ].join("\n");
         // UTF-8 BOM so Excel opens it correctly
         downloadBlob(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }), `${dated}.csv`);
