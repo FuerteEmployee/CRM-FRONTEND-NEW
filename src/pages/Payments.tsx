@@ -68,7 +68,7 @@ const Payments = () => {
   const [itemsPerPage, setItemsPerPage] = useState("10");
   const [viewItem, setViewItem] = useState<any>(null);
   const [viewTab, setViewTab] = useState<"receipt" | "payment">("receipt");
-  const [paymentForm, setPaymentForm] = useState({ amount: "", date: "", paymentmode: "", paymentmethod: "", transactionid: "", note: "" });
+  const [paymentForm, setPaymentForm] = useState({ amount: "", date: "", paymentmode: "", paymentmethod: "", transactionid: "", note: "", companyName: "", voucherNumber: "", billDate: "", journal: "" });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { toast } = useToast();
   const { can } = usePermissions();
@@ -131,6 +131,10 @@ const Payments = () => {
       paymentmethod: p.paymentmethod || "",
       transactionid: p.transactionid || "",
       note: p.note || "",
+      companyName: p.companyName || "",
+      voucherNumber: p.voucherNumber || "",
+      billDate: p.billDate ? new Date(p.billDate).toISOString().split("T")[0] : "",
+      journal: p.journal || "",
     });
   };
 
@@ -169,6 +173,10 @@ const Payments = () => {
       paymentmethod: paymentForm.paymentmethod,
       transactionid: paymentForm.transactionid,
       note: paymentForm.note,
+      companyName: paymentForm.companyName,
+      voucherNumber: paymentForm.voucherNumber,
+      billDate: paymentForm.billDate,
+      journal: paymentForm.journal,
     });
   };
 
@@ -184,8 +192,15 @@ const Payments = () => {
   });
 
   const handleImportData = (rows: Record<string, any>[]) => {
-    const valid = rows.filter(r => r["amount"] || r["Amount"] || r["invoice"] || r["Invoice #"]);
-    if (!valid.length) { toast({ title: "No valid rows", description: "Each row needs at least an 'amount' or 'Invoice #' column.", variant: "destructive" }); return; }
+    // Accept any row that has at least one meaningful payment field
+    const valid = rows.filter(r =>
+      r["Amount"] || r["amount"] ||
+      r["Company Name"] || r["companyName"] ||
+      r["Voucher Number"] || r["voucherNumber"] ||
+      r["Invoice #"] || r["invoice"] ||
+      r["Transaction ID"] || r["transactionid"]
+    );
+    if (!valid.length) { toast({ title: "No valid rows", description: "File must have at least an 'Amount', 'Company Name', or 'Voucher Number' column.", variant: "destructive" }); return; }
     importMutation.mutate(valid as any);
   };
 
@@ -217,15 +232,15 @@ const Payments = () => {
     }
 
     if (type === "csv") {
-      const headers = ["Payment #", "Invoice #", "Customer", "Payment Mode", "Transaction ID", "Amount", "Date"];
+      const headers = ["Company Name", "Voucher Number", "Bill Date", "Payment Mode", "Journal", "Amount", "Transaction ID"];
       const rows = filtered.map((p: any) => [
-        p._id?.substring(0, 8) || "",
-        p.invoice?.number || "N/A",
-        p.invoice?.client?.company || "N/A",
+        p.companyName || p.invoice?.client?.company || "-",
+        p.voucherNumber || "-",
+        p.billDate ? formatDate(p.billDate) : "-",
         p.paymentmode || "Bank Transfer",
-        p.transactionid || "-",
+        p.journal || "-",
         `${symbol}${p.amount || 0}`,
-        p.date ? formatDate(p.date) : "-",
+        p.transactionid || "-",
       ]);
 
       const csvContent =
@@ -349,13 +364,13 @@ const Payments = () => {
               data={filtered}
               filename="payments"
               columns={[
-                { header: "Payment #", key: (p) => p._id?.substring(0, 8) || "" },
-                { header: "Invoice #", key: (p) => p.invoice?.number || "N/A" },
-                { header: "Customer", key: (p) => p.invoice?.client?.company || "N/A" },
+                { header: "Company Name", key: (p) => p.companyName || p.invoice?.client?.company || "-" },
+                { header: "Voucher Number", key: (p) => p.voucherNumber || "-" },
+                { header: "Bill Date", key: "billDate", type: "date" },
                 { header: "Payment Mode", key: (p) => p.paymentmode || "Bank Transfer" },
+                { header: "Journal", key: (p) => p.journal || "-" },
+                { header: "Amount", key: "amount", type: "number" },
                 { header: "Transaction ID", key: (p) => p.transactionid || "-" },
-                { header: "Amount", key: "amount" },
-                { header: "Date", key: "date" }
               ]}
             />
             <ImportButton onData={handleImportData} loading={importMutation.isPending} />
@@ -387,7 +402,7 @@ const Payments = () => {
                     );
                   })()}
                 </th>
-                {["Payment #", "Invoice #", "Customer", "Payment Mode", "Transaction ID", "Amount", "Date", "Actions"].map((h) => (
+                {["Company Name", "Voucher Number", "Bill Date", "Payment Mode", "Journal", "Amount", "Transaction ID", "Actions"].map((h) => (
                   <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
                     {h}
                   </th>
@@ -426,25 +441,25 @@ const Payments = () => {
                         className="px-6 py-4 font-bold text-primary cursor-pointer hover:underline"
                         onClick={() => openView(p)}
                       >
-                        {p._id?.substring(0, 8).toUpperCase()}
+                        {p.companyName || p.invoice?.client?.company || "-"}
                       </td>
                       <td className="px-6 py-4 font-medium text-foreground">
-                        {p.invoice?.number || "N/A"}
+                        {p.voucherNumber || "-"}
                       </td>
-                      <td className="px-6 py-4 font-medium text-foreground">
-                        {p.invoice?.client?.company || "N/A"}
+                      <td className="px-6 py-4 text-muted-foreground">
+                        {p.billDate ? formatDate(p.billDate) : "-"}
                       </td>
                       <td className="px-6 py-4 uppercase text-[10px] font-black tracking-widest text-muted-foreground">
                         {p.paymentmode || "Bank Transfer"}
                       </td>
-                      <td className="px-6 py-4 font-mono text-[11px] text-foreground">
-                        {p.transactionid || "-"}
+                      <td className="px-6 py-4 font-medium text-foreground">
+                        {p.journal || "-"}
                       </td>
                       <td className="px-6 py-4 font-black text-emerald-600">
                         ₹{(p.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                       </td>
-                      <td className="px-6 py-4 text-muted-foreground">
-                        {p.date ? formatDate(p.date) : "-"}
+                      <td className="px-6 py-4 font-mono text-[11px] text-foreground">
+                        {p.transactionid || "-"}
                       </td>
                       <td className="px-6 py-4">
                         <TableActions
@@ -640,6 +655,26 @@ const Payments = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label className="text-sm font-medium block mb-1.5">Company Name</Label>
+                        <Input
+                          value={paymentForm.companyName}
+                          onChange={(e) => setPaymentForm(p => ({ ...p, companyName: e.target.value }))}
+                          className="rounded-lg border-border/60"
+                          placeholder="Company name"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium block mb-1.5">Voucher Number</Label>
+                        <Input
+                          value={paymentForm.voucherNumber}
+                          onChange={(e) => setPaymentForm(p => ({ ...p, voucherNumber: e.target.value }))}
+                          className="rounded-lg border-border/60"
+                          placeholder="Voucher number"
+                        />
+                      </div>
+                    </div>
                     <div>
                       <Label className="text-sm font-medium block mb-1.5">Amount Received</Label>
                       <Input
@@ -658,6 +693,15 @@ const Payments = () => {
                         className="rounded-lg border-border/60"
                       />
                     </div>
+                    <div>
+                      <Label className="text-sm font-medium block mb-1.5">Bill Date</Label>
+                      <Input
+                        type="date"
+                        value={paymentForm.billDate}
+                        onChange={(e) => setPaymentForm(p => ({ ...p, billDate: e.target.value }))}
+                        className="rounded-lg border-border/60"
+                      />
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label className="text-sm font-medium block mb-1.5">Payment Mode</Label>
@@ -666,21 +710,40 @@ const Payments = () => {
                             <SelectValue placeholder="Select mode" />
                           </SelectTrigger>
                           <SelectContent>
-                            {paymentModes.map((m: any) => (
-                              <SelectItem key={m._id} value={m.name}>{m.name}</SelectItem>
-                            ))}
+                            {paymentModes.length > 0 ? (
+                              paymentModes.map((m: any) => (
+                                <SelectItem key={m._id} value={m.name}>{m.name}</SelectItem>
+                              ))
+                            ) : (
+                              <>
+                                <SelectItem value="bank">Bank</SelectItem>
+                                <SelectItem value="cash">Cash</SelectItem>
+                              </>
+                            )}
                           </SelectContent>
                         </Select>
                       </div>
                       <div>
-                        <Label className="text-sm font-medium block mb-1.5">Payment Method</Label>
-                        <Input
-                          value={paymentForm.paymentmethod}
-                          onChange={(e) => setPaymentForm(p => ({ ...p, paymentmethod: e.target.value }))}
-                          className="rounded-lg border-border/60"
-                          placeholder="e.g. Bank Transfer"
-                        />
+                        <Label className="text-sm font-medium block mb-1.5">Journal</Label>
+                        <Select value={paymentForm.journal} onValueChange={(v) => setPaymentForm(p => ({ ...p, journal: v }))}>
+                          <SelectTrigger className="rounded-lg border-border/60">
+                            <SelectValue placeholder="Select journal" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="sales">Sales</SelectItem>
+                            <SelectItem value="purchase">Purchase</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium block mb-1.5">Payment Method</Label>
+                      <Input
+                        value={paymentForm.paymentmethod}
+                        onChange={(e) => setPaymentForm(p => ({ ...p, paymentmethod: e.target.value }))}
+                        className="rounded-lg border-border/60"
+                        placeholder="e.g. Bank Transfer"
+                      />
                     </div>
                     <div>
                       <Label className="text-sm font-medium block mb-1.5">Transaction ID</Label>

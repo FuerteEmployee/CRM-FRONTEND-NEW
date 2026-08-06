@@ -626,14 +626,71 @@ const Estimates = () => {
   });
 
   const handleImportData = (rows: Record<string, any>[]) => {
-    const valid = rows.filter(r => r["subject"] || r["Subject"] || r["company"] || r["Company"] || r["total"] || r["Total"] || r["Estimate #"] || r["To"]);
-    if (!valid.length) { toast({ title: "No valid rows", description: "Rows need at least a subject or company column.", variant: "destructive" }); return; }
+    const RECOGNIZED_KEYS = [
+      "subject", "company", "companyname", "total", "estimate#", "to",
+      "connectperson", "phonenumber", "mailid", "item", "quantity", "rate", "amount", "salesperson", "date",
+    ];
+    const normalize = (key: string) => key.toLowerCase().replace(/[^a-z0-9#]/g, "");
+    const valid = rows.filter(r =>
+      Object.keys(r).some(key => RECOGNIZED_KEYS.includes(normalize(key)) && String(r[key]).trim() !== "")
+    );
+    if (!valid.length) { toast({ title: "No valid rows", description: "Rows need at least one recognizable column (Company Name, Item, Amount, etc).", variant: "destructive" }); return; }
     importMutation.mutate(valid as any);
   };
 
-  const filtered = estimates.filter((e: any) => 
+  const filtered = estimates.filter((e: any) =>
     (e.subject || e.number || "").toLowerCase().includes(estimateSearch.toLowerCase())
   );
+
+  // One export row per line item — an estimate with 3 items produces 3 rows,
+  // each repeating the estimate-level fields and varying only Item/Qty/Rate/Amount.
+  const exportRows = useMemo(() => filtered.flatMap((e: any) => {
+    const companyName = e.contact_name || e.client?.company || e.client_id?.company || e.rel_id || "N/A";
+    const estimateNumber = e.number || "";
+    const rowBase = {
+      "Estimate #": estimateNumber,
+      "Company Name": companyName,
+      "Connect Person": e.connectPerson || "",
+      "Phone Number": e.phone || "",
+      "Mail Id": e.mailId || "",
+      "Sales Person": e.salesPerson || "",
+      "Date": e.date ? new Date(e.date).toLocaleDateString("en-GB") : "",
+      "Status": e.status || "draft",
+    };
+    const items = e.items?.length ? e.items : [{ description: "", qty: "", rate: "", amount: "" }];
+    return items.map((item: any) => ({
+      ...rowBase,
+      "Item": item.description || "",
+      "Quantity": item.qty ?? "",
+      "Rate": item.rate ?? "",
+      "Amount": item.amount ?? (item.qty && item.rate ? item.qty * item.rate : ""),
+    }));
+  }), [filtered]);
+
+  // Same flattening as exportRows, but keeps a reference to the parent estimate
+  // so the on-screen table can render one row per line item while checkbox
+  // selection / view / edit / delete still target the parent estimate.
+  const tableRows = useMemo(() => filtered.flatMap((e: any) => {
+    const companyName = e.contact_name || e.client?.company || e.client_id?.company || e.rel_id || "N/A";
+    const rowBase = {
+      estimate: e,
+      companyName,
+      connectPerson: e.connectPerson || "",
+      phone: e.phone || "",
+      mailId: e.mailId || "",
+      salesPerson: e.salesPerson || "",
+      date: e.date,
+    };
+    const items = e.items?.length ? e.items : [{ description: "", qty: "", rate: "", amount: "" }];
+    return items.map((item: any, idx: number) => ({
+      ...rowBase,
+      key: `${e._id || e.id}-${idx}`,
+      itemDescription: item.description || "",
+      qty: item.qty ?? "",
+      rate: item.rate ?? "",
+      amount: item.amount ?? (item.qty && item.rate ? item.qty * item.rate : ""),
+    }));
+  }), [filtered]);
 
   return (
     <DashboardLayout>
@@ -759,15 +816,19 @@ const Estimates = () => {
               </DialogContent>
             </Dialog>
             <ExportButton
-              data={filtered}
+              data={exportRows}
               filename="estimates"
               columns={[
-                { header: "Estimate #", key: (e) => e.number || e._id },
-                { header: "Subject", key: "subject" },
-                { header: "To", key: (e) => e.contact_name || e.client_id?.company || e.rel_id || "N/A" },
-                { header: "Total", key: "total" },
-                { header: "Date", key: "date" },
-                { header: "Status", key: "status" }
+                { header: "Company Name", key: "companyName" },
+                { header: "Connect Person", key: "connectPerson" },
+                { header: "Phone Number", key: "phone" },
+                { header: "Mail Id", key: "mailId" },
+                { header: "Item", key: "itemDescription" },
+                { header: "Quantity", key: "qty" },
+                { header: "Rate", key: "rate" },
+                { header: "Amount", key: "amount" },
+                { header: "Sales Person", key: "salesPerson" },
+                { header: "Date", key: "date" }
               ]}
             />
             <ImportButton onData={handleImportData} loading={importMutation.isPending} />
@@ -799,7 +860,7 @@ const Estimates = () => {
                     );
                   })()}
                 </th>
-                {["Estimate #", "Subject", "To", "Total", "Date", "Open Till", "Tags", "Date Created", "Status", "Actions"].map(h => (
+                {["Company Name", "Connect Person", "Phone Number", "Mail Id", "Item", "Quantity", "Rate", "Amount", "Sales Person", "Date", "Actions"].map(h => (
                   <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
                 ))}
               </tr>
@@ -807,68 +868,54 @@ const Estimates = () => {
             <tbody className="divide-y divide-border/50">
               {isLoadingEstimates ? (
                 Array(3).fill(0).map((_, i) => (
-                  <tr key={i}><td colSpan={11} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={12} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
                 ))
-              ) : filtered.length === 0 ? (
+              ) : tableRows.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-muted-foreground italic">
+                  <td colSpan={12} className="px-6 py-12 text-center text-muted-foreground italic">
                     No estimates found.
                   </td>
                 </tr>
               ) : (
-                filtered.map((est: any) => (
-                  <tr key={est._id || est.id} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(est._id || est.id) ? 'bg-primary/5' : ''}`}>
-                    <td className="px-3 py-2">
-                      <Checkbox
-                        checked={selectedIds.includes(est._id || est.id)}
-                        onCheckedChange={() => toggleSelect(est._id || est.id)}
-                      />
-                    </td>
-                    <td className="px-6 py-4">
-                      <button
-                        className="font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer text-left"
-                        onClick={() => setSelectedEstimate(est)}
-                      >
-                        {est.number || (est._id || est.id)?.slice(-6).toUpperCase()}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 font-medium text-foreground">{est.subject}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{est.contact_name || est.client_id?.company || est.rel_id || "N/A"}</td>
-                    <td className="px-6 py-4 font-black text-foreground">{formatRowAmount(est, est.total || 0)}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{est.date ? formatDate(est.date) : "-"}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{est.open_till ? formatDate(est.open_till) : "-"}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {est.tags?.map((tag: string, i: number) => (
-                          <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-muted-foreground">{est.createdAt ? formatDate(est.createdAt) : "-"}</td>
-                    <td className="px-6 py-4">
-                      <Badge className={cn(
-                        "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
-                        est.status?.toLowerCase() === "draft" ? "bg-slate-100 text-slate-600" :
-                        est.status?.toLowerCase() === "sent" ? "bg-blue-50 text-blue-600" :
-                        est.status?.toLowerCase() === "accepted" ? "bg-emerald-50 text-emerald-600" :
-                        est.status?.toLowerCase() === "declined" ? "bg-red-50 text-red-600" :
-                        est.status?.toLowerCase() === "expired" ? "bg-amber-50 text-amber-600" :
-                        "bg-muted text-muted-foreground"
-                      )}>
-                        {est.status}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4">
-                      <TableActions
-                        onView={() => setPreviewEstimate(est)}
-                        onEdit={can("Estimates", "Edit") ? () => navigate(`/admin/estimates/edit/${est._id || est.id}`) : undefined}
-                        onDelete={can("Estimates", "Delete") ? () => deleteMutation.mutate(est._id || est.id) : undefined}
-                      />
-                    </td>
-                  </tr>
-                ))
+                tableRows.map((row: any) => {
+                  const est = row.estimate;
+                  const estId = est._id || est.id;
+                  return (
+                    <tr key={row.key} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(estId) ? 'bg-primary/5' : ''}`}>
+                      <td className="px-3 py-2">
+                        <Checkbox
+                          checked={selectedIds.includes(estId)}
+                          onCheckedChange={() => toggleSelect(estId)}
+                        />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-foreground">{row.companyName}</div>
+                        <button
+                          className="text-[10px] font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer text-left"
+                          onClick={() => setSelectedEstimate(est)}
+                        >
+                          {est.number || estId?.slice(-6).toUpperCase()}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground">{row.connectPerson || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{row.phone || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{row.mailId || "-"}</td>
+                      <td className="px-6 py-4 font-medium text-foreground">{row.itemDescription || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{row.qty !== "" ? row.qty : "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{row.rate !== "" ? formatRowAmount(est, Number(row.rate)) : "-"}</td>
+                      <td className="px-6 py-4 font-black text-foreground">{row.amount !== "" ? formatRowAmount(est, Number(row.amount)) : "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{row.salesPerson || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{row.date ? formatDate(row.date) : "-"}</td>
+                      <td className="px-6 py-4">
+                        <TableActions
+                          onView={() => setPreviewEstimate(est)}
+                          onEdit={can("Estimates", "Edit") ? () => navigate(`/admin/estimates/edit/${estId}`) : undefined}
+                          onDelete={can("Estimates", "Delete") ? () => deleteMutation.mutate(estId) : undefined}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

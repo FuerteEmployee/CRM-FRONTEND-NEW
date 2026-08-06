@@ -73,6 +73,10 @@ export default function EstimateCreate() {
     status: "draft",
     reference: "",
     sale_agent: "",
+    connectPerson: "",
+    phone: "",
+    mailId: "",
+    salesPerson: "",
     adminnote: "",
     notes: "",
     terms: "",
@@ -97,6 +101,8 @@ export default function EstimateCreate() {
     long_description: "",
     qty: 1,
     rate: 0,
+    amount: 0,
+    amountOverridden: false,
     tax: "",
     tax2: "",
     unit: "",
@@ -167,14 +173,15 @@ export default function EstimateCreate() {
   }, [estimate, taxes]);
 
   const calculations = useMemo(() => {
-    const subTotal = items.reduce((acc, item) => acc + (item.qty * item.rate), 0);
+    const itemAmount = (item: any) => item.amount ?? (item.qty * item.rate);
+    const subTotal = items.reduce((acc, item) => acc + itemAmount(item), 0);
     const discountAmount = formData.discount_type === "no_discount" ? 0 :
       (discountType === "percent" ? (subTotal * (discountValue / 100)) : discountValue);
     // Tax is charged on the discounted amount, not the full pre-discount subtotal.
     const discountFactor = subTotal > 0 ? 1 - discountAmount / subTotal : 1;
     const totalTax = items.reduce((acc, item) => {
       const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || 0;
-      return acc + ((item.qty * item.rate) * discountFactor * (taxRate / 100));
+      return acc + (itemAmount(item) * discountFactor * (taxRate / 100));
     }, 0);
     const total = subTotal - discountAmount + totalTax + Number(adjustmentValue);
 
@@ -189,6 +196,8 @@ export default function EstimateCreate() {
       long_description: "",
       qty: 1,
       rate: 0,
+      amount: 0,
+      amountOverridden: false,
       tax: "",
       tax2: "",
       unit: "",
@@ -232,6 +241,7 @@ export default function EstimateCreate() {
         long_description: item.long_description,
         qty: Number(item.qty) || 0,
         rate: Number(item.rate) || 0,
+        amount: Number(item.amount ?? (item.qty * item.rate)) || 0,
         tax: Number(taxes.find((t: any) => t._id === item.tax)?.taxrate) || 0,
         tax_name: taxes.find((t: any) => t._id === item.tax)?.name || ""
       })),
@@ -294,6 +304,35 @@ export default function EstimateCreate() {
                       shipping_country: client?.shipping_country || client?.country || ""
                     }));
                   }}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Connect Person</Label>
+                  <Input
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.connectPerson}
+                    onChange={(e) => setFormData(p => ({ ...p, connectPerson: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Phone Number</Label>
+                  <Input
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.phone}
+                    onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2.5">
+                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Mail Id</Label>
+                <Input
+                  type="email"
+                  className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                  value={formData.mailId}
+                  onChange={(e) => setFormData(p => ({ ...p, mailId: e.target.value }))}
                 />
               </div>
 
@@ -424,6 +463,15 @@ export default function EstimateCreate() {
                 />
               </div>
 
+              <div className="space-y-2.5">
+                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Sales Person</Label>
+                <Input
+                  className="h-12 rounded-2xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                  value={formData.salesPerson}
+                  onChange={(e) => setFormData(p => ({ ...p, salesPerson: e.target.value }))}
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Sale Agent</Label>
@@ -548,8 +596,9 @@ export default function EstimateCreate() {
                       {showQtyAs === "hours" ? "Hours" : "Qty"}
                     </th>
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-32">Rate</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-40">Tax</th>
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-32">Amount</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-40">Tax</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-32">Total (w/ Tax)</th>
                     <th className="p-4 text-right">
                       <Settings className="h-4 w-4 ml-auto opacity-50" />
                     </th>
@@ -579,7 +628,10 @@ export default function EstimateCreate() {
                         <Input
                           type="number"
                           value={newItem.qty}
-                          onChange={(e) => setNewItem(p => ({ ...p, qty: Number(e.target.value) }))}
+                          onChange={(e) => {
+                            const qty = Number(e.target.value);
+                            setNewItem(p => ({ ...p, qty, amount: p.amountOverridden ? p.amount : qty * p.rate }));
+                          }}
                           className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                         />
                         <span className="text-[10px] font-black text-muted-foreground/50 uppercase tracking-tighter block text-center">Unit</span>
@@ -590,7 +642,19 @@ export default function EstimateCreate() {
                         placeholder="Rate"
                         type="number"
                         value={newItem.rate}
-                        onChange={(e) => setNewItem(p => ({ ...p, rate: Number(e.target.value) }))}
+                        onChange={(e) => {
+                          const rate = Number(e.target.value);
+                          setNewItem(p => ({ ...p, rate, amount: p.amountOverridden ? p.amount : p.qty * rate }));
+                        }}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                      />
+                    </td>
+                    <td className="p-4 align-top w-[150px]">
+                      <Input
+                        placeholder="Amount"
+                        type="number"
+                        value={newItem.amount}
+                        onChange={(e) => setNewItem(p => ({ ...p, amount: Number(e.target.value), amountOverridden: true }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                       />
                     </td>
@@ -608,7 +672,7 @@ export default function EstimateCreate() {
                       </Select>
                     </td>
                     <td className="p-4 align-top text-sm font-black text-foreground">
-                      {formatDocAmount(newItem.qty * newItem.rate * (1 + (taxes.find(t => t._id === newItem.tax)?.taxrate || 0) / 100))}
+                      {formatDocAmount(newItem.amount * (1 + (taxes.find(t => t._id === newItem.tax)?.taxrate || 0) / 100))}
                     </td>
                     <td className="p-4 align-top text-right">
                       <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
@@ -623,10 +687,11 @@ export default function EstimateCreate() {
                       <td className="p-4 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
                       <td className="p-4 align-top text-xs font-bold">{item.qty}</td>
                       <td className="p-4 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
+                      <td className="p-4 align-top text-xs font-bold">{formatDocAmount(item.amount ?? item.qty * item.rate)}</td>
                       <td className="p-4 align-top text-[10px] font-black uppercase text-muted-foreground">
                         {taxes.find(t => t._id === item.tax)?.name || "No Tax"}
                       </td>
-                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.qty * item.rate * (1 + (taxes.find(t => t._id === item.tax)?.taxrate || 0) / 100))}</td>
+                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount((item.amount ?? item.qty * item.rate) * (1 + (taxes.find(t => t._id === item.tax)?.taxrate || 0) / 100))}</td>
                       <td className="p-4 align-top text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
@@ -802,13 +867,16 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
               className="min-h-[100px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium resize-none p-4 focus-visible:ring-1 focus-visible:ring-primary/30"
             />
           </div>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-3 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Qty</Label>
               <Input
                 type="number"
                 value={newItem.qty}
-                onChange={(e) => setNewItem((p: any) => ({ ...p, qty: Number(e.target.value) }))}
+                onChange={(e) => {
+                  const qty = Number(e.target.value);
+                  setNewItem((p: any) => ({ ...p, qty, amount: p.amountOverridden ? p.amount : qty * p.rate }));
+                }}
                 className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
               />
             </div>
@@ -817,7 +885,19 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
               <Input
                 type="number"
                 value={newItem.rate}
-                onChange={(e) => setNewItem((p: any) => ({ ...p, rate: Number(e.target.value) }))}
+                onChange={(e) => {
+                  const rate = Number(e.target.value);
+                  setNewItem((p: any) => ({ ...p, rate, amount: p.amountOverridden ? p.amount : p.qty * rate }));
+                }}
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Amount</Label>
+              <Input
+                type="number"
+                value={newItem.amount}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, amount: Number(e.target.value), amountOverridden: true }))}
                 className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
               />
             </div>

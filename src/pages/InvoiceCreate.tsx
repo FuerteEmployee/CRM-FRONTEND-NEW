@@ -84,7 +84,12 @@ export default function InvoiceCreate() {
     discount_type: "no_discount",
     adminnote: "",
     client_note: "",
-    terms: ""
+    terms: "",
+    voucherType: "",
+    partyAddress: "",
+    partyGroup: "",
+    termsOfPayment: "",
+    gstin: ""
   });
 
   const [status, setStatus] = useState("unpaid");
@@ -105,7 +110,12 @@ export default function InvoiceCreate() {
     qty: 1,
     rate: 0,
     tax: "",
-    unit: ""
+    unit: "",
+    itemGroup: "",
+    itemHSN: "",
+    itemBatch: "",
+    gstPercentage: 0,
+    amount: 0
   });
   const [discountValue, setDiscountValue] = useState(0);
   const [discountType, setDiscountType] = useState("percent");
@@ -201,7 +211,12 @@ export default function InvoiceCreate() {
         discount_type: invoice.discount_percent > 0 ? "percent" : "no_discount",
         adminnote: invoice.adminnote || "",
         client_note: invoice.notes || "",
-        terms: invoice.terms || ""
+        terms: invoice.terms || "",
+        voucherType: invoice.voucherType || "",
+        partyAddress: invoice.partyAddress || "",
+        partyGroup: invoice.partyGroup || "",
+        termsOfPayment: invoice.termsOfPayment || "",
+        gstin: invoice.gstin || ""
       });
       
       if (invoice.status) {
@@ -214,7 +229,13 @@ export default function InvoiceCreate() {
       setItems(invoice.items.map((item: any) => ({
         ...item,
         id: Math.random().toString(36).substr(2, 9),
-        tax: taxes.find(t => t.taxrate === item.tax)?._id || ""
+        tax: taxes.find(t => t.taxrate === item.tax)?._id || "",
+        itemGroup: item.itemGroup || "",
+        itemHSN: item.itemHSN || "",
+        itemBatch: item.itemBatch || "",
+        gstPercentage: item.gstPercentage || 0,
+        unit: item.unit || "",
+        amount: item.amount ?? ((item.qty * item.rate) || 0)
       })));
       
       setDiscountValue(invoice.discount_percent || 0);
@@ -239,14 +260,20 @@ export default function InvoiceCreate() {
 
   const addItem = () => {
     if (!newItem.description) return;
-    setItems([...items, { ...newItem, id: Date.now().toString() }]);
+    const amount = newItem.amount || Number(newItem.qty) * Number(newItem.rate);
+    setItems([...items, { ...newItem, amount, id: Date.now().toString() }]);
     setNewItem({
       description: "",
       long_description: "",
       qty: 1,
       rate: 0,
       tax: "",
-      unit: ""
+      unit: "",
+      itemGroup: "",
+      itemHSN: "",
+      itemBatch: "",
+      gstPercentage: 0,
+      amount: 0
     });
     setIsAddItemModalOpen(false);
   };
@@ -340,14 +367,25 @@ export default function InvoiceCreate() {
       project: formData.project || undefined,
       created_by: formData.sale_agent || undefined,
       status: finalStatus,
+      voucherType: formData.voucherType,
+      partyAddress: formData.partyAddress,
+      partyGroup: formData.partyGroup,
+      termsOfPayment: formData.termsOfPayment,
+      gstin: formData.gstin,
       items: items.map(item => ({
         description: item.description,
         long_description: item.long_description,
         qty: Number(item.qty) || 0,
         rate: Number(item.rate) || 0,
         tax: Number(taxes.find((t: any) => t._id === item.tax)?.taxrate) || 0,
-        tax_name: taxes.find((t: any) => t._id === item.tax)?.name || ""
-      })), 
+        tax_name: taxes.find((t: any) => t._id === item.tax)?.name || "",
+        itemGroup: item.itemGroup || "",
+        itemHSN: item.itemHSN || "",
+        itemBatch: item.itemBatch || "",
+        unit: item.unit || "",
+        gstPercentage: Number(item.gstPercentage) || 0,
+        amount: Number(item.amount) || (Number(item.qty) || 0) * (Number(item.rate) || 0)
+      })),
       discount_percent: Number(discountType === "percent" ? discountValue : 0) || 0,
       adjustment: Number(adjustmentValue) || 0,
       subtotal: Number(calculations.subTotal) || 0,
@@ -502,6 +540,57 @@ export default function InvoiceCreate() {
                 <Label htmlFor="prevent-reminders" className="text-xs font-bold text-primary/80 cursor-pointer">
                   Prevent sending overdue reminders for this invoice
                 </Label>
+              </div>
+
+              {/* Voucher / Party Details */}
+              <div className="grid grid-cols-2 gap-6 pt-4 border-t border-border/30 border-dashed">
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Voucher Type</Label>
+                  <Input
+                    placeholder="e.g. Sales"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.voucherType}
+                    onChange={(e) => setFormData(p => ({ ...p, voucherType: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">GSTIN/UIN</Label>
+                  <Input
+                    placeholder="Party GSTIN"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.gstin}
+                    onChange={(e) => setFormData(p => ({ ...p, gstin: e.target.value.toUpperCase() }))}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2.5">
+                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Party Address</Label>
+                <Textarea
+                  className="min-h-[80px] rounded-2xl border-border/50 bg-background shadow-sm p-4 text-xs font-medium resize-none"
+                  placeholder="Party address..."
+                  value={formData.partyAddress}
+                  onChange={(e) => setFormData(p => ({ ...p, partyAddress: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Party Group</Label>
+                  <Input
+                    placeholder="Party Group"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.partyGroup}
+                    onChange={(e) => setFormData(p => ({ ...p, partyGroup: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Terms of Payment</Label>
+                  <Input
+                    placeholder="e.g. Net 30"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.termsOfPayment}
+                    onChange={(e) => setFormData(p => ({ ...p, termsOfPayment: e.target.value }))}
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -765,8 +854,13 @@ export default function InvoiceCreate() {
                       Item
                     </th>
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Description</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Item Group</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">HSN</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Batch</th>
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Qty</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Unit</th>
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Rate</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">GST %</th>
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Tax</th>
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Amount</th>
                     <th className="p-4 text-right">
@@ -786,30 +880,68 @@ export default function InvoiceCreate() {
                       />
                     </td>
                     <td className="p-4 align-top">
-                      <Textarea 
-                        placeholder="Long description" 
+                      <Textarea
+                        placeholder="Long description"
                         className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
                         value={newItem.long_description}
                         onChange={(e) => setNewItem(p => ({ ...p, long_description: e.target.value }))}
                       />
                     </td>
-                    <td className="p-4 align-top w-[120px]">
-                      <div className="space-y-1">
-                        <Input 
-                          type="number" 
-                          value={newItem.qty} 
-                          onChange={(e) => setNewItem(p => ({ ...p, qty: Number(e.target.value) }))}
-                          className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
-                        />
-                        <span className="text-[10px] font-black text-muted-foreground/50 uppercase tracking-tighter block text-center">Unit</span>
-                      </div>
+                    <td className="p-4 align-top w-[130px]">
+                      <Input
+                        placeholder="Item Group"
+                        value={newItem.itemGroup}
+                        onChange={(e) => setNewItem(p => ({ ...p, itemGroup: e.target.value }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                      />
+                    </td>
+                    <td className="p-4 align-top w-[110px]">
+                      <Input
+                        placeholder="HSN"
+                        value={newItem.itemHSN}
+                        onChange={(e) => setNewItem(p => ({ ...p, itemHSN: e.target.value }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                      />
+                    </td>
+                    <td className="p-4 align-top w-[110px]">
+                      <Input
+                        placeholder="Batch"
+                        value={newItem.itemBatch}
+                        onChange={(e) => setNewItem(p => ({ ...p, itemBatch: e.target.value }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                      />
+                    </td>
+                    <td className="p-4 align-top w-[100px]">
+                      <Input
+                        type="number"
+                        value={newItem.qty}
+                        onChange={(e) => setNewItem(p => ({ ...p, qty: Number(e.target.value) }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                      />
+                    </td>
+                    <td className="p-4 align-top w-[100px]">
+                      <Input
+                        placeholder="Unit"
+                        value={newItem.unit}
+                        onChange={(e) => setNewItem(p => ({ ...p, unit: e.target.value }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                      />
                     </td>
                     <td className="p-4 align-top w-[150px]">
-                      <Input 
-                        placeholder="Rate" 
+                      <Input
+                        placeholder="Rate"
                         type="number"
                         value={newItem.rate}
                         onChange={(e) => setNewItem(p => ({ ...p, rate: Number(e.target.value) }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                      />
+                    </td>
+                    <td className="p-4 align-top w-[100px]">
+                      <Input
+                        type="number"
+                        placeholder="GST %"
+                        value={newItem.gstPercentage}
+                        onChange={(e) => setNewItem(p => ({ ...p, gstPercentage: Number(e.target.value) }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                       />
                     </td>
@@ -841,12 +973,17 @@ export default function InvoiceCreate() {
                     <tr key={item.id} className="border-b border-border/20 hover:bg-muted/5 transition-colors">
                       <td className="p-4 align-top font-bold text-xs">{item.description}</td>
                       <td className="p-4 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
-                      <td className="p-4 align-top text-xs font-bold">{item.qty} {item.unit}</td>
+                      <td className="p-4 align-top text-xs font-medium text-muted-foreground">{item.itemGroup || "-"}</td>
+                      <td className="p-4 align-top text-xs font-medium text-muted-foreground">{item.itemHSN || "-"}</td>
+                      <td className="p-4 align-top text-xs font-medium text-muted-foreground">{item.itemBatch || "-"}</td>
+                      <td className="p-4 align-top text-xs font-bold">{item.qty}</td>
+                      <td className="p-4 align-top text-xs font-medium text-muted-foreground">{item.unit || "-"}</td>
                       <td className="p-4 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
+                      <td className="p-4 align-top text-xs font-medium text-muted-foreground">{item.gstPercentage || 0}%</td>
                       <td className="p-4 align-top text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                         {taxes.find(t => t._id === item.tax)?.name || "No Tax"}
                       </td>
-                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.qty * item.rate * (1 + (taxes.find(t => t._id === item.tax)?.taxrate || 0) / 100))}</td>
+                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.amount || (item.qty * item.rate * (1 + (taxes.find(t => t._id === item.tax)?.taxrate || 0) / 100)))}</td>
                       <td className="p-4 align-top text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
@@ -1068,9 +1205,45 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
           </div>
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Item Group</Label>
+              <Input
+                value={newItem.itemGroup}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, itemGroup: e.target.value }))}
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Item HSN</Label>
+              <Input
+                value={newItem.itemHSN}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, itemHSN: e.target.value }))}
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Item Batch</Label>
+              <Input
+                value={newItem.itemBatch}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, itemBatch: e.target.value }))}
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Unit</Label>
+              <Input
+                value={newItem.unit}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, unit: e.target.value }))}
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Qty</Label>
-              <Input 
-                type="number" 
+              <Input
+                type="number"
                 value={newItem.qty}
                 onChange={(e) => setNewItem((p: any) => ({ ...p, qty: Number(e.target.value) }))}
                 className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
@@ -1078,13 +1251,22 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Rate</Label>
-              <Input 
-                type="number" 
+              <Input
+                type="number"
                 value={newItem.rate}
                 onChange={(e) => setNewItem((p: any) => ({ ...p, rate: Number(e.target.value) }))}
                 className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
               />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">GST Percentage</Label>
+            <Input
+              type="number"
+              value={newItem.gstPercentage}
+              onChange={(e) => setNewItem((p: any) => ({ ...p, gstPercentage: Number(e.target.value) }))}
+              className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+            />
           </div>
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Tax</Label>
