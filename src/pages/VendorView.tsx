@@ -56,7 +56,7 @@ const VendorView = () => {
     <DashboardLayout>
       <div className="space-y-6 pb-20">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" className="h-10 w-10 p-0 rounded-xl" onClick={() => navigate("/vendors")}>
+          <Button variant="ghost" className="h-10 w-10 p-0 rounded-xl" onClick={() => navigate("/admin/vendors")}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <div>
