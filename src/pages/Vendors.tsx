@@ -455,7 +455,7 @@ const Vendors = () => {
                         <td className="p-4 text-xs font-medium text-slate-600">{v.sales_person || "-"}</td>
                         <td className="p-4">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => navigate(`/vendors/${v._id}`)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => navigate(`/admin/vendors/${v._id}`)}>
                               <Eye className="h-3.5 w-3.5 text-slate-500" />
                             </Button>
                             {can("Vendors", "Edit") && (
