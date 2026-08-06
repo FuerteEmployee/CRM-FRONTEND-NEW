@@ -11,6 +11,24 @@
     <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" />
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
     <meta name="theme-color" content="#1e293b" />
+    <style>
+      /* Google Translate normally injects a top banner iframe and pushes
+         <body> down with an inline "top" offset. We drive translation from
+         our own profile-menu dropdown, not Google's UI, so hide all of it. */
+      .goog-te-banner-frame.skiptranslate,
+      .goog-te-gadget-icon,
+      #goog-gt-tt,
+      .goog-te-balloon-frame {
+        display: none !important;
+      }
+      body {
+        top: 0 !important;
+      }
+      .goog-text-highlight {
+        background: none !important;
+        box-shadow: none !important;
+      }
+    </style>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -63,25 +81,43 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="CRMPro Dashboard" />
     <meta name="twitter:description" content="A powerful CRM, sales, and team management platform." />
-    <script type="module" crossorigin src="/assets/index-C7TLlWEQ.js"></script>
+    <script type="module" crossorigin src="/assets/index-CEY68lQu.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-socket-C5tQnEN0.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-CR-NBlbu.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-icons-D-YwJnL1.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-export-DkfQOOS9.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-utils-pZuX5wFI.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-reports-DPbNvTFP.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-quotations-C2ngAc5R.js">
-    <link rel="modulepreload" crossorigin href="/assets/auth.service-CZz8nPmk.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-superadmin-CjLoMMQl.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-reports-BwxR3-BH.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-quotations-RSlEehFB.js">
+    <link rel="modulepreload" crossorigin href="/assets/auth.service-Qw7Bo_CU.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-superadmin-Dajkydlx.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-capacitor-DHPsI427.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-hrms-DbkcEJSb.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-setup-DGmKXEQ-.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-client-BFlyif3-.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-hrms-D5xtzjv6.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-setup-CFKB8ydV.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-client-yyDtIRS1.js">
     <link rel="stylesheet" crossorigin href="/assets/vendor-react-CA_sXLh1.css">
-    <link rel="stylesheet" crossorigin href="/assets/index-DAV8mVxi.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-CYKvFH4c.css">
   <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
 
   <body>
-    <div id="root"></div>
+    <div id="root"></div>
+    <!--
+      Powers the "Language" item in the profile-picture dropdown menu
+      (Frontend/src/components/layout/TopNavbar.tsx). That menu only sets a
+      `googtrans` cookie and reloads — it relies on this widget actually
+      being present to read that cookie and translate the page. Hidden
+      off-screen: we drive it entirely via the cookie + profile-menu UI,
+      never Google's own dropdown widget.
+    -->
+    <div id="google_translate_element" style="position:absolute;top:-9999px;left:-9999px;"></div>
+    <script type="text/javascript">
+      function googleTranslateElementInit() {
+        new google.translate.TranslateElement(
+          { pageLanguage: "en", autoDisplay: false },
+          "google_translate_element"
+        );
+      }
+    </script>
+    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
   </body>
 </html>
