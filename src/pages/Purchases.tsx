@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -223,34 +222,29 @@ const Purchases = () => {
   // stops at the first comma and silently returns just the leading digits.
   const parseNum = (val: any) => parseFloat(String(val ?? "").replace(/[^0-9.-]/g, "")) || 0;
 
-  // Matches the bill format headers: Company Name | Adress with State | GST number |
-  // Bill date | Due date | Bill reference | Payment Method | Payment Date | Journal |
-  // Bank details | Product | HSN/SAC code | Quantity | Rate | Price | Freight charge |
-  // GST/IGST | Total | Round Off | Sales person
-  // (GST/IGST, Total and Round Off are computed automatically — never read from the file.)
+  // Matches the Tally Purchase Day Book column layout (see exportColumns
+  // above): Bill Date | Particulars | Voucher Type | Voucher No. | Quantity |
+  // Rate | Amount | Total | PURCHASE GST | CGST 9% | SGST 9% | PURCHASE IGST |
+  // FREIGHT 1% | IGST 18% | Round off.
+  // "PURCHASE GST" is the same taxable value as Amount — read as a fallback
+  // for Amount, never a separate field. "IGST 18%" is intentionally not read
+  // at all — it duplicates PURCHASE IGST in Tally's export and would double
+  // the igst value if both were summed.
   const processPurchaseRows = (rows: any[]) => {
     const purchasesData = rows.map((row: any) => ({
-      supplier_name: String(getField(row, "company name", "company", "supplier name", "supplier", "vendor", "vendor name", "party", "party name", "firm name")),
-      supplier_address: String(getField(row, "address with state", "adress with state", "address", "adress")),
-      supplier_state: String(getField(row, "supplier state", "state", "place of supply")),
-      supplier_gstin: String(getField(row, "gst number", "gstin", "gst no", "supplier gstin")),
+      supplier_name: String(getField(row, "particulars", "company name", "company", "supplier name", "supplier", "vendor", "vendor name", "party", "party name", "firm name")),
       bill_date: getField(row, "bill date", "date", "invoice date"),
-      due_date: getField(row, "due date"),
-      bill_no: String(getField(row, "bill reference", "bill ref", "bill no", "billno", "bill number", "invoice no", "invoice number", "invoice reference", "ref no", "bill ref no")),
+      bill_no: String(getField(row, "voucher no.", "voucher no", "voucher number", "bill reference", "bill ref", "bill no", "billno", "bill number", "invoice no", "invoice number", "invoice reference", "ref no", "bill ref no")),
       voucher_type: String(getField(row, "voucher type")),
-      paymentmode: String(getField(row, "payment method", "payment mode", "mode")),
-      payment_date: getField(row, "payment date", "paid date", "paid on"),
-      journal: String(getField(row, "journal")),
-      bank_details: String(getField(row, "bank details", "bank")),
-      product: String(getField(row, "product", "item", "description of goods")),
-      hsn_code: String(getField(row, "hsn/sac code", "hsn sac code", "hsn code", "hsn", "sac")),
       quantity: parseNum(getField(row, "quantity", "qty")),
       rate: parseNum(getField(row, "rate")),
-      amount: parseNum(getField(row, "price", "amount", "taxable value", "taxable amount")),
-      freight_charge: parseNum(getField(row, "freight charge", "freight", "shipping")),
-      gst_rate: parseNum(getField(row, "gst rate", "gst rate %", "tax rate", "gst %")) || 18,
-      sales_person: String(getField(row, "sales person", "salesperson", "sales man")),
-      note: String(getField(row, "note", "remarks")),
+      amount: parseNum(getField(row, "amount", "purchase gst", "price", "taxable value", "taxable amount")),
+      total: parseNum(getField(row, "total")),
+      cgst: parseNum(getField(row, "cgst 9%", "cgst")),
+      sgst: parseNum(getField(row, "sgst 9%", "sgst")),
+      igst: parseNum(getField(row, "purchase igst", "igst")),
+      freight_charge: parseNum(getField(row, "freight 1%", "freight charge", "freight", "shipping")),
+      round_off: parseNum(getField(row, "round off", "roundoff")),
     }));
 
     const valid = purchasesData.filter(
@@ -258,9 +252,9 @@ const Purchases = () => {
     );
     if (valid.length === 0) {
       const missing: string[] = [];
-      if (!purchasesData.some((p) => p.bill_no)) missing.push("Bill Reference");
-      if (!purchasesData.some((p) => p.supplier_name)) missing.push("Company Name");
-      if (!purchasesData.some((p) => p.amount > 0 || (p.quantity > 0 && p.rate > 0))) missing.push("Price (or Quantity + Rate)");
+      if (!purchasesData.some((p) => p.bill_no)) missing.push("Voucher No.");
+      if (!purchasesData.some((p) => p.supplier_name)) missing.push("Particulars");
+      if (!purchasesData.some((p) => p.amount > 0 || (p.quantity > 0 && p.rate > 0))) missing.push("Amount (or Quantity + Rate)");
       const foundHeaders = rows[0] ? Object.keys(rows[0]).join(", ") : "(file appears empty)";
       toast({
         title: "Error",
@@ -277,10 +271,17 @@ const Purchases = () => {
   // Quantity/Amount that is the SUM of every item below it, and the bill's
   // tax-inclusive grand Total), followed by one row per line item where
   // Bill Date/Voucher No./Total are blank and Particulars holds the item name.
+  // Header presence alone ("Particulars" + "Voucher No.") isn't enough to
+  // tell this apart from our own single-row-per-record export (Purchases.tsx
+  // exportColumns), which has the exact same two headers but fills Voucher
+  // No. on every row — so this also requires at least one row with a blank
+  // Voucher No., which only the multi-row rollup+item-line format produces.
   const isTallyPurchaseRegister = (rows: any[]) => {
     if (!rows.length) return false;
     const keys = Object.keys(rows[0]).map(normalizeKey);
-    return keys.includes("particulars") && keys.some((k) => k.includes("voucherno"));
+    const hasExpectedHeaders = keys.includes("particulars") && keys.some((k) => k.includes("voucherno"));
+    if (!hasExpectedHeaders) return false;
+    return rows.some((row) => !String(getField(row, "voucher no.", "voucher no", "voucher number")).trim());
   };
 
   // Carries Bill Date/Voucher No./Party Name/Voucher Type down from each
@@ -582,44 +583,39 @@ const Purchases = () => {
     }
   };
 
-  // Export headers match the company's bill format exactly
-  // Column headers/order match the bill-format the importer reads (see
-  // processPurchaseRows above) so an exported file can be edited and
-  // re-imported without renaming columns. Amount/date columns are typed
-  // "number"/"date" so Excel gets real numeric/date cells — not text — and
-  // SUM/AutoFilter/date-sort work without a manual "convert to number" step.
+  // Export headers match Tally's Purchase Day Book column layout exactly
+  // (Bill Date | Particulars | Voucher Type | Voucher No. | Quantity | Rate |
+  // Amount | Total | PURCHASE GST | CGST 9% | SGST 9% | PURCHASE IGST |
+  // FREIGHT 1% | IGST 18% | Round off). Column headers/order match what the
+  // importer reads (see processPurchaseRows below) so an exported file can be
+  // edited and re-imported without renaming columns. Amount/date columns are
+  // typed "number"/"date" so Excel gets real numeric/date cells — not text —
+  // and SUM/AutoFilter/date-sort work without a manual "convert to number" step.
   const exportColumns = [
-    { header: "Company Name", key: "supplier_name" },
-    { header: "Address with State", key: "supplier_address" },
-    { header: "GST Number", key: "supplier_gstin" },
     { header: "Bill Date", key: "bill_date", type: "date" as const },
-    { header: "Due Date", key: "due_date", type: "date" as const },
-    { header: "Bill Reference", key: "bill_no" },
+    { header: "Particulars", key: "supplier_name" },
     { header: "Voucher Type", key: "voucher_type" },
-    { header: "Payment Method", key: "paymentmode" },
-    { header: "Payment Date", key: "payment_date", type: "date" as const },
-    { header: "Journal", key: "journal" },
-    { header: "Bank Details", key: "bank_details" },
-    { header: "Product", key: "product" },
-    { header: "HSN/SAC Code", key: "hsn_code" },
+    { header: "Voucher No.", key: "bill_no" },
     { header: "Quantity", key: "quantity", type: "number" as const },
     { header: "Rate", key: "rate", type: "number" as const },
-    { header: "Price", key: "amount", type: "number" as const },
-    { header: "Freight Charge", key: "freight_charge", type: "number" as const },
-    { header: "GST Rate %", key: "gst_rate", type: "number" as const },
-    { header: "Tax Type", key: "tax_type" },
-    { header: "CGST", key: "cgst", type: "number" as const },
-    { header: "SGST", key: "sgst", type: "number" as const },
-    { header: "IGST", key: "igst", type: "number" as const },
+    { header: "Amount", key: "amount", type: "number" as const },
     { header: "Total", key: "total", type: "number" as const },
-    { header: "Round Off", key: "round_off", type: "number" as const },
-    { header: "Sales Person", key: "sales_person" },
-    { header: "Payment Status", key: "payment_status" },
+    // Tally posts the taxable value to the "PURCHASE GST" ledger — same
+    // number as Amount, just relabeled for the ledger-wise view.
+    { header: "PURCHASE GST", key: "amount", type: "number" as const },
+    { header: "CGST 9%", key: "cgst", type: "number" as const },
+    { header: "SGST 9%", key: "sgst", type: "number" as const },
+    { header: "PURCHASE IGST", key: "igst", type: "number" as const },
+    { header: "FREIGHT 1%", key: "freight_charge", type: "number" as const },
+    // "IGST 18%" duplicates PURCHASE IGST in Tally's ledger-wise columns —
+    // left blank here rather than repeating igst, to avoid double-counting
+    // the same tax amount across two columns.
+    { header: "IGST 18%", key: () => "", type: "number" as const },
+    { header: "Round off", key: "round_off", type: "number" as const },
   ];
 
-  // Checkbox + Bill Ref + Date + Company + Product + Qty×Rate + Price + Total + Actions
-  // = 9 always-shown columns, plus whichever set (simplified vs full) is active.
-  const tableColSpan = 9 + (simplifiedRegister ? 1 : 3);
+  // Checkbox + 15 fixed Tally-style columns (see exportColumns above) + Actions.
+  const tableColSpan = 1 + 15 + 1;
 
   const inputCls = "h-11 rounded-xl border-slate-200";
   const labelCls = "text-[10px] font-black uppercase tracking-widest text-slate-500";
@@ -802,17 +798,23 @@ const Purchases = () => {
                     <th className="p-4 font-bold w-12">
                       <Checkbox className="border-slate-300" checked={allPageSelected} onCheckedChange={toggleSelectAll} />
                     </th>
-                    <th className="p-4 font-bold">Bill Ref</th>
-                    <th className="p-4 font-bold">Bill / Due Date</th>
-                    <th className="p-4 font-bold">Company</th>
-                    <th className="p-4 font-bold">Product</th>
-                    {simplifiedRegister && <th className="p-4 font-bold">Voucher Type</th>}
-                    <th className="p-4 font-bold">Qty × Rate</th>
-                    <th className="p-4 font-bold">Price</th>
-                    {!simplifiedRegister && <th className="p-4 font-bold">GST/IGST</th>}
+                    {/* Fixed 15-column Tally-style Purchase Day Book layout — kept in sync
+                        with exportColumns above; no simplifiedRegister toggle here anymore. */}
+                    <th className="p-4 font-bold">Bill Date</th>
+                    <th className="p-4 font-bold">Particulars</th>
+                    <th className="p-4 font-bold">Voucher Type</th>
+                    <th className="p-4 font-bold">Voucher No.</th>
+                    <th className="p-4 font-bold">Quantity</th>
+                    <th className="p-4 font-bold">Rate</th>
+                    <th className="p-4 font-bold">Amount</th>
                     <th className="p-4 font-bold">Total</th>
-                    {!simplifiedRegister && <th className="p-4 font-bold">Payment</th>}
-                    {!simplifiedRegister && <th className="p-4 font-bold">Sales Person</th>}
+                    <th className="p-4 font-bold">PURCHASE GST</th>
+                    <th className="p-4 font-bold">CGST 9%</th>
+                    <th className="p-4 font-bold">SGST 9%</th>
+                    <th className="p-4 font-bold">PURCHASE IGST</th>
+                    <th className="p-4 font-bold">FREIGHT 1%</th>
+                    <th className="p-4 font-bold">IGST 18%</th>
+                    <th className="p-4 font-bold">Round off</th>
                     <th className="p-4 font-bold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -839,76 +841,28 @@ const Purchases = () => {
                             onCheckedChange={() => toggleSelect(p._id)}
                           />
                         </td>
-                        <td className="p-4 font-bold text-slate-800">{p.bill_no}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">
-                          <div>{p.bill_date ? formatDate(p.bill_date) : "-"}</div>
-                          {p.due_date && <div className="text-[10px] text-orange-500 font-bold">Due {formatDate(p.due_date)}</div>}
-                        </td>
-                        <td className="p-4">
-                          <div className="font-bold text-slate-800">{p.supplier_name}</div>
-                          <div className="text-[10px] font-bold text-slate-400 tracking-wide">
-                            {[p.supplier_gstin, p.supplier_state].filter(Boolean).join(" · ")}
-                          </div>
-                        </td>
-                        <td className="p-4">
-                          <div className="text-xs font-medium text-slate-700">{p.product || "-"}</div>
-                          {p.hsn_code && <div className="text-[10px] font-bold text-slate-400">HSN {p.hsn_code}</div>}
-                        </td>
-                        {simplifiedRegister && (
-                          <td className="p-4 text-xs font-medium text-slate-600">{p.voucher_type || "-"}</td>
-                        )}
-                        <td className="p-4 text-xs font-medium text-slate-600">
-                          {p.quantity ? `${p.quantity} × ${money(p.rate)}` : "-"}
-                        </td>
-                        <td className="p-4 font-bold text-slate-800">
-                          {money(p.amount)}
-                          {p.freight_charge > 0 && (
-                            <div className="text-[10px] font-bold text-slate-400">+ freight {money(p.freight_charge)}</div>
-                          )}
-                        </td>
-                        {!simplifiedRegister && (
-                          <td className="p-4">
-                            {p.tax_type === "IGST" ? (
-                              <Badge variant="outline" className="bg-violet-50 text-violet-700 border-violet-200 font-bold text-[10px]">
-                                IGST {money(p.igst)}
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 font-bold text-[10px]">
-                                CGST {money(p.cgst)} + SGST {money(p.sgst)}
-                              </Badge>
-                            )}
-                            <div className="text-[10px] font-bold text-slate-400 mt-1">@ {p.gst_rate || 0}%</div>
-                          </td>
-                        )}
-                        <td className="p-4 font-black text-green-700">
-                          {money(p.total)}
-                          {p.round_off !== 0 && p.round_off != null && (
-                            <div className="text-[10px] font-bold text-slate-400">r/o {p.round_off > 0 ? "+" : ""}{p.round_off.toFixed(2)}</div>
-                          )}
-                        </td>
-                        {!simplifiedRegister && (
-                          <td className="p-4">
-                            <Badge
-                              variant="outline"
-                              className={`font-bold text-[10px] ${p.payment_status === "Paid"
-                                ? "bg-green-50 text-green-700 border-green-200"
-                                : p.payment_status === "Partially Paid"
-                                  ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                                  : "bg-red-50 text-red-700 border-red-200"}`}
-                            >
-                              {p.payment_status || "Unpaid"}
-                            </Badge>
-                            {p.payment_date && (
-                              <div className="text-[10px] font-bold text-slate-400 mt-1">{formatDate(p.payment_date)}</div>
-                            )}
-                            {p.paymentmode && (
-                              <div className="text-[10px] font-medium text-slate-400">{p.paymentmode}</div>
-                            )}
-                          </td>
-                        )}
-                        {!simplifiedRegister && (
-                          <td className="p-4 text-xs font-medium text-slate-600">{p.sales_person || "-"}</td>
-                        )}
+                        {/* Fixed 15-column Tally-style Purchase Day Book layout — kept in sync
+                            with exportColumns above; no simplifiedRegister toggle here anymore. */}
+                        <td className="p-4 text-xs font-medium text-slate-600">{p.bill_date ? formatDate(p.bill_date) : "-"}</td>
+                        <td className="p-4 font-bold text-slate-800">{p.supplier_name || "-"}</td>
+                        <td className="p-4 text-xs font-medium text-slate-600">{p.voucher_type || "-"}</td>
+                        <td className="p-4 font-bold text-slate-800">{p.bill_no || "-"}</td>
+                        <td className="p-4 text-xs font-medium text-slate-600">{p.quantity ?? "-"}</td>
+                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.rate)}</td>
+                        <td className="p-4 font-bold text-slate-800">{money(p.amount)}</td>
+                        <td className="p-4 font-black text-green-700">{money(p.total)}</td>
+                        {/* Tally posts the taxable value to the "PURCHASE GST" ledger — same
+                            number as Amount, just relabeled for the ledger-wise view (mirrors
+                            exportColumns above). */}
+                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.amount)}</td>
+                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.cgst)}</td>
+                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.sgst)}</td>
+                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.igst)}</td>
+                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.freight_charge)}</td>
+                        {/* "IGST 18%" duplicates PURCHASE IGST in Tally's ledger-wise columns —
+                            left blank rather than repeating igst (mirrors exportColumns above). */}
+                        <td className="p-4 text-xs font-medium text-slate-600">-</td>
+                        <td className="p-4 text-xs font-medium text-slate-600">{p.round_off ? money(p.round_off) : "-"}</td>
                         <td className="p-4">
                           <div className="flex justify-end gap-1">
                             {can("Purchases", "Edit") && (

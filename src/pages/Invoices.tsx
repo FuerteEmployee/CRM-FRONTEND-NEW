@@ -788,8 +788,8 @@ const Invoices = () => {
   });
 
   const handleImportData = (rows: Record<string, any>[]) => {
-    const valid = rows.filter(r => r["company"] || r["Company"] || r["number"] || r["Invoice #"] || r["total"] || r["Total"] || r["Amount"] || r["Customer"]);
-    if (!valid.length) { toast({ title: "No valid rows", description: "Rows need at least a company or invoice number column.", variant: "destructive" }); return; }
+    const valid = rows.filter(r => r["company"] || r["Company"] || r["number"] || r["Invoice #"] || r["Voucher Number"] || r["total"] || r["Total"] || r["Amount"] || r["Customer"] || r["Party Name"]);
+    if (!valid.length) { toast({ title: "No valid rows", description: "Rows need at least a company/party or invoice/voucher number column.", variant: "destructive" }); return; }
     importMutation.mutate(valid as any);
   };
 
@@ -825,6 +825,35 @@ const Invoices = () => {
     return { counts, totals };
   }, [invoices]);
 
+  // Flatten invoices into one row per line item for export — invoice-level
+  // fields repeat across each of that invoice's item rows.
+  const buildExportRows = (invoiceList: any[]) => invoiceList.flatMap((inv: any) => {
+    const items = inv.items?.length > 0 ? inv.items : [{}];
+    return items.map((item: any, idx: number) => ({
+      voucherNumber: inv.number || `INV-${inv._id?.substring(0, 6)}`,
+      billDate: inv.date || null,
+      voucherType: inv.voucherType || "",
+      partyName: inv.client?.company || "N/A",
+      partyAddress: inv.partyAddress || "",
+      partyGroup: inv.partyGroup || "",
+      termsOfPayment: inv.termsOfPayment || "",
+      gstin: inv.gstin || "",
+      itemName: item.description || "",
+      itemGroup: item.itemGroup || "",
+      itemHSN: item.itemHSN || "",
+      gstPercentage: item.gstPercentage || 0,
+      itemBatch: item.itemBatch || "",
+      quantity: item.qty || 0,
+      rate: item.rate || 0,
+      unit: item.unit || "",
+      amount: item.amount ?? ((item.qty || 0) * (item.rate || 0)),
+      // Extra fields (ignored by ExportButton since it only reads the
+      // configured `columns` keys) used to render the on-screen table:
+      invoice: inv,
+      rowKey: `${inv._id || inv.id}-${idx}`,
+    }));
+  });
+
   const filtered = useMemo(() => {
     return invoices.filter((i: any) => {
       const matchSearch =
@@ -839,6 +868,16 @@ const Invoices = () => {
     });
   }, [invoices, search, statusFilter]);
 
+  const pageInvoices = useMemo(() => {
+    return filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
+  }, [filtered, itemsPerPage]);
+
+  // One row per line item for the on-screen table (mirrors buildExportRows),
+  // keeping a reference to the parent invoice for checkbox/actions handling.
+  const flatRows = useMemo(() => buildExportRows(pageInvoices), [pageInvoices]);
+
+  const TABLE_COLUMN_COUNT = 19; // checkbox + 17 data columns + actions
+
   const handleExport = (type: "pdf" | "csv" | "print") => {
     if (filtered.length === 0) {
       toast({
@@ -850,16 +889,33 @@ const Invoices = () => {
     }
 
     if (type === "csv") {
-      const headers = ["Invoice #", "Customer", "Amount", "Total Tax", "Date", "Due Date", "Status"];
-      const rows = filtered.map((inv: any) => [
-        inv.number || `INV-${inv._id?.substring(0, 6)}`,
-        inv.client?.company || "N/A",
-        formatRowAmount(inv, inv.total || 0),
-        formatRowAmount(inv, inv.total_tax || 0),
-        inv.date ? formatDate(inv.date) : "-",
-        inv.duedate ? formatDate(inv.duedate) : "-",
-        statusMap[inv.status]?.label || "Unpaid",
-      ]);
+      const headers = [
+        "Voucher Number", "Bill Date", "Voucher Type", "Party Name", "Party Address",
+        "Party Group", "Terms of Payment", "GSTIN/UIN", "Item Name", "Item Group",
+        "Item HSN", "GST percentage", "Item Batch", "Quantity", "Rate", "Unit", "Amount",
+      ];
+      const rows = filtered.flatMap((inv: any) => {
+        const items = inv.items?.length > 0 ? inv.items : [{}];
+        return items.map((item: any) => [
+          inv.number || `INV-${inv._id?.substring(0, 6)}`,
+          inv.date ? formatDate(inv.date) : "-",
+          inv.voucherType || "",
+          inv.client?.company || "N/A",
+          inv.partyAddress || "",
+          inv.partyGroup || "",
+          inv.termsOfPayment || "",
+          inv.gstin || "",
+          item.description || "",
+          item.itemGroup || "",
+          item.itemHSN || "",
+          item.gstPercentage || 0,
+          item.itemBatch || "",
+          item.qty || 0,
+          item.rate || 0,
+          item.unit || "",
+          item.amount ?? ((item.qty || 0) * (item.rate || 0)),
+        ]);
+      });
 
       const csvData = [headers.join(","), ...rows.map((e) => e.map((val) => `"${val}"`).join(","))].join("\n");
       const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
@@ -1007,16 +1063,26 @@ const Invoices = () => {
               </DialogContent>
             </Dialog>
             <ExportButton
-              data={filtered}
+              data={buildExportRows(filtered)}
               filename="invoices"
               columns={[
-                { header: "Invoice #", key: (inv) => inv.number || `INV-${inv._id?.substring(0, 6)}` },
-                { header: "Customer", key: (inv) => inv.client?.company || "N/A" },
-                { header: "Amount", key: "total" },
-                { header: "Total Tax", key: "total_tax" },
-                { header: "Date", key: "date" },
-                { header: "Due Date", key: "duedate" },
-                { header: "Status", key: (inv) => statusMap[inv.status]?.label || "Unpaid" }
+                { header: "Voucher Number", key: "voucherNumber" },
+                { header: "Bill Date", key: "billDate", type: "date" },
+                { header: "Voucher Type", key: "voucherType" },
+                { header: "Party Name", key: "partyName" },
+                { header: "Party Address", key: "partyAddress" },
+                { header: "Party Group", key: "partyGroup" },
+                { header: "Terms of Payment", key: "termsOfPayment" },
+                { header: "GSTIN/UIN", key: "gstin" },
+                { header: "Item Name", key: "itemName" },
+                { header: "Item Group", key: "itemGroup" },
+                { header: "Item HSN", key: "itemHSN" },
+                { header: "GST percentage", key: "gstPercentage", type: "number" },
+                { header: "Item Batch", key: "itemBatch" },
+                { header: "Quantity", key: "quantity", type: "number" },
+                { header: "Rate", key: "rate", type: "number" },
+                { header: "Unit", key: "unit" },
+                { header: "Amount", key: "amount", type: "number" },
               ]}
             />
             <ImportButton onData={handleImportData} loading={importMutation.isPending} />
@@ -1034,25 +1100,26 @@ const Invoices = () => {
 
         {/* Invoices Table */}
         <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
               <tr>
                 <th className="w-10 px-3 py-4">
-                  {(() => {
-                    const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
-                    return (
-                      <Checkbox
-                        checked={selectedIds.length === pageData.length && pageData.length > 0}
-                        onCheckedChange={() => toggleSelectAll(pageData)}
-                      />
-                    );
-                  })()}
+                  <Checkbox
+                    checked={selectedIds.length === pageInvoices.length && pageInvoices.length > 0}
+                    onCheckedChange={() => toggleSelectAll(pageInvoices)}
+                  />
                 </th>
-                {["Invoice #", "Customer", "Amount", "Total Tax", "Date", "Due Date", "Status", "Actions"].map((h) => (
-                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
+                {[
+                  "Voucher Number", "Bill Date", "Voucher Type", "Party Name", "Party Address",
+                  "Party Group", "Terms of Payment", "GSTIN/UIN", "Item Name", "Item Group",
+                  "Item HSN", "GST percentage", "Item Batch", "Quantity", "Rate", "Unit", "Amount",
+                ].map((h) => (
+                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px] whitespace-nowrap">
                     {h}
                   </th>
                 ))}
+                <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
@@ -1061,71 +1128,74 @@ const Invoices = () => {
                   .fill(0)
                   .map((_, i) => (
                     <tr key={i}>
-                      <td colSpan={9} className="p-4">
+                      <td colSpan={TABLE_COLUMN_COUNT} className="p-4">
                         <Skeleton className="h-10 w-full" />
                       </td>
                     </tr>
                   ))
-              ) : filtered.length === 0 ? (
+              ) : flatRows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground italic">
+                  <td colSpan={TABLE_COLUMN_COUNT} className="px-6 py-12 text-center text-muted-foreground italic">
                     No invoices found.
                   </td>
                 </tr>
               ) : (
-                filtered
-                  .slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage))
-                  .map((inv: any) => {
-                    const status = statusMap[inv.status] || statusMap[1];
-                    return (
-                      <tr key={inv._id} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(inv._id) ? 'bg-primary/5' : ''}`}>
-                        <td className="px-3 py-2">
-                          <Checkbox
-                            checked={selectedIds.includes(inv._id)}
-                            onCheckedChange={() => toggleSelect(inv._id)}
-                          />
-                        </td>
-                        <td className="px-6 py-4">
+                flatRows.map((row: any) => {
+                  const inv = row.invoice;
+                  const status = statusMap[inv.status] || statusMap[1];
+                  return (
+                    <tr key={row.rowKey} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(inv._id) ? 'bg-primary/5' : ''}`}>
+                      <td className="px-3 py-2">
+                        <Checkbox
+                          checked={selectedIds.includes(inv._id)}
+                          onCheckedChange={() => toggleSelect(inv._id)}
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
                           <button
                             className="font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer text-left"
                             onClick={() => setSelectedInvoice(inv)}
                           >
-                            {inv.number || `INV-${inv._id?.substring(0, 6)}`}
+                            {row.voucherNumber}
                           </button>
-                        </td>
-                        <td className="px-6 py-4 font-medium text-foreground">
-                          {inv.client?.company || "N/A"}
-                        </td>
-                        <td className="px-6 py-4 font-black text-foreground">
-                          {formatRowAmount(inv, inv.total || 0)}
-                        </td>
-                        <td className="px-6 py-4 text-muted-foreground">
-                          {formatRowAmount(inv, inv.total_tax || 0)}
-                        </td>
-                        <td className="px-6 py-4 text-muted-foreground">
-                          {inv.date ? formatDate(inv.date) : "-"}
-                        </td>
-                        <td className="px-6 py-4 text-muted-foreground">
-                          {inv.duedate ? formatDate(inv.duedate) : "-"}
-                        </td>
-                        <td className="px-6 py-4">
-                          <Badge variant="outline" className={cn("text-[10px] font-black uppercase tracking-widest px-3 py-1", status.color)}>
+                          <Badge variant="outline" className={cn("text-[9px] font-black uppercase tracking-widest px-2 py-0.5", status.color)}>
                             {status.label}
                           </Badge>
-                        </td>
-                        <td className="px-6 py-4">
-                          <TableActions
-                            onView={() => setPreviewInvoice(inv)}
-                            onEdit={can("Invoices", "Edit") ? () => navigate(`/admin/invoices/edit/${inv._id}`) : undefined}
-                            onDelete={can("Invoices", "Delete") ? () => deleteMutation.mutate(inv._id) : undefined}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                        {row.billDate ? formatDate(row.billDate) : "-"}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.voucherType || "-"}</td>
+                      <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">{row.partyName}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.partyAddress || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.partyGroup || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.termsOfPayment || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.gstin || "-"}</td>
+                      <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">{row.itemName || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.itemGroup || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.itemHSN || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.gstPercentage || 0}%</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.itemBatch || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.quantity || 0}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.rate || 0)}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.unit || "-"}</td>
+                      <td className="px-6 py-4 font-black text-foreground whitespace-nowrap">{formatRowAmount(inv, row.amount || 0)}</td>
+                      <td className="px-6 py-4">
+                        <TableActions
+                          onView={() => setPreviewInvoice(inv)}
+                          onEdit={can("Invoices", "Edit") ? () => navigate(`/admin/invoices/edit/${inv._id}`) : undefined}
+                          onDelete={can("Invoices", "Delete") ? () => deleteMutation.mutate(inv._id) : undefined}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Pagination Footer */}
