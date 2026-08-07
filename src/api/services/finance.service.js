@@ -34,4 +34,10 @@ export const financeService = {
   createContractType: (data) => apiClient.post('/contract-types', data),
   updateContractType: (id, data) => apiClient.patch(`/contract-types/${id}`, data),
   deleteContractType: (id) => apiClient.delete(`/contract-types/${id}`),
+
+  // Bank Details
+  getBankDetails: () => apiClient.get('/bank-details'),
+  createBankDetail: (data) => apiClient.post('/bank-details', data),
+  updateBankDetail: (id, data) => apiClient.patch(`/bank-details/${id}`, data),
+  deleteBankDetail: (id) => apiClient.delete(`/bank-details/${id}`),
 };

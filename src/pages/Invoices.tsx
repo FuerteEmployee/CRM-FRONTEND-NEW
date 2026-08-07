@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -710,13 +711,48 @@ const Invoices = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, user } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
   const { symbol } = useCurrency();
   const { data: currencies = [] } = useQuery({
     queryKey: ["currencies"],
     queryFn: () => financeService.getCurrencies().then((res: any) => res.data || res),
     staleTime: 5 * 60 * 1000,
   });
+
+  const tableHeaders = useMemo(() => [
+    "Voucher Number", "Bill Date", "Voucher Type",
+    ...(isPilot ? ["Sales Person"] : []),
+    "Party Name", "Party Address", "Party Group", "Terms of Payment", "GSTIN/UIN",
+    "Item Name", "Item Group", "Item HSN", "GST percentage", "Item Batch",
+    "Quantity", "Rate", "Unit",
+    ...(isPilot ? ["Freight 1%"] : []),
+    "Amount",
+  ], [isPilot]);
+
+  const exportColumns = useMemo(() => [
+    { header: "Voucher Number", key: "voucherNumber" },
+    { header: "Bill Date", key: "billDate", type: "date" as const },
+    { header: "Voucher Type", key: "voucherType" },
+    ...(isPilot ? [{ header: "Sales Person", key: "salesPerson" }] : []),
+    { header: "Party Name", key: "partyName" },
+    { header: "Party Address", key: "partyAddress" },
+    { header: "Party Group", key: "partyGroup" },
+    { header: "Terms of Payment", key: "termsOfPayment" },
+    { header: "GSTIN/UIN", key: "gstin" },
+    { header: "Item Name", key: "itemName" },
+    { header: "Item Group", key: "itemGroup" },
+    { header: "Item HSN", key: "itemHSN" },
+    { header: "GST percentage", key: "gstPercentage", type: "number" as const },
+    { header: "Item Batch", key: "itemBatch" },
+    { header: "Quantity", key: "quantity", type: "number" as const },
+    { header: "Rate", key: "rate", type: "number" as const },
+    { header: "Unit", key: "unit" },
+    ...(isPilot ? [{ header: "Freight 1%", key: "freight", type: "number" as const }] : []),
+    { header: "Amount", key: "amount", type: "number" as const },
+  ], [isPilot]);
+
+  const TABLE_COLUMN_COUNT = 1 + tableHeaders.length + 1;
 
   const formatRowAmount = (row: any, value: number, fractionDigits = 2): string => {
     const cur = currencies.find((c: any) => c.name === row?.currency) || currencies.find((c: any) => c.isdefault) || null;
@@ -837,7 +873,8 @@ const Invoices = () => {
       partyAddress: inv.partyAddress || "",
       partyGroup: inv.partyGroup || "",
       termsOfPayment: inv.termsOfPayment || "",
-      gstin: inv.gstin || "",
+      salesPerson: inv.salesPerson || "",
+      freight: inv.freight_charge || 0,
       itemName: item.description || "",
       itemGroup: item.itemGroup || "",
       itemHSN: item.itemHSN || "",
@@ -859,6 +896,7 @@ const Invoices = () => {
       const matchSearch =
         (i.number || "").toLowerCase().includes(search.toLowerCase()) ||
         (i.client?.company || "").toLowerCase().includes(search.toLowerCase()) ||
+        (i.salesPerson || "").toLowerCase().includes(search.toLowerCase()) ||
         (i._id || "").toLowerCase().includes(search.toLowerCase());
       
       const matchStatus =
@@ -875,8 +913,6 @@ const Invoices = () => {
   // One row per line item for the on-screen table (mirrors buildExportRows),
   // keeping a reference to the parent invoice for checkbox/actions handling.
   const flatRows = useMemo(() => buildExportRows(pageInvoices), [pageInvoices]);
-
-  const TABLE_COLUMN_COUNT = 19; // checkbox + 17 data columns + actions
 
   const handleExport = (type: "pdf" | "csv" | "print") => {
     if (filtered.length === 0) {
@@ -1065,25 +1101,7 @@ const Invoices = () => {
             <ExportButton
               data={buildExportRows(filtered)}
               filename="invoices"
-              columns={[
-                { header: "Voucher Number", key: "voucherNumber" },
-                { header: "Bill Date", key: "billDate", type: "date" },
-                { header: "Voucher Type", key: "voucherType" },
-                { header: "Party Name", key: "partyName" },
-                { header: "Party Address", key: "partyAddress" },
-                { header: "Party Group", key: "partyGroup" },
-                { header: "Terms of Payment", key: "termsOfPayment" },
-                { header: "GSTIN/UIN", key: "gstin" },
-                { header: "Item Name", key: "itemName" },
-                { header: "Item Group", key: "itemGroup" },
-                { header: "Item HSN", key: "itemHSN" },
-                { header: "GST percentage", key: "gstPercentage", type: "number" },
-                { header: "Item Batch", key: "itemBatch" },
-                { header: "Quantity", key: "quantity", type: "number" },
-                { header: "Rate", key: "rate", type: "number" },
-                { header: "Unit", key: "unit" },
-                { header: "Amount", key: "amount", type: "number" },
-              ]}
+              columns={exportColumns}
             />
             <ImportButton onData={handleImportData} loading={importMutation.isPending} />
           </div>
@@ -1110,11 +1128,7 @@ const Invoices = () => {
                     onCheckedChange={() => toggleSelectAll(pageInvoices)}
                   />
                 </th>
-                {[
-                  "Voucher Number", "Bill Date", "Voucher Type", "Party Name", "Party Address",
-                  "Party Group", "Terms of Payment", "GSTIN/UIN", "Item Name", "Item Group",
-                  "Item HSN", "GST percentage", "Item Batch", "Quantity", "Rate", "Unit", "Amount",
-                ].map((h) => (
+                {tableHeaders.map((h) => (
                   <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px] whitespace-nowrap">
                     {h}
                   </th>
@@ -1168,6 +1182,7 @@ const Invoices = () => {
                         {row.billDate ? formatDate(row.billDate) : "-"}
                       </td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.voucherType || "-"}</td>
+                      {isPilot && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.salesPerson || "-"}</td>}
                       <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">{row.partyName}</td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.partyAddress || "-"}</td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.partyGroup || "-"}</td>
@@ -1181,6 +1196,7 @@ const Invoices = () => {
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.quantity || 0}</td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.rate || 0)}</td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.unit || "-"}</td>
+                      {isPilot && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.freight || 0)}</td>}
                       <td className="px-6 py-4 font-black text-foreground whitespace-nowrap">{formatRowAmount(inv, row.amount || 0)}</td>
                       <td className="px-6 py-4">
                         <TableActions

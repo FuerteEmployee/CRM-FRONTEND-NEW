@@ -40,6 +40,7 @@ import { financeService } from "@/api/services/finance.service";
 import { estimateService } from "@/api/services/estimate.service";
 import { itemService } from "@/api/services/item.service";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemSelect";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyContext";
 import { cn } from "@/lib/utils";
@@ -519,36 +520,30 @@ export default function EstimateCreate() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="flex items-center gap-2 flex-1 w-full md:w-auto">
                 <div className="flex-1 max-w-sm">
-                  <SearchableSelect
-                    placeholder="Add Item"
-                    options={availableItems.map((i: any) => ({ value: i._id, label: i.name }))}
-                    value=""
-                    onValueChange={(val) => {
-                      const item = availableItems.find((i: any) => i._id === val);
-                      if (item) {
-                        setNewItem({
+                  <ItemSelect
+                    placeholder="Select item to add..."
+                    onChange={(item: ItemRecord) => {
+                      const taxId = typeof item.tax === "object" && item.tax ? item.tax._id : (typeof item.tax === "string" ? item.tax : "");
+                      const tax2Id = typeof item.tax2 === "object" && item.tax2 ? item.tax2._id : (typeof item.tax2 === "string" ? item.tax2 : "");
+                      const qty = 1;
+                      const rate = item.rate || 0;
+                      setItems(prev => [
+                        ...prev,
+                        {
+                          id: Math.random().toString(36).substring(2, 9),
                           description: item.name,
                           long_description: item.long_description || "",
-                          qty: 1,
-                          rate: item.rate,
-                          tax: item.tax?._id || "",
-                          tax2: "",
+                          qty,
+                          rate,
+                          tax: taxId,
+                          tax2: tax2Id,
                           unit: item.unit || "",
                           item_group: item.group || ""
-                        });
-                        setIsAddItemModalOpen(true);
-                      }
+                        }
+                      ]);
                     }}
                   />
                 </div>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="h-10 w-11 rounded-xl bg-white border-slate-200 shadow-sm"
-                  onClick={() => setIsAddItemModalOpen(true)}
-                >
-                  <Plus className="h-4 w-4 text-slate-600" />
-                </Button>
               </div>
 
               <div className="flex items-center gap-6">

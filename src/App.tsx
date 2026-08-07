@@ -87,6 +87,7 @@ import SetupTaxRates from "./pages/setup/SetupTaxRates";
 import SetupCurrencies from "./pages/setup/SetupCurrencies";
 import SetupPaymentModes from "./pages/setup/SetupPaymentModes";
 import SetupExpensesCategories from "./pages/setup/SetupExpensesCategories";
+import SetupBankDetails from "./pages/setup/SetupBankDetails";
 import SetupContractTypes from "./pages/setup/SetupContractTypes";
 import SetupEstimateRequestFormFields from "./pages/setup/SetupEstimateRequestFormFields";
 import SetupEstimateStatus from "./pages/setup/SetupEstimateStatus";
@@ -297,6 +298,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="setup/finance/currencies" element={<Wrapper><SetupCurrencies /></Wrapper>} />
     <Route path="setup/finance/payment-modes" element={<Wrapper><SetupPaymentModes /></Wrapper>} />
     <Route path="setup/finance/expense-categories" element={<Wrapper><SetupExpensesCategories /></Wrapper>} />
+    <Route path="setup/finance/bank-details" element={<Wrapper><SetupBankDetails /></Wrapper>} />
     <Route path="setup/contracts/contract-types" element={<Wrapper><SetupContractTypes /></Wrapper>} />
     <Route path="setup/estimate-request/statuses" element={<Wrapper><SetupEstimateStatus /></Wrapper>} />
     <Route path="setup/estimate-request/forms" element={<Wrapper><SetupEstimateRequestForms /></Wrapper>} />
