@@ -603,9 +603,9 @@ const Tasks = () => {
                               <SelectValue placeholder="Nothing Selected" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="project">Project</SelectItem>
-                              <SelectItem value="invoice">Invoice</SelectItem>
-                              <SelectItem value="customer">Customer</SelectItem>
+                              <SelectItem value="home">Home</SelectItem>
+                              <SelectItem value="office">Office</SelectItem>
+                              <SelectItem value="field">Field</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>

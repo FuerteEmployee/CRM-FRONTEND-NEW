@@ -26,6 +26,8 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { 
   ChevronLeft, 
   HelpCircle, 
@@ -51,6 +53,7 @@ import { financeService } from "@/api/services/finance.service";
 import { salesService } from "@/api/services/sales.service";
 import { itemService } from "@/api/services/item.service";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemSelect";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -89,9 +92,12 @@ export default function InvoiceCreate() {
     partyAddress: "",
     partyGroup: "",
     termsOfPayment: "",
-    gstin: ""
+    gstin: "",
+    salesPerson: "",
+    freight_charge: 0,
   });
 
+  const [freightTouched, setFreightTouched] = useState(false);
   const [status, setStatus] = useState("unpaid");
   const [amountPaid, setAmountPaid] = useState<number | "">("");
 
@@ -216,8 +222,11 @@ export default function InvoiceCreate() {
         partyAddress: invoice.partyAddress || "",
         partyGroup: invoice.partyGroup || "",
         termsOfPayment: invoice.termsOfPayment || "",
-        gstin: invoice.gstin || ""
+        gstin: invoice.gstin || "",
+        salesPerson: invoice.salesPerson || "",
+        freight_charge: invoice.freight_charge || 0,
       });
+      setFreightTouched(!!invoice.freight_charge);
       
       if (invoice.status) {
         setStatus(invoice.status);
@@ -243,20 +252,35 @@ export default function InvoiceCreate() {
     }
   }, [invoice, taxes, payments]);
 
+  const { user } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+
+  useEffect(() => {
+    if (!isPilot) return;
+    if (!freightTouched) {
+      const subTotal = items.reduce((acc, item) => acc + ((Number(item.qty) || 0) * (Number(item.rate) || 0)), 0);
+      if (subTotal > 0) {
+        const calcFreight = Math.round(subTotal * 0.01 * 100) / 100;
+        setFormData(p => ({ ...p, freight_charge: calcFreight }));
+      }
+    }
+  }, [isPilot, items, freightTouched]);
+
   const calculations = useMemo(() => {
-    const subTotal = items.reduce((acc, item) => acc + (item.qty * item.rate), 0);
+    const subTotal = items.reduce((acc, item) => acc + ((Number(item.qty) || 0) * (Number(item.rate) || 0)), 0);
     const discountAmount = formData.discount_type === "no_discount" ? 0 :
       (discountType === "percent" ? (subTotal * (discountValue / 100)) : discountValue);
     // Tax is charged on the discounted amount, not the full pre-discount subtotal.
     const discountFactor = subTotal > 0 ? 1 - discountAmount / subTotal : 1;
     const totalTax = items.reduce((acc, item) => {
       const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || 0;
-      return acc + ((item.qty * item.rate) * discountFactor * (taxRate / 100));
+      return acc + (((Number(item.qty) || 0) * (Number(item.rate) || 0)) * discountFactor * (taxRate / 100));
     }, 0);
-    const total = subTotal - discountAmount + totalTax + Number(adjustmentValue);
+    const freight = Number(formData.freight_charge) || 0;
+    const total = subTotal - discountAmount + totalTax + Number(adjustmentValue) + freight;
 
     return { subTotal, discountAmount, totalTax, total };
-  }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, taxes]);
+  }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, formData.freight_charge, taxes]);
 
   const addItem = () => {
     if (!newItem.description) return;
@@ -372,6 +396,8 @@ export default function InvoiceCreate() {
       partyGroup: formData.partyGroup,
       termsOfPayment: formData.termsOfPayment,
       gstin: formData.gstin,
+      salesPerson: formData.salesPerson || "",
+      freight_charge: Number(formData.freight_charge) || 0,
       items: items.map(item => ({
         description: item.description,
         long_description: item.long_description,
@@ -668,6 +694,30 @@ export default function InvoiceCreate() {
                 </div>
               </div>
 
+              {/* Sales Person */}
+              {isPilot && (
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Sales Person</Label>
+                  <Select 
+                    value={formData.salesPerson || "none"} 
+                    onValueChange={(v) => setFormData(p => ({ ...p, salesPerson: v === "none" ? "" : v }))}
+                  >
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="Select Sales Person" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      <SelectItem value="none">None</SelectItem>
+                      {staff.map((s: any) => {
+                        const name = `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.name || s.email;
+                        return (
+                          <SelectItem key={s._id || s.id} value={name}>{name}</SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-6">
                 {/* Recurring */}
                 <div className="space-y-2.5">
@@ -776,29 +826,33 @@ export default function InvoiceCreate() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="flex items-center gap-4 flex-1 w-full md:w-auto">
                 <div className="flex-1 max-w-sm">
-                  <SearchableSelect 
-                    placeholder="Add Item"
-                    options={availableItems.map((i: any) => ({ value: i._id, label: i.name }))}
-                    value=""
-                    onValueChange={(val) => {
-                      const item = availableItems.find((i: any) => i._id === val);
-                      if (item) {
-                        setNewItem({
+                  <ItemSelect
+                    placeholder="Select item to add..."
+                    onChange={(item: ItemRecord) => {
+                      const taxId = typeof item.tax === "object" && item.tax ? item.tax._id : (typeof item.tax === "string" ? item.tax : "");
+                      const gstPct = gstRateFromItem(item);
+                      const qty = 1;
+                      const rate = item.rate || 0;
+                      setItems(prev => [
+                        ...prev,
+                        {
+                          id: Math.random().toString(36).substring(2, 9),
                           description: item.name,
                           long_description: item.long_description || "",
-                          qty: 1,
-                          rate: item.rate,
-                          tax: item.tax?._id || "",
-                          unit: item.unit || ""
-                        });
-                        setIsAddItemModalOpen(true);
-                      }
+                          qty,
+                          rate,
+                          tax: taxId,
+                          unit: item.unit || "",
+                          itemGroup: item.group || "",
+                          itemHSN: item.hsn_sac_code || "",
+                          itemBatch: "",
+                          gstPercentage: gstPct,
+                          amount: qty * rate
+                        }
+                      ]);
                     }}
                   />
                 </div>
-                <Button size="icon" variant="outline" className="rounded-xl h-10 w-10 border-border/50 shadow-sm" onClick={() => setIsAddItemModalOpen(true)}>
-                  <Plus className="h-4 w-4" />
-                </Button>
                 <div className="w-48">
                   <Select>
                     <SelectTrigger className="h-10 rounded-xl bg-background border-border/50 shadow-sm text-xs font-bold">
@@ -1056,6 +1110,26 @@ export default function InvoiceCreate() {
                     {formatDocAmount(calculations.totalTax)}
                   </span>
                 </div>
+
+                {isPilot && (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm font-bold text-muted-foreground">Freight Charge (1%)</span>
+                    <div className="flex items-center gap-3">
+                      <Input 
+                        type="number" 
+                        className="h-9 w-32 rounded-lg border-border/50 bg-background shadow-sm text-xs font-bold text-center"
+                        value={formData.freight_charge}
+                        onChange={(e) => {
+                          setFreightTouched(true);
+                          setFormData(p => ({ ...p, freight_charge: Number(e.target.value) || 0 }));
+                        }}
+                      />
+                      <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                        {formatDocAmount(Number(formData.freight_charge) || 0)}
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex justify-between items-center py-2">
                   <span className="text-sm font-bold text-muted-foreground">Adjustment</span>

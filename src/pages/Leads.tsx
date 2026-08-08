@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast as SonnerToast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { useCurrency } from "@/context/CurrencyContext";
 import { staffService } from "@/api/services/staff.service";
 import { Textarea } from "@/components/ui/textarea";
@@ -64,7 +65,8 @@ const Leads = () => {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, user } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
   const { symbol, formatAmount } = useCurrency();
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
   useOpenCreateModal(() => setIsNewLeadOpen(true));
@@ -76,6 +78,7 @@ const Leads = () => {
     status: "",
     source: "",
     assigned: "",
+    salesPerson: "",
     tags: "",
     is_public: false,
     contacted_today: false,
@@ -88,7 +91,7 @@ const Leads = () => {
   const [isAddingSource, setIsAddingSource] = useState(false);
 
   const [leadForm, setLeadForm] = useState({
-    status: "", source: "", assigned: "", tags: "", name: "", position: "", email: "", website: "",
+    status: "", source: "", assigned: "", salesPerson: "", tags: "", name: "", position: "", email: "", website: "",
     phonenumber: "", lead_value: "", company: "", address: "", city: "", state: "", country: "",
     zip: "", default_language: "English", description: "", is_public: false, contacted_today: false
   });
@@ -121,6 +124,7 @@ const Leads = () => {
         status: lead.status?._id || lead.status?.id || (typeof lead.status === 'string' ? lead.status : ""),
         source: lead.source?._id || lead.source?.id || (typeof lead.source === 'string' ? lead.source : ""),
         assigned: lead.assigned?._id || lead.assigned?.id || (typeof lead.assigned === 'string' ? lead.assigned : ""),
+        salesPerson: lead.salesPerson || "",
         tags: Array.isArray(lead.tags) ? lead.tags.join(", ") : (lead.tags || ""),
         name: lead.name || "",
         position: lead.position || lead.title || "",
@@ -141,7 +145,7 @@ const Leads = () => {
       });
     } else {
       setLeadForm({
-        status: "", source: "", assigned: "", tags: "", name: "", position: "", email: "", website: "",
+        status: "", source: "", assigned: "", salesPerson: "", tags: "", name: "", position: "", email: "", website: "",
         phonenumber: "", lead_value: "", company: "", address: "", city: "", state: "", country: "",
         zip: "", default_language: "English", description: "", is_public: false, contacted_today: false
       });
@@ -329,6 +333,7 @@ const Leads = () => {
         if (bulkState.status) updates.status = bulkState.status;
         if (bulkState.source) updates.source = bulkState.source;
         if (bulkState.assigned) updates.assigned = bulkState.assigned;
+        if (bulkState.salesPerson) updates.salesPerson = bulkState.salesPerson;
         if (bulkState.tags) updates.tags = bulkState.tags.split(",").map(s => s.trim()).join(", ");
         if (bulkState.is_public) updates.is_public = bulkState.is_public;
         if (bulkState.contacted_today) updates.contacted_today = bulkState.contacted_today;
@@ -341,7 +346,7 @@ const Leads = () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       setSelectedLeads([]);
       setBulkActionOpen(false);
-      setBulkState({ massDelete: false, status: "", source: "", assigned: "", tags: "", is_public: false, contacted_today: false, mark_lost: false });
+      setBulkState({ massDelete: false, status: "", source: "", assigned: "", salesPerson: "", tags: "", is_public: false, contacted_today: false, mark_lost: false });
     } catch (err: any) {
       toast({ title: "Error", description: "Failed to perform bulk action."});
     } finally {
@@ -525,6 +530,24 @@ const Leads = () => {
                           </SelectContent>
                         </Select>
                       </div>
+
+                      {isPilot && (
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Sales Person</Label>
+                          <Select disabled={modalMode === "view"} value={leadForm.salesPerson || "none"} onValueChange={(v) => setLeadForm(prev => ({ ...prev, salesPerson: v === "none" ? "" : v }))}>
+                            <SelectTrigger className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white">
+                              <SelectValue placeholder="Select Sales Person" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {staff.map(s => {
+                                const name = `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.name || s.email;
+                                return <SelectItem key={s._id || s.id} value={name}>{name}</SelectItem>;
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
 
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Tags</Label>
@@ -875,6 +898,22 @@ const Leads = () => {
                             </Select>
                         </div>
 
+                        {isPilot && (
+                          <div className="space-y-2">
+                              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Sales Person</Label>
+                              <Select value={bulkState.salesPerson || "none"} onValueChange={(v) => setBulkState({...bulkState, salesPerson: v === "none" ? "" : v})} disabled={bulkState.massDelete}>
+                                  <SelectTrigger className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4"><SelectValue placeholder="Select Sales Person" /></SelectTrigger>
+                                  <SelectContent>
+                                      <SelectItem value="none">None</SelectItem>
+                                      {staff.map(s => {
+                                        const name = `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.name || s.email;
+                                        return <SelectItem key={s._id || s.id} value={name}>{name}</SelectItem>;
+                                      })}
+                                  </SelectContent>
+                              </Select>
+                          </div>
+                        )}
+
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Tags</Label>
                             <Input 
@@ -952,6 +991,7 @@ const Leads = () => {
                     <th className="p-4 bg-slate-50/50">Value</th>
                     <th className="p-4 bg-slate-50/50">Tags</th>
                     <th className="p-4 bg-slate-50/50">Assigned</th>
+                    {isPilot && <th className="p-4 bg-slate-50/50">Sales Person</th>}
                     <th className="p-4 bg-slate-50/50">Status</th>
                     <th className="p-4 bg-slate-50/50">Source</th>
                     <th className="p-4 bg-slate-50/50">Last Contact</th>
@@ -963,12 +1003,12 @@ const Leads = () => {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="border-b border-slate-50">
-                        <td colSpan={14} className="p-10"><Skeleton className="h-12 w-full rounded-2xl" /></td>
+                        <td colSpan={isPilot ? 15 : 14} className="p-10"><Skeleton className="h-12 w-full rounded-2xl" /></td>
                       </tr>
                     ))
                   ) : paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={14} className="p-20 text-center"><div className="flex flex-col items-center gap-3"><Users className="h-12 w-12 text-slate-100" /><p className="text-slate-400 font-black uppercase tracking-widest text-xs">No leads found in the pipeline</p></div></td>
+                      <td colSpan={isPilot ? 15 : 14} className="p-20 text-center"><div className="flex flex-col items-center gap-3"><Users className="h-12 w-12 text-slate-100" /><p className="text-slate-400 font-black uppercase tracking-widest text-xs">No leads found in the pipeline</p></div></td>
                     </tr>
                   ) : (
                     paginated.map((l, index) => (
@@ -1052,6 +1092,11 @@ const Leads = () => {
                                 </div>
                             )}
                         </td>
+                        {isPilot && (
+                          <td className="p-4 text-xs font-bold text-slate-700">
+                              {l.salesPerson || "-"}
+                          </td>
+                        )}
                         <td className="p-4">
                             <Badge className="rounded-lg border-none font-black text-[8px] uppercase tracking-wider px-2 h-5 bg-blue-50 text-blue-500">
                                 {typeof l.status === 'object' ? l.status?.name : (statuses.find(s => s._id === l.status)?.name || String(l.status || "Pending"))}

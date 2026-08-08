@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,10 +26,12 @@ import {
 import { Plus, Search, Pencil, Trash2, ShoppingCart } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { purchaseService } from "@/api/services/purchase.service";
+import { staffService } from "@/api/services/staff.service";
 import { formatDate } from "@/lib/dateFormat";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { useCurrency } from "@/context/CurrencyContext";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
@@ -105,36 +107,30 @@ const toDateInput = (d: any) => (d ? new Date(d).toISOString().split("T")[0] : "
 const Purchases = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, user } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
   const { symbol } = useCurrency();
   const { getSetting } = useSettings();
-  // Gated per-tenant (see Backend/src/utils/featureFlags.js) — off for every
-  // tenant except the ones explicitly turned on, so free-text supplier entry
-  // keeps working unchanged everywhere else.
   const vendorLinkageEnabled = !!getSetting("vendor_linked_purchases", false);
-  // Gated per-tenant (see Backend/src/utils/featureFlags.js) — only the
-  // rudraverse tenant runs on this simplified Bill Date/Voucher No./
-  // Particulars/Voucher Type/Qty/Rate/Amount/Total layout that matches its
-  // Tally-exported Purchase Register; every other tenant keeps the full form.
   const simplifiedRegister = !!getSetting("simplified_purchase_register", false);
-  // The GST Rate field is hidden for simplified-register tenants, so a fresh
-  // form must start at 0% instead of emptyForm's 18% default — otherwise a
-  // manually-created bill would silently get taxed at a rate no one set.
   const getNewPurchaseForm = () => ({ ...emptyForm, gst_rate: simplifiedRegister ? "0" : emptyForm.gst_rate });
   const [vendorFilter, setVendorFilter] = useState<string[]>([]);
 
-  // Always fetched (not gated by vendorLinkageEnabled) — used both by the
-  // vendor filter/select above and, independently, to resolve a company
-  // name from a GST Number during import when the file has no name column.
   const { data: vendors = [] } = useQuery<VendorRecord[]>({
     queryKey: ["vendors"],
     queryFn: vendorService.getAll,
+  });
+
+  const { data: staff = [] } = useQuery<any[]>({
+    queryKey: ["staff"],
+    queryFn: staffService.getAll,
   });
 
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState<any>(null);
   const [formData, setFormData] = useState<any>(emptyForm);
+  const [freightTouched, setFreightTouched] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState<number | "all">(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -146,7 +142,19 @@ const Purchases = () => {
     payment_date: "",
     paymentmode: "",
   });
-  useOpenCreateModal(() => { setEditingPurchase(null); setFormData(getNewPurchaseForm()); setIsModalOpen(true); });
+
+  useEffect(() => {
+    if (!isPilot) return;
+    if (!freightTouched && isModalOpen) {
+      const amt = parseFloat(formData.amount) || 0;
+      if (amt > 0) {
+        const calcFreight = (Math.round(amt * 0.01 * 100) / 100).toString();
+        setFormData((f: any) => ({ ...f, freight_charge: calcFreight }));
+      }
+    }
+  }, [isPilot, formData.amount, freightTouched, isModalOpen]);
+
+  useOpenCreateModal(() => { setEditingPurchase(null); setFormData(getNewPurchaseForm()); setFreightTouched(false); setIsModalOpen(true); });
 
   const { data: purchases = [], isLoading } = useQuery({
     queryKey: ["purchases"],
@@ -383,6 +391,7 @@ const Purchases = () => {
       sales_person: p.sales_person || "",
       note: p.note || "",
     });
+    setFreightTouched(!!p.freight_charge);
     setIsModalOpen(true);
   };
 
@@ -591,31 +600,26 @@ const Purchases = () => {
   // edited and re-imported without renaming columns. Amount/date columns are
   // typed "number"/"date" so Excel gets real numeric/date cells — not text —
   // and SUM/AutoFilter/date-sort work without a manual "convert to number" step.
-  const exportColumns = [
+  const exportColumns = useMemo(() => [
     { header: "Bill Date", key: "bill_date", type: "date" as const },
     { header: "Particulars", key: "supplier_name" },
     { header: "Voucher Type", key: "voucher_type" },
     { header: "Voucher No.", key: "bill_no" },
+    ...(isPilot ? [{ header: "Sales Person", key: "sales_person" }] : []),
     { header: "Quantity", key: "quantity", type: "number" as const },
     { header: "Rate", key: "rate", type: "number" as const },
     { header: "Amount", key: "amount", type: "number" as const },
     { header: "Total", key: "total", type: "number" as const },
-    // Tally posts the taxable value to the "PURCHASE GST" ledger — same
-    // number as Amount, just relabeled for the ledger-wise view.
     { header: "PURCHASE GST", key: "amount", type: "number" as const },
     { header: "CGST 9%", key: "cgst", type: "number" as const },
     { header: "SGST 9%", key: "sgst", type: "number" as const },
     { header: "PURCHASE IGST", key: "igst", type: "number" as const },
-    { header: "FREIGHT 1%", key: "freight_charge", type: "number" as const },
-    // "IGST 18%" duplicates PURCHASE IGST in Tally's ledger-wise columns —
-    // left blank here rather than repeating igst, to avoid double-counting
-    // the same tax amount across two columns.
+    ...(isPilot ? [{ header: "FREIGHT 1%", key: "freight_charge", type: "number" as const }] : []),
     { header: "IGST 18%", key: () => "", type: "number" as const },
     { header: "Round off", key: "round_off", type: "number" as const },
-  ];
+  ], [isPilot]);
 
-  // Checkbox + 15 fixed Tally-style columns (see exportColumns above) + Actions.
-  const tableColSpan = 1 + 15 + 1;
+  const tableColSpan = 1 + (14 + (isPilot ? 2 : 0)) + 1;
 
   const inputCls = "h-11 rounded-xl border-slate-200";
   const labelCls = "text-[10px] font-black uppercase tracking-widest text-slate-500";
@@ -804,6 +808,7 @@ const Purchases = () => {
                     <th className="p-4 font-bold">Particulars</th>
                     <th className="p-4 font-bold">Voucher Type</th>
                     <th className="p-4 font-bold">Voucher No.</th>
+                    {isPilot && <th className="p-4 font-bold">Sales Person</th>}
                     <th className="p-4 font-bold">Quantity</th>
                     <th className="p-4 font-bold">Rate</th>
                     <th className="p-4 font-bold">Amount</th>
@@ -812,7 +817,7 @@ const Purchases = () => {
                     <th className="p-4 font-bold">CGST 9%</th>
                     <th className="p-4 font-bold">SGST 9%</th>
                     <th className="p-4 font-bold">PURCHASE IGST</th>
-                    <th className="p-4 font-bold">FREIGHT 1%</th>
+                    {isPilot && <th className="p-4 font-bold">FREIGHT 1%</th>}
                     <th className="p-4 font-bold">IGST 18%</th>
                     <th className="p-4 font-bold">Round off</th>
                     <th className="p-4 font-bold text-right">Actions</th>
@@ -841,12 +846,12 @@ const Purchases = () => {
                             onCheckedChange={() => toggleSelect(p._id)}
                           />
                         </td>
-                        {/* Fixed 15-column Tally-style Purchase Day Book layout — kept in sync
-                            with exportColumns above; no simplifiedRegister toggle here anymore. */}
+                        {/* Fixed Tally-style Purchase Day Book layout — kept in sync with exportColumns above. */}
                         <td className="p-4 text-xs font-medium text-slate-600">{p.bill_date ? formatDate(p.bill_date) : "-"}</td>
                         <td className="p-4 font-bold text-slate-800">{p.supplier_name || "-"}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{p.voucher_type || "-"}</td>
                         <td className="p-4 font-bold text-slate-800">{p.bill_no || "-"}</td>
+                        {isPilot && <td className="p-4 text-xs font-medium text-slate-600">{p.sales_person || "-"}</td>}
                         <td className="p-4 text-xs font-medium text-slate-600">{p.quantity ?? "-"}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.rate)}</td>
                         <td className="p-4 font-bold text-slate-800">{money(p.amount)}</td>
@@ -858,7 +863,7 @@ const Purchases = () => {
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.cgst)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.sgst)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.igst)}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.freight_charge)}</td>
+                        {isPilot && <td className="p-4 text-xs font-medium text-slate-600">{money(p.freight_charge)}</td>}
                         {/* "IGST 18%" duplicates PURCHASE IGST in Tally's ledger-wise columns —
                             left blank rather than repeating igst (mirrors exportColumns above). */}
                         <td className="p-4 text-xs font-medium text-slate-600">-</td>
@@ -1008,7 +1013,26 @@ const Purchases = () => {
                       </div>
                       <div className="space-y-1.5">
                         <Label className={labelCls}>Sales Person</Label>
-                        <Input value={formData.sales_person} onChange={(e) => setField("sales_person", e.target.value)} placeholder="Supplier's sales person" className={inputCls} />
+                        {isPilot ? (
+                          <Select value={formData.sales_person || "none"} onValueChange={(val) => setField("sales_person", val === "none" ? "" : val)}>
+                            <SelectTrigger className={inputCls}>
+                              <SelectValue placeholder="Select sales person..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {staff.map((s: any) => {
+                                const fullName = `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.name || s.email;
+                                return (
+                                  <SelectItem key={s._id || s.id} value={fullName}>
+                                    {fullName}
+                                  </SelectItem>
+                                );
+                              })}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input value={formData.sales_person} onChange={(e) => setField("sales_person", e.target.value)} placeholder="Supplier's sales person" className={inputCls} />
+                        )}
                       </div>
                     </>
                   )}
@@ -1018,7 +1042,7 @@ const Purchases = () => {
               {/* Product & Amount */}
               <div>
                 <div className="text-xs font-black uppercase tracking-widest text-primary mb-3">Product & Amount</div>
-                {!simplifiedRegister && (
+                {(isPilot || !simplifiedRegister) && (
                   <div className="mb-4 space-y-1.5">
                     <Label className={labelCls}>Pick from catalog (optional)</Label>
                     <ItemSelect
@@ -1072,12 +1096,12 @@ const Purchases = () => {
                       <Input type="number" value={formData.amount} onChange={(e) => setField("amount", e.target.value)} placeholder="0.00" className={`${inputCls} pl-7`} />
                     </div>
                   </div>
-                  {!simplifiedRegister && (
+                  {!simplifiedRegister && isPilot && (
                     <div className="space-y-1.5">
                       <Label className={labelCls}>Freight Charge</Label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
-                        <Input type="number" value={formData.freight_charge} onChange={(e) => setField("freight_charge", e.target.value)} placeholder="0.00" className={`${inputCls} pl-7`} />
+                        <Input type="number" value={formData.freight_charge} onChange={(e) => { setFreightTouched(true); setField("freight_charge", e.target.value); }} placeholder="0.00" className={`${inputCls} pl-7`} />
                       </div>
                     </div>
                   )}

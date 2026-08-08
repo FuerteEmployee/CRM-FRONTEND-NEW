@@ -65,11 +65,12 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { useState, useEffect } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { useQuery } from "@tanstack/react-query";
 import { mainSidebarService } from "@/api/services/mainsidebar.service";
 import { quotationTypeService } from "@/api/services/quotationType.service";
 import * as Icons from "lucide-react";
-import { usePermissions } from "@/hooks/usePermissions";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { Badge } from "@/components/ui/badge";
@@ -134,6 +135,7 @@ const setupMenuItems = [
         title: "Expenses Categories",
         url: "/admin/setup/finance/expense-categories",
       },
+      { title: "Bank Details", url: "/admin/setup/finance/bank-details" },
     ],
   },
   {
@@ -229,6 +231,7 @@ export function AppSidebar() {
   // The Setup button is ONLY visible when the user has Settings > View permission (or is admin).
   // HRMS-only self-service staff (added via HRMS Staff Directory) never get Setup access,
   // regardless of any permission they might otherwise carry.
+  const isPilot = isTrinetraPilotUser(user?.email);
   const hasSetupAccess = !isHrmsOnly && (isAdmin || canView("Settings"));
 
   const getDaysRemaining = () => {
@@ -738,7 +741,7 @@ export function AppSidebar() {
                             <CollapsibleContent className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
                               <SidebarGroupContent className="pl-3 border-l border-sidebar-border/60 ml-[18px] mt-0.5 space-y-0.5">
                                 <SidebarMenu className="gap-0.5">
-                                  {item.subItems.map((sub: any) => {
+                                  {item.subItems.filter((sub: any) => isPilot || sub.url !== "/admin/setup/finance/bank-details").map((sub: any) => {
                                     const isSubActive = checkIsActive(sub.url);
                                     return (
                                       <SidebarMenuItem key={sub.title}>
