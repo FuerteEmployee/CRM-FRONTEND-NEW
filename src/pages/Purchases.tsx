@@ -239,21 +239,34 @@ const Purchases = () => {
   // at all — it duplicates PURCHASE IGST in Tally's export and would double
   // the igst value if both were summed.
   const processPurchaseRows = (rows: any[]) => {
-    const purchasesData = rows.map((row: any) => ({
-      supplier_name: String(getField(row, "particulars", "company name", "company", "supplier name", "supplier", "vendor", "vendor name", "party", "party name", "firm name")),
-      bill_date: getField(row, "bill date", "date", "invoice date"),
-      bill_no: String(getField(row, "voucher no.", "voucher no", "voucher number", "bill reference", "bill ref", "bill no", "billno", "bill number", "invoice no", "invoice number", "invoice reference", "ref no", "bill ref no")),
-      voucher_type: String(getField(row, "voucher type")),
-      quantity: parseNum(getField(row, "quantity", "qty")),
-      rate: parseNum(getField(row, "rate")),
-      amount: parseNum(getField(row, "amount", "purchase gst", "price", "taxable value", "taxable amount")),
-      total: parseNum(getField(row, "total")),
-      cgst: parseNum(getField(row, "cgst 9%", "cgst")),
-      sgst: parseNum(getField(row, "sgst 9%", "sgst")),
-      igst: parseNum(getField(row, "purchase igst", "igst")),
-      freight_charge: parseNum(getField(row, "freight 1%", "freight charge", "freight", "shipping")),
-      round_off: parseNum(getField(row, "round off", "roundoff")),
-    }));
+    const purchasesData = rows.map((row: any) => {
+      const amount = parseNum(getField(row, "amount", "purchase gst", "price", "taxable value", "taxable amount"));
+      const quantity = parseNum(getField(row, "quantity", "qty"));
+      const rate = parseNum(getField(row, "rate"));
+      const finalAmount = amount || (quantity * rate) || 0;
+
+      const rawFreight = getField(row, "freight 1%", "freight charge", "freight", "shipping");
+      let freightVal = parseNum(rawFreight);
+      if (isPilot && String(rawFreight).trim() === "") {
+        freightVal = Math.round(finalAmount * 0.01 * 100) / 100;
+      }
+
+      return {
+        supplier_name: String(getField(row, "particulars", "company name", "company", "supplier name", "supplier", "vendor", "vendor name", "party", "party name", "firm name")),
+        bill_date: getField(row, "bill date", "date", "invoice date"),
+        bill_no: String(getField(row, "voucher no.", "voucher no", "voucher number", "bill reference", "bill ref", "bill no", "billno", "bill number", "invoice no", "invoice number", "invoice reference", "ref no", "bill ref no")),
+        voucher_type: String(getField(row, "voucher type")),
+        quantity,
+        rate,
+        amount: finalAmount,
+        total: parseNum(getField(row, "total")),
+        cgst: parseNum(getField(row, "cgst 9%", "cgst")),
+        sgst: parseNum(getField(row, "sgst 9%", "sgst")),
+        igst: parseNum(getField(row, "purchase igst", "igst")),
+        freight_charge: freightVal,
+        round_off: parseNum(getField(row, "round off", "roundoff")),
+      };
+    });
 
     const valid = purchasesData.filter(
       (p) => p.bill_no && p.supplier_name && (p.amount > 0 || (p.quantity > 0 && p.rate > 0))
@@ -311,7 +324,7 @@ const Purchases = () => {
       const particulars = String(getField(row, "particulars")).trim();
       const qty = parseNum(getField(row, "quantity", "qty"));
       const rate = parseNum(getField(row, "rate"));
-      const amount = parseNum(getField(row, "amount"));
+      const amount = parseNum(getField(row, "amount")) || (qty * rate) || 0;
 
       if (voucherNo) {
         // Rollup row for a new bill — capture context, skip creating a line.
@@ -324,6 +337,12 @@ const Purchases = () => {
 
       if (!currentBillNo || !particulars || !(amount > 0 || (qty > 0 && rate > 0))) return;
 
+      const rawFreight = getField(row, "freight 1%", "freight charge", "freight", "shipping");
+      let freightVal = parseNum(rawFreight);
+      if (isPilot && String(rawFreight).trim() === "") {
+        freightVal = Math.round(amount * 0.01 * 100) / 100;
+      }
+
       purchasesData.push({
         bill_no: currentBillNo,
         supplier_name: currentSupplier,
@@ -334,6 +353,7 @@ const Purchases = () => {
         rate,
         amount,
         gst_rate: 0,
+        freight_charge: freightVal,
       });
     });
 

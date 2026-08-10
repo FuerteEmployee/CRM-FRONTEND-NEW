@@ -94,10 +94,8 @@ export default function InvoiceCreate() {
     termsOfPayment: "",
     gstin: "",
     salesPerson: "",
-    freight_charge: 0,
   });
 
-  const [freightTouched, setFreightTouched] = useState(false);
   const [status, setStatus] = useState("unpaid");
   const [amountPaid, setAmountPaid] = useState<number | "">("");
 
@@ -224,10 +222,8 @@ export default function InvoiceCreate() {
         termsOfPayment: invoice.termsOfPayment || "",
         gstin: invoice.gstin || "",
         salesPerson: invoice.salesPerson || "",
-        freight_charge: invoice.freight_charge || 0,
       });
-      setFreightTouched(!!invoice.freight_charge);
-      
+
       if (invoice.status) {
         setStatus(invoice.status);
       }
@@ -255,16 +251,32 @@ export default function InvoiceCreate() {
   const { user } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
 
-  useEffect(() => {
-    if (!isPilot) return;
-    if (!freightTouched) {
-      const subTotal = items.reduce((acc, item) => acc + ((Number(item.qty) || 0) * (Number(item.rate) || 0)), 0);
-      if (subTotal > 0) {
-        const calcFreight = Math.round(subTotal * 0.01 * 100) / 100;
-        setFormData(p => ({ ...p, freight_charge: calcFreight }));
-      }
+  const isIntraState = () => {
+    if (!customer) return true; // default/fallback
+    const gstin = (customer.gst_number || "").trim();
+    if (/^\d{2}/.test(gstin)) {
+      return gstin.substring(0, 2) === "24"; // HOME_STATE_GST_CODE = "24"
     }
-  }, [isPilot, items, freightTouched]);
+    const state = (customer.billing_state || customer.state || "").trim().toLowerCase();
+    if (state) {
+      return state === "gujarat";
+    }
+    // detectStateFromAddress
+    const address = `${customer.billing_street || ""} ${customer.address || ""}`.toLowerCase();
+    const INDIAN_STATES = [
+      "andhra pradesh", "arunachal pradesh", "assam", "bihar", "chhattisgarh",
+      "delhi", "goa", "gujarat", "haryana", "himachal pradesh", "jammu and kashmir",
+      "jharkhand", "karnataka", "kerala", "madhya pradesh", "maharashtra", "manipur",
+      "meghalaya", "mizoram", "nagaland", "odisha", "punjab", "rajasthan", "sikkim",
+      "tamil nadu", "telangana", "tripura", "uttar pradesh", "uttarakhand", "west bengal",
+    ];
+    const sorted = [...INDIAN_STATES].sort((x, y) => y.length - x.length);
+    const detected = sorted.find((s) => address.includes(s)) || "";
+    if (detected) {
+      return detected === "gujarat";
+    }
+    return true; // default
+  };
 
   const calculations = useMemo(() => {
     const subTotal = items.reduce((acc, item) => acc + ((Number(item.qty) || 0) * (Number(item.rate) || 0)), 0);
@@ -273,14 +285,13 @@ export default function InvoiceCreate() {
     // Tax is charged on the discounted amount, not the full pre-discount subtotal.
     const discountFactor = subTotal > 0 ? 1 - discountAmount / subTotal : 1;
     const totalTax = items.reduce((acc, item) => {
-      const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || item.gstPercentage || 0;
+      const taxRate = (taxes.find(t => t._id === item.tax)?.taxrate ?? Number(item.gstPercentage)) || 0;
       return acc + (((Number(item.qty) || 0) * (Number(item.rate) || 0)) * discountFactor * (taxRate / 100));
     }, 0);
-    const freight = Number(formData.freight_charge) || 0;
-    const total = subTotal - discountAmount + totalTax + Number(adjustmentValue) + freight;
+    const total = subTotal - discountAmount + totalTax + Number(adjustmentValue);
 
     return { subTotal, discountAmount, totalTax, total };
-  }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, formData.freight_charge, taxes]);
+  }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, taxes]);
 
   const addItem = () => {
     if (!newItem.description) return;
@@ -397,14 +408,13 @@ export default function InvoiceCreate() {
       termsOfPayment: formData.termsOfPayment,
       gstin: formData.gstin,
       salesPerson: formData.salesPerson || "",
-      freight_charge: Number(formData.freight_charge) || 0,
       items: items.map(item => ({
         description: item.description,
         long_description: item.long_description,
         qty: Number(item.qty) || 0,
         rate: Number(item.rate) || 0,
-        tax: Number(taxes.find((t: any) => t._id === item.tax)?.taxrate) || Number(item.gstPercentage) || 0,
-        tax_name: taxes.find((t: any) => t._id === item.tax)?.name || (item.gstPercentage ? `${item.gstPercentage}% Tax` : ""),
+        tax: Number(taxes.find((t: any) => t._id === item.tax)?.taxrate ?? item.gstPercentage) || 0,
+        tax_name: taxes.find((t: any) => t._id === item.tax)?.name || (item.gstPercentage ? `GST ${item.gstPercentage}%` : ""),
         itemGroup: item.itemGroup || "",
         itemHSN: item.itemHSN || "",
         itemBatch: item.itemBatch || "",
@@ -900,24 +910,28 @@ export default function InvoiceCreate() {
 
             {/* Items Table */}
             <div className="rounded-[2rem] border border-border/50 overflow-x-auto shadow-sm">
+<<<<<<< HEAD
               <table className="w-full min-w-[1500px]">
+=======
+              <table className="w-full min-w-[1200px]">
+>>>>>>> 508cfecb01872f7b263284519737ff06fede2c70
                 <thead>
                   <tr className="bg-red-600 text-white">
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                       <AlertCircle className="h-3.5 w-3.5" />
                       Item
                     </th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Description</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Item Group</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">HSN</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Batch</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Qty</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Unit</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Rate</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">GST %</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Tax</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Amount</th>
-                    <th className="p-4 text-right">
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Description</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Item Group</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">HSN</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Batch</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Qty</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Unit</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Rate</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">GST %</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Tax</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Amount</th>
+                    <th className="px-2 py-3 text-right">
                       <Settings className="h-4 w-4 ml-auto opacity-50" />
                     </th>
                   </tr>
@@ -925,7 +939,7 @@ export default function InvoiceCreate() {
                 <tbody className="bg-background/40">
                   {/* New Item Input Row */}
                   <tr className="border-b border-border/30 bg-primary/5 group">
-                    <td className="p-4 align-top w-[250px]">
+                    <td className="px-2 py-3 align-top w-[250px]">
                       <Textarea 
                         placeholder="Description" 
                         className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
@@ -934,7 +948,7 @@ export default function InvoiceCreate() {
                         disableVoice
                       />
                     </td>
-                    <td className="p-4 align-top">
+                    <td className="px-2 py-3 align-top">
                       <Textarea
                         placeholder="Long description"
                         className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
@@ -943,7 +957,7 @@ export default function InvoiceCreate() {
                         disableVoice
                       />
                     </td>
-                    <td className="p-4 align-top w-[130px]">
+                    <td className="px-2 py-3 align-top w-[130px]">
                       <Input
                         placeholder="Item Group"
                         value={newItem.itemGroup}
@@ -952,7 +966,7 @@ export default function InvoiceCreate() {
                         disableVoice
                       />
                     </td>
-                    <td className="p-4 align-top w-[110px]">
+                    <td className="px-2 py-3 align-top w-[110px]">
                       <Input
                         placeholder="HSN"
                         value={newItem.itemHSN}
@@ -961,7 +975,7 @@ export default function InvoiceCreate() {
                         disableVoice
                       />
                     </td>
-                    <td className="p-4 align-top w-[110px]">
+                    <td className="px-2 py-3 align-top w-[110px]">
                       <Input
                         placeholder="Batch"
                         value={newItem.itemBatch}
@@ -970,7 +984,7 @@ export default function InvoiceCreate() {
                         disableVoice
                       />
                     </td>
-                    <td className="p-4 align-top w-[100px]">
+                    <td className="px-2 py-3 align-top w-[100px]">
                       <Input
                         type="number"
                         value={newItem.qty}
@@ -979,7 +993,7 @@ export default function InvoiceCreate() {
                         disableVoice
                       />
                     </td>
-                    <td className="p-4 align-top w-[100px]">
+                    <td className="px-2 py-3 align-top w-[100px]">
                       <Input
                         placeholder="Unit"
                         value={newItem.unit}
@@ -988,7 +1002,7 @@ export default function InvoiceCreate() {
                         disableVoice
                       />
                     </td>
-                    <td className="p-4 align-top w-[150px]">
+                    <td className="px-2 py-3 align-top w-[150px]">
                       <Input
                         placeholder="Rate"
                         type="number"
@@ -998,7 +1012,7 @@ export default function InvoiceCreate() {
                         disableVoice
                       />
                     </td>
-                    <td className="p-4 align-top w-[100px]">
+                    <td className="px-2 py-3 align-top w-[100px]">
                       <Input
                         type="number"
                         placeholder="GST %"
@@ -1008,7 +1022,7 @@ export default function InvoiceCreate() {
                         disableVoice
                       />
                     </td>
-                    <td className="p-4 align-top w-[180px]">
+                    <td className="px-2 py-3 align-top w-[180px]">
                       <Select value={newItem.tax} onValueChange={(v) => setNewItem(p => ({ ...p, tax: v }))}>
                         <SelectTrigger className="h-10 rounded-xl bg-background border-border/50 shadow-sm text-xs font-bold">
                           <SelectValue placeholder="No Tax" />
@@ -1021,10 +1035,15 @@ export default function InvoiceCreate() {
                         </SelectContent>
                       </Select>
                     </td>
+<<<<<<< HEAD
                     <td className="p-4 align-top text-sm font-black text-foreground">
                       {formatDocAmount(newItem.qty * newItem.rate * (1 + ((taxes.find(t => t._id === newItem.tax)?.taxrate || newItem.gstPercentage || 0)) / 100))}
+=======
+                    <td className="px-2 py-3 align-top text-sm font-black text-foreground">
+                      {formatDocAmount(newItem.qty * newItem.rate * (1 + (taxes.find(t => t._id === newItem.tax)?.taxrate || 0) / 100))}
+>>>>>>> 508cfecb01872f7b263284519737ff06fede2c70
                     </td>
-                    <td className="p-4 align-top text-right">
+                    <td className="px-2 py-3 align-top text-right">
                       <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
                         <Check className="h-4 w-4" />
                       </Button>
@@ -1034,6 +1053,7 @@ export default function InvoiceCreate() {
                   {/* Added Items List */}
                   {items.map((item) => (
                     <tr key={item.id} className="border-b border-border/20 hover:bg-muted/5 transition-colors">
+<<<<<<< HEAD
                       <td className="p-4 align-top font-bold text-xs">{item.description}</td>
                       <td className="p-4 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
                       <td className="p-4 align-top text-xs font-medium text-muted-foreground">{item.itemGroup || "-"}</td>
@@ -1048,6 +1068,22 @@ export default function InvoiceCreate() {
                       </td>
                       <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.amount || (item.qty * item.rate * (1 + ((taxes.find(t => t._id === item.tax)?.taxrate || item.gstPercentage || 0)) / 100)))}</td>
                       <td className="p-4 align-top text-right">
+=======
+                      <td className="px-2 py-3 align-top font-bold text-xs">{item.description}</td>
+                      <td className="px-2 py-3 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
+                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.itemGroup || "-"}</td>
+                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.itemHSN || "-"}</td>
+                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.itemBatch || "-"}</td>
+                      <td className="px-2 py-3 align-top text-xs font-bold">{item.qty}</td>
+                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.unit || "-"}</td>
+                      <td className="px-2 py-3 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
+                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.gstPercentage || 0}%</td>
+                      <td className="px-2 py-3 align-top text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        {taxes.find(t => t._id === item.tax)?.name || "No Tax"}
+                      </td>
+                      <td className="px-2 py-3 align-top text-sm font-black text-primary">{formatDocAmount(item.amount || (item.qty * item.rate * (1 + (taxes.find(t => t._id === item.tax)?.taxrate || 0) / 100)))}</td>
+                      <td className="px-2 py-3 align-top text-right">
+>>>>>>> 508cfecb01872f7b263284519737ff06fede2c70
                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1113,6 +1149,7 @@ export default function InvoiceCreate() {
                   </div>
                 </div>
 
+<<<<<<< HEAD
                 {(!customer || calculations.totalTax === 0) ? (
                   <div className="flex justify-between items-center py-2">
                     <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
@@ -1162,10 +1199,38 @@ export default function InvoiceCreate() {
                           setFormData(p => ({ ...p, freight_charge: Number(e.target.value) || 0 }));
                         }}
                       />
+=======
+                {isPilot ? (
+                  isIntraState() ? (
+                    <>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm font-bold text-muted-foreground">SGST/UTGST</span>
+                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                          {formatDocAmount(calculations.totalTax / 2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm font-bold text-muted-foreground">CGST</span>
+                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                          {formatDocAmount(calculations.totalTax / 2)}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-sm font-bold text-muted-foreground">IGST</span>
+>>>>>>> 508cfecb01872f7b263284519737ff06fede2c70
                       <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                        {formatDocAmount(Number(formData.freight_charge) || 0)}
+                        {formatDocAmount(calculations.totalTax)}
                       </span>
                     </div>
+                  )
+                ) : (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
+                    <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                      {formatDocAmount(calculations.totalTax)}
+                    </span>
                   </div>
                 )}
 

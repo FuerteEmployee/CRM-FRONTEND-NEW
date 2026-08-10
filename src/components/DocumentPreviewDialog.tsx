@@ -8,6 +8,8 @@ import { formatDate } from "@/lib/dateFormat";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/CurrencyContext";
 import { salesService } from "@/api/services/sales.service";
+import { isRudraverseTenant } from "@/lib/rudraverseTenant";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface DocumentPreviewDialogProps {
   open: boolean;
@@ -35,12 +37,14 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
 
   // Currency helper — must run unconditionally, before any early return, to keep hook order stable.
   const { symbol: currencySymbol } = useCurrency();
+  const { user } = usePermissions();
 
   if (!data) return null;
 
   const isProposal = type === "proposal";
   const isEstimate = type === "estimate";
   const isInvoice = type === "invoice";
+  const isRudraverse = isRudraverseTenant(user?.email);
 
   const payments = paymentsData || [];
   const totalPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
@@ -356,53 +360,136 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                     )}
                   </tbody>
                 </table>
-
-                {/* Pricing summary */}
                 <div className="flex flex-col items-end gap-2 p-5 bg-muted/5 border-t border-border/30">
-                  {subtotal !== undefined && (
-                    <div className="flex justify-between w-64 text-xs">
-                      <span className="text-muted-foreground font-semibold">Sub Total:</span>
-                      <span className="font-bold text-foreground">{currencySymbol}{Number(subtotal).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {discountPercent > 0 && (
-                    <div className="flex justify-between w-64 text-xs text-destructive">
-                      <span className="font-semibold">Discount ({discountPercent}%):</span>
-                      <span className="font-bold">-{currencySymbol}{Number(subtotal * (discountPercent / 100)).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {totalTax > 0 && (
-                    <div className="flex justify-between w-64 text-xs">
-                      <span className="text-muted-foreground font-semibold">Total Tax:</span>
-                      <span className="font-bold text-foreground">{currencySymbol}{Number(totalTax).toFixed(2)}</span>
-                    </div>
-                  )}
-                  {adjustment !== 0 && adjustment !== undefined && (
-                    <div className="flex justify-between w-64 text-xs">
-                      <span className="text-muted-foreground font-semibold">Adjustment:</span>
-                      <span className="font-bold text-foreground">{currencySymbol}{Number(adjustment).toFixed(2)}</span>
-                    </div>
-                  )}
-                  
-                  <div className="flex justify-between w-64 border-t border-border/40 pt-2.5 mt-1.5">
-                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest self-center">Grand Total</span>
-                    <span className="text-xl font-black text-foreground">
-                      {currencySymbol}{Number(total).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
+                  {isRudraverse && (data.tax_type || data.total_cgst || data.total_sgst || data.total_igst) ? (
+                    (() => {
+                      const discountAmount = discountPercent > 0 ? subtotal * (discountPercent / 100) : 0;
+                      const untaxedAmount = subtotal - discountAmount;
+                      const rawTotal = untaxedAmount + totalTax + adjustment + (Number(data.freight_charge) || 0);
+                      const roundedTotal = Math.round(rawTotal);
+                      const rounding = roundedTotal - rawTotal;
+                      const balanceDueRounded = Math.max(roundedTotal - totalPaid, 0);
 
-                  {isInvoice && totalPaid > 0 && (
+                      return (
+                        <>
+                          <div className="flex justify-between w-64 text-xs">
+                            <span className="text-muted-foreground font-semibold">Untaxed Amount:</span>
+                            <span className="font-bold text-foreground">{currencySymbol}{Number(untaxedAmount).toFixed(2)}</span>
+                          </div>
+                          
+                          {data.tax_type === "GST" ? (
+                            <>
+                              <div className="flex justify-between w-64 text-xs">
+                                <span className="text-muted-foreground font-semibold">SGST/UTGST:</span>
+                                <span className="font-bold text-foreground">
+                                  {currencySymbol}{Number(data.total_sgst ?? (totalTax / 2)).toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="flex justify-between w-64 text-xs">
+                                <span className="text-muted-foreground font-semibold">CGST:</span>
+                                <span className="font-bold text-foreground">
+                                  {currencySymbol}{Number(data.total_cgst ?? (totalTax / 2)).toFixed(2)}
+                                </span>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="flex justify-between w-64 text-xs">
+                              <span className="text-muted-foreground font-semibold">IGST:</span>
+                              <span className="font-bold text-foreground">
+                                {currencySymbol}{Number(data.total_igst ?? totalTax).toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+
+                          {adjustment !== 0 && adjustment !== undefined && (
+                            <div className="flex justify-between w-64 text-xs">
+                              <span className="text-muted-foreground font-semibold">Adjustment:</span>
+                              <span className="font-bold text-foreground">{currencySymbol}{Number(adjustment).toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          {Math.abs(rounding) > 0.001 && (
+                            <div className="flex justify-between w-64 text-xs">
+                              <span className="text-muted-foreground font-semibold">Rounding:</span>
+                              <span className="font-bold text-foreground">
+                                {rounding < 0 ? "-" : ""}{currencySymbol}{Math.abs(rounding).toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="flex justify-between w-64 border-t border-border/40 pt-2.5 mt-1.5">
+                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest self-center">Total</span>
+                            <span className="text-xl font-black text-foreground">
+                              {currencySymbol}{Number(roundedTotal).toFixed(2)}
+                            </span>
+                          </div>
+
+                          {isInvoice && totalPaid > 0 && (
+                            <div className="flex justify-between w-64 text-xs text-emerald-600">
+                              <span className="font-semibold">Amount Paid:</span>
+                              <span className="font-bold">-{currencySymbol}{Number(totalPaid).toFixed(2)}</span>
+                            </div>
+                          )}
+
+                          {isInvoice && (
+                            <div className="flex justify-between w-64 border-t border-border/40 pt-2.5 mt-1.5">
+                              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest self-center">Amount Due</span>
+                              <span className={cn("text-xl font-black", balanceDueRounded > 0 ? "text-rose-600" : "text-emerald-600")}>
+                                {currencySymbol}{Number(balanceDueRounded).toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()
+                  ) : (
                     <>
-                      <div className="flex justify-between w-64 text-xs text-emerald-600">
-                        <span className="font-semibold">Amount Paid:</span>
-                        <span className="font-bold">-{currencySymbol}{Number(totalPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                      </div>
+                      {subtotal !== undefined && (
+                        <div className="flex justify-between w-64 text-xs">
+                          <span className="text-muted-foreground font-semibold">Sub Total:</span>
+                          <span className="font-bold text-foreground">{currencySymbol}{Number(subtotal).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {discountPercent > 0 && (
+                        <div className="flex justify-between w-64 text-xs text-destructive">
+                          <span className="font-semibold">Discount ({discountPercent}%):</span>
+                          <span className="font-bold">-{currencySymbol}{Number(subtotal * (discountPercent / 100)).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {totalTax > 0 && (
+                        <div className="flex justify-between w-64 text-xs">
+                          <span className="text-muted-foreground font-semibold">Total Tax:</span>
+                          <span className="font-bold text-foreground">{currencySymbol}{Number(totalTax).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {adjustment !== 0 && adjustment !== undefined && (
+                        <div className="flex justify-between w-64 text-xs">
+                          <span className="text-muted-foreground font-semibold">Adjustment:</span>
+                          <span className="font-bold text-foreground">{currencySymbol}{Number(adjustment).toFixed(2)}</span>
+                        </div>
+                      )}
+                      
                       <div className="flex justify-between w-64 border-t border-border/40 pt-2.5 mt-1.5">
-                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest self-center">Balance Due</span>
-                        <span className={cn("text-xl font-black", balanceDue > 0 ? "text-rose-600" : "text-emerald-600")}>
-                          {currencySymbol}{Number(balanceDue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest self-center">Grand Total</span>
+                        <span className="text-xl font-black text-foreground">
+                          {currencySymbol}{Number(total).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </span>
                       </div>
+
+                      {isInvoice && totalPaid > 0 && (
+                        <>
+                          <div className="flex justify-between w-64 text-xs text-emerald-600">
+                            <span className="font-semibold">Amount Paid:</span>
+                            <span className="font-bold">-{currencySymbol}{Number(totalPaid).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          </div>
+                          <div className="flex justify-between w-64 border-t border-border/40 pt-2.5 mt-1.5">
+                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest self-center">Balance Due</span>
+                            <span className={cn("text-xl font-black", balanceDue > 0 ? "text-rose-600" : "text-emerald-600")}>
+                              {currencySymbol}{Number(balanceDue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </>
+                      )}
                     </>
                   )}
                 </div>
@@ -565,7 +652,6 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                 </div>
               </div>
             </div>
-
           </div>
         </div>
 

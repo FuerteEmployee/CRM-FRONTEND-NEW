@@ -65,6 +65,9 @@ export const estimateService = {
   updateRequestStatus: (id, status) =>
     apiClient.patch(`/estimate-requests/${id}/status`, { status }),
 
+  updateRequest: (id, data) =>
+    apiClient.put(`/estimate-requests/${id}`, data),
+
   deleteRequest: (id) => apiClient.delete(`/estimate-requests/${id}`),
 
   convertToInvoice: (id) => apiClient.post(`/estimates/${id}/convert-to-invoice`),

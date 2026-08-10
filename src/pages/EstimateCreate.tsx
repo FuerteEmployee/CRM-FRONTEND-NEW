@@ -578,8 +578,8 @@ export default function EstimateCreate() {
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-border/50 overflow-hidden shadow-sm">
-              <table className="w-full">
+            <div className="rounded-[2rem] border border-border/50 overflow-x-auto shadow-sm">
+              <table className="w-full min-w-[1200px]">
                 <thead>
                   <tr className="bg-primary text-white">
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
