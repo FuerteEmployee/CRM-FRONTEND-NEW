@@ -94,10 +94,8 @@ export default function InvoiceCreate() {
     termsOfPayment: "",
     gstin: "",
     salesPerson: "",
-    freight_charge: 0,
   });
 
-  const [freightTouched, setFreightTouched] = useState(false);
   const [status, setStatus] = useState("unpaid");
   const [amountPaid, setAmountPaid] = useState<number | "">("");
 
@@ -224,10 +222,8 @@ export default function InvoiceCreate() {
         termsOfPayment: invoice.termsOfPayment || "",
         gstin: invoice.gstin || "",
         salesPerson: invoice.salesPerson || "",
-        freight_charge: invoice.freight_charge || 0,
       });
-      setFreightTouched(!!invoice.freight_charge);
-      
+
       if (invoice.status) {
         setStatus(invoice.status);
       }
@@ -255,16 +251,32 @@ export default function InvoiceCreate() {
   const { user } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
 
-  useEffect(() => {
-    if (!isPilot) return;
-    if (!freightTouched) {
-      const subTotal = items.reduce((acc, item) => acc + ((Number(item.qty) || 0) * (Number(item.rate) || 0)), 0);
-      if (subTotal > 0) {
-        const calcFreight = Math.round(subTotal * 0.01 * 100) / 100;
-        setFormData(p => ({ ...p, freight_charge: calcFreight }));
-      }
+  const isIntraState = () => {
+    if (!customer) return true; // default/fallback
+    const gstin = (customer.gst_number || "").trim();
+    if (/^\d{2}/.test(gstin)) {
+      return gstin.substring(0, 2) === "24"; // HOME_STATE_GST_CODE = "24"
     }
-  }, [isPilot, items, freightTouched]);
+    const state = (customer.billing_state || customer.state || "").trim().toLowerCase();
+    if (state) {
+      return state === "gujarat";
+    }
+    // detectStateFromAddress
+    const address = `${customer.billing_street || ""} ${customer.address || ""}`.toLowerCase();
+    const INDIAN_STATES = [
+      "andhra pradesh", "arunachal pradesh", "assam", "bihar", "chhattisgarh",
+      "delhi", "goa", "gujarat", "haryana", "himachal pradesh", "jammu and kashmir",
+      "jharkhand", "karnataka", "kerala", "madhya pradesh", "maharashtra", "manipur",
+      "meghalaya", "mizoram", "nagaland", "odisha", "punjab", "rajasthan", "sikkim",
+      "tamil nadu", "telangana", "tripura", "uttar pradesh", "uttarakhand", "west bengal",
+    ];
+    const sorted = [...INDIAN_STATES].sort((x, y) => y.length - x.length);
+    const detected = sorted.find((s) => address.includes(s)) || "";
+    if (detected) {
+      return detected === "gujarat";
+    }
+    return true; // default
+  };
 
   const calculations = useMemo(() => {
     const subTotal = items.reduce((acc, item) => acc + ((Number(item.qty) || 0) * (Number(item.rate) || 0)), 0);
@@ -273,14 +285,13 @@ export default function InvoiceCreate() {
     // Tax is charged on the discounted amount, not the full pre-discount subtotal.
     const discountFactor = subTotal > 0 ? 1 - discountAmount / subTotal : 1;
     const totalTax = items.reduce((acc, item) => {
-      const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || 0;
+      const taxRate = (taxes.find(t => t._id === item.tax)?.taxrate ?? Number(item.gstPercentage)) || 0;
       return acc + (((Number(item.qty) || 0) * (Number(item.rate) || 0)) * discountFactor * (taxRate / 100));
     }, 0);
-    const freight = Number(formData.freight_charge) || 0;
-    const total = subTotal - discountAmount + totalTax + Number(adjustmentValue) + freight;
+    const total = subTotal - discountAmount + totalTax + Number(adjustmentValue);
 
     return { subTotal, discountAmount, totalTax, total };
-  }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, formData.freight_charge, taxes]);
+  }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, taxes]);
 
   const addItem = () => {
     if (!newItem.description) return;
@@ -397,14 +408,13 @@ export default function InvoiceCreate() {
       termsOfPayment: formData.termsOfPayment,
       gstin: formData.gstin,
       salesPerson: formData.salesPerson || "",
-      freight_charge: Number(formData.freight_charge) || 0,
       items: items.map(item => ({
         description: item.description,
         long_description: item.long_description,
         qty: Number(item.qty) || 0,
         rate: Number(item.rate) || 0,
-        tax: Number(taxes.find((t: any) => t._id === item.tax)?.taxrate) || 0,
-        tax_name: taxes.find((t: any) => t._id === item.tax)?.name || "",
+        tax: Number(taxes.find((t: any) => t._id === item.tax)?.taxrate ?? item.gstPercentage) || 0,
+        tax_name: taxes.find((t: any) => t._id === item.tax)?.name || (item.gstPercentage ? `GST ${item.gstPercentage}%` : ""),
         itemGroup: item.itemGroup || "",
         itemHSN: item.itemHSN || "",
         itemBatch: item.itemBatch || "",
@@ -899,8 +909,8 @@ export default function InvoiceCreate() {
             </div>
 
             {/* Items Table */}
-            <div className="rounded-[2rem] border border-border/50 overflow-hidden shadow-sm">
-              <table className="w-full">
+            <div className="rounded-[2rem] border border-border/50 overflow-x-auto shadow-sm">
+              <table className="w-full min-w-[1200px]">
                 <thead>
                   <tr className="bg-red-600 text-white">
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -1104,30 +1114,36 @@ export default function InvoiceCreate() {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
-                  <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                    {formatDocAmount(calculations.totalTax)}
-                  </span>
-                </div>
-
-                {isPilot && (
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-sm font-bold text-muted-foreground">Freight Charge (1%)</span>
-                    <div className="flex items-center gap-3">
-                      <Input 
-                        type="number" 
-                        className="h-9 w-32 rounded-lg border-border/50 bg-background shadow-sm text-xs font-bold text-center"
-                        value={formData.freight_charge}
-                        onChange={(e) => {
-                          setFreightTouched(true);
-                          setFormData(p => ({ ...p, freight_charge: Number(e.target.value) || 0 }));
-                        }}
-                      />
+                {isPilot ? (
+                  isIntraState() ? (
+                    <>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm font-bold text-muted-foreground">SGST/UTGST</span>
+                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                          {formatDocAmount(calculations.totalTax / 2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm font-bold text-muted-foreground">CGST</span>
+                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                          {formatDocAmount(calculations.totalTax / 2)}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-sm font-bold text-muted-foreground">IGST</span>
                       <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                        {formatDocAmount(Number(formData.freight_charge) || 0)}
+                        {formatDocAmount(calculations.totalTax)}
                       </span>
                     </div>
+                  )
+                ) : (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
+                    <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                      {formatDocAmount(calculations.totalTax)}
+                    </span>
                   </div>
                 )}
 

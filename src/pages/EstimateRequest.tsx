@@ -1,7 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
+import { Input } from "@/components/ui/input";
+import { isRudraverseTenant } from "@/lib/rudraverseTenant";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -55,8 +58,14 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
 export default function EstimateRequest() {
   const queryClient = useQueryClient();
   const [selectedRequest, setSelectedRequest] =
-    useState<EstimateRequestRecord | null>(null);
+    useState<any | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [editingItems, setEditingItems] = useState<any[]>([]);
+  const [editingConnectPerson, setEditingConnectPerson] = useState("");
+  const [editingSalesPerson, setEditingSalesPerson] = useState("");
+
+  const { user } = usePermissions();
+  const isRudraverse = isRudraverseTenant(user?.email);
 
   // Fetch Data
   const {
@@ -93,27 +102,56 @@ export default function EstimateRequest() {
     },
   });
 
-  const handleViewDetails = (request: EstimateRequestRecord) => {
-    setSelectedRequest(request);
+  const handleViewDetails = (request: any) => {
+    const parentReq = request.originalRequest || request;
+    setSelectedRequest(parentReq);
+    setEditingItems(parentReq.items || []);
+    setEditingConnectPerson(parentReq.connectPerson || `${parentReq.firstname || ""} ${parentReq.lastname || ""}`.trim() || "");
+    setEditingSalesPerson(parentReq.salesPerson || "");
     setIsDetailOpen(true);
 
     // Mark as processing if pending
-    if (request.status === "pending" || !request.status) {
-      updateStatusMutation.mutate({ id: request._id, status: "processing" });
+    if (parentReq.status === "pending" || !parentReq.status) {
+      updateStatusMutation.mutate({ id: parentReq._id, status: "processing" });
     }
   };
 
-  const handleBulkDelete = async (items: EstimateRequestRecord[]) => {
+  const handleBulkDelete = async (items: any[]) => {
     try {
-      await Promise.all(items.map(item => estimateService.deleteRequest(item._id)));
+      const parentIds = [...new Set(items.map(item => item.parent_id || item._id))];
+      await Promise.all(parentIds.map(id => estimateService.deleteRequest(id)));
       queryClient.invalidateQueries({ queryKey: ["estimate-requests"] });
-      toast.success(`Deleted ${items.length} requests successfully`);
+      toast.success(`Deleted requests successfully`);
     } catch (error: any) {
       toast.error("Failed to delete some requests");
     }
   };
 
-  const columns: DataTableColumn<EstimateRequestRecord>[] = [
+  const tableRows = useMemo(() => {
+    if (!isRudraverse) return requests;
+
+    return (requests as any[]).flatMap((req: any) => {
+      const items = req.items?.length ? req.items : [{ description: "—", qty: "—", rate: "—", amount: "—" }];
+      return items.map((item: any, idx: number) => ({
+        ...req,
+        _id: `${req._id || req.id}-${idx}`,
+        parent_id: req._id,
+        company: req.company || "—",
+        connectPerson: req.connectPerson || `${req.firstname || ""} ${req.lastname || ""}`.trim() || "—",
+        phone: req.phone || "—",
+        email: req.email || "—",
+        itemDescription: item.description || "—",
+        qty: item.qty ?? "—",
+        rate: item.rate ?? "—",
+        amount: item.amount ?? (Number(item.qty) && Number(item.rate) ? Number(item.qty) * Number(item.rate) : "—"),
+        salesPerson: req.salesPerson || "—",
+        date: req.date || req.createdAt || "—",
+        originalRequest: req,
+      }));
+    });
+  }, [requests, isRudraverse]);
+
+  const standardColumns: DataTableColumn<any>[] = [
     {
       key: "email",
       label: "Email",
@@ -163,6 +201,66 @@ export default function EstimateRequest() {
     },
   ];
 
+  const rudraverseColumns: DataTableColumn<any>[] = [
+    {
+      key: "company",
+      label: "Company Name",
+      className: "font-semibold text-slate-800",
+      render: (row) => <span className="text-[13px]">{row.company}</span>,
+    },
+    {
+      key: "connectPerson",
+      label: "Connect Person",
+      render: (row) => <span className="text-[13px]">{row.connectPerson}</span>,
+    },
+    {
+      key: "phone",
+      label: "Phone Number",
+      render: (row) => <span className="text-[13px]">{row.phone}</span>,
+    },
+    {
+      key: "email",
+      label: "Mail Id",
+      render: (row) => <span className="text-[13px]">{row.email}</span>,
+    },
+    {
+      key: "itemDescription",
+      label: "Item",
+      render: (row) => <span className="text-[13px]">{row.itemDescription}</span>,
+    },
+    {
+      key: "qty",
+      label: "Quantity",
+      render: (row) => <span className="text-[13px]">{row.qty}</span>,
+    },
+    {
+      key: "rate",
+      label: "Rate",
+      render: (row) => <span className="text-[13px]">{row.rate !== "—" ? `₹${Number(row.rate).toFixed(2)}` : "—"}</span>,
+    },
+    {
+      key: "amount",
+      label: "Amount",
+      render: (row) => <span className="text-[13px]">{row.amount !== "—" ? `₹${Number(row.amount).toFixed(2)}` : "—"}</span>,
+    },
+    {
+      key: "salesPerson",
+      label: "Sales Person",
+      render: (row) => <span className="text-[13px]">{row.salesPerson}</span>,
+    },
+    {
+      key: "date",
+      label: "Date",
+      render: (row) => (
+        <span className="text-[13px]">
+          {row.date && row.date !== "—" ? new Date(row.date).toLocaleDateString("en-GB") : "—"}
+        </span>
+      ),
+    },
+  ];
+
+  const displayColumns = isRudraverse ? rudraverseColumns : standardColumns;
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -180,8 +278,8 @@ export default function EstimateRequest() {
         </div>
 
         <DataTable
-          columns={columns}
-          data={requests}
+          columns={displayColumns}
+          data={tableRows}
           isLoading={isLoadingRequests}
           onRefresh={refetchRequests}
           showIdColumn={true}
@@ -190,6 +288,20 @@ export default function EstimateRequest() {
           exportFilename="estimate_requests"
           getExportData={(filteredRequests) => {
             return filteredRequests.map((req: any) => {
+              if (isRudraverse) {
+                return {
+                  "Company Name": req.company || "",
+                  "Connect Person": req.connectPerson || "",
+                  "Phone Number": req.phone || "",
+                  "Mail Id": req.email || "",
+                  "Item": req.itemDescription || "",
+                  "Quantity": req.qty || "",
+                  "Rate": req.rate || "",
+                  "Amount": req.amount || "",
+                  "Sales Person": req.salesPerson || "",
+                  "Date": req.date && req.date !== "—" ? new Date(req.date).toLocaleDateString("en-GB") : "",
+                };
+              }
               const baseData: any = {
                 Email: req.email,
                 Status: req.status || "Pending",
@@ -229,7 +341,7 @@ export default function EstimateRequest() {
                       "Are you sure you want to delete this request?",
                     )
                   ) {
-                    deleteMutation.mutate(row._id);
+                    deleteMutation.mutate(row.parent_id || row._id);
                   }
                 }}
                 variant="ghost"
@@ -340,6 +452,138 @@ export default function EstimateRequest() {
                 )}
               </div>
             </div>
+
+            {isRudraverse && (
+              <div className="space-y-4 border-t pt-6">
+                <h3 className="text-sm font-bold text-slate-900 border-l-4 border-primary pl-3 flex items-center gap-2">
+                  <ClipboardList className="h-4 w-4 text-primary" />
+                  Rudraverse Specific Information
+                </h3>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Connect Person</label>
+                    <Input 
+                      value={editingConnectPerson} 
+                      onChange={(e) => setEditingConnectPerson(e.target.value)} 
+                      placeholder="Connect Person Name"
+                      className="h-10 rounded-xl border-slate-200 text-xs font-bold"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sales Person</label>
+                    <Input 
+                      value={editingSalesPerson} 
+                      onChange={(e) => setEditingSalesPerson(e.target.value)} 
+                      placeholder="Sales Person Name"
+                      className="h-10 rounded-xl border-slate-200 text-xs font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Items</label>
+                    <Button 
+                      onClick={() => setEditingItems([...editingItems, { description: "", qty: 1, rate: 0, amount: 0 }])}
+                      size="sm"
+                      variant="outline"
+                      className="h-8 rounded-lg text-xs"
+                    >
+                      + Add Item
+                    </Button>
+                  </div>
+                  
+                  {editingItems.length === 0 ? (
+                    <div className="text-xs text-slate-400 italic text-center py-4 bg-slate-50 rounded-xl border border-dashed">
+                      No items added yet. Click "+ Add Item" above.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                      {editingItems.map((item, idx) => (
+                        <div key={idx} className="flex gap-2 items-center bg-slate-50 p-2 rounded-lg border border-slate-100">
+                          <Input 
+                            value={item.description} 
+                            onChange={(e) => {
+                              const newItems = [...editingItems];
+                              newItems[idx].description = e.target.value;
+                              setEditingItems(newItems);
+                            }} 
+                            placeholder="Item description"
+                            className="h-8 text-xs flex-1"
+                          />
+                          <Input 
+                            type="number" 
+                            value={item.qty} 
+                            onChange={(e) => {
+                              const newItems = [...editingItems];
+                              const qty = Number(e.target.value) || 0;
+                              newItems[idx].qty = qty;
+                              newItems[idx].amount = qty * (newItems[idx].rate || 0);
+                              setEditingItems(newItems);
+                            }} 
+                            placeholder="Qty"
+                            className="h-8 text-xs w-16 text-center"
+                          />
+                          <Input 
+                            type="number" 
+                            value={item.rate} 
+                            onChange={(e) => {
+                              const newItems = [...editingItems];
+                              const rate = Number(e.target.value) || 0;
+                              newItems[idx].rate = rate;
+                              newItems[idx].amount = (newItems[idx].qty || 0) * rate;
+                              setEditingItems(newItems);
+                            }} 
+                            placeholder="Rate"
+                            className="h-8 text-xs w-20 text-center"
+                          />
+                          <div className="text-xs font-bold text-slate-600 w-24 text-right pr-2">
+                            ₹{(Number(item.qty || 0) * Number(item.rate || 0)).toFixed(2)}
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 text-red-500 hover:bg-red-50 rounded-lg"
+                            onClick={() => setEditingItems(editingItems.filter((_, i) => i !== idx))}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <Button 
+                    onClick={async () => {
+                      if (!selectedRequest) return;
+                      try {
+                        await estimateService.updateRequest(selectedRequest._id, {
+                          connectPerson: editingConnectPerson,
+                          salesPerson: editingSalesPerson,
+                          items: editingItems.map(it => ({
+                            description: it.description,
+                            qty: Number(it.qty) || 0,
+                            rate: Number(it.rate) || 0,
+                            amount: (Number(it.qty) || 0) * (Number(it.rate) || 0)
+                          }))
+                        });
+                        queryClient.invalidateQueries({ queryKey: ["estimate-requests"] });
+                        toast.success("Request updated successfully");
+                        setIsDetailOpen(false);
+                      } catch (error: any) {
+                        toast.error(error.response?.data?.message || "Failed to update request");
+                      }
+                    }}
+                    className="bg-primary text-white text-xs h-9 rounded-xl font-bold px-4"
+                  >
+                    Save Changes
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex justify-between items-center pt-4 border-t mt-4">

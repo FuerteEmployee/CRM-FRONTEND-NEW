@@ -753,7 +753,6 @@ const Invoices = () => {
     "Party Name", "Party Address", "Party Group", "Terms of Payment", "GSTIN/UIN",
     "Item Name", "Item Group", "Item HSN", "GST percentage", "Item Batch",
     "Quantity", "Rate", "Unit",
-    ...(isPilot ? ["Freight 1%"] : []),
     "Amount",
   ], [isPilot]);
 
@@ -775,7 +774,6 @@ const Invoices = () => {
     { header: "Quantity", key: "quantity", type: "number" as const },
     { header: "Rate", key: "rate", type: "number" as const },
     { header: "Unit", key: "unit" },
-    ...(isPilot ? [{ header: "Freight 1%", key: "freight", type: "number" as const }] : []),
     { header: "Amount", key: "amount", type: "number" as const },
   ], [isPilot]);
 
@@ -902,7 +900,6 @@ const Invoices = () => {
       termsOfPayment: inv.termsOfPayment || "",
       gstin: inv.gstin || "",
       salesPerson: inv.salesPerson || "",
-      freight: inv.freight_charge || 0,
       itemName: item.description || "",
       itemGroup: item.itemGroup || "",
       itemHSN: item.itemHSN || "",
@@ -1224,7 +1221,6 @@ const Invoices = () => {
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.quantity || 0}</td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.rate || 0)}</td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.unit || "-"}</td>
-                      {isPilot && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.freight || 0)}</td>}
                       <td className="px-6 py-4 font-black text-foreground whitespace-nowrap">{formatRowAmount(inv, row.amount || 0)}</td>
                       <td className="px-6 py-4">
                         <TableActions
