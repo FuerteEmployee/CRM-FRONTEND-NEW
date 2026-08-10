@@ -310,7 +310,12 @@ export default function QuotationModule() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [clientId, setClientId] = useState("");
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
-  const [newCustomerName, setNewCustomerName] = useState("");
+  const emptyNewCustomer = {
+    company: "", customer_reference: "", contact_person: "", vat: "",
+    phonenumber: "", email: "", website: "", pan_number: "", gst_number: "",
+    account_details: "", address: "", city: "", state: "", zip: "", country: "",
+  };
+  const [newCustomerForm, setNewCustomerForm] = useState(emptyNewCustomer);
   const [contactNumber, setContactNumber] = useState("");
   const [address, setAddress] = useState("");
   const [quotationDate, setQuotationDate] = useState(todayISO());
@@ -399,17 +404,17 @@ export default function QuotationModule() {
     enabled: activeTab === "create",
   });
 
-  // Rudraverse-only: let the user type a brand-new customer name straight from
-  // this form instead of only picking from the existing list — creates a real
-  // Client record so it behaves exactly like any other selected customer.
+  // Rudraverse-only: let the user fill in a brand-new customer's details straight
+  // from this form instead of only picking from the existing list — creates a
+  // real Client record so it behaves exactly like any other selected customer.
   const createCustomerMutation = useMutation({
-    mutationFn: (company: string) => customerService.create({ company }),
+    mutationFn: (data: typeof emptyNewCustomer) => customerService.create(data),
     onSuccess: (created: any) => {
       const newCustomer = created?.data || created;
       queryClient.invalidateQueries({ queryKey: ["customers"] });
       setClientId(newCustomer._id);
       setIsAddingCustomer(false);
-      setNewCustomerName("");
+      setNewCustomerForm(emptyNewCustomer);
       toast({ title: "Customer added", description: `"${newCustomer.company}" is now saved and selected.` });
     },
     onError: (error: any) => {
@@ -1382,58 +1387,23 @@ export default function QuotationModule() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Customer</Label>
-                        {isPilot && isAddingCustomer ? (
-                          <div className="flex items-center gap-2">
-                            <Input
-                              autoFocus
-                              placeholder="New customer name"
-                              value={newCustomerName}
-                              onChange={(e) => setNewCustomerName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && newCustomerName.trim()) {
-                                  createCustomerMutation.mutate(newCustomerName.trim());
-                                }
-                              }}
-                              className="h-11"
-                            />
-                            <Button
+                        <div className="space-y-1">
+                          <SearchableSelect
+                            placeholder="Select customer"
+                            options={customers.map((c: any) => ({ value: c._id, label: c.company || "Unnamed customer" }))}
+                            value={clientId}
+                            onValueChange={setClientId}
+                          />
+                          {isPilot && (
+                            <button
                               type="button"
-                              size="sm"
-                              className="h-11"
-                              disabled={!newCustomerName.trim() || createCustomerMutation.isPending}
-                              onClick={() => createCustomerMutation.mutate(newCustomerName.trim())}
+                              className="text-xs font-bold text-primary hover:underline"
+                              onClick={() => { setNewCustomerForm(emptyNewCustomer); setIsAddingCustomer(true); }}
                             >
-                              {createCustomerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="h-11"
-                              onClick={() => { setIsAddingCustomer(false); setNewCustomerName(""); }}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                            <SearchableSelect
-                              placeholder="Select customer"
-                              options={customers.map((c: any) => ({ value: c._id, label: c.company || "Unnamed customer" }))}
-                              value={clientId}
-                              onValueChange={setClientId}
-                            />
-                            {isPilot && (
-                              <button
-                                type="button"
-                                className="text-xs font-bold text-primary hover:underline"
-                                onClick={() => setIsAddingCustomer(true)}
-                              >
-                                + Add new customer manually
-                              </button>
-                            )}
-                          </div>
-                        )}
+                              + Add new customer manually
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Quotation Date</Label>
@@ -1482,6 +1452,166 @@ export default function QuotationModule() {
                       </div>
                     )}
                   </CardContent>
+
+                  <Dialog open={isAddingCustomer} onOpenChange={setIsAddingCustomer}>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Add New Customer</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-2">
+                        <div className="space-y-2">
+                          <Label>Company <span className="text-destructive">*</span></Label>
+                          <Input
+                            placeholder="Company name"
+                            value={newCustomerForm.company}
+                            onChange={(e) => setNewCustomerForm((f) => ({ ...f, company: e.target.value }))}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Customer Reference</Label>
+                            <Input
+                              placeholder="Customer reference"
+                              value={newCustomerForm.customer_reference}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, customer_reference: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Connect Person</Label>
+                            <Input
+                              placeholder="Contact person name"
+                              value={newCustomerForm.contact_person}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, contact_person: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>VAT Number</Label>
+                            <Input
+                              placeholder="VAT number"
+                              value={newCustomerForm.vat}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, vat: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Phone</Label>
+                            <Input
+                              type="tel"
+                              placeholder="+1 555-0100"
+                              maxLength={10}
+                              inputMode="numeric"
+                              value={newCustomerForm.phonenumber}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, phonenumber: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Email</Label>
+                            <Input
+                              type="email"
+                              placeholder="company@example.com"
+                              value={newCustomerForm.email}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, email: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Website</Label>
+                            <Input
+                              type="url"
+                              placeholder="https://example.com"
+                              value={newCustomerForm.website}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, website: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>PAN Number</Label>
+                            <Input
+                              placeholder="PAN number"
+                              value={newCustomerForm.pan_number}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, pan_number: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>GST Number</Label>
+                            <Input
+                              placeholder="GST number"
+                              value={newCustomerForm.gst_number}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, gst_number: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Account Details</Label>
+                          <Textarea
+                            placeholder="Bank name, account number, IFSC, etc."
+                            rows={2}
+                            value={newCustomerForm.account_details}
+                            onChange={(e) => setNewCustomerForm((f) => ({ ...f, account_details: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Address</Label>
+                          <Textarea
+                            placeholder="Full address"
+                            rows={2}
+                            value={newCustomerForm.address}
+                            onChange={(e) => setNewCustomerForm((f) => ({ ...f, address: e.target.value }))}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>City</Label>
+                            <Input
+                              placeholder="City"
+                              value={newCustomerForm.city}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, city: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>State</Label>
+                            <Input
+                              placeholder="State"
+                              value={newCustomerForm.state}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, state: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Zip Code</Label>
+                            <Input
+                              placeholder="Zip code"
+                              value={newCustomerForm.zip}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, zip: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Country</Label>
+                            <Input
+                              placeholder="Country"
+                              value={newCustomerForm.country}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, country: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            className="flex-1"
+                            disabled={!newCustomerForm.company.trim() || createCustomerMutation.isPending}
+                            onClick={() => createCustomerMutation.mutate(newCustomerForm)}
+                          >
+                            {createCustomerMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Save
+                          </Button>
+                          <Button variant="outline" onClick={() => setIsAddingCustomer(false)}>Cancel</Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
 
                   {/* Logos & Branding */}
                   <div className="px-6 py-2.5 bg-blue-50 border-y border-blue-100">
