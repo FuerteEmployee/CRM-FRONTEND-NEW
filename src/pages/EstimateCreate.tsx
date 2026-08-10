@@ -50,6 +50,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 
 export default function EstimateCreate() {
   const { clientId, id } = useParams();
@@ -172,6 +174,37 @@ export default function EstimateCreate() {
       setAdjustmentValue(estimate.adjustment || 0);
     }
   }, [estimate, taxes]);
+
+  const { user } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+
+  const isIntraState = () => {
+    const customer = customers.find((c: any) => c._id === formData.client);
+    if (!customer) return true; // default/fallback
+    const gstin = (customer.gst_number || "").trim();
+    if (/^\d{2}/.test(gstin)) {
+      return gstin.substring(0, 2) === "24"; // HOME_STATE_GST_CODE = "24"
+    }
+    const state = (formData.billing_state || customer.state || "").trim().toLowerCase();
+    if (state) {
+      return state === "gujarat";
+    }
+    // detectStateFromAddress
+    const address = `${formData.billing_street || ""} ${customer.address || ""}`.toLowerCase();
+    const INDIAN_STATES = [
+      "andhra pradesh", "arunachal pradesh", "assam", "bihar", "chhattisgarh",
+      "delhi", "goa", "gujarat", "haryana", "himachal pradesh", "jammu and kashmir",
+      "jharkhand", "karnataka", "kerala", "madhya pradesh", "maharashtra", "manipur",
+      "meghalaya", "mizoram", "nagaland", "odisha", "punjab", "rajasthan", "sikkim",
+      "tamil nadu", "telangana", "tripura", "uttar pradesh", "uttarakhand", "west bengal",
+    ];
+    const sorted = [...INDIAN_STATES].sort((x, y) => y.length - x.length);
+    const detected = sorted.find((s) => address.includes(s)) || "";
+    if (detected) {
+      return detected === "gujarat";
+    }
+    return true; // default
+  };
 
   const calculations = useMemo(() => {
     const itemAmount = (item: any) => item.amount ?? (item.qty * item.rate);
@@ -750,12 +783,38 @@ export default function EstimateCreate() {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
-                  <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                    {formatDocAmount(calculations.totalTax)}
-                  </span>
-                </div>
+                {isPilot ? (
+                  isIntraState() ? (
+                    <>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm font-bold text-muted-foreground">SGST/UTGST</span>
+                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                          {formatDocAmount(calculations.totalTax / 2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm font-bold text-muted-foreground">CGST</span>
+                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                          {formatDocAmount(calculations.totalTax / 2)}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-sm font-bold text-muted-foreground">IGST</span>
+                      <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                        {formatDocAmount(calculations.totalTax)}
+                      </span>
+                    </div>
+                  )
+                ) : (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
+                    <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                      {formatDocAmount(calculations.totalTax)}
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex justify-between items-center py-2">
                   <span className="text-sm font-bold text-muted-foreground">Adjustment</span>
