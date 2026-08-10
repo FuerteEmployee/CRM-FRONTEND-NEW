@@ -420,6 +420,11 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                         <p className="text-xs text-muted-foreground">{[d.client?.city, d.client?.state, d.client?.zip].filter(Boolean).join(" ")}</p>
                       )}
                       {d.client?.country && <p className="text-xs text-muted-foreground">{d.client?.country}</p>}
+                      {d.gstin && (
+                        <p className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5 mt-2 inline-block">
+                          GSTIN: {d.gstin}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-xs text-muted-foreground mb-0.5">To:</p>
@@ -427,6 +432,28 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                     </div>
                   </div>
                 </div>
+
+                {/* Invoice meta details grid */}
+                <div className="border border-border/40 rounded-xl p-4 grid grid-cols-2 gap-x-6 gap-y-3">
+                  {[
+                    { label: "GSTIN / UIN",        value: d.gstin || "—" },
+                    { label: "Voucher Type",        value: d.voucherType || "—" },
+                    { label: "Bill Date",           value: d.date ? new Date(d.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
+                    { label: "Due Date",            value: d.duedate ? new Date(d.duedate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
+                    { label: "Terms of Payment",   value: d.termsOfPayment || "—" },
+                    { label: "Party Group",         value: d.partyGroup || "—" },
+                    { label: "Party Address",       value: d.partyAddress || "—" },
+                    { label: "Currency",            value: d.currency || "—" },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex flex-col gap-0.5">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{label}</span>
+                      <span className={`text-xs font-semibold text-foreground break-all ${label === "GSTIN / UIN" && value !== "—" ? "font-mono text-emerald-700" : ""}`}>
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
 
                 {/* Items breakdown */}
                 <div className="border border-border/40 rounded-xl p-5 min-h-[100px]">
@@ -873,6 +900,7 @@ const Invoices = () => {
       partyAddress: inv.partyAddress || "",
       partyGroup: inv.partyGroup || "",
       termsOfPayment: inv.termsOfPayment || "",
+      gstin: inv.gstin || "",
       salesPerson: inv.salesPerson || "",
       freight: inv.freight_charge || 0,
       itemName: item.description || "",
@@ -1156,7 +1184,7 @@ const Invoices = () => {
               ) : (
                 flatRows.map((row: any) => {
                   const inv = row.invoice;
-                  const status = statusMap[inv.status] || statusMap[1];
+                  const status = statusMap[inv.status] || statusMap["unpaid"];
                   return (
                     <tr key={row.rowKey} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(inv._id) ? 'bg-primary/5' : ''}`}>
                       <td className="px-3 py-2">

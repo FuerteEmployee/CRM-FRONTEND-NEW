@@ -306,6 +306,11 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                 {clientCityStateZip && <p className="text-xs text-muted-foreground">{clientCityStateZip}</p>}
                 {clientCountry && <p className="text-xs text-muted-foreground">{clientCountry}</p>}
                 {clientEmail && <p className="text-xs font-semibold text-primary mt-2">{clientEmail}</p>}
+                {isInvoice && data.gstin && (
+                  <p className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5 mt-2 inline-block">
+                    GSTIN: {data.gstin}
+                  </p>
+                )}
               </div>
 
               {/* Items Table container */}
@@ -472,6 +477,24 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                             <span className="text-muted-foreground">{expiryLabel}:</span>
                             <span className="font-bold text-foreground">{expiryDate}</span>
                           </div>
+                          {isInvoice && data.gstin && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">GSTIN / UIN:</span>
+                              <span className="font-mono font-bold text-emerald-700">{data.gstin}</span>
+                            </div>
+                          )}
+                          {isInvoice && data.voucherType && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Voucher Type:</span>
+                              <span className="font-bold text-foreground">{data.voucherType}</span>
+                            </div>
+                          )}
+                          {isInvoice && data.termsOfPayment && (
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Terms of Payment:</span>
+                              <span className="font-bold text-foreground">{data.termsOfPayment}</span>
+                            </div>
+                          )}
                           {isInvoice && totalPaid > 0 && (
                             <div className="flex justify-between text-xs">
                               <span className="text-muted-foreground">Amount Paid:</span>
