@@ -37,10 +37,11 @@ export default defineConfig(({ mode }) => ({
       injectRegister: "auto",
       includeAssets: ["favicon.ico"],
       devOptions: {
-        // Serve the manifest + a real service worker under `npm run dev` too,
-        // not just in a production build — otherwise the browser never sees
-        // an installable app while developing against localhost:5173.
-        enabled: true,
+        // Disabled: the dev SW's precache-install fetch for index.html races
+        // with Vite's HMR reloads, throwing "Cache.put() encountered a
+        // network error" on almost every refresh. Test installability/offline
+        // behavior against a real build instead: `npm run build && npm run preview`.
+        enabled: false,
         type: "module",
       },
       manifest: {
@@ -63,6 +64,12 @@ export default defineConfig(({ mode }) => ({
         // the app shell's own static build output.
         navigateFallbackDenylist: [/^\/api\//, /^\/socket\.io\//],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // Purge old precache entries and take control immediately on update,
+        // so a stale/interrupted cache.put() from a prior SW version can't
+        // linger and get served alongside a newer app shell.
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
         // The vendor-react chunk bundles react/router/radix-ui/recharts/etc.
         // together (see manualChunks comment in this file) and exceeds
         // workbox's 2 MiB default precache limit.
