@@ -51,6 +51,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { LeadsKanban } from "@/pages/LeadsKanban";
+import { MetaAdsDialog } from "@/components/leads/MetaAdsDialog";
 
 const Leads = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -448,6 +449,7 @@ const Leads = () => {
             </Tooltip>
           {can("Leads", "Create") && (
             <div className="flex gap-2 items-center">
+              <MetaAdsDialog />
               <ImportButton onData={processLeadRows} loading={importLeadsMutation.isPending} label="Import Leads" />
               <Dialog open={isNewLeadOpen} onOpenChange={setIsNewLeadOpen}>
                   <Button onClick={() => openModal("create")} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest transition-all hover:scale-105">

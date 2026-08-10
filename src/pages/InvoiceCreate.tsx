@@ -273,7 +273,7 @@ export default function InvoiceCreate() {
     // Tax is charged on the discounted amount, not the full pre-discount subtotal.
     const discountFactor = subTotal > 0 ? 1 - discountAmount / subTotal : 1;
     const totalTax = items.reduce((acc, item) => {
-      const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || 0;
+      const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || item.gstPercentage || 0;
       return acc + (((Number(item.qty) || 0) * (Number(item.rate) || 0)) * discountFactor * (taxRate / 100));
     }, 0);
     const freight = Number(formData.freight_charge) || 0;
@@ -403,8 +403,8 @@ export default function InvoiceCreate() {
         long_description: item.long_description,
         qty: Number(item.qty) || 0,
         rate: Number(item.rate) || 0,
-        tax: Number(taxes.find((t: any) => t._id === item.tax)?.taxrate) || 0,
-        tax_name: taxes.find((t: any) => t._id === item.tax)?.name || "",
+        tax: Number(taxes.find((t: any) => t._id === item.tax)?.taxrate) || Number(item.gstPercentage) || 0,
+        tax_name: taxes.find((t: any) => t._id === item.tax)?.name || (item.gstPercentage ? `${item.gstPercentage}% Tax` : ""),
         itemGroup: item.itemGroup || "",
         itemHSN: item.itemHSN || "",
         itemBatch: item.itemBatch || "",
@@ -899,8 +899,8 @@ export default function InvoiceCreate() {
             </div>
 
             {/* Items Table */}
-            <div className="rounded-[2rem] border border-border/50 overflow-hidden shadow-sm">
-              <table className="w-full">
+            <div className="rounded-[2rem] border border-border/50 overflow-x-auto shadow-sm">
+              <table className="w-full min-w-[1500px]">
                 <thead>
                   <tr className="bg-red-600 text-white">
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -931,6 +931,7 @@ export default function InvoiceCreate() {
                         className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
                         value={newItem.description}
                         onChange={(e) => setNewItem(p => ({ ...p, description: e.target.value }))}
+                        disableVoice
                       />
                     </td>
                     <td className="p-4 align-top">
@@ -939,6 +940,7 @@ export default function InvoiceCreate() {
                         className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
                         value={newItem.long_description}
                         onChange={(e) => setNewItem(p => ({ ...p, long_description: e.target.value }))}
+                        disableVoice
                       />
                     </td>
                     <td className="p-4 align-top w-[130px]">
@@ -947,6 +949,7 @@ export default function InvoiceCreate() {
                         value={newItem.itemGroup}
                         onChange={(e) => setNewItem(p => ({ ...p, itemGroup: e.target.value }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
                       />
                     </td>
                     <td className="p-4 align-top w-[110px]">
@@ -955,6 +958,7 @@ export default function InvoiceCreate() {
                         value={newItem.itemHSN}
                         onChange={(e) => setNewItem(p => ({ ...p, itemHSN: e.target.value }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
                       />
                     </td>
                     <td className="p-4 align-top w-[110px]">
@@ -963,6 +967,7 @@ export default function InvoiceCreate() {
                         value={newItem.itemBatch}
                         onChange={(e) => setNewItem(p => ({ ...p, itemBatch: e.target.value }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
                       />
                     </td>
                     <td className="p-4 align-top w-[100px]">
@@ -971,6 +976,7 @@ export default function InvoiceCreate() {
                         value={newItem.qty}
                         onChange={(e) => setNewItem(p => ({ ...p, qty: Number(e.target.value) }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
                       />
                     </td>
                     <td className="p-4 align-top w-[100px]">
@@ -979,6 +985,7 @@ export default function InvoiceCreate() {
                         value={newItem.unit}
                         onChange={(e) => setNewItem(p => ({ ...p, unit: e.target.value }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
                       />
                     </td>
                     <td className="p-4 align-top w-[150px]">
@@ -988,6 +995,7 @@ export default function InvoiceCreate() {
                         value={newItem.rate}
                         onChange={(e) => setNewItem(p => ({ ...p, rate: Number(e.target.value) }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
                       />
                     </td>
                     <td className="p-4 align-top w-[100px]">
@@ -997,6 +1005,7 @@ export default function InvoiceCreate() {
                         value={newItem.gstPercentage}
                         onChange={(e) => setNewItem(p => ({ ...p, gstPercentage: Number(e.target.value) }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
                       />
                     </td>
                     <td className="p-4 align-top w-[180px]">
@@ -1013,7 +1022,7 @@ export default function InvoiceCreate() {
                       </Select>
                     </td>
                     <td className="p-4 align-top text-sm font-black text-foreground">
-                      {formatDocAmount(newItem.qty * newItem.rate * (1 + (taxes.find(t => t._id === newItem.tax)?.taxrate || 0) / 100))}
+                      {formatDocAmount(newItem.qty * newItem.rate * (1 + ((taxes.find(t => t._id === newItem.tax)?.taxrate || newItem.gstPercentage || 0)) / 100))}
                     </td>
                     <td className="p-4 align-top text-right">
                       <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
@@ -1035,9 +1044,9 @@ export default function InvoiceCreate() {
                       <td className="p-4 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
                       <td className="p-4 align-top text-xs font-medium text-muted-foreground">{item.gstPercentage || 0}%</td>
                       <td className="p-4 align-top text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        {taxes.find(t => t._id === item.tax)?.name || "No Tax"}
+                        {taxes.find(t => t._id === item.tax)?.name || (item.gstPercentage ? `${item.gstPercentage}%` : "No Tax")}
                       </td>
-                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.amount || (item.qty * item.rate * (1 + (taxes.find(t => t._id === item.tax)?.taxrate || 0) / 100)))}</td>
+                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.amount || (item.qty * item.rate * (1 + ((taxes.find(t => t._id === item.tax)?.taxrate || item.gstPercentage || 0)) / 100)))}</td>
                       <td className="p-4 align-top text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
@@ -1104,12 +1113,41 @@ export default function InvoiceCreate() {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
-                  <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                    {formatDocAmount(calculations.totalTax)}
-                  </span>
-                </div>
+                {(!customer || calculations.totalTax === 0) ? (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
+                    <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                      {formatDocAmount(calculations.totalTax)}
+                    </span>
+                  </div>
+                ) : (
+                  (() => {
+                    const isIntra = !customer.state || customer.state.toLowerCase().includes("gujarat");
+                    return isIntra ? (
+                      <>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-sm font-bold text-muted-foreground">CGST</span>
+                          <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                            {formatDocAmount(calculations.totalTax / 2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-sm font-bold text-muted-foreground">SGST</span>
+                          <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                            {formatDocAmount(calculations.totalTax / 2)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm font-bold text-muted-foreground">IGST</span>
+                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                          {formatDocAmount(calculations.totalTax)}
+                        </span>
+                      </div>
+                    );
+                  })()
+                )}
 
                 {isPilot && (
                   <div className="flex justify-between items-center py-2">
