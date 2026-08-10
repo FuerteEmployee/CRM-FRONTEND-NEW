@@ -12,6 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/context/SettingsContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { quotationService } from "@/api/services/quotation.service";
 import { customerService } from "@/api/services/customer.service";
 import { quotationTypeService } from "@/api/services/quotationType.service";
@@ -241,6 +243,8 @@ export default function QuotationModule() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { getSetting } = useSettings();
+  const { user } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams);
@@ -305,6 +309,8 @@ export default function QuotationModule() {
   // ─── Create/Edit Quotation form state ────────────────────────────────
   const [editingId, setEditingId] = useState<string | null>(null);
   const [clientId, setClientId] = useState("");
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [address, setAddress] = useState("");
   const [quotationDate, setQuotationDate] = useState(todayISO());
@@ -391,6 +397,24 @@ export default function QuotationModule() {
     queryKey: ["customers"],
     queryFn: () => customerService.getAll().then((res: any) => res.data || res),
     enabled: activeTab === "create",
+  });
+
+  // Rudraverse-only: let the user type a brand-new customer name straight from
+  // this form instead of only picking from the existing list — creates a real
+  // Client record so it behaves exactly like any other selected customer.
+  const createCustomerMutation = useMutation({
+    mutationFn: (company: string) => customerService.create({ company }),
+    onSuccess: (created: any) => {
+      const newCustomer = created?.data || created;
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      setClientId(newCustomer._id);
+      setIsAddingCustomer(false);
+      setNewCustomerName("");
+      toast({ title: "Customer added", description: `"${newCustomer.company}" is now saved and selected.` });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to add customer", variant: "destructive" });
+    },
   });
 
   const { data: selectedCustomer } = useQuery({
@@ -1358,12 +1382,58 @@ export default function QuotationModule() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Customer</Label>
-                        <SearchableSelect
-                          placeholder="Select customer"
-                          options={customers.map((c: any) => ({ value: c._id, label: c.company || "Unnamed customer" }))}
-                          value={clientId}
-                          onValueChange={setClientId}
-                        />
+                        {isPilot && isAddingCustomer ? (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              autoFocus
+                              placeholder="New customer name"
+                              value={newCustomerName}
+                              onChange={(e) => setNewCustomerName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && newCustomerName.trim()) {
+                                  createCustomerMutation.mutate(newCustomerName.trim());
+                                }
+                              }}
+                              className="h-11"
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-11"
+                              disabled={!newCustomerName.trim() || createCustomerMutation.isPending}
+                              onClick={() => createCustomerMutation.mutate(newCustomerName.trim())}
+                            >
+                              {createCustomerMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-11"
+                              onClick={() => { setIsAddingCustomer(false); setNewCustomerName(""); }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            <SearchableSelect
+                              placeholder="Select customer"
+                              options={customers.map((c: any) => ({ value: c._id, label: c.company || "Unnamed customer" }))}
+                              value={clientId}
+                              onValueChange={setClientId}
+                            />
+                            {isPilot && (
+                              <button
+                                type="button"
+                                className="text-xs font-bold text-primary hover:underline"
+                                onClick={() => setIsAddingCustomer(true)}
+                              >
+                                + Add new customer manually
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Quotation Date</Label>
