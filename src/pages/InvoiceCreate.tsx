@@ -957,6 +957,7 @@ export default function InvoiceCreate() {
                         value={newItem.itemGroup}
                         onChange={(e) => setNewItem(p => ({ ...p, itemGroup: e.target.value }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
                       />
                     </td>
                     <td className="p-4 align-top w-[110px]">
@@ -965,6 +966,7 @@ export default function InvoiceCreate() {
                         value={newItem.itemHSN}
                         onChange={(e) => setNewItem(p => ({ ...p, itemHSN: e.target.value }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
                       />
                     </td>
                     <td className="p-4 align-top w-[110px]">
@@ -973,6 +975,7 @@ export default function InvoiceCreate() {
                         value={newItem.itemBatch}
                         onChange={(e) => setNewItem(p => ({ ...p, itemBatch: e.target.value }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
                       />
                     </td>
                     <td className="p-4 align-top w-[100px]">
@@ -989,6 +992,7 @@ export default function InvoiceCreate() {
                         value={newItem.unit}
                         onChange={(e) => setNewItem(p => ({ ...p, unit: e.target.value }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
                       />
                     </td>
                     <td className="p-4 align-top w-[150px]">
