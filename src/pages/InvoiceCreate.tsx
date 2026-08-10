@@ -910,11 +910,7 @@ export default function InvoiceCreate() {
 
             {/* Items Table */}
             <div className="rounded-[2rem] border border-border/50 overflow-x-auto shadow-sm">
-<<<<<<< HEAD
-              <table className="w-full min-w-[1500px]">
-=======
               <table className="w-full min-w-[1200px]">
->>>>>>> 508cfecb01872f7b263284519737ff06fede2c70
                 <thead>
                   <tr className="bg-red-600 text-white">
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -1035,13 +1031,8 @@ export default function InvoiceCreate() {
                         </SelectContent>
                       </Select>
                     </td>
-<<<<<<< HEAD
-                    <td className="p-4 align-top text-sm font-black text-foreground">
-                      {formatDocAmount(newItem.qty * newItem.rate * (1 + ((taxes.find(t => t._id === newItem.tax)?.taxrate || newItem.gstPercentage || 0)) / 100))}
-=======
                     <td className="px-2 py-3 align-top text-sm font-black text-foreground">
-                      {formatDocAmount(newItem.qty * newItem.rate * (1 + (taxes.find(t => t._id === newItem.tax)?.taxrate || 0) / 100))}
->>>>>>> 508cfecb01872f7b263284519737ff06fede2c70
+                      {formatDocAmount(newItem.qty * newItem.rate * (1 + ((taxes.find(t => t._id === newItem.tax)?.taxrate || newItem.gstPercentage || 0)) / 100))}
                     </td>
                     <td className="px-2 py-3 align-top text-right">
                       <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
@@ -1053,22 +1044,6 @@ export default function InvoiceCreate() {
                   {/* Added Items List */}
                   {items.map((item) => (
                     <tr key={item.id} className="border-b border-border/20 hover:bg-muted/5 transition-colors">
-<<<<<<< HEAD
-                      <td className="p-4 align-top font-bold text-xs">{item.description}</td>
-                      <td className="p-4 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
-                      <td className="p-4 align-top text-xs font-medium text-muted-foreground">{item.itemGroup || "-"}</td>
-                      <td className="p-4 align-top text-xs font-medium text-muted-foreground">{item.itemHSN || "-"}</td>
-                      <td className="p-4 align-top text-xs font-medium text-muted-foreground">{item.itemBatch || "-"}</td>
-                      <td className="p-4 align-top text-xs font-bold">{item.qty}</td>
-                      <td className="p-4 align-top text-xs font-medium text-muted-foreground">{item.unit || "-"}</td>
-                      <td className="p-4 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
-                      <td className="p-4 align-top text-xs font-medium text-muted-foreground">{item.gstPercentage || 0}%</td>
-                      <td className="p-4 align-top text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        {taxes.find(t => t._id === item.tax)?.name || (item.gstPercentage ? `${item.gstPercentage}%` : "No Tax")}
-                      </td>
-                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.amount || (item.qty * item.rate * (1 + ((taxes.find(t => t._id === item.tax)?.taxrate || item.gstPercentage || 0)) / 100)))}</td>
-                      <td className="p-4 align-top text-right">
-=======
                       <td className="px-2 py-3 align-top font-bold text-xs">{item.description}</td>
                       <td className="px-2 py-3 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
                       <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.itemGroup || "-"}</td>
@@ -1079,11 +1054,10 @@ export default function InvoiceCreate() {
                       <td className="px-2 py-3 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
                       <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.gstPercentage || 0}%</td>
                       <td className="px-2 py-3 align-top text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        {taxes.find(t => t._id === item.tax)?.name || "No Tax"}
+                        {taxes.find(t => t._id === item.tax)?.name || (item.gstPercentage ? `${item.gstPercentage}%` : "No Tax")}
                       </td>
-                      <td className="px-2 py-3 align-top text-sm font-black text-primary">{formatDocAmount(item.amount || (item.qty * item.rate * (1 + (taxes.find(t => t._id === item.tax)?.taxrate || 0) / 100)))}</td>
+                      <td className="px-2 py-3 align-top text-sm font-black text-primary">{formatDocAmount(item.amount || (item.qty * item.rate * (1 + ((taxes.find(t => t._id === item.tax)?.taxrate || item.gstPercentage || 0)) / 100)))}</td>
                       <td className="px-2 py-3 align-top text-right">
->>>>>>> 508cfecb01872f7b263284519737ff06fede2c70
                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
@@ -1149,57 +1123,6 @@ export default function InvoiceCreate() {
                   </div>
                 </div>
 
-<<<<<<< HEAD
-                {(!customer || calculations.totalTax === 0) ? (
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
-                    <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                      {formatDocAmount(calculations.totalTax)}
-                    </span>
-                  </div>
-                ) : (
-                  (() => {
-                    const isIntra = !customer.state || customer.state.toLowerCase().includes("gujarat");
-                    return isIntra ? (
-                      <>
-                        <div className="flex justify-between items-center py-1">
-                          <span className="text-sm font-bold text-muted-foreground">CGST</span>
-                          <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                            {formatDocAmount(calculations.totalTax / 2)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center py-1">
-                          <span className="text-sm font-bold text-muted-foreground">SGST</span>
-                          <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                            {formatDocAmount(calculations.totalTax / 2)}
-                          </span>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex justify-between items-center py-2">
-                        <span className="text-sm font-bold text-muted-foreground">IGST</span>
-                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                          {formatDocAmount(calculations.totalTax)}
-                        </span>
-                      </div>
-                    );
-                  })()
-                )}
-
-                {isPilot && (
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-sm font-bold text-muted-foreground">Freight Charge (1%)</span>
-                    <div className="flex items-center gap-3">
-                      <Input 
-                        type="number" 
-                        className="h-9 w-32 rounded-lg border-border/50 bg-background shadow-sm text-xs font-bold text-center"
-                        value={formData.freight_charge}
-                        onChange={(e) => {
-                          setFreightTouched(true);
-                          setFormData(p => ({ ...p, freight_charge: Number(e.target.value) || 0 }));
-                        }}
-                      />
-=======
                 {isPilot ? (
                   isIntraState() ? (
                     <>
@@ -1219,7 +1142,6 @@ export default function InvoiceCreate() {
                   ) : (
                     <div className="flex justify-between items-center py-2">
                       <span className="text-sm font-bold text-muted-foreground">IGST</span>
->>>>>>> 508cfecb01872f7b263284519737ff06fede2c70
                       <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
                         {formatDocAmount(calculations.totalTax)}
                       </span>
