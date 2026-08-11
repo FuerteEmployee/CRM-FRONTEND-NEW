@@ -29,6 +29,29 @@
         box-shadow: none !important;
       }
     </style>
+    <!--
+      One-time kill-switch for the stale-Service-Worker bug (users stuck on
+      an old cached build getting a white screen / chunk-import errors).
+      Ship once with this deploy, then remove in the NEXT deploy — its job
+      is only to flush out whatever bad SW+cache a visitor already has.
+    -->
+    <script>
+      (function () {
+        var KILL = "sw-reset-2026-08";
+        if ("serviceWorker" in navigator && localStorage.getItem(KILL) !== "1") {
+          navigator.serviceWorker.getRegistrations().then(function (rs) {
+            Promise.all(rs.map(function (r) { return r.unregister(); })).then(function () {
+              caches.keys().then(function (ks) {
+                return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+              }).then(function () {
+                localStorage.setItem(KILL, "1");
+                location.reload();
+              });
+            });
+          }).catch(function (e) { console.error("SW kill-switch failed:", e); });
+        }
+      })();
+    </script>
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

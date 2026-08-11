@@ -2,6 +2,7 @@ import "regenerator-runtime/runtime";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import "./pwa";
 
 // Fix to prevent translation widgets or extensions from shifting body/html layout
 const resetLayoutShift = () => {

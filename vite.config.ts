@@ -34,7 +34,11 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      injectRegister: "auto",
+      // null: registration is done ourselves via `virtual:pwa-register` in
+      // src/pwa.ts, so we control onNeedRefresh (forces a reload — see
+      // that file for why). "auto" would additionally self-register with
+      // no reload hook, silently swapping caches under a running tab.
+      injectRegister: null,
       includeAssets: ["favicon.ico"],
       devOptions: {
         // Disabled: the dev SW's precache-install fetch for index.html races
@@ -63,7 +67,7 @@ export default defineConfig(({ mode }) => ({
         // API/socket traffic must always hit the network live — only cache
         // the app shell's own static build output.
         navigateFallbackDenylist: [/^\/api\//, /^\/socket\.io\//],
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
         // Purge old precache entries and take control immediately on update,
         // so a stale/interrupted cache.put() from a prior SW version can't
         // linger and get served alongside a newer app shell.
