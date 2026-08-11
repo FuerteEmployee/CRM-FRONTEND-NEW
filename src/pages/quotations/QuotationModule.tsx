@@ -322,6 +322,7 @@ export default function QuotationModule() {
   const [validUntil, setValidUntil] = useState(plusDaysISO(20));
   const [items, setItems] = useState<ItemRow[]>([emptyItem()]);
   const [gstPercent, setGstPercent] = useState(18);
+  const [discountPercent, setDiscountPercent] = useState(0);
   const [notes, setNotes] = useState(DEFAULT_NOTES);
 
   // Simple vs Pro create-format — forced when the type restricts it, otherwise user-toggled.
@@ -446,6 +447,7 @@ export default function QuotationModule() {
     setValidUntil(plusDaysISO(20));
     setItems([emptyItem()]);
     setGstPercent(18);
+    setDiscountPercent(0);
     setNotes(DEFAULT_NOTES);
     setFormat(allowedFormat === "pro" ? "pro" : "simple");
     setProjectBuilding("");
@@ -557,8 +559,10 @@ export default function QuotationModule() {
   const simpleSubtotal = items.reduce((acc, i) => acc + (Number(i.qty) || 0) * (Number(i.rate) || 0), 0);
   const proSubtotal = rooms.reduce((acc, r) => acc + roomTotal(r), 0);
   const subtotal = format === "pro" ? proSubtotal : simpleSubtotal;
-  const gstAmount = subtotal * (gstPercent / 100);
-  const grandTotal = subtotal + gstAmount;
+  const discountAmount = subtotal * (discountPercent / 100);
+  const taxableAmount = subtotal - discountAmount;
+  const gstAmount = taxableAmount * (gstPercent / 100);
+  const grandTotal = taxableAmount + gstAmount;
 
   const buildPayload = (status: string) => ({
     client: clientId || undefined,
@@ -608,6 +612,8 @@ export default function QuotationModule() {
     theme,
     attachments: { before_images: beforeImages, after_images: afterImages },
     subtotal,
+    discount_percent: discountPercent,
+    discount_total: discountAmount,
     total_tax: gstAmount,
     total: grandTotal,
   });
@@ -671,6 +677,7 @@ export default function QuotationModule() {
     setValidUntil(q.valid_till ? new Date(q.valid_till).toISOString().split("T")[0] : plusDaysISO(20));
     setNotes(q.notes || DEFAULT_NOTES);
     setGstPercent(q.gst_percent ?? (q.total_tax && q.subtotal ? Math.round((q.total_tax / q.subtotal) * 100) : 18));
+    setDiscountPercent(q.discount_percent || 0);
     setFormat(q.format === "pro" ? "pro" : "simple");
     setShowItemImages((q as any).show_item_images !== false);
 
@@ -1015,6 +1022,14 @@ export default function QuotationModule() {
           theme: "grid",
           headStyles: { fillColor: primaryRgb, fontSize: 8, halign: "center" },
           bodyStyles: { fontSize: 8 },
+          columnStyles: {
+            0: { cellWidth: 25 },
+            1: { cellWidth: "auto" },
+            2: { cellWidth: 15 },
+            3: { cellWidth: 25 },
+            4: { cellWidth: 20 },
+            5: { cellWidth: 25 },
+          },
           margin: { left: 14, right: 14 },
           didDrawCell: (data: any) => {
             if (data.row.section !== "body" || data.column.index !== 1) return;
@@ -1062,6 +1077,13 @@ export default function QuotationModule() {
         head: [["#", "Description", "Qty", "Rate", "Amount"]],
         body: tableData,
         headStyles: { fillColor: primaryRgb },
+        columnStyles: {
+          0: { cellWidth: 10, halign: "center" },
+          1: { cellWidth: "auto" },
+          2: { cellWidth: 20, halign: "center" },
+          3: { cellWidth: 30, halign: "right" },
+          4: { cellWidth: 30, halign: "right" },
+        },
         margin: { left: 14, right: 14 },
         didDrawCell: (data: any) => {
           if (data.row.section !== "body" || data.column.index !== 1) return;
@@ -1087,20 +1109,36 @@ export default function QuotationModule() {
     }
 
     // Totals box
-    ensureSpace(40);
+    const hasDiscount = (q.discount_percent || 0) > 0;
+    ensureSpace(hasDiscount ? 50 : 40);
     const boxX = 116;
     const boxW = 80;
+
+    // Subtotal
     doc.setFillColor(248, 248, 248);
     doc.rect(boxX, y, boxW, 9, "F");
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(60, 60, 60);
-    doc.text("Subtotal (excl. GST)", boxX + 4, y + 6);
+    doc.text("Subtotal", boxX + 4, y + 6);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(20, 20, 20);
     doc.text(pdfCurrency(q.subtotal), boxX + boxW - 4, y + 6, { align: "right" });
     y += 9;
 
+    // Discount (if any)
+    if (hasDiscount) {
+      doc.setFillColor(248, 248, 248);
+      doc.rect(boxX, y, boxW, 9, "F");
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(220, 38, 38);
+      doc.text(`Discount (${q.discount_percent}%)`, boxX + 4, y + 6);
+      doc.setFont("helvetica", "bold");
+      doc.text(`-${pdfCurrency(q.discount_total || 0)}`, boxX + boxW - 4, y + 6, { align: "right" });
+      y += 9;
+    }
+
+    // GST
     doc.setFillColor(248, 248, 248);
     doc.rect(boxX, y, boxW, 9, "F");
     doc.setFont("helvetica", "normal");
@@ -1111,6 +1149,7 @@ export default function QuotationModule() {
     doc.text(pdfCurrency(q.total_tax), boxX + boxW - 4, y + 6, { align: "right" });
     y += 9;
 
+    // Grand Total
     doc.setFillColor(...flatBg);
     doc.rect(boxX, y, boxW, 11, "F");
     doc.setFont("helvetica", "bold");
@@ -1124,22 +1163,32 @@ export default function QuotationModule() {
 
     // Terms & Conditions
     if (q.notes) {
-      ensureSpace(20);
+      const lines = doc.splitTextToSize(q.notes, 182);
+      const minLinesToKeepWithHeading = Math.min(lines.length, 3);
+      const neededSpaceForHeader = 7 + 6 + (minLinesToKeepWithHeading * 4.5) + 6;
+      
+      ensureSpace(neededSpaceForHeader);
+      
       doc.setDrawColor(220, 220, 220);
       doc.line(14, y, 196, y);
       y += 7;
+      
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.setTextColor(...primaryRgb);
       doc.text("TERMS & CONDITIONS", 14, y);
       y += 6;
+      
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       doc.setTextColor(90, 90, 90);
-      const lines = doc.splitTextToSize(q.notes, 182);
-      ensureSpace(lines.length * 4 + 4);
-      doc.text(lines, 14, y);
-      y += lines.length * 4 + 10;
+      
+      for (const line of lines) {
+        ensureSpace(5);
+        doc.text(line, 14, y);
+        y += 4.5;
+      }
+      y += 6;
     }
 
     // Footer — company details + authorised signatory
@@ -2107,6 +2156,23 @@ export default function QuotationModule() {
                           <span className="font-medium">₹{subtotal.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Discount (%)</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={discountPercent}
+                            onChange={(e) => setDiscountPercent(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                            className="h-8 w-20 text-center"
+                          />
+                        </div>
+                        {discountPercent > 0 && (
+                          <div className="flex items-center justify-between text-sm text-destructive font-medium">
+                            <span>Discount Amount</span>
+                            <span>-₹{discountAmount.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">GST Rate (%)</span>
                           <Input
                             type="number"
@@ -2272,6 +2338,8 @@ export default function QuotationModule() {
         items={items}
         rooms={rooms}
         subtotal={subtotal}
+        discountPercent={discountPercent}
+        discountAmount={discountAmount}
         gstPercent={gstPercent}
         gstAmount={gstAmount}
         grandTotal={grandTotal}
@@ -2299,6 +2367,8 @@ function QuotationPreviewDialog({
   items,
   rooms,
   subtotal,
+  discountPercent,
+  discountAmount,
   gstPercent,
   gstAmount,
   grandTotal,
@@ -2342,29 +2412,31 @@ function QuotationPreviewDialog({
 
           {/* Items */}
           {format === "simple" ? (
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-layout-fixed border-collapse">
               <thead>
-                <tr className="border-b border-border/40 text-left text-xs text-muted-foreground uppercase tracking-widest">
-                  <th className="pb-2">Description</th>
-                  <th className="pb-2 text-right">Qty</th>
-                  <th className="pb-2 text-right">Rate</th>
-                  <th className="pb-2 text-right">Amount</th>
+                <tr className="border-b border-border/45 text-left text-xs text-muted-foreground uppercase tracking-widest bg-muted/20">
+                  <th className="py-2.5 px-4 text-left">Description</th>
+                  <th className="py-2.5 px-4 text-right w-20">Qty</th>
+                  <th className="py-2.5 px-4 text-right w-28">Rate</th>
+                  <th className="py-2.5 px-4 text-right w-32">Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/20">
                 {items
                   .filter((i: ItemRow) => i.description.trim())
                   .map((i: ItemRow) => (
-                    <tr key={i.id}>
-                      <td className="py-2 flex items-center gap-2">
-                        {showItemImages && (i.photoUrl || (i as any).photo_url) && (
-                          <img src={resolveImageUrl(i.photoUrl || (i as any).photo_url)} alt="" className="h-7 w-7 rounded object-cover border shrink-0" />
-                        )}
-                        <span>{i.description}</span>
+                    <tr key={i.id} className="hover:bg-muted/10 transition-colors">
+                      <td className="py-3 px-4 align-middle">
+                        <div className="flex items-center gap-2">
+                          {showItemImages && (i.photoUrl || (i as any).photo_url) && (
+                            <img src={resolveImageUrl(i.photoUrl || (i as any).photo_url)} alt="" className="h-7 w-7 rounded object-cover border shrink-0" />
+                          )}
+                          <span className="break-all whitespace-pre-wrap min-w-0 flex-1 text-slate-800">{i.description}</span>
+                        </div>
                       </td>
-                      <td className="py-2 text-right">{i.qty}</td>
-                      <td className="py-2 text-right">₹{Number(i.rate).toFixed(2)}</td>
-                      <td className="py-2 text-right font-medium">₹{(i.qty * i.rate).toFixed(2)}</td>
+                      <td className="py-3 px-4 text-right align-middle text-slate-600">{i.qty}</td>
+                      <td className="py-3 px-4 text-right align-middle text-slate-600">₹{Number(i.rate).toFixed(2)}</td>
+                      <td className="py-3 px-4 text-right align-middle font-semibold text-slate-800">₹{(i.qty * i.rate).toFixed(2)}</td>
                     </tr>
                   ))}
               </tbody>
@@ -2374,27 +2446,29 @@ function QuotationPreviewDialog({
               {rooms.map((room: Room) => (
                 <div key={room.id}>
                   <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1.5">{room.name}</p>
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm table-layout-fixed border-collapse">
                     <thead>
-                      <tr className="border-b border-border/40 text-left text-xs text-muted-foreground uppercase tracking-widest">
-                        <th className="pb-2">Description</th>
-                        <th className="pb-2 text-right">Qty</th>
-                        <th className="pb-2 text-right">Disc%</th>
-                        <th className="pb-2 text-right">Amount</th>
+                      <tr className="border-b border-border/45 text-left text-xs text-muted-foreground uppercase tracking-widest bg-muted/20">
+                        <th className="py-2.5 px-4 text-left">Description</th>
+                        <th className="py-2.5 px-4 text-right w-20">Qty</th>
+                        <th className="py-2.5 px-4 text-right w-24">Disc%</th>
+                        <th className="py-2.5 px-4 text-right w-32">Amount</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/20">
                       {room.items.filter((i) => i.description.trim()).map((i) => (
-                        <tr key={i.id}>
-                          <td className="py-2 flex items-center gap-2">
-                            {showItemImages && (i.photoUrl || (i as any).photo_url) && (
-                              <img src={resolveImageUrl(i.photoUrl || (i as any).photo_url)} alt="" className="h-7 w-7 rounded object-cover border shrink-0" />
-                            )}
-                            <span>{i.description}</span>
+                        <tr key={i.id} className="hover:bg-muted/10 transition-colors">
+                          <td className="py-3 px-4 align-middle">
+                            <div className="flex items-center gap-2">
+                              {showItemImages && (i.photoUrl || (i as any).photo_url) && (
+                                <img src={resolveImageUrl(i.photoUrl || (i as any).photo_url)} alt="" className="h-7 w-7 rounded object-cover border shrink-0" />
+                              )}
+                              <span className="break-all whitespace-pre-wrap min-w-0 flex-1 text-slate-800">{i.description}</span>
+                            </div>
                           </td>
-                          <td className="py-2 text-right">{i.qty}</td>
-                          <td className="py-2 text-right">{i.disc_percent}%</td>
-                          <td className="py-2 text-right font-medium">₹{roomItemTotal(i).toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right align-middle text-slate-600">{i.qty}</td>
+                          <td className="py-3 px-4 text-right align-middle text-slate-600">{i.disc_percent}%</td>
+                          <td className="py-3 px-4 text-right align-middle font-semibold text-slate-800">₹{roomItemTotal(i).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -2411,6 +2485,12 @@ function QuotationPreviewDialog({
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>₹{subtotal.toFixed(2)}</span>
               </div>
+              {discountPercent > 0 && (
+                <div className="flex justify-between text-destructive font-medium">
+                  <span>Discount ({discountPercent}%)</span>
+                  <span>-₹{discountAmount.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">GST ({gstPercent}%)</span>
                 <span>₹{gstAmount.toFixed(2)}</span>
