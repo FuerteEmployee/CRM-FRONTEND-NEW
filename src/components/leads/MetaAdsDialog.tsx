@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Facebook, RefreshCw, Unlink, CheckCircle2, ExternalLink } from "lucide-react";
+import { Facebook, RefreshCw, Unlink, CheckCircle2, ExternalLink, Download } from "lucide-react";
 
 import { metaIntegrationService } from "@/api/services/metaIntegration.service";
 import { useToast } from "@/hooks/use-toast";
@@ -50,6 +50,20 @@ export const MetaAdsDialog = () => {
     },
     onError: (error: any) => {
       toast({ variant: "destructive", title: "Sync Failed", description: error?.message || "Could not sync forms." });
+    },
+  });
+
+  const importMutation = useMutation({
+    mutationFn: (formId?: string) => metaIntegrationService.importLeads(formId),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      const parts = [`${data.imported} new lead${data.imported === 1 ? "" : "s"} imported`];
+      if (data.skipped_duplicates) parts.push(`${data.skipped_duplicates} already in CRM (skipped)`);
+      if (data.truncated) parts.push("form has more leads than one import can pull — run Import again to continue");
+      toast({ title: "Import Complete", description: parts.join(", ") });
+    },
+    onError: (error: any) => {
+      toast({ variant: "destructive", title: "Import Failed", description: error?.message || "Could not import leads." });
     },
   });
 
@@ -111,16 +125,30 @@ export const MetaAdsDialog = () => {
                 <Label className="text-xs font-black uppercase tracking-wider text-slate-500">
                   Lead Ads Forms ({integration.forms?.length || 0})
                 </Label>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 gap-1.5 text-xs font-bold"
-                  onClick={() => syncMutation.mutate()}
-                  disabled={syncMutation.isPending}
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${syncMutation.isPending ? "animate-spin" : ""}`} />
-                  Sync Forms
-                </Button>
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 gap-1.5 text-xs font-bold"
+                    onClick={() => syncMutation.mutate()}
+                    disabled={syncMutation.isPending}
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${syncMutation.isPending ? "animate-spin" : ""}`} />
+                    Sync Forms
+                  </Button>
+                  {integration.forms?.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 gap-1.5 text-xs font-bold text-primary"
+                      onClick={() => importMutation.mutate(undefined)}
+                      disabled={importMutation.isPending}
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      {importMutation.isPending ? "Importing..." : "Import All"}
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {!integration.forms || integration.forms.length === 0 ? (
@@ -138,22 +166,35 @@ export const MetaAdsDialog = () => {
                         <p className="text-sm font-bold text-slate-800">{form.name || "Untitled Form"}</p>
                         <p className="text-xs text-slate-400">ID: {form.form_id}</p>
                       </div>
-                      <Badge
-                        variant="outline"
-                        className={
-                          form.status === "ACTIVE"
-                            ? "border-emerald-200 text-emerald-600 bg-emerald-50"
-                            : "border-slate-200 text-slate-500"
-                        }
-                      >
-                        {form.status || "UNKNOWN"}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={
+                            form.status === "ACTIVE"
+                              ? "border-emerald-200 text-emerald-600 bg-emerald-50"
+                              : "border-slate-200 text-slate-500"
+                          }
+                        >
+                          {form.status || "UNKNOWN"}
+                        </Badge>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          title={`Import leads from ${form.name || "this form"}`}
+                          onClick={() => importMutation.mutate(form.form_id)}
+                          disabled={importMutation.isPending}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
               )}
               <p className="text-xs text-slate-400 mt-3">
-                New leads submitted on these forms will automatically appear in the Leads table, tagged with source "Meta Ads".
+                New leads submitted on these forms appear automatically in the Leads table, tagged with source "Meta Ads".
+                Use <span className="font-bold">Import</span> to pull in leads that were already submitted before this Page was connected.
               </p>
             </div>
 

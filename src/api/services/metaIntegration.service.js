@@ -7,5 +7,7 @@ export const metaIntegrationService = {
 
   sync: () => apiClient.post('/meta-integration/sync'),
 
+  importLeads: (formId) => apiClient.post('/meta-integration/import-leads', formId ? { form_id: formId } : {}),
+
   disconnect: () => apiClient.delete('/meta-integration'),
 };

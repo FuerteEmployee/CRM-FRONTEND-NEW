@@ -910,7 +910,7 @@ export default function InvoiceCreate() {
 
             {/* Items Table */}
             <div className="rounded-[2rem] border border-border/50 overflow-x-auto shadow-sm">
-              <table className="w-full min-w-[1200px]">
+              <table className="w-full min-w-[1500px]">
                 <thead>
                   <tr className="bg-red-600 text-white">
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -1123,36 +1123,55 @@ export default function InvoiceCreate() {
                   </div>
                 </div>
 
-                {isPilot ? (
-                  isIntraState() ? (
-                    <>
-                      <div className="flex justify-between items-center py-2">
-                        <span className="text-sm font-bold text-muted-foreground">SGST/UTGST</span>
-                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                          {formatDocAmount(calculations.totalTax / 2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center py-2">
-                        <span className="text-sm font-bold text-muted-foreground">CGST</span>
-                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                          {formatDocAmount(calculations.totalTax / 2)}
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex justify-between items-center py-2">
-                      <span className="text-sm font-bold text-muted-foreground">IGST</span>
-                      <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                        {formatDocAmount(calculations.totalTax)}
-                      </span>
-                    </div>
-                  )
-                ) : (
+                {(!customer || calculations.totalTax === 0) ? (
                   <div className="flex justify-between items-center py-2">
                     <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
                     <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
                       {formatDocAmount(calculations.totalTax)}
                     </span>
+                  </div>
+                ) : (
+                  (() => {
+                    const isIntra = !customer.state || customer.state.toLowerCase().includes("gujarat");
+                    return isIntra ? (
+                      <>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-sm font-bold text-muted-foreground">CGST</span>
+                          <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                            {formatDocAmount(calculations.totalTax / 2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-sm font-bold text-muted-foreground">SGST</span>
+                          <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                            {formatDocAmount(calculations.totalTax / 2)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm font-bold text-muted-foreground">IGST</span>
+                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                          {formatDocAmount(calculations.totalTax)}
+                        </span>
+                      </div>
+                    );
+                  })()
+                )}
+
+                {isPilot && (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm font-bold text-muted-foreground">Freight Charge (1%)</span>
+                    <div className="flex items-center gap-3">
+                      <Input
+                        type="number"
+                        className="h-9 w-32 rounded-lg border-border/50 bg-background shadow-sm text-xs font-bold text-center"
+                        value={formData.freight_charge || 0}
+                        onChange={(e) => {
+                          setFormData(p => ({ ...p, freight_charge: Number(e.target.value) || 0 }));
+                        }}
+                      />
+                    </div>
                   </div>
                 )}
 

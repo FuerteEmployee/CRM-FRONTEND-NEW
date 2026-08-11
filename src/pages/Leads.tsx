@@ -120,6 +120,8 @@ const Leads = () => {
   const openModal = (mode: "create" | "edit" | "view", lead: any = null) => {
     setModalMode(mode);
     setSelectedLead(lead);
+    setIsAddingStatus(false);
+    setIsAddingSource(false);
     if (lead) {
       setLeadForm({
         status: lead.status?._id || lead.status?.id || (typeof lead.status === 'string' ? lead.status : ""),
@@ -373,7 +375,7 @@ const Leads = () => {
       Company: l.company || "",
       Phone: l.phonenumber || "",
       Status: typeof l.status === "object" ? l.status?.name : (statuses.find((s) => s._id === l.status)?.name || ""),
-      Source: sources.find((s) => s._id === l.source)?.name || "",
+      Source: typeof l.source === "object" ? l.source?.name : (sources.find((s) => s._id === l.source)?.name || ""),
       "Lead Value": l.lead_value || "",
       Address: l.address || "",
       City: l.city || "",
@@ -814,7 +816,7 @@ const Leads = () => {
                     { header: "Company", key: "company" },
                     { header: "Phone", key: "phonenumber" },
                     { header: "Status", key: (l) => typeof l.status === "object" ? l.status?.name : (statuses.find((s) => s._id === l.status)?.name || "") },
-                    { header: "Source", key: (l) => sources.find((s) => s._id === l.source)?.name || "" },
+                    { header: "Source", key: (l) => typeof l.source === "object" ? l.source?.name : (sources.find((s) => s._id === l.source)?.name || "") },
                     { header: "Lead Value", key: "lead_value" },
                     { header: "Address", key: "address" },
                     { header: "City", key: "city" },
@@ -1104,7 +1106,7 @@ const Leads = () => {
                                 {typeof l.status === 'object' ? l.status?.name : (statuses.find(s => s._id === l.status)?.name || String(l.status || "Pending"))}
                             </Badge>
                         </td>
-                        <td className="p-4 text-[10px] font-bold text-slate-400 uppercase">{sources.find(s => s._id === l.source)?.name || "-"}</td>
+                        <td className="p-4 text-[10px] font-bold text-slate-400 uppercase">{typeof l.source === 'object' ? l.source?.name : (sources.find(s => s._id === l.source)?.name || "-")}</td>
                         <td className="p-4 text-[10px] font-bold text-slate-400">Never</td>
                         <td className="p-4 text-[10px] font-bold text-slate-400 italic">{formatDate(l.createdAt)}</td>
                         <td className="p-4">
