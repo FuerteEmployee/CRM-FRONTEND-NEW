@@ -5,9 +5,10 @@ export const metaIntegrationService = {
 
   connect: (data) => apiClient.post('/meta-integration/connect', data),
 
-  sync: () => apiClient.post('/meta-integration/sync'),
+  sync: (pageId) => apiClient.post(`/meta-integration/${pageId}/sync`),
 
-  importLeads: (formId) => apiClient.post('/meta-integration/import-leads', formId ? { form_id: formId } : {}),
+  importLeads: (pageId, formId) =>
+    apiClient.post(`/meta-integration/${pageId}/import-leads`, formId ? { form_id: formId } : {}),
 
-  disconnect: () => apiClient.delete('/meta-integration'),
+  disconnect: (pageId) => apiClient.delete(`/meta-integration/${pageId}`),
 };

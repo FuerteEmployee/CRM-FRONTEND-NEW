@@ -182,7 +182,7 @@ export function LeadsKanban({ leads, statuses, staff, isLoading }: LeadsKanbanPr
     );
 
     leadService
-      .updateStatus(activeId, toStatusId)
+      .updateLeadStatus(activeId, toStatusId)
       .then(() => {
         queryClient.invalidateQueries({ queryKey: ["leads"] });
       })

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { Plus, Search, ChevronDown, FileJson, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon, KanbanSquare, List } from "lucide-react";
@@ -18,6 +18,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { useCurrency } from "@/context/CurrencyContext";
 import { staffService } from "@/api/services/staff.service";
+import { customFieldService } from "@/api/services/custom-field.service";
 import { Textarea } from "@/components/ui/textarea";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
@@ -52,6 +53,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { LeadsKanban } from "@/pages/LeadsKanban";
 import { MetaAdsDialog } from "@/components/leads/MetaAdsDialog";
+import { WebsiteFormsDialog } from "@/components/leads/WebsiteFormsDialog";
 
 const Leads = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -117,6 +119,24 @@ const Leads = () => {
     queryFn: staffService.getAll,
   });
 
+  const { data: customFieldsRaw = [] } = useQuery<any[]>({
+    queryKey: ["custom-fields", "leads"],
+    queryFn: async () => {
+      const response = await customFieldService.getAll("leads");
+      return Array.isArray(response) ? response : [];
+    },
+  });
+
+  const customFieldDefs = useMemo(
+    () => customFieldsRaw.filter((cf: any) => cf.active !== false),
+    [customFieldsRaw]
+  );
+
+  const tableCustomFields = useMemo(
+    () => customFieldDefs.filter((cf: any) => cf.show_on_table),
+    [customFieldDefs]
+  );
+
   const openModal = (mode: "create" | "edit" | "view", lead: any = null) => {
     setModalMode(mode);
     setSelectedLead(lead);
@@ -174,6 +194,17 @@ const Leads = () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast({ title: "Success", description: "Lead updated successfully" });
       setIsNewLeadOpen(false);
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    }
+  });
+
+  const updateLeadStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => leadService.updateLeadStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      toast({ title: "Status Updated", description: "Lead status changed." });
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
@@ -452,6 +483,7 @@ const Leads = () => {
           {can("Leads", "Create") && (
             <div className="flex gap-2 items-center">
               <MetaAdsDialog />
+              <WebsiteFormsDialog />
               <ImportButton onData={processLeadRows} loading={importLeadsMutation.isPending} label="Import Leads" />
               <Dialog open={isNewLeadOpen} onOpenChange={setIsNewLeadOpen}>
                   <Button onClick={() => openModal("create")} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest transition-all hover:scale-105">
@@ -646,6 +678,24 @@ const Leads = () => {
                         <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Description</Label>
                         <Textarea readOnly={modalMode === "view"} value={leadForm.description} onChange={(e) => setLeadForm(prev => ({ ...prev, description: e.target.value }))} className="rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white min-h-[100px]" />
                       </div>
+
+                      {selectedLead && customFieldDefs.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">
+                            Custom Fields
+                          </Label>
+                          <div className="grid grid-cols-2 gap-3">
+                            {customFieldDefs.map((cf: any) => (
+                              <div key={cf._id} className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{cf.name}</p>
+                                <p className="text-xs font-bold text-slate-800 mt-0.5">
+                                  {selectedLead.custom_fields?.[cf.slug] ?? "-"}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                       <div className="flex gap-6">
                         <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-300 flex-1">
@@ -1000,6 +1050,9 @@ const Leads = () => {
                     <th className="p-4 bg-slate-50/50">Source</th>
                     <th className="p-4 bg-slate-50/50">Last Contact</th>
                     <th className="p-4 bg-slate-50/50">Created</th>
+                    {tableCustomFields.map((cf: any) => (
+                      <th key={cf._id} className="p-4 bg-slate-50/50">{cf.name}</th>
+                    ))}
                     <th className="p-4 text-center bg-slate-50/50">Actions</th>
                   </tr>
                 </thead>
@@ -1007,12 +1060,12 @@ const Leads = () => {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="border-b border-slate-50">
-                        <td colSpan={isPilot ? 15 : 14} className="p-10"><Skeleton className="h-12 w-full rounded-2xl" /></td>
+                        <td colSpan={(isPilot ? 15 : 14) + tableCustomFields.length} className="p-10"><Skeleton className="h-12 w-full rounded-2xl" /></td>
                       </tr>
                     ))
                   ) : paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={isPilot ? 15 : 14} className="p-20 text-center"><div className="flex flex-col items-center gap-3"><Users className="h-12 w-12 text-slate-100" /><p className="text-slate-400 font-black uppercase tracking-widest text-xs">No leads found in the pipeline</p></div></td>
+                      <td colSpan={(isPilot ? 15 : 14) + tableCustomFields.length} className="p-20 text-center"><div className="flex flex-col items-center gap-3"><Users className="h-12 w-12 text-slate-100" /><p className="text-slate-400 font-black uppercase tracking-widest text-xs">No leads found in the pipeline</p></div></td>
                     </tr>
                   ) : (
                     paginated.map((l, index) => (
@@ -1101,16 +1154,33 @@ const Leads = () => {
                               {l.salesPerson || "-"}
                           </td>
                         )}
-                        <td className="p-4">
-                            <Badge className="rounded-lg border-none font-black text-[8px] uppercase tracking-wider px-2 h-5 bg-blue-50 text-blue-500">
-                                {typeof l.status === 'object' ? l.status?.name : (statuses.find(s => s._id === l.status)?.name || String(l.status || "Pending"))}
-                            </Badge>
+                        <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                            <Select
+                              value={typeof l.status === 'object' ? (l.status?._id || "") : (l.status || "")}
+                              onValueChange={(value) => updateLeadStatusMutation.mutate({ id: l._id, status: value })}
+                            >
+                              <SelectTrigger className="h-7 w-auto min-w-[110px] rounded-lg border-none font-black text-[8px] uppercase tracking-wider px-2 bg-blue-50 text-blue-500 focus:ring-0 focus:ring-offset-0 gap-1">
+                                <SelectValue placeholder="Pending" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {statuses.map((s: any) => (
+                                  <SelectItem key={s._id} value={s._id} className="text-xs font-bold">
+                                    {s.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                         </td>
                         <td className="p-4 text-[10px] font-bold text-slate-400 uppercase">{typeof l.source === 'object' ? l.source?.name : (sources.find(s => s._id === l.source)?.name || "-")}</td>
                         <td className="p-4 text-[10px] font-bold text-slate-400">Never</td>
                         <td className="p-4 text-[10px] font-bold text-slate-400 italic">{formatDate(l.createdAt)}</td>
+                        {tableCustomFields.map((cf: any) => (
+                          <td key={cf._id} className="p-4 text-xs font-bold text-slate-600">
+                            {l.custom_fields?.[cf.slug] ?? "-"}
+                          </td>
+                        ))}
                         <td className="p-4">
-                           <TableActions 
+                           <TableActions
                              onView={() => openModal("view", l)}
                              onEdit={() => openModal("edit", l)}
                              onDelete={() => {

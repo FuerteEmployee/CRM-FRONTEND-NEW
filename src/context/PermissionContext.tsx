@@ -163,7 +163,6 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const isModuleEnabled = (moduleKey: string): boolean => {
-    if (moduleKey === "hrms") return true;
     if (!planModules) return true; // no plan restriction → show everything
     return planModules[moduleKey] !== false;
   };

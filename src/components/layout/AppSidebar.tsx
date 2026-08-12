@@ -623,8 +623,8 @@ export function AppSidebar() {
                 {!isHrmsOnly ? (
                   <>
                     {renderItems(dynamicNav.customersNav)}
-                    {renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
-                    {renderCollapsibleItem("Quotation Maker", Icons.FileBarChart, quotationMakerNav)}
+                    {isModuleEnabled("sales") && renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
+                    {isModuleEnabled("sales") && renderCollapsibleItem("Quotation Maker", Icons.FileBarChart, quotationMakerNav)}
                     {renderItems(dynamicNav.managementNav)}
                   </>
                 ) : (
@@ -634,8 +634,8 @@ export function AppSidebar() {
                 {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav)}
                 {!isHrmsOnly && (
                   <>
-                    {renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav)}
-                    {renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav)}
+                    {isModuleEnabled("utility") && renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav)}
+                    {isModuleEnabled("reports") && renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav)}
                     {hasSetupAccess && (
                       <SidebarMenuItem>
                         <SidebarMenuButton
