@@ -61,6 +61,11 @@ export const MetaAdsDialog = () => {
       metaIntegrationService.importLeads(pageId, formId),
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
+      // Importing from a form whose questions have never been imported before
+      // creates brand-new CustomField columns server-side — without this, the
+      // Leads table's cached column list wouldn't know about them until
+      // something else happened to refetch it.
+      queryClient.invalidateQueries({ queryKey: ["custom-fields", "leads"] });
       const parts = [`${data.imported} new lead${data.imported === 1 ? "" : "s"} imported`];
       if (data.skipped_duplicates) parts.push(`${data.skipped_duplicates} already in CRM (skipped)`);
       if (data.truncated) parts.push("form has more leads than one import can pull — run Import again to continue");

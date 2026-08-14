@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
-import { Plus, Search, ChevronDown, FileJson, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon, KanbanSquare, List } from "lucide-react";
+import { Plus, Search, ChevronDown, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon, KanbanSquare, List } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { LANGUAGE_NAMES } from "@/lib/languages";
@@ -22,6 +22,8 @@ import { customFieldService } from "@/api/services/custom-field.service";
 import { Textarea } from "@/components/ui/textarea";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
+import { MetaFormsFilterDropdown } from "@/components/leads/MetaFormsFilterDropdown";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent, 
@@ -53,6 +55,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { LeadsKanban } from "@/pages/LeadsKanban";
 import { MetaAdsDialog } from "@/components/leads/MetaAdsDialog";
+import { metaIntegrationService } from "@/api/services/metaIntegration.service";
 import { WebsiteFormsDialog } from "@/components/leads/WebsiteFormsDialog";
 
 const Leads = () => {
@@ -60,6 +63,7 @@ const Leads = () => {
   const view = searchParams.get("view") === "kanban" ? "kanban" : "list";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [metaFormFilter, setMetaFormFilter] = useState("all");
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
@@ -119,6 +123,14 @@ const Leads = () => {
     queryFn: staffService.getAll,
   });
 
+  // Shares the ["meta-integration"] cache with MetaAdsDialog — whichever
+  // fetches first populates it for both, so connected forms show up here
+  // without waiting on that dialog to be opened.
+  const { data: metaIntegrationData } = useQuery<any>({
+    queryKey: ["meta-integration"],
+    queryFn: () => metaIntegrationService.get(),
+  });
+
   const { data: customFieldsRaw = [] } = useQuery<any[]>({
     queryKey: ["custom-fields", "leads"],
     queryFn: async () => {
@@ -132,9 +144,35 @@ const Leads = () => {
     [customFieldsRaw]
   );
 
-  const tableCustomFields = useMemo(
-    () => customFieldDefs.filter((cf: any) => cf.show_on_table),
+  // Meta-sourced columns (auto-created per question, slug "meta_<key>") are
+  // kept separate from manually-defined ones — "All Leads" only shows the
+  // manual/shared columns, since mixing every ad's own questions into one
+  // view would be sparse and confusing. A specific ad's tab adds back just
+  // that ad's own questions.
+  const commonCustomFields = useMemo(
+    () => customFieldDefs.filter((cf: any) => cf.show_on_table && !cf.slug?.startsWith("meta_")),
     [customFieldDefs]
+  );
+  const metaCustomFields = useMemo(
+    () => customFieldDefs.filter((cf: any) => cf.show_on_table && cf.slug?.startsWith("meta_")),
+    [customFieldDefs]
+  );
+  const formSpecificCustomFields = useMemo(() => {
+    if (metaFormFilter === "all" || metaCustomFields.length === 0) return [];
+    const slugsWithData = new Set<string>();
+    for (const l of leads) {
+      if (l.meta_form_id !== metaFormFilter) continue;
+      for (const cf of metaCustomFields) {
+        const val = l.custom_fields?.[cf.slug];
+        if (val !== undefined && val !== null && val !== "") slugsWithData.add(cf.slug);
+      }
+    }
+    return metaCustomFields.filter((cf: any) => slugsWithData.has(cf.slug));
+  }, [leads, metaFormFilter, metaCustomFields]);
+
+  const tableCustomFields = useMemo(
+    () => [...commonCustomFields, ...formSpecificCustomFields],
+    [commonCustomFields, formSpecificCustomFields]
   );
 
   const openModal = (mode: "create" | "edit" | "view", lead: any = null) => {
@@ -399,33 +437,25 @@ const Leads = () => {
   const countries = ["United States", "United Kingdom", "Canada", "Australia", "India", "Germany", "France", "Japan", "China", "Brazil"];
   const languages = LANGUAGE_NAMES;
 
-  const getExportRows = () =>
-    filtered.map((l) => ({
-      Name: l.name || "",
-      Email: l.email || "",
-      Company: l.company || "",
-      Phone: l.phonenumber || "",
-      Status: typeof l.status === "object" ? l.status?.name : (statuses.find((s) => s._id === l.status)?.name || ""),
-      Source: typeof l.source === "object" ? l.source?.name : (sources.find((s) => s._id === l.source)?.name || ""),
-      "Lead Value": l.lead_value || "",
-      Address: l.address || "",
-      City: l.city || "",
-      State: l.state || "",
-      Country: l.country || "",
-      Zip: l.zip || "",
-      Website: l.website || "",
-      "Created At": l.createdAt ? new Date(l.createdAt).toLocaleDateString() : "",
-    }));
-
-  const handleExportJSON = () => {
-    const blob = new Blob([JSON.stringify(getExportRows(), null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "leads.json";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  // Every connected Meta form (same source as the Meta Ads dialog) — shown
+  // as soon as a Page is connected, even before any leads are imported from
+  // it — unioned with any distinct form a lead already carries, so a form
+  // that's since been renamed/disconnected from Meta still keeps its tab for
+  // leads that were already imported from it.
+  const adFormTabs = useMemo(() => {
+    const forms = new Map<string, string>();
+    for (const conn of metaIntegrationData?.connections || []) {
+      for (const f of conn.forms || []) {
+        forms.set(f.form_id, f.name || "Untitled Form");
+      }
+    }
+    for (const l of leads) {
+      if (l.meta_form_id && !forms.has(l.meta_form_id)) {
+        forms.set(l.meta_form_id, l.meta_form_name || "Untitled Form");
+      }
+    }
+    return Array.from(forms.entries()).map(([id, name]) => ({ id, name }));
+  }, [metaIntegrationData, leads]);
 
   const filtered = leads.filter((l) => {
     const matchSearch =
@@ -434,15 +464,16 @@ const Leads = () => {
       (l.email || "").toLowerCase().includes(search.toLowerCase());
     const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
     const lStatusName = (typeof l.status === 'object' ? l.status?.name : statuses.find(s => s._id === l.status)?.name) || "";
-    
+
     const dbName = lStatusName.toLowerCase().replace(" lead", "").replace(" leads", "").trim();
     const filterVal = statusFilter.toLowerCase();
-    
-    const matchStatus = statusFilter === "all" || 
-                        lStatusId === statusFilter || 
+
+    const matchStatus = statusFilter === "all" ||
+                        lStatusId === statusFilter ||
                         dbName === filterVal ||
                         dbName.includes(filterVal);
-    return matchSearch && matchStatus;
+    const matchMetaForm = metaFormFilter === "all" || l.meta_form_id === metaFormFilter;
+    return matchSearch && matchStatus && matchMetaForm;
   });
 
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -807,6 +838,18 @@ const Leads = () => {
           </div>
         </div>
 
+        {/* Ads-wise view — only shows once at least one lead has been imported from a Meta form */}
+        {adFormTabs.length > 0 && (
+          <Tabs value={metaFormFilter} onValueChange={setMetaFormFilter}>
+            <TabsList className="flex-wrap h-auto">
+              <TabsTrigger value="all">All Leads</TabsTrigger>
+              {adFormTabs.map((form) => (
+                <TabsTrigger key={form.id} value={form.id}>{form.name}</TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
+
         {/* Status Cards - Filters */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-11 gap-2">
           {statusCards.map((card) => {
@@ -877,15 +920,7 @@ const Leads = () => {
                     { header: "Created At", key: (l) => l.createdAt ? new Date(l.createdAt).toLocaleDateString() : "" },
                   ]}
                 />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-10 w-10 rounded-xl border-slate-200 bg-white"
-                  title="Export as JSON"
-                  onClick={handleExportJSON}
-                >
-                  <FileJson className="h-4 w-4 text-blue-600" />
-                </Button>
+                <MetaFormsFilterDropdown forms={adFormTabs} value={metaFormFilter} onChange={setMetaFormFilter} />
 
                 {/* Bulk Actions Modal */}
                 <Dialog open={bulkActionOpen} onOpenChange={setBulkActionOpen}>

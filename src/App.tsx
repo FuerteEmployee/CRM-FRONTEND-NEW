@@ -5,6 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PermissionProvider, usePermissionContext } from "@/context/PermissionContext";
+import { getLandingPath } from "@/lib/landingPath";
 import { Loader2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import Login from "./pages/Login";
@@ -132,19 +133,19 @@ import { HRMSEntry } from "./hrms/HRMSEntry";
 
 // Admin Route Protection
 const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isAdmin, loading } = usePermissionContext();
+  const { user, isAdmin, isStaff, permissions, loading } = usePermissionContext();
   if (loading) return null;
   if (!user) return <Navigate to="/admin/login" replace />;
-  if (!isAdmin && !user.is_superadmin) return <Navigate to="/staff/dashboard" replace />;
+  if (!isAdmin && !user.is_superadmin) return <Navigate to={getLandingPath(user, permissions, isStaff)} replace />;
   return <>{children}</>;
 };
 
 // Staff Route Protection
 const StaffProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isStaff, loading } = usePermissionContext();
+  const { user, isStaff, permissions, loading } = usePermissionContext();
   if (loading) return null;
   if (!user) return <Navigate to="/staff/login" replace />;
-  if (!isStaff) return <Navigate to="/admin/dashboard" replace />;
+  if (!isStaff) return <Navigate to={getLandingPath(user, permissions, false)} replace />;
   return <>{children}</>;
 };
 
@@ -182,14 +183,11 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 //  - Client logged in → /dashboard (client dashboard)
 //  - Nobody           → /admin/login
 const SmartRoot = () => {
-  const { user, loading } = usePermissionContext();
+  const { user, permissions, isStaff, loading } = usePermissionContext();
   if (loading) return null; // wait for admin session check
 
-  const { isStaff } = usePermissionContext();
   if (user) {
-    if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
-    if (isStaff) return <Navigate to="/staff/dashboard" replace />;
-    return <Navigate to="/admin/dashboard" replace />;
+    return <Navigate to={getLandingPath(user, permissions, isStaff)} replace />;
   }
 
   const clientSession = localStorage.getItem("crm_client");

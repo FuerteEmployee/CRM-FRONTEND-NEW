@@ -63,6 +63,12 @@ interface Role {
 
 const FEATURES_CONFIG = [
   { name: "Bulk PDF Export", caps: ["View(Global)"] },
+  { name: "Chat", caps: ["View(Global)"] },
+  { name: "Meetings", caps: ["View(Global)"] },
+  { name: "Bookmarks", caps: ["View(Global)"] },
+  { name: "Media", caps: ["View(Global)"] },
+  { name: "Calendar", caps: ["View(Global)"] },
+  { name: "FAQ", caps: ["View(Global)"] },
   {
     name: "Contracts",
     caps: [
@@ -128,10 +134,15 @@ const FEATURES_CONFIG = [
       "View All Templates",
     ],
   },
+  {
+    name: "Purchases",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
   { name: "Reports", caps: ["View(Global)", "View Timesheets Report"] },
   { name: "Staff Roles", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "Settings", caps: ["View(Global)", "Edit"] },
   { name: "Staff", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "Support", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   {
     name: "Tasks",
     caps: [
@@ -151,9 +162,16 @@ const FEATURES_CONFIG = [
     name: "Estimate Request",
     caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
   },
-  { name: "Leads", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  {
+    name: "Leads",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
   {
     name: "Vendors",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  {
+    name: "Subscriptions",
     caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
   },
   { name: "Goals", caps: ["View(Global)", "Create", "Edit", "Delete"] },
@@ -215,7 +233,8 @@ export default function SetupStaffForm() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showPassword, setShowPassword] = useState(false);
-  const { can } = usePermissions();
+  const { can, isStaff } = usePermissions();
+  const basePath = isStaff ? "/staff" : "/admin";
   const [formData, setFormData] = useState<any>({
     firstname: "",
     lastname: "",
@@ -367,6 +386,14 @@ export default function SetupStaffForm() {
           fd.append(fullKey, "null");
           return;
         }
+        if (fullKey === "permissions" && value && typeof value === "object" && Object.keys(value).length === 0) {
+          // An empty permissions object (all checkboxes unchecked, or role set to
+          // "None") flattens to zero keys below, so nothing would be sent and the
+          // backend would leave the staff member's existing permissions untouched.
+          // Send an explicit marker so it can tell "cleared" apart from "omitted".
+          fd.append("permissionsCleared", "true");
+          return;
+        }
         if (value && typeof value === "object" && !Array.isArray(value) && !(value instanceof File) && !(value instanceof Date)) {
           append(value, fullKey);
           return;
@@ -395,7 +422,7 @@ export default function SetupStaffForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
       toast({ title: "Success", description: "Staff member created" });
-      navigate("/admin/setup/staff");
+      navigate(`${basePath}/setup/staff`);
     },
     onError: (error: any) => {
       toast({
@@ -411,7 +438,7 @@ export default function SetupStaffForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
       toast({ title: "Success", description: "Staff member updated" });
-      navigate("/admin/setup/staff");
+      navigate(`${basePath}/setup/staff`);
     },
     onError: (error: any) => {
       toast({
@@ -530,7 +557,7 @@ export default function SetupStaffForm() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate("/admin/setup/staff")}
+            onClick={() => navigate(`${basePath}/setup/staff`)}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>

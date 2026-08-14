@@ -448,7 +448,7 @@ export function AppSidebar() {
     };
 
     return items
-      .filter((item: any) => !item.permission || canView(item.permission) || (isStaff && (item.title === "Tasks" || item.permission === "Tasks")))
+      .filter((item: any) => !item.permission || canView(item.permission))
       .filter((item: any) => {
         // Hide modules disabled in the tenant's plan
         const moduleKey = URL_MODULE_MAP[getUrl(item.url)];

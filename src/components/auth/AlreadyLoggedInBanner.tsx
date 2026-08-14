@@ -1,15 +1,12 @@
 import { Link } from "react-router-dom";
 import { usePermissionContext } from "@/context/PermissionContext";
+import { getLandingPath } from "@/lib/landingPath";
 
 export function AlreadyLoggedInBanner() {
-  const { user, isStaff, logout } = usePermissionContext();
+  const { user, permissions, isStaff, logout } = usePermissionContext();
   if (!user) return null;
 
-  const dashboardPath = user.is_superadmin
-    ? "/super-admin/dashboard"
-    : isStaff
-      ? "/staff/dashboard"
-      : "/admin/dashboard";
+  const dashboardPath = getLandingPath(user, permissions, isStaff);
 
   return (
     <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/40 px-4 py-2.5 text-sm">

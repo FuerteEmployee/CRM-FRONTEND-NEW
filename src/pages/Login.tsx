@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
+import { getLandingPath } from "@/lib/landingPath";
 import { AlreadyLoggedInBanner } from "@/components/auth/AlreadyLoggedInBanner";
 
 const features = [
@@ -60,13 +61,7 @@ const Login = () => {
         refreshSettings();
         const userAdmin = response.user?.admin;
         const isAdmin = userAdmin === true || userAdmin === 1 || userAdmin === "1" || userAdmin === "true";
-        if (response.user?.is_superadmin) {
-          navigate("/super-admin/dashboard");
-        } else if (isAdmin) {
-          navigate("/admin/dashboard");
-        } else {
-          navigate("/staff/dashboard");
-        }
+        navigate(getLandingPath(response.user, response.permissions, !isAdmin && !response.user?.is_superadmin));
       }
     } catch (error: any) {
       toast.error(error.message || "Invalid credentials. Please try again.");

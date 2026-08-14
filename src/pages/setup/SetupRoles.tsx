@@ -1,11 +1,19 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { DataTablePage } from "@/components/shared/DataTablePage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ArrowLeft, Save, Loader2, ChevronUp, ChevronDown, X } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { staffService } from "@/api/services/staff.service";
+import { mainSidebarService } from "@/api/services/mainsidebar.service";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -19,10 +27,17 @@ interface Role {
   name: string;
   staffCount: number;
   permissions: Record<string, string[]>;
+  default_modules?: { module: string; permission?: string }[];
 }
 
 const FEATURES_CONFIG = [
   { name: "Bulk PDF Export", caps: ["View(Global)"] },
+  { name: "Chat", caps: ["View(Global)"] },
+  { name: "Meetings", caps: ["View(Global)"] },
+  { name: "Bookmarks", caps: ["View(Global)"] },
+  { name: "Media", caps: ["View(Global)"] },
+  { name: "Calendar", caps: ["View(Global)"] },
+  { name: "FAQ", caps: ["View(Global)"] },
   {
     name: "Contracts",
     caps: [
@@ -86,6 +101,10 @@ const FEATURES_CONFIG = [
     caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
   },
   {
+    name: "Subscriptions",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  {
     name: "Proposals",
     caps: [
       "View (Own)",
@@ -120,7 +139,10 @@ const FEATURES_CONFIG = [
     name: "Estimate Request",
     caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
   },
-  { name: "Leads", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  {
+    name: "Leads",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
   { name: "Goals", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "HRMS Staff Directory", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "HRMS Attendance", caps: ["View(Global)", "Create", "Edit", "Delete"] },
@@ -170,14 +192,41 @@ export default function SetupRoles() {
   const [formData, setFormData] = useState<{
     name: string;
     permissions: Record<string, string[]>;
+    default_modules: { module: string; permission: string }[];
   }>({
     name: "",
     permissions: {},
+    default_modules: [{ module: "dashboard", permission: "" }],
   });
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+
+  const { data: sidebarItems = [] } = useQuery<any[]>({
+    queryKey: ["mainsidebar"],
+    queryFn: mainSidebarService.getSidebarItems,
+  });
+
+  // Every module a staff member could land on right after login — sourced
+  // live from the same Main Sidebar list Setup > Main Sidebar manages, so a
+  // module added/renamed there shows up here automatically. Reports rows and
+  // the Setup tree itself aren't meaningful "landing pages" so are excluded.
+  const moduleOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const options: { value: string; label: string; permission: string }[] = [
+      { value: "dashboard", label: "Dashboard", permission: "" },
+    ];
+    sidebarItems
+      .filter((item: any) => item.group !== "Reports" && item.group !== "Setup")
+      .forEach((item: any) => {
+        const slug = String(item.url || "").replace(/^\/admin\//, "").replace(/^\//, "");
+        if (!slug || slug === "dashboard" || seen.has(slug)) return;
+        seen.add(slug);
+        options.push({ value: slug, label: item.title, permission: item.permission || "" });
+      });
+    return options;
+  }, [sidebarItems]);
 
   const { data: roles = [], isLoading } = useQuery<Role[]>({
     queryKey: ["roles"],
@@ -250,7 +299,7 @@ export default function SetupRoles() {
 
   const handleAdd = () => {
     setCurrentRole(null);
-    setFormData({ name: "", permissions: {} });
+    setFormData({ name: "", permissions: {}, default_modules: [{ module: "dashboard", permission: "" }] });
     setView("form");
   };
 
@@ -259,8 +308,40 @@ export default function SetupRoles() {
     setFormData({
       name: role.name,
       permissions: mapToFrontend(role.permissions),
+      default_modules:
+        role.default_modules && role.default_modules.length > 0
+          ? role.default_modules.map((entry) => ({ module: entry.module, permission: entry.permission || "" }))
+          : [{ module: "dashboard", permission: "" }],
     });
     setView("form");
+  };
+
+  const handleAddDefaultModule = (value: string) => {
+    setFormData((prev) => {
+      if (prev.default_modules.some((entry) => entry.module === value)) return prev;
+      const option = moduleOptions.find((opt) => opt.value === value);
+      return {
+        ...prev,
+        default_modules: [...prev.default_modules, { module: value, permission: option?.permission || "" }],
+      };
+    });
+  };
+
+  const handleRemoveDefaultModule = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      default_modules: prev.default_modules.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleMoveDefaultModule = (index: number, direction: -1 | 1) => {
+    setFormData((prev) => {
+      const next = [...prev.default_modules];
+      const target = index + direction;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return { ...prev, default_modules: next };
+    });
   };
 
   const handleDelete = (role: Role) => {
@@ -294,7 +375,13 @@ export default function SetupRoles() {
       return;
     }
 
-    const payload = mapToBackend(formData.name, formData.permissions);
+    const payload = {
+      ...mapToBackend(formData.name, formData.permissions),
+      default_modules:
+        formData.default_modules.length > 0
+          ? formData.default_modules
+          : [{ module: "dashboard", permission: "" }],
+    };
 
     if (currentRole) {
       updateMutation.mutate({ id: currentRole._id, data: payload });
@@ -353,6 +440,98 @@ export default function SetupRoles() {
                   : !can("Staff Roles", "Create")
               }
             />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-foreground">
+              Default Landing Module
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Where staff with this role land right after logging in. Add as many as you like, in priority
+              order — a staff member lands on the first one they actually have permission to view (falling
+              through the list if their own overrides restrict an earlier pick).
+            </p>
+
+            {(() => {
+              const canEditRole = currentRole
+                ? can("Staff Roles", "Edit")
+                : can("Staff Roles", "Create");
+              const addableOptions = moduleOptions.filter(
+                (opt) => !formData.default_modules.some((entry) => entry.module === opt.value)
+              );
+
+              return (
+                <>
+                  <div className="space-y-1.5 max-w-md">
+                    {formData.default_modules.map((entry, index) => {
+                      const option = moduleOptions.find((opt) => opt.value === entry.module);
+                      return (
+                        <div
+                          key={entry.module}
+                          className="flex items-center gap-2 rounded-lg border bg-gray-50 px-3 py-2"
+                        >
+                          <span className="text-xs font-semibold text-muted-foreground w-5">
+                            {index + 1}.
+                          </span>
+                          <span className="flex-1 text-sm font-medium text-foreground">
+                            {option?.label || entry.module}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveDefaultModule(index, -1)}
+                            disabled={!canEditRole || index === 0}
+                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent"
+                            aria-label="Move up"
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveDefaultModule(index, 1)}
+                            disabled={!canEditRole || index === formData.default_modules.length - 1}
+                            className="p-1 rounded hover:bg-gray-200 disabled:opacity-30 disabled:hover:bg-transparent"
+                            aria-label="Move down"
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDefaultModule(index)}
+                            disabled={!canEditRole}
+                            className="p-1 rounded hover:bg-red-100 text-red-600 disabled:opacity-30 disabled:hover:bg-transparent"
+                            aria-label="Remove"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {formData.default_modules.length === 0 && (
+                      <p className="text-xs text-muted-foreground italic">
+                        No modules picked — staff will land on Dashboard by default.
+                      </p>
+                    )}
+                  </div>
+
+                  <Select
+                    value=""
+                    onValueChange={handleAddDefaultModule}
+                    disabled={!canEditRole || addableOptions.length === 0}
+                  >
+                    <SelectTrigger className="max-w-md h-10 border-blue-400 focus:ring-blue-500">
+                      <SelectValue placeholder="Add a module to the priority list..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {addableOptions.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              );
+            })()}
           </div>
 
           <div className="border rounded-md overflow-hidden">

@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
+import { getLandingPath } from "@/lib/landingPath";
 import { AlreadyLoggedInBanner } from "@/components/auth/AlreadyLoggedInBanner";
 
 const features = [
@@ -58,12 +59,8 @@ const StaffLogin = () => {
         // Reload settings with the new auth token so this tenant's own
         // branding (logo, favicon, company name) applies immediately
         refreshSettings();
-        if (response.user?.is_superadmin) {
-          navigate("/super-admin/dashboard");
-        } else {
-          // Staff login always targets /staff — the route guard handles misdirected admins
-          navigate("/staff/dashboard");
-        }
+        // Staff login always targets /staff — the route guard handles misdirected admins
+        navigate(getLandingPath(response.user, response.permissions, true));
       }
     } catch (error: any) {
       toast.error(error.message || "Invalid credentials. Please try again.");

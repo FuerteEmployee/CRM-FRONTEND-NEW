@@ -28,7 +28,8 @@ export default function SetupStaff() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, isStaff } = usePermissions();
+  const basePath = isStaff ? "/staff" : "/admin";
 
   const { data: staff = [], isLoading: isLoadingStaff } = useQuery<
     StaffMember[]
@@ -71,11 +72,11 @@ export default function SetupStaff() {
   });
 
   const handleAdd = () => {
-    navigate("/admin/setup/staff/new");
+    navigate(`${basePath}/setup/staff/new`);
   };
 
   const handleEdit = (member: StaffMember) => {
-    navigate(`/admin/setup/staff/${member._id}`);
+    navigate(`${basePath}/setup/staff/${member._id}`);
   };
 
   const handleDelete = (member: StaffMember) => {
