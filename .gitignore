@@ -25,6 +25,5 @@ backend/
 vite.config.ts.timestamp-*
 
 # Build output (regenerated per-machine, hashed filenames cause constant merge conflicts)
-dist/
 dist.zip
 dev-dist/
