@@ -53,6 +53,20 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         settingsMap[s.name] = val;
       });
 
+      // Most admins only ever upload one logo, not a separate light/dark
+      // pair — different pages (sidebar, login hero panel, login mobile
+      // view, landing navbar) intentionally read different variants
+      // depending on their own background color, so uploading only one
+      // left the other pages showing a placeholder instead of the logo
+      // that was actually set. Falling back to whichever one IS set means
+      // a single upload now covers every page; uploading both later still
+      // lets each page show its own distinct variant as designed.
+      if (!settingsMap.compLogoDark && settingsMap.compLogoLight) {
+        settingsMap.compLogoDark = settingsMap.compLogoLight;
+      } else if (!settingsMap.compLogoLight && settingsMap.compLogoDark) {
+        settingsMap.compLogoLight = settingsMap.compLogoDark;
+      }
+
       const host = window.location.hostname;
       const isTrinetra = host.includes("trinetratechnoworld") || host.includes("erp.");
       
