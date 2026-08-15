@@ -1,5 +1,7 @@
 import { useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useSettings } from "@/context/SettingsContext";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import {
   LayoutDashboard,
   UserPlus,
@@ -745,6 +747,8 @@ function AnimatedNavGroup({
 export function AppSidebar() {
   const { user, logout, hasPermission } = useAuth();
   const { logo } = useTheme();
+  const { settings } = useSettings();
+  const fallbackLogoUrl = resolveImageUrl(settings?.ogImage || settings?.compLogoDark || settings?.compLogoLight);
   const location = useLocation();
   const { state, isMobile, setOpenMobile, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed" && !isMobile;
@@ -1046,17 +1050,20 @@ export function AppSidebar() {
                   objectFit: "cover",
                 }}
               />
-            ) : (
+            ) : fallbackLogoUrl ? (
               <img
-                src="/logo-icon.png"
+                src={fallbackLogoUrl}
                 alt="Logo"
                 style={{
                   width: 24,
                   height: 24,
                   objectFit: "contain",
-                  filter: "brightness(0) invert(1)",
                 }}
               />
+            ) : (
+              <span style={{ color: "white", fontWeight: 700, fontSize: 15 }}>
+                {settings?.companyName?.charAt(0) || "C"}
+              </span>
             )}
           </button>
 

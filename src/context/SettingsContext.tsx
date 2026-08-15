@@ -16,9 +16,14 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const host = window.location.hostname;
     const isTrinetra = host.includes("trinetratechnoworld") || host.includes("erp.");
     
+    // logo-icon.png is NOT a real generic default — the actual file content
+    // is the Trinetra logo (a pre-existing asset mix-up), so it must never be
+    // used as the non-Trinetra fallback. Leaving it empty here means the real
+    // fallback chain (OG Image, then the neutral monogram UI already built
+    // into Login/ClientLogin) takes over correctly once refreshSettings runs.
     const defaultCompanyName = isTrinetra ? "Trinetra TechnoWorld" : "Fuerte Developers";
-    const defaultLogoLight = isTrinetra ? "/trinetra-logo.jpg" : "/logo-icon.png";
-    const defaultLogoDark = isTrinetra ? "/trinetra-logo.jpg" : "/logo-icon.png";
+    const defaultLogoLight = isTrinetra ? "/trinetra-logo.jpg" : "";
+    const defaultLogoDark = isTrinetra ? "/trinetra-logo.jpg" : "";
     const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : "/favicon.ico";
 
     const cachedName = localStorage.getItem("crm_company_name") || defaultCompanyName;
@@ -88,11 +93,17 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (!settingsMap.companyName || settingsMap.companyName === "CRMPro" || settingsMap.companyName === "Trinetra TechnoWorld" || settingsMap.companyName === "Fuerte Developers") {
           settingsMap.companyName = "Fuerte Developers";
         }
+        // No non-Trinetra tenant has a real default logo file to fall back
+        // to (logo-icon.png is mislabeled — see the comment above the
+        // initial-state defaults) — fall back to the OG Image instead if
+        // one's been uploaded; otherwise leave it unset so Login/ClientLogin
+        // show their neutral monogram fallback rather than any wrong image.
+        const fallbackLogo = settingsMap.ogImage || "";
         if (!settingsMap.compLogoLight || settingsMap.compLogoLight === "/trinetra-logo.jpg") {
-          settingsMap.compLogoLight = "/logo-icon.png";
+          settingsMap.compLogoLight = fallbackLogo;
         }
         if (!settingsMap.compLogoDark || settingsMap.compLogoDark === "/trinetra-logo.jpg") {
-          settingsMap.compLogoDark = "/logo-icon.png";
+          settingsMap.compLogoDark = fallbackLogo;
         }
         if (!settingsMap.favicon || settingsMap.favicon === "/trinetra-icon.jpg") {
           settingsMap.favicon = "/favicon.ico";

@@ -40,11 +40,6 @@ const ClientLogin = () => {
             {settings?.compLogoDark && !logoError ? (
               <div className="flex items-center gap-2">
                 <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-8 w-auto object-contain" onError={() => setLogoError(true)} />
-                {settings.compLogoDark === "/logo-icon.png" && (
-                  <span className="font-bold text-lg tracking-tight">
-                    {settings.companyName}
-                  </span>
-                )}
               </div>
             ) : (
               <>

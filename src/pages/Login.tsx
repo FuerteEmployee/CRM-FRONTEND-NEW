@@ -85,11 +85,6 @@ const Login = () => {
           {settings?.compLogoLight && !logoLightError ? (
             <div className="flex items-center gap-2">
               <img src={resolveImageUrl(settings.compLogoLight)} alt="Logo" className="h-10 w-auto object-contain" onError={() => setLogoLightError(true)} />
-              {settings.compLogoLight === "/logo-icon.png" && (
-                <span className="text-2xl font-bold tracking-tight">
-                  {settings.companyName}
-                </span>
-              )}
             </div>
           ) : (
             <>
@@ -155,11 +150,6 @@ const Login = () => {
             {settings?.compLogoDark && !logoDarkError ? (
               <div className="flex items-center gap-2">
                 <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-9 w-auto object-contain" onError={() => setLogoDarkError(true)} />
-                {settings.compLogoDark === "/logo-icon.png" && (
-                  <span className="text-xl font-bold text-foreground">
-                    {settings.companyName}
-                  </span>
-                )}
               </div>
             ) : (
               <>
