@@ -100,22 +100,21 @@
     <meta property="og:description" content="A powerful CRM, sales, and team management platform." />
     <meta property="og:type" content="website" />
     <!--
-      Static fallback only — social crawlers (Facebook/Slack/WhatsApp/Twitter)
-      fetch this raw HTML and never run the app's JS, so they can't see the
-      per-tenant image set in Setup > Settings (SettingsContext.tsx updates
-      the live DOM tag for actual browser visitors, not crawlers). This is
-      just a baseline image so a shared link isn't a blank/broken preview.
-      MUST be an absolute URL — crawlers reject relative og:image URLs
-      outright, so %VITE_SITE_URL% (Vite's HTML env substitution) is
-      required here, not a bare "/logo-icon.png".
+      og:image / twitter:image are intentionally left without a static value.
+      Social crawlers (Facebook/Slack/WhatsApp/Twitter etc.) are proxied by
+      nginx to the backend /api/bot-preview route which serves live OG tags
+      fetched directly from the database — so they never see this static file.
+      Real browser visitors get the dynamic values injected by SettingsContext.tsx.
+      Keeping a wrong image here (logo-icon.png is the mislabeled Trinetra
+      asset) would only ever show up if nginx misconfigures the bot proxy.
     -->
-    <meta property="og:image" content="%VITE_SITE_URL%/logo-icon.png" />
+    <meta property="og:image" content="" />
 
     <!-- Twitter Metadata -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="CRMPro Dashboard" />
     <meta name="twitter:description" content="A powerful CRM, sales, and team management platform." />
-    <meta name="twitter:image" content="%VITE_SITE_URL%/logo-icon.png" />
+    <meta name="twitter:image" content="" />
   </head>
 
   <body>

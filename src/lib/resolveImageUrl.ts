@@ -15,7 +15,6 @@ export const resolveImageUrl = (val?: string) => {
   if (
     trimmed.startsWith("/trinetra-") ||
     trimmed.startsWith("/favicon.ico") ||
-    trimmed.startsWith("/logo-icon.png") ||
     trimmed.startsWith("/icons/")
   ) {
     return trimmed;

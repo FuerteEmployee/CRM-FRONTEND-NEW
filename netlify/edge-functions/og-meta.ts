@@ -18,11 +18,13 @@ const BACKEND_ORIGIN = (Deno.env.get("VITE_API_URL") || "https://crm-backend.beo
 // Mirrors Frontend/src/lib/resolveImageUrl.ts's rules, but always returns an
 // ABSOLUTE url (siteOrigin-qualified) since og:image/twitter:image tags are
 // only valid as fully-qualified URLs, unlike a plain <img src>.
+// Returns null when no image is set — callers should omit the tag entirely
+// rather than falling back to logo-icon.png (mislabeled Trinetra asset).
 function resolveOgImageUrl(val, siteOrigin) {
   const trimmed = (val || "").trim();
-  if (!trimmed) return `${siteOrigin}/logo-icon.png`;
+  if (!trimmed) return null;
   if (/^(data:|https?:|blob:)/.test(trimmed)) return trimmed;
-  if (/^\/(trinetra-|favicon\.ico|logo-icon\.png|icons\/)/.test(trimmed)) return `${siteOrigin}${trimmed}`;
+  if (/^\/(trinetra-|favicon\.ico|icons\/)/.test(trimmed)) return `${siteOrigin}${trimmed}`;
 
   const parts = trimmed.split(/[/\\]/);
   const uploadsIndex = parts.findIndex((p) => p.toLowerCase() === "uploads");
@@ -61,10 +63,9 @@ export default async (request, context) => {
       const byName: Record<string, any> = {};
       for (const s of Array.isArray(list) ? list : []) byName[s.name] = s.value;
 
-      // Falls back to the company logo when no dedicated OG image was set —
-      // /logo-icon.png (resolveOgImageUrl's own last resort) is mislabeled in
-      // this repo (it's actually the Trinetra logo), so anything real is
-      // better than reaching that default.
+      // Falls back to the company logo when no dedicated OG image was set.
+      // If nothing is set at all, ogImageUrl will be null and we skip the
+      // image tags entirely — better than emitting the mislabeled logo-icon.png.
       const ogImageSource = byName.ogImage || byName.compLogoDark || byName.compLogoLight;
       const ogImageUrl = resolveOgImageUrl(ogImageSource, siteOrigin);
       const title = byName.companyName ? `${byName.companyName} — CRM Dashboard` : undefined;
@@ -72,8 +73,10 @@ export default async (request, context) => {
         ? `${byName.companyName}'s CRM — manage leads, customers, and your team in one place.`
         : undefined;
 
-      html = replaceMetaContent(html, "property", "og:image", ogImageUrl);
-      html = replaceMetaContent(html, "name", "twitter:image", ogImageUrl);
+      if (ogImageUrl) {
+        html = replaceMetaContent(html, "property", "og:image", ogImageUrl);
+        html = replaceMetaContent(html, "name", "twitter:image", ogImageUrl);
+      }
       if (title) {
         html = replaceMetaContent(html, "property", "og:title", title);
         html = replaceMetaContent(html, "name", "twitter:title", title);
