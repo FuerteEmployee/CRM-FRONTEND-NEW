@@ -105,14 +105,17 @@
       per-tenant image set in Setup > Settings (SettingsContext.tsx updates
       the live DOM tag for actual browser visitors, not crawlers). This is
       just a baseline image so a shared link isn't a blank/broken preview.
+      MUST be an absolute URL — crawlers reject relative og:image URLs
+      outright, so https://crm.beontimeofficial.com (Vite's HTML env substitution) is
+      required here, not a bare "/logo-icon.png".
     -->
-    <meta property="og:image" content="/logo-icon.png" />
+    <meta property="og:image" content="https://crm.beontimeofficial.com/logo-icon.png" />
 
     <!-- Twitter Metadata -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="CRMPro Dashboard" />
     <meta name="twitter:description" content="A powerful CRM, sales, and team management platform." />
-    <meta name="twitter:image" content="/logo-icon.png" />
+    <meta name="twitter:image" content="https://crm.beontimeofficial.com/logo-icon.png" />
     <script type="module" crossorigin src="/assets/index-Daa80onA.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-socket-BP2qPuO-.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-p85Ld8eF.js">
