@@ -9,6 +9,17 @@
   RewriteCond %{HTTPS} off
   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301,END]
 
+  # ---- Social-media bot proxy for dynamic OG tags ----
+  # WhatsApp, Facebook, Slack etc. fetch raw HTML and never execute JS, so
+  # SettingsContext.tsx's live DOM updates are invisible to them. Instead,
+  # proxy known bot User-Agents to the backend /api/bot-preview endpoint
+  # which reads ogImage / compLogoDark / compLogoLight directly from the DB
+  # and serves a minimal HTML document with fully-qualified og:image tags.
+  # Real browser visitors are NOT matched here — they get the normal SPA.
+  RewriteCond %{HTTP_USER_AGENT} "facebookexternalhit|Facebot|Twitterbot|Slackbot|WhatsApp|LinkedInBot|TelegramBot|Discordbot|Googlebot|bingbot|Pinterest|redditbot|Skype|vkShare" [NC]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^(.*)$ https://crm-backend.beontimeofficial.com/api/bot-preview?path=/$1 [L,R=302]
+
   # Remove .html extension from URLs
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
