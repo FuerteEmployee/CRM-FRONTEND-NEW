@@ -89,67 +89,6 @@
           }
         } catch (e) {
           console.error(e);
-    </style>
-    <!--
-      One-time kill-switch for the stale-Service-Worker bug (users stuck on
-      an old cached build getting a white screen / chunk-import errors).
-      Ship once with this deploy, then remove in the NEXT deploy — its job
-      is only to flush out whatever bad SW+cache a visitor already has.
-    -->
-    <script>
-      (function () {
-        var KILL = "sw-reset-2026-08";
-        if ("serviceWorker" in navigator && localStorage.getItem(KILL) !== "1") {
-          navigator.serviceWorker.getRegistrations().then(function (rs) {
-            Promise.all(rs.map(function (r) { return r.unregister(); })).then(function () {
-              caches.keys().then(function (ks) {
-                return Promise.all(ks.map(function (k) { return caches.delete(k); }));
-              }).then(function () {
-                localStorage.setItem(KILL, "1");
-                location.reload();
-              });
-            });
-          }).catch(function (e) { console.error("SW kill-switch failed:", e); });
-        }
-      })();
-    </script>
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <script>
-      (function() {
-        try {
-          const host = window.location.hostname;
-          const isTrinetra = host.includes("trinetratechnoworld") || host.includes("erp.");
-          
-          // Dynamically change the manifest file link for PWA install based on domain
-          const updateManifest = () => {
-            const manifestEl = document.querySelector("link[rel='manifest']");
-            if (manifestEl) {
-              const manifestUrl = isTrinetra ? "/manifest-trinetra.json" : "/manifest.webmanifest";
-              manifestEl.setAttribute("href", manifestUrl);
-            }
-          };
-          updateManifest();
-          window.addEventListener("DOMContentLoaded", updateManifest);
-          
-          // Determine default favicon and title
-          const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : "/favicon.ico";
-          const defaultTitle = isTrinetra ? "Trinetra TechnoWorld" : "Fuerte Developers";
-          
-          const cachedFavicon = localStorage.getItem("crm_favicon") || defaultFavicon;
-          if (cachedFavicon) {
-            const link = document.querySelector("link[rel*='icon']");
-            if (link) {
-              link.href = cachedFavicon;
-            }
-          }
-          const cachedTitle = localStorage.getItem("crm_company_name") || defaultTitle;
-          if (cachedTitle) {
-            document.title = cachedTitle;
-          }
-        } catch (e) {
-          console.error(e);
         }
       })();
     </script>
@@ -161,12 +100,13 @@
     <meta property="og:description" content="A powerful CRM, sales, and team management platform." />
     <meta property="og:type" content="website" />
     <!--
-      og:image / twitter:image have no static value here.
-      Social crawlers (WhatsApp, Facebook, Slack, Twitter etc.) are
-      routed by .htaccess to the backend /api/bot-preview endpoint which
-      serves live OG tags fetched from the database — so they never reach
-      this static file at all.
-      Real browser visitors get dynamic values injected by SettingsContext.
+      og:image / twitter:image are intentionally left without a static value.
+      Social crawlers (Facebook/Slack/WhatsApp/Twitter etc.) are proxied by
+      nginx to the backend /api/bot-preview route which serves live OG tags
+      fetched directly from the database — so they never see this static file.
+      Real browser visitors get the dynamic values injected by SettingsContext.tsx.
+      Keeping a wrong image here (logo-icon.png is the mislabeled Trinetra
+      asset) would only ever show up if nginx misconfigures the bot proxy.
     -->
     <meta property="og:image" content="" />
 
@@ -175,20 +115,20 @@
     <meta name="twitter:title" content="CRMPro Dashboard" />
     <meta name="twitter:description" content="A powerful CRM, sales, and team management platform." />
     <meta name="twitter:image" content="" />
-    <script type="module" crossorigin src="/assets/index-Bq4O_1QJ.js"></script>
+    <script type="module" crossorigin src="/assets/index-DzIgXja8.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-socket-BP2qPuO-.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-p85Ld8eF.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-icons-CkGoRvbO.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-export-CfJewhux.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-utils-BQTyVzWr.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-reports-KTlUKxD3.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-quotations-NxpND9bb.js">
-    <link rel="modulepreload" crossorigin href="/assets/auth.service-BrJSQE6U.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-superadmin-B1n0TSsY.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-reports-DliIKP_o.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-quotations-D149wHPQ.js">
+    <link rel="modulepreload" crossorigin href="/assets/auth.service-VzWdTgXB.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-superadmin-CUbC87pT.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-capacitor-iSztLXCN.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-hrms-CAUkcMvp.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-setup-gKHEx8Fb.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-client-BzBd6emb.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-hrms-Ugmsq-Dg.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-setup-Ct2Fgss1.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-client-BnIfSXXe.js">
     <link rel="stylesheet" crossorigin href="/assets/vendor-react-CA_sXLh1.css">
     <link rel="stylesheet" crossorigin href="/assets/index-rQOHbQLk.css">
   <link rel="manifest" href="/manifest.webmanifest"></head>
