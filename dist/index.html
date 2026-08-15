@@ -99,25 +99,34 @@
     <meta property="og:title" content="CRMPro Dashboard" />
     <meta property="og:description" content="A powerful CRM, sales, and team management platform." />
     <meta property="og:type" content="website" />
-    
+    <!--
+      Static fallback only — social crawlers (Facebook/Slack/WhatsApp/Twitter)
+      fetch this raw HTML and never run the app's JS, so they can't see the
+      per-tenant image set in Setup > Settings (SettingsContext.tsx updates
+      the live DOM tag for actual browser visitors, not crawlers). This is
+      just a baseline image so a shared link isn't a blank/broken preview.
+    -->
+    <meta property="og:image" content="/logo-icon.png" />
+
     <!-- Twitter Metadata -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="CRMPro Dashboard" />
     <meta name="twitter:description" content="A powerful CRM, sales, and team management platform." />
-    <script type="module" crossorigin src="/assets/index-Bo0jfgPV.js"></script>
+    <meta name="twitter:image" content="/logo-icon.png" />
+    <script type="module" crossorigin src="/assets/index-ws_mxcoE.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-socket-BP2qPuO-.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-p85Ld8eF.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-icons-CkGoRvbO.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-export-CfJewhux.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-utils-BQTyVzWr.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-reports-BATCPB5s.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-quotations-CARklEXf.js">
-    <link rel="modulepreload" crossorigin href="/assets/auth.service-C94S9VvX.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-superadmin-YOvf6rR1.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-reports-D7PGOovU.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-quotations-BdZXc4fl.js">
+    <link rel="modulepreload" crossorigin href="/assets/auth.service-CbbALWKe.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-superadmin-DA-7pH1O.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-capacitor-iSztLXCN.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-hrms-3xy5urGo.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-setup-DSibXvDB.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-client-C5k6owhm.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-hrms-BHybiVeW.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-setup-DBQnS22s.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-client-Z6AKNmXS.js">
     <link rel="stylesheet" crossorigin href="/assets/vendor-react-CA_sXLh1.css">
     <link rel="stylesheet" crossorigin href="/assets/index-DhJ_jDgJ.css">
   <link rel="manifest" href="/manifest.webmanifest"></head>
