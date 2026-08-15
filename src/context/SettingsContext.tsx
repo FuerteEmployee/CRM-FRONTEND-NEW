@@ -141,8 +141,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // fallback tag. There's no fix for that without per-tenant server-side
     // rendering or per-tenant domains (same limitation as the login page
     // logo before it).
-    if (settings.ogImage) {
-      const ogImageUrl = resolveImageUrl(settings.ogImage);
+    // Falls back to the company logo when no dedicated OG image was
+    // uploaded — better than the generic placeholder, and means a link
+    // preview shows something real from the very first logo upload.
+    const ogImageSource = settings.ogImage || settings.compLogoDark || settings.compLogoLight;
+    if (ogImageSource) {
+      const ogImageUrl = resolveImageUrl(ogImageSource);
       const setMetaContent = (selector: string, create: () => HTMLMetaElement) => {
         const el: HTMLMetaElement = document.querySelector(selector) || create();
         el.content = ogImageUrl;

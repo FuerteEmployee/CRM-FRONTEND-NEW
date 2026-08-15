@@ -58,10 +58,15 @@ export default async (request, context) => {
     const settingsRes = await fetch(`${BACKEND_ORIGIN}/api/settings`);
     if (settingsRes.ok) {
       const list = await settingsRes.json();
-      const byName = {};
+      const byName: Record<string, any> = {};
       for (const s of Array.isArray(list) ? list : []) byName[s.name] = s.value;
 
-      const ogImageUrl = resolveOgImageUrl(byName.ogImage, siteOrigin);
+      // Falls back to the company logo when no dedicated OG image was set —
+      // /logo-icon.png (resolveOgImageUrl's own last resort) is mislabeled in
+      // this repo (it's actually the Trinetra logo), so anything real is
+      // better than reaching that default.
+      const ogImageSource = byName.ogImage || byName.compLogoDark || byName.compLogoLight;
+      const ogImageUrl = resolveOgImageUrl(ogImageSource, siteOrigin);
       const title = byName.companyName ? `${byName.companyName} — CRM Dashboard` : undefined;
       const description = byName.companyName
         ? `${byName.companyName}'s CRM — manage leads, customers, and your team in one place.`
