@@ -555,6 +555,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   const [compLogoLight, setCompLogoLight] = useState(() => getInit("compLogoLight", ""));
   const [compLogoDark, setCompLogoDark] = useState(() => getInit("compLogoDark", ""));
   const [favicon, setFavicon] = useState(() => getInit("favicon", ""));
+  const [ogImage, setOgImage] = useState(() => getInit("ogImage", ""));
 
   // Company Information State
   const [compAddress, setCompAddress] = useState(() => getInit("compAddress", ""));
@@ -1033,6 +1034,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
     compLogoLight: [compLogoLight, setCompLogoLight],
     compLogoDark: [compLogoDark, setCompLogoDark],
     favicon: [favicon, setFavicon],
+    ogImage: [ogImage, setOgImage],
     compAddress: [compAddress, setCompAddress],
     compCity: [compCity, setCompCity],
     compState: [compState, setCompState],
@@ -1291,6 +1293,27 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
                         />
                         {favicon && <img src={resolveImageUrl(favicon)} className="h-6 w-6 border rounded p-0.5" alt="Favicon" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+                      </div>
+                    </div>
+                    <div className="space-y-3 pt-4 border-t">
+                      <Label className="text-sm font-semibold">Social Share Image (OG Image)</Label>
+                      <p className="text-xs text-muted-foreground -mt-1">
+                        Shown as the preview thumbnail when a link to this CRM is shared on social media, Slack, WhatsApp, etc. Works best at 1200×630px.
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          type="file"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => setOgImage(reader.result as string);
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
+                        />
+                        {ogImage && <img src={resolveImageUrl(ogImage)} className="h-14 w-auto border rounded p-1" alt="OG Image" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                       </div>
                     </div>
                   </div>

@@ -99,11 +99,20 @@
     <meta property="og:title" content="CRMPro Dashboard" />
     <meta property="og:description" content="A powerful CRM, sales, and team management platform." />
     <meta property="og:type" content="website" />
-    
+    <!--
+      Static fallback only — social crawlers (Facebook/Slack/WhatsApp/Twitter)
+      fetch this raw HTML and never run the app's JS, so they can't see the
+      per-tenant image set in Setup > Settings (SettingsContext.tsx updates
+      the live DOM tag for actual browser visitors, not crawlers). This is
+      just a baseline image so a shared link isn't a blank/broken preview.
+    -->
+    <meta property="og:image" content="/logo-icon.png" />
+
     <!-- Twitter Metadata -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="CRMPro Dashboard" />
     <meta name="twitter:description" content="A powerful CRM, sales, and team management platform." />
+    <meta name="twitter:image" content="/logo-icon.png" />
   </head>
 
   <body>

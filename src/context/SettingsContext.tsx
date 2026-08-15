@@ -134,6 +134,32 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       localStorage.setItem("crm_favicon", faviconUrl);
     }
 
+    // Updates the live DOM's og:image/twitter:image tags for anyone with the
+    // page already open. NOTE: this does NOT help the actual social-share
+    // preview — Facebook/Slack/WhatsApp/Twitter crawlers fetch the raw HTML
+    // and never run this JS, so they only ever see index.html's static
+    // fallback tag. There's no fix for that without per-tenant server-side
+    // rendering or per-tenant domains (same limitation as the login page
+    // logo before it).
+    if (settings.ogImage) {
+      const ogImageUrl = resolveImageUrl(settings.ogImage);
+      const setMetaContent = (selector: string, create: () => HTMLMetaElement) => {
+        const el: HTMLMetaElement = document.querySelector(selector) || create();
+        el.content = ogImageUrl;
+        if (!el.parentNode) document.getElementsByTagName('head')[0].appendChild(el);
+      };
+      setMetaContent("meta[property='og:image']", () => {
+        const el = document.createElement('meta');
+        el.setAttribute('property', 'og:image');
+        return el;
+      });
+      setMetaContent("meta[name='twitter:image']", () => {
+        const el = document.createElement('meta');
+        el.setAttribute('name', 'twitter:image');
+        return el;
+      });
+    }
+
     // Apply RTL Direction
     const isClientPath = window.location.pathname === '/' || (!window.location.pathname.startsWith('/admin'));
     if (isClientPath) {
