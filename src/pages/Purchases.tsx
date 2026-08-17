@@ -309,14 +309,31 @@ const Purchases = () => {
   // rollup row onto the item rows beneath it. The rollup row's own
   // Quantity/Rate/Amount is never turned into a Purchase line — it's just
   // the sum of the item rows that follow, so including it would double the
-  // bill's total. GST rate defaults to 0% since the register has no tax
-  // column at all (verified against PURCHASE25-26.xlsx: every rollup row's
-  // Amount/Quantity equals the sum of its item rows to the rupee).
+  // bill's total. Some Purchase Register exports DO carry CGST/SGST/PURCHASE
+  // IGST on the rollup row (verified against PURCHASE18-19 import 1.xlsx) —
+  // when present, derive an effective GST rate from that bill's total tax ÷
+  // taxable value and apply it to every item line below, so per-line tax
+  // (split proportionally by each line's own amount) matches the bill total.
+  // Falls back to 0% when the rollup row has no tax columns at all (e.g.
+  // PURCHASE25-26.xlsx), same as before.
   const processTallyPurchaseRows = (rows: any[]) => {
     let currentBillNo = "";
     let currentSupplier = "";
     let currentBillDate: any = "";
     let currentVoucherType = "";
+    let currentGstRate = 0;
+    // supplier_state drives the backend's CGST+SGST vs IGST split (it has no
+    // GSTIN column to read here) — set to home state when the rollup row's
+    // own CGST/SGST columns are filled, left blank (→ inter-state/IGST) when
+    // only "IGST 18%" is filled or neither is present.
+    let currentSupplierState = "";
+    // The rollup row's own Freight/Amount — item rows never carry their own
+    // freight value, so each item's share is distributed proportionally by
+    // its amount (freight is 1% of amount, i.e. linear, so this reproduces
+    // the sheet's per-bill freight and downstream tax total exactly instead
+    // of leaving item-line freight at 0).
+    let currentBillFreight = 0;
+    let currentBillAmount = 0;
 
     const purchasesData: any[] = [];
     rows.forEach((row: any) => {
@@ -332,6 +349,23 @@ const Purchases = () => {
         currentSupplier = particulars;
         currentBillDate = getField(row, "bill date", "date");
         currentVoucherType = String(getField(row, "voucher type")).trim();
+
+        // "PURCHASE IGST" duplicates the taxable Amount (a ledger-split
+        // column, same trick as "PURCHASE GST") — NOT the tax value. The
+        // actual IGST tax sits under "IGST 18%", so that's read here instead
+        // (verified: PURCHASE18-19 import 1.xlsx bill 230 — PURCHASE IGST is
+        // 16761, equal to Amount, while IGST 18% is 3047.15 = 18% of
+        // Amount+Freight, the real tax).
+        const rollupCgst = parseNum(getField(row, "cgst 9%", "cgst"));
+        const rollupSgst = parseNum(getField(row, "sgst 9%", "sgst"));
+        const rollupIgst = parseNum(getField(row, "igst 18%", "igst"));
+        const rollupFreight = parseNum(getField(row, "freight 1%", "freight charge", "freight", "shipping"));
+        const rollupTax = rollupCgst + rollupSgst + rollupIgst;
+        const rollupTaxable = amount + rollupFreight;
+        currentGstRate = rollupTax > 0 && rollupTaxable > 0 ? Math.round((rollupTax / rollupTaxable) * 100) : 0;
+        currentSupplierState = rollupCgst > 0 || rollupSgst > 0 ? HOME_STATE : "";
+        currentBillFreight = rollupFreight;
+        currentBillAmount = amount;
         return;
       }
 
@@ -339,8 +373,12 @@ const Purchases = () => {
 
       const rawFreight = getField(row, "freight 1%", "freight charge", "freight", "shipping");
       let freightVal = parseNum(rawFreight);
-      if (isPilot && String(rawFreight).trim() === "") {
-        freightVal = Math.round(amount * 0.01 * 100) / 100;
+      if (String(rawFreight).trim() === "") {
+        if (currentBillFreight > 0 && currentBillAmount > 0) {
+          freightVal = Math.round(currentBillFreight * (amount / currentBillAmount) * 100) / 100;
+        } else if (isPilot) {
+          freightVal = Math.round(amount * 0.01 * 100) / 100;
+        }
       }
 
       purchasesData.push({
@@ -352,7 +390,8 @@ const Purchases = () => {
         quantity: qty,
         rate,
         amount,
-        gst_rate: 0,
+        gst_rate: currentGstRate,
+        supplier_state: currentSupplierState,
         freight_charge: freightVal,
       });
     });
