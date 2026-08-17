@@ -1132,7 +1132,7 @@ const Leads = () => {
                       <Filter className={cn("h-4 w-4", dateFilter !== "all" ? "text-primary" : "text-slate-400")} />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent align="start" className="w-60 rounded-2xl p-2 space-y-1">
+                  <PopoverContent align="start" className="w-64 max-w-[calc(100vw-2rem)] rounded-2xl p-2 space-y-1">
                     {DATE_FILTER_OPTIONS.map((opt) => (
                       <button
                         key={opt.value}
@@ -1147,20 +1147,25 @@ const Leads = () => {
                       </button>
                     ))}
                     {dateFilter === "custom" && (
-                      <div className="flex items-center gap-1.5 mt-1 pt-2 border-t border-slate-100">
-                        <Input
-                          type="date"
-                          className="h-9 flex-1 text-xs"
-                          value={customDateFrom}
-                          onChange={(e) => setCustomDateFrom(e.target.value)}
-                        />
-                        <span className="text-slate-400 text-xs font-bold">to</span>
-                        <Input
-                          type="date"
-                          className="h-9 flex-1 text-xs"
-                          value={customDateTo}
-                          onChange={(e) => setCustomDateTo(e.target.value)}
-                        />
+                      <div className="space-y-2 mt-1 pt-2 border-t border-slate-100">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400 ml-1">From</Label>
+                          <Input
+                            type="date"
+                            className="h-9 w-full text-xs"
+                            value={customDateFrom}
+                            onChange={(e) => setCustomDateFrom(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400 ml-1">To</Label>
+                          <Input
+                            type="date"
+                            className="h-9 w-full text-xs"
+                            value={customDateTo}
+                            onChange={(e) => setCustomDateTo(e.target.value)}
+                          />
+                        </div>
                       </div>
                     )}
                   </PopoverContent>
