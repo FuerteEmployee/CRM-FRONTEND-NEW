@@ -53,10 +53,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { LeadsKanban } from "@/pages/LeadsKanban";
 import { MetaAdsDialog } from "@/components/leads/MetaAdsDialog";
 import { metaIntegrationService } from "@/api/services/metaIntegration.service";
 import { WebsiteFormsDialog } from "@/components/leads/WebsiteFormsDialog";
+
+const DATE_FILTER_OPTIONS = [
+  { value: "all", label: "All Time" },
+  { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
+  { value: "this_week", label: "This Week" },
+  { value: "this_month", label: "This Month" },
+  { value: "last_7_days", label: "Last 7 Days" },
+  { value: "last_30_days", label: "Last 30 Days" },
+  { value: "custom", label: "Custom Range" },
+];
 
 const Leads = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -64,6 +76,9 @@ const Leads = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [metaFormFilter, setMetaFormFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
+  const [customDateFrom, setCustomDateFrom] = useState("");
+  const [customDateTo, setCustomDateTo] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
@@ -457,24 +472,74 @@ const Leads = () => {
     return Array.from(forms.entries()).map(([id, name]) => ({ id, name }));
   }, [metaIntegrationData, leads]);
 
-  const filtered = leads.filter((l) => {
-    const matchSearch =
-      (l.name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (l.company || "").toLowerCase().includes(search.toLowerCase()) ||
-      (l.email || "").toLowerCase().includes(search.toLowerCase());
-    const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
-    const lStatusName = (typeof l.status === 'object' ? l.status?.name : statuses.find(s => s._id === l.status)?.name) || "";
+  // "custom" compares against local-day boundaries so the picked from/to
+  // dates are inclusive regardless of what time of day the lead was created.
+  const matchesDateFilter = (createdAt: string) => {
+    if (dateFilter === "all") return true;
+    if (!createdAt) return false;
+    const d = new Date(createdAt);
+    if (isNaN(d.getTime())) return false;
 
-    const dbName = lStatusName.toLowerCase().replace(" lead", "").replace(" leads", "").trim();
-    const filterVal = statusFilter.toLowerCase();
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    const matchStatus = statusFilter === "all" ||
-                        lStatusId === statusFilter ||
-                        dbName === filterVal ||
-                        dbName.includes(filterVal);
-    const matchMetaForm = metaFormFilter === "all" || l.meta_form_id === metaFormFilter;
-    return matchSearch && matchStatus && matchMetaForm;
-  });
+    switch (dateFilter) {
+      case "today":
+        return d >= startOfToday;
+      case "yesterday": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - 1);
+        return d >= start && d < startOfToday;
+      }
+      case "this_week": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - start.getDay());
+        return d >= start;
+      }
+      case "this_month":
+        return d >= new Date(now.getFullYear(), now.getMonth(), 1);
+      case "last_7_days": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - 6);
+        return d >= start;
+      }
+      case "last_30_days": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - 29);
+        return d >= start;
+      }
+      case "custom": {
+        if (customDateFrom && d < new Date(`${customDateFrom}T00:00:00`)) return false;
+        if (customDateTo && d > new Date(`${customDateTo}T23:59:59.999`)) return false;
+        return true;
+      }
+      default:
+        return true;
+    }
+  };
+
+  const filtered = leads
+    .filter((l) => {
+      const matchSearch =
+        (l.name || "").toLowerCase().includes(search.toLowerCase()) ||
+        (l.company || "").toLowerCase().includes(search.toLowerCase()) ||
+        (l.email || "").toLowerCase().includes(search.toLowerCase());
+      const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
+      const lStatusName = (typeof l.status === 'object' ? l.status?.name : statuses.find(s => s._id === l.status)?.name) || "";
+
+      const dbName = lStatusName.toLowerCase().replace(" lead", "").replace(" leads", "").trim();
+      const filterVal = statusFilter.toLowerCase();
+
+      const matchStatus = statusFilter === "all" ||
+                          lStatusId === statusFilter ||
+                          dbName === filterVal ||
+                          dbName.includes(filterVal);
+      const matchMetaForm = metaFormFilter === "all" || l.meta_form_id === metaFormFilter;
+      const matchDate = matchesDateFilter(l.createdAt);
+      return matchSearch && matchStatus && matchMetaForm && matchDate;
+    })
+    // Newest leads first by default.
+    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(filtered.length / itemsPerPage);
@@ -1054,14 +1119,62 @@ const Leads = () => {
                 </Dialog>
               </div>
 
-              <div className="relative w-full lg:w-80">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 stroke-[3]" />
-                <Input
-                  placeholder="Search leads..."
-                  className="pl-12 h-11 bg-white border-slate-200 rounded-2xl text-xs font-bold transition-all focus:ring-4 focus:ring-primary/5"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Filter leads by date"
+                      className="h-11 w-11 shrink-0 bg-white border-slate-200 rounded-2xl"
+                    >
+                      <Filter className={cn("h-4 w-4", dateFilter !== "all" ? "text-primary" : "text-slate-400")} />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-60 rounded-2xl p-2 space-y-1">
+                    {DATE_FILTER_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setDateFilter(opt.value)}
+                        className={cn(
+                          "w-full text-left rounded-xl px-3 py-2 text-xs font-bold transition-colors",
+                          dateFilter === opt.value ? "bg-primary/10 text-primary" : "text-slate-600 hover:bg-slate-50"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                    {dateFilter === "custom" && (
+                      <div className="flex items-center gap-1.5 mt-1 pt-2 border-t border-slate-100">
+                        <Input
+                          type="date"
+                          className="h-9 flex-1 text-xs"
+                          value={customDateFrom}
+                          onChange={(e) => setCustomDateFrom(e.target.value)}
+                        />
+                        <span className="text-slate-400 text-xs font-bold">to</span>
+                        <Input
+                          type="date"
+                          className="h-9 flex-1 text-xs"
+                          value={customDateTo}
+                          onChange={(e) => setCustomDateTo(e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
+
+                <div className="relative w-full lg:w-80">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 stroke-[3]" />
+                  <Input
+                    placeholder="Search leads..."
+                    className="pl-12 h-11 bg-white border-slate-200 rounded-2xl text-xs font-bold transition-all focus:ring-4 focus:ring-primary/5"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
