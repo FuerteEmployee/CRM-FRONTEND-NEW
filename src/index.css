@@ -616,6 +616,19 @@ html, body {
 .leaflet-attribution-flag { display: none !important; }
 .leaflet-control-attribution { background: rgba(255, 255, 255, 0.3) !important; backdrop-filter: blur(4px) !important; font-size: 8px !important; opacity: 0.5 !important; }
 
+/* iOS Safari (and any other iOS browser, since Apple mandates WebKit for all
+   of them) zooms the whole page in when a focused input's font-size is under
+   16px, and doesn't zoom back out on blur. `-webkit-touch-callout` is an
+   Apple-only property that Android/Blink browsers don't recognize, so this
+   @supports check scopes the fix to iOS only and leaves Android untouched. */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 767px) {
+    input, select, textarea {
+      font-size: 16px !important;
+    }
+  }
+}
+
 @media print {
   /* Hide sidebar, top bar, headers, notifications, etc. */
   aside,
