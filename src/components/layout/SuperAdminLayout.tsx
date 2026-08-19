@@ -58,7 +58,7 @@ export function SuperAdminLayout() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-gray-50 font-sans overflow-hidden">
+    <div className="flex h-dvh w-full bg-gray-50 font-sans overflow-hidden">
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
