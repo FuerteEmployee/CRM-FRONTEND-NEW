@@ -17,6 +17,7 @@ import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { quotationService } from "@/api/services/quotation.service";
 import { customerService } from "@/api/services/customer.service";
 import { quotationTypeService } from "@/api/services/quotationType.service";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { mediaService } from "@/api/services/media.service";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import {
@@ -263,6 +264,18 @@ export default function QuotationModule() {
   const currentType = typeSlug ? quotationTypes.find((t: any) => t.slug === typeSlug) : undefined;
   const allowedFormat: "simple" | "pro" | "both" = currentType?.format || "both";
 
+  // ─── HRMS branches linked to the current quotation type — used to scope the
+  // Customer dropdown below to only the customers assigned to those branches ──
+  const { data: branches = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-for-quotation"],
+    queryFn: () => hrmsbranchService.getAll({ limit: 1000 }).then(res => res.data),
+    enabled: activeTab === "create",
+  });
+  const idOf = (ref: any): string => (typeof ref === "string" ? ref : ref?._id || ref?.id || "");
+  const branchIdsForType = currentType
+    ? branches.filter((b: any) => (b.quotationTypes || []).some((qt: any) => idOf(qt) === currentType._id)).map((b: any) => idOf(b))
+    : [];
+
   // ─── Dashboard data (scoped to the current quotation type, if any) ────
   const { data: stats } = useQuery<Stats>({
     queryKey: ["quotation-stats", currentType?._id],
@@ -313,7 +326,7 @@ export default function QuotationModule() {
   const emptyNewCustomer = {
     company: "", customer_reference: "", contact_person: "", vat: "",
     phonenumber: "", email: "", website: "", pan_number: "", gst_number: "",
-    account_details: "", address: "", city: "", state: "", zip: "", country: "",
+    account_details: "", address: "", city: "", state: "", zip: "", country: "", branch: "",
   };
   const [newCustomerForm, setNewCustomerForm] = useState(emptyNewCustomer);
   const [contactNumber, setContactNumber] = useState("");
@@ -404,6 +417,16 @@ export default function QuotationModule() {
     queryFn: () => customerService.getAll().then((res: any) => res.data || res),
     enabled: activeTab === "create",
   });
+  // Scope the Customer dropdown to the branch(es) tied to this quotation type, when
+  // any are configured — otherwise fall back to the full customer list unchanged.
+  const customersForType = branchIdsForType.length
+    ? customers.filter((c: any) => branchIdsForType.includes(idOf(c.branch)))
+    : customers;
+  // Same scoping for the "Add New Customer" popup's Branch field, so a manually
+  // added customer can be tied to a branch relevant to this quotation type.
+  const branchesForType = branchIdsForType.length
+    ? branches.filter((b: any) => branchIdsForType.includes(idOf(b)))
+    : branches;
 
   // Rudraverse-only: let the user fill in a brand-new customer's details straight
   // from this form instead of only picking from the existing list — creates a
@@ -1439,7 +1462,7 @@ export default function QuotationModule() {
                         <div className="space-y-1">
                           <SearchableSelect
                             placeholder="Select customer"
-                            options={customers.map((c: any) => ({ value: c._id, label: c.company || "Unnamed customer" }))}
+                            options={customersForType.map((c: any) => ({ value: c._id, label: c.company || "Unnamed customer" }))}
                             value={clientId}
                             onValueChange={setClientId}
                           />
@@ -1514,6 +1537,15 @@ export default function QuotationModule() {
                             placeholder="Company name"
                             value={newCustomerForm.company}
                             onChange={(e) => setNewCustomerForm((f) => ({ ...f, company: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Branch</Label>
+                          <SearchableSelect
+                            placeholder="Select branch"
+                            options={branchesForType.map((b: any) => ({ value: idOf(b), label: b.name }))}
+                            value={newCustomerForm.branch}
+                            onValueChange={(val) => setNewCustomerForm((f) => ({ ...f, branch: val }))}
                           />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
