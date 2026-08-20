@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
@@ -56,7 +56,7 @@ import { customerService } from "@/api/services/customer.service";
 import { financeService } from "@/api/services/finance.service";
 import { staffService } from "@/api/services/staff.service";
 import { hrmsbranchService, type HRMSBranch } from "@/hrms/services/hrmsbranchService";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
@@ -105,6 +105,22 @@ const Customers = () => {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false);
   useOpenCreateModal(() => setIsNewCustomerOpen(true));
+
+  // Entry point for the Calling Agent page's "Create customer from this
+  // number" action on an unrecognized-caller row — navigates here with
+  // ?prefillPhone=<10-digit number> instead of duplicating the create-
+  // customer form on that page.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const prefillPhone = searchParams.get("prefillPhone");
+    if (!prefillPhone) return;
+    setNewCustomer((prev: any) => ({ ...prev, phonenumber: prefillPhone }));
+    setIsNewCustomerOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("prefillPhone");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
   const [importState, setImportState] = useState({
     file: null as File | null,
     group: "",

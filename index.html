@@ -1,6 +1,42 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!--
+      TEMPORARY DIAGNOSTIC — remove once the iPhone white-screen root cause
+      is confirmed and fixed. Renders any JS error, or a stuck-mount
+      timeout, directly on screen instead of a blank white screen, so it's
+      readable on the phone itself without a Mac + Safari Web Inspector.
+      Must be the very first script in <head> so it can catch errors from
+      everything that loads after it, including the SW kill-switch below.
+    -->
+    <script>
+      (function () {
+        function show(label, detail) {
+          try {
+            var pre = document.createElement("pre");
+            pre.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#fff;color:#b91c1c;padding:16px;font:12px/1.5 monospace;white-space:pre-wrap;overflow:auto;margin:0;";
+            pre.textContent = "[" + label + "]\n" + detail;
+            document.documentElement.appendChild(pre);
+          } catch (e) {}
+        }
+        window.addEventListener("error", function (e) {
+          show("error", (e.error && (e.error.stack || e.error.message)) || e.message || "unknown error");
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          var r = e.reason;
+          show("unhandledrejection", (r && (r.stack || r.message)) || String(r));
+        });
+        setTimeout(function () {
+          var root = document.getElementById("root");
+          if (root && root.childNodes.length === 0) {
+            var swInfo = ("serviceWorker" in navigator)
+              ? "controller=" + !!navigator.serviceWorker.controller
+              : "serviceWorker unsupported";
+            show("stuck-mount", "React never rendered into #root after 4s.\n" + swInfo + "\nCheck the Network tab for a failed/red request.");
+          }
+        }, 4000);
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -40,6 +76,22 @@
         var KILL = "sw-reset-2026-08";
         if ("serviceWorker" in navigator && localStorage.getItem(KILL) !== "1") {
           navigator.serviceWorker.getRegistrations().then(function (rs) {
+            if (rs.length === 0) {
+              // Nothing stale to clean up on this visit. Mark done and stop —
+              // do NOT reload. iOS Safari evicts localStorage far more
+              // aggressively than desktop browsers (ITP's 7-day cutoff,
+              // Private Browsing not persisting it at all), so without this
+              // check every iPhone visit looked "fresh" and re-ran the
+              // unregister/wipe/reload cycle below — which raced against
+              // src/pwa.ts's own registerSW() call for this same page load
+              // and could tear down the service worker it was mid-installing.
+              // WebKit handles that torn-down-mid-install state far worse
+              // than Chromium, which is why this only ever showed up as a
+              // blank white screen on iPhone (Safari and Chrome-on-iOS both
+              // run on WebKit) and not on desktop.
+              localStorage.setItem(KILL, "1");
+              return;
+            }
             Promise.all(rs.map(function (r) { return r.unregister(); })).then(function () {
               caches.keys().then(function (ks) {
                 return Promise.all(ks.map(function (k) { return caches.delete(k); }));
@@ -135,8 +187,24 @@
           "google_translate_element"
         );
       }
+      // Only fetch Google's widget for visitors who have actually chosen a
+      // non-English language before (the googtrans cookie the Language menu
+      // sets) — for the default English case (nearly everyone) it has
+      // nothing to do at boot time. Loading it unconditionally meant a
+      // third-party script was always racing our own app's startup, which
+      // was the source of intermittent iOS crashes/hangs (a "Maximum call
+      // stack size exceeded" and a silent stuck-mount, on two different
+      // reloads of the same page — a real-network-timing-dependent race,
+      // not something reproducible against a local dev/preview server).
+      // Injected dynamically rather than a static <script> tag so it never
+      // sits in the document's own parse/script order at all.
+      if (document.cookie.indexOf("googtrans=") !== -1) {
+        var gt = document.createElement("script");
+        gt.async = true;
+        gt.src = "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
+        document.head.appendChild(gt);
+      }
     </script>
-    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
