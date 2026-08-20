@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Trinetra TechnoWorld',
   webDir: 'dist',
   server: {
-    url: 'https://erp.trinetratechnoworld.com',
+    url: 'https://rudraverse.trinetratechnoworld.com',
     cleartext: false,
     androidScheme: 'https'
   }
