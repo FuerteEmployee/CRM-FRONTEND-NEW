@@ -333,13 +333,34 @@ const Customers = () => {
   });
 
   const importFileRef = useRef<HTMLInputElement>(null);
+  // Branch picked in the Import Customers dialog — applied to any imported row
+  // that doesn't already carry its own "Branch" column value.
+  const [importBranchId, setImportBranchId] = useState("");
+  const [isAddingImportBranch, setIsAddingImportBranch] = useState(false);
+  const [newImportBranchName, setNewImportBranchName] = useState("");
+
+  const createImportBranchMutation = useMutation({
+    mutationFn: (name: string) => hrmsbranchService.create({ name }),
+    onSuccess: async (res: any) => {
+      const created = res?.data?.data || res?.data;
+      await queryClient.invalidateQueries({ queryKey: ["hrms-branches-for-customer"] });
+      if (created?._id) setImportBranchId(created._id);
+      setIsAddingImportBranch(false);
+      setNewImportBranchName("");
+      toast({ title: "Branch added", description: `"${created?.name || newImportBranchName}" is now saved and selected.` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.response?.data?.message || "Failed to add branch", variant: "destructive" });
+    },
+  });
 
   const importMutation = useMutation({
-    mutationFn: (data: any) => customerService.importClients(data),
+    mutationFn: (data: any) => customerService.importClients(data, importBranchId || undefined),
     onSuccess: async (data: any) => {
       await queryClient.invalidateQueries({ queryKey: ["customers"] });
       await queryClient.refetchQueries({ queryKey: ["customers"] });
       setIsImportOpen(false);
+      setImportBranchId("");
       toast({
         title: data.count === 0 ? "No New Customers" : "Import Successful",
         description: data.message || "Customers imported",
@@ -896,11 +917,68 @@ const Customers = () => {
                   variant="outline"
                   className="rounded-xl font-black gap-2 shadow-lg px-6 h-11 uppercase text-xs tracking-widest"
                   disabled={importMutation.isPending}
-                  onClick={() => importFileRef.current?.click()}
+                  onClick={() => setIsImportOpen(true)}
                 >
                   <Upload className="h-4 w-4" />
                   {importMutation.isPending ? "Importing..." : "Import Customers"}
                 </Button>
+                <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Import Customers</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 pt-2">
+                      <div className="space-y-2">
+                        <Label>Branch</Label>
+                        {isAddingImportBranch ? (
+                          <div className="flex gap-2">
+                            <Input
+                              autoFocus
+                              placeholder="New branch name"
+                              value={newImportBranchName}
+                              onChange={(e) => setNewImportBranchName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && newImportBranchName.trim()) createImportBranchMutation.mutate(newImportBranchName.trim());
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              disabled={!newImportBranchName.trim() || createImportBranchMutation.isPending}
+                              onClick={() => createImportBranchMutation.mutate(newImportBranchName.trim())}
+                            >
+                              Add
+                            </Button>
+                            <Button type="button" variant="outline" onClick={() => { setIsAddingImportBranch(false); setNewImportBranchName(""); }}>
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <SearchableSelect
+                              placeholder="Select branch (optional)"
+                              options={branches.map((b) => ({ value: b._id, label: b.name }))}
+                              value={importBranchId}
+                              onValueChange={setImportBranchId}
+                            />
+                            <button
+                              type="button"
+                              className="text-xs font-bold text-primary hover:underline"
+                              onClick={() => setIsAddingImportBranch(true)}
+                            >
+                              + Add new branch
+                            </button>
+                          </>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Applied to every imported customer unless the file already has its own "Branch" column.
+                        </p>
+                      </div>
+                      <Button className="w-full" onClick={() => importFileRef.current?.click()}>
+                        <Upload className="h-4 w-4 mr-2" /> Choose File
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
             )}
           </div>

@@ -86,6 +86,7 @@ const emptyForm = {
   bill_date: new Date().toISOString().split("T")[0],
   due_date: "",
   voucher_type: "",
+  branch: "",
   product: "",
   hsn_code: "",
   quantity: "1",
@@ -245,17 +246,19 @@ const Purchases = () => {
       const rate = parseNum(getField(row, "rate"));
       const finalAmount = amount || (quantity * rate) || 0;
 
-      const rawFreight = getField(row, "freight 1%", "freight charge", "freight", "shipping");
-      let freightVal = parseNum(rawFreight);
-      if (isPilot && String(rawFreight).trim() === "") {
-        freightVal = Math.round(finalAmount * 0.01 * 100) / 100;
-      }
+      // Imports are historical bookkeeping data — a blank Freight cell means the
+      // vendor genuinely charged none, so it's left at 0 rather than synthesizing
+      // an estimate. Synthesizing it would silently inflate CGST/SGST/IGST/Total
+      // away from what the sheet actually says.
+      const freightVal = parseNum(getField(row, "freight 1%", "freight charge", "freight", "shipping"));
 
       return {
         supplier_name: String(getField(row, "particulars", "company name", "company", "supplier name", "supplier", "vendor", "vendor name", "party", "party name", "firm name")),
         bill_date: getField(row, "bill date", "date", "invoice date"),
         bill_no: String(getField(row, "voucher no.", "voucher no", "voucher number", "bill reference", "bill ref", "bill no", "billno", "bill number", "invoice no", "invoice number", "invoice reference", "ref no", "bill ref no")),
         voucher_type: String(getField(row, "voucher type")),
+        branch: String(getField(row, "branch name", "branch")),
+        product: String(getField(row, "item description", "product", "item", "description", "particulars 2")),
         quantity,
         rate,
         amount: finalAmount,
@@ -321,6 +324,7 @@ const Purchases = () => {
     let currentSupplier = "";
     let currentBillDate: any = "";
     let currentVoucherType = "";
+    let currentBranch = "";
     let currentGstRate = 0;
     // supplier_state drives the backend's CGST+SGST vs IGST split (it has no
     // GSTIN column to read here) — set to home state when the rollup row's
@@ -349,6 +353,7 @@ const Purchases = () => {
         currentSupplier = particulars;
         currentBillDate = getField(row, "bill date", "date");
         currentVoucherType = String(getField(row, "voucher type")).trim();
+        currentBranch = String(getField(row, "branch name", "branch")).trim();
 
         // "PURCHASE IGST" duplicates the taxable Amount (a ledger-split
         // column, same trick as "PURCHASE GST") — NOT the tax value. The
@@ -371,14 +376,15 @@ const Purchases = () => {
 
       if (!currentBillNo || !particulars || !(amount > 0 || (qty > 0 && rate > 0))) return;
 
+      // A blank item-line Freight cell means the bill's rollup row carries the
+      // freight instead (split proportionally below); if the rollup row has none
+      // either, the vendor genuinely charged none — left at 0 rather than
+      // synthesizing an estimate, which would inflate CGST/SGST/IGST/Total away
+      // from what the sheet actually says.
       const rawFreight = getField(row, "freight 1%", "freight charge", "freight", "shipping");
       let freightVal = parseNum(rawFreight);
-      if (String(rawFreight).trim() === "") {
-        if (currentBillFreight > 0 && currentBillAmount > 0) {
-          freightVal = Math.round(currentBillFreight * (amount / currentBillAmount) * 100) / 100;
-        } else if (isPilot) {
-          freightVal = Math.round(amount * 0.01 * 100) / 100;
-        }
+      if (String(rawFreight).trim() === "" && currentBillFreight > 0 && currentBillAmount > 0) {
+        freightVal = Math.round(currentBillFreight * (amount / currentBillAmount) * 100) / 100;
       }
 
       purchasesData.push({
@@ -386,6 +392,7 @@ const Purchases = () => {
         supplier_name: currentSupplier,
         bill_date: currentBillDate,
         voucher_type: currentVoucherType,
+        branch: currentBranch,
         product: particulars,
         quantity: qty,
         rate,
@@ -429,12 +436,18 @@ const Purchases = () => {
       item_id: p.item_id?._id || p.item_id || "",
       supplier_name: p.supplier_name || "",
       supplier_address: p.supplier_address || "",
-      supplier_state: p.supplier_state || HOME_STATE,
+      // Blank supplier_state with tax_type "IGST" means this bill was correctly
+      // computed/imported as inter-state (see processTallyPurchaseRows) — defaulting
+      // it to HOME_STATE here would flip isIntraState() to true and make the GST/IGST
+      // preview below show a fake CGST+SGST split for a genuinely inter-state bill.
+      // Only default to HOME_STATE when the record has no tax_type opinion at all.
+      supplier_state: p.supplier_state || (p.tax_type === "IGST" ? "" : HOME_STATE),
       supplier_gstin: p.supplier_gstin || "",
       bill_no: p.bill_no || "",
       bill_date: toDateInput(p.bill_date),
       due_date: toDateInput(p.due_date),
       voucher_type: p.voucher_type || "",
+      branch: p.branch || "",
       product: p.product || "",
       hsn_code: p.hsn_code || "",
       quantity: (p.quantity ?? 1).toString(),
@@ -572,7 +585,8 @@ const Purchases = () => {
         p.supplier_gstin?.toLowerCase().includes(q) ||
         p.product?.toLowerCase().includes(q) ||
         p.hsn_code?.toLowerCase().includes(q) ||
-        p.sales_person?.toLowerCase().includes(q);
+        p.sales_person?.toLowerCase().includes(q) ||
+        p.branch?.toLowerCase().includes(q);
       const matchesVendor = vendorFilter.length === 0 ||
         vendorFilter.includes(typeof p.vendor_id === "object" ? p.vendor_id?._id : p.vendor_id);
       return matchesSearch && matchesVendor;
@@ -625,8 +639,8 @@ const Purchases = () => {
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedIds.map((id) => purchaseService.delete(id)));
-        toast({ title: "Success", description: `Deleted ${selectedIds.length} purchase bills.` });
+        const { data } = await purchaseService.bulkDelete(selectedIds);
+        toast({ title: "Success", description: data?.message || `Deleted ${selectedIds.length} purchase bills.` });
       } else {
         const updates: any = {};
         if (bulkState.payment_status) updates.payment_status = bulkState.payment_status;
@@ -674,11 +688,12 @@ const Purchases = () => {
     { header: "SGST 9%", key: "sgst", type: "number" as const },
     { header: "PURCHASE IGST", key: "igst", type: "number" as const },
     ...(isPilot ? [{ header: "FREIGHT 1%", key: "freight_charge", type: "number" as const }] : []),
-    { header: "IGST 18%", key: () => "", type: "number" as const },
+    { header: "IGST 18%", key: "igst", type: "number" as const },
     { header: "Round off", key: "round_off", type: "number" as const },
+    { header: "Branch Name", key: "branch" },
   ], [isPilot]);
 
-  const tableColSpan = 1 + (14 + (isPilot ? 2 : 0)) + 1;
+  const tableColSpan = 1 + (15 + (isPilot ? 2 : 0)) + 1;
 
   const inputCls = "h-11 rounded-xl border-slate-200";
   const labelCls = "text-[10px] font-black uppercase tracking-widest text-slate-500";
@@ -879,6 +894,7 @@ const Purchases = () => {
                     {isPilot && <th className="p-4 font-bold">FREIGHT 1%</th>}
                     <th className="p-4 font-bold">IGST 18%</th>
                     <th className="p-4 font-bold">Round off</th>
+                    <th className="p-4 font-bold">Branch</th>
                     <th className="p-4 font-bold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -919,14 +935,20 @@ const Purchases = () => {
                             number as Amount, just relabeled for the ledger-wise view (mirrors
                             exportColumns above). */}
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.amount)}</td>
+                        {/* A bill is either intra-state (CGST+SGST) or inter-state (IGST) —
+                            never both — so the non-applicable pair is genuinely 0. Shown as
+                            "₹0.00" (not "-") to match how the source Excel sheet itself always
+                            prints an explicit ₹0.00 in the non-applicable cells. */}
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.cgst)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.sgst)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.igst)}</td>
                         {isPilot && <td className="p-4 text-xs font-medium text-slate-600">{money(p.freight_charge)}</td>}
-                        {/* "IGST 18%" duplicates PURCHASE IGST in Tally's ledger-wise columns —
-                            left blank rather than repeating igst (mirrors exportColumns above). */}
-                        <td className="p-4 text-xs font-medium text-slate-600">-</td>
+                        {/* Same figure as "PURCHASE IGST" — shown again under its rate-labeled
+                            column so IGST reads the same way CGST 9%/SGST 9% already do, instead
+                            of forcing a lookup one column to the left (mirrors exportColumns above). */}
+                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.igst)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{p.round_off ? money(p.round_off) : "-"}</td>
+                        <td className="p-4 text-xs font-medium text-slate-600">{p.branch || "-"}</td>
                         <td className="p-4">
                           <div className="flex justify-end gap-1">
                             {can("Purchases", "Edit") && (
@@ -1069,6 +1091,10 @@ const Purchases = () => {
                       <div className="space-y-1.5">
                         <Label className={labelCls}>Journal</Label>
                         <Input value={formData.journal} onChange={(e) => setField("journal", e.target.value)} placeholder="Journal entry / ledger" className={inputCls} />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className={labelCls}>Branch</Label>
+                        <Input value={formData.branch} onChange={(e) => setField("branch", e.target.value)} placeholder="e.g. Sparkling Techno Tools" className={inputCls} />
                       </div>
                       <div className="space-y-1.5">
                         <Label className={labelCls}>Sales Person</Label>

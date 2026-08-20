@@ -11,5 +11,7 @@ export const purchaseService = {
 
   delete: (id) => apiClient.delete(`/purchases/${id}`),
 
+  bulkDelete: (ids) => apiClient.post("/purchases/bulk-delete", { ids }),
+
   importPurchases: (data) => apiClient.post("/purchases/import", data)
 };
