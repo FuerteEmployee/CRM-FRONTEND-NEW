@@ -272,7 +272,15 @@ class LocationService {
   private async registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
     try {
-      const reg = await navigator.serviceWorker.register(SW_PATH, { scope: "/" });
+      // Register on a DEDICATED scope, not "/" — the main app-shell service
+      // worker (vite-plugin-pwa's workbox output, registered in src/pwa.ts)
+      // already owns scope "/", and both it and this SW are configured with
+      // skipWaiting+clientsClaim. Two registrations fighting over the same
+      // scope forces a takeover on every single page load, which src/pwa.ts's
+      // onNeedRefresh reacts to with window.location.reload() — an infinite
+      // full-page reload loop. See webPush.ts's firebase-messaging-sw.js
+      // registration for the same pattern already used to avoid this.
+      const reg = await navigator.serviceWorker.register(SW_PATH, { scope: "/location-tracking-sw-scope" });
       this.swRegistration = reg;
       // Flush any IDB queue immediately
       reg.active?.postMessage({ type: "FLUSH_QUEUE" });
