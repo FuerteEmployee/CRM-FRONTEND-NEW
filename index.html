@@ -1,6 +1,42 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <!--
+      TEMPORARY DIAGNOSTIC — remove once the iPhone white-screen root cause
+      is confirmed and fixed. Renders any JS error, or a stuck-mount
+      timeout, directly on screen instead of a blank white screen, so it's
+      readable on the phone itself without a Mac + Safari Web Inspector.
+      Must be the very first script in <head> so it can catch errors from
+      everything that loads after it, including the SW kill-switch below.
+    -->
+    <script>
+      (function () {
+        function show(label, detail) {
+          try {
+            var pre = document.createElement("pre");
+            pre.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#fff;color:#b91c1c;padding:16px;font:12px/1.5 monospace;white-space:pre-wrap;overflow:auto;margin:0;";
+            pre.textContent = "[" + label + "]\n" + detail;
+            document.documentElement.appendChild(pre);
+          } catch (e) {}
+        }
+        window.addEventListener("error", function (e) {
+          show("error", (e.error && (e.error.stack || e.error.message)) || e.message || "unknown error");
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          var r = e.reason;
+          show("unhandledrejection", (r && (r.stack || r.message)) || String(r));
+        });
+        setTimeout(function () {
+          var root = document.getElementById("root");
+          if (root && root.childNodes.length === 0) {
+            var swInfo = ("serviceWorker" in navigator)
+              ? "controller=" + !!navigator.serviceWorker.controller
+              : "serviceWorker unsupported";
+            show("stuck-mount", "React never rendered into #root after 4s.\n" + swInfo + "\nCheck the Network tab for a failed/red request.");
+          }
+        }, 4000);
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
