@@ -40,6 +40,22 @@
         var KILL = "sw-reset-2026-08";
         if ("serviceWorker" in navigator && localStorage.getItem(KILL) !== "1") {
           navigator.serviceWorker.getRegistrations().then(function (rs) {
+            if (rs.length === 0) {
+              // Nothing stale to clean up on this visit. Mark done and stop —
+              // do NOT reload. iOS Safari evicts localStorage far more
+              // aggressively than desktop browsers (ITP's 7-day cutoff,
+              // Private Browsing not persisting it at all), so without this
+              // check every iPhone visit looked "fresh" and re-ran the
+              // unregister/wipe/reload cycle below — which raced against
+              // src/pwa.ts's own registerSW() call for this same page load
+              // and could tear down the service worker it was mid-installing.
+              // WebKit handles that torn-down-mid-install state far worse
+              // than Chromium, which is why this only ever showed up as a
+              // blank white screen on iPhone (Safari and Chrome-on-iOS both
+              // run on WebKit) and not on desktop.
+              localStorage.setItem(KILL, "1");
+              return;
+            }
             Promise.all(rs.map(function (r) { return r.unregister(); })).then(function () {
               caches.keys().then(function (ks) {
                 return Promise.all(ks.map(function (k) { return caches.delete(k); }));
@@ -115,22 +131,22 @@
     <meta name="twitter:title" content="CRMPro Dashboard" />
     <meta name="twitter:description" content="A powerful CRM, sales, and team management platform." />
     <meta name="twitter:image" content="" />
-    <script type="module" crossorigin src="/assets/index-DGjOjOLU.js"></script>
+    <script type="module" crossorigin src="/assets/index-lsrV4S0F.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-socket-BP2qPuO-.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-p85Ld8eF.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-CkGoRvbO.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-DmP5Gevb.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-export-CfJewhux.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-utils-BQTyVzWr.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-reports-DliIKP_o.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-quotations-D149wHPQ.js">
-    <link rel="modulepreload" crossorigin href="/assets/auth.service-VzWdTgXB.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-superadmin-CUbC87pT.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-reports-BWvzi3RQ.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-quotations-Cp5YawZV.js">
+    <link rel="modulepreload" crossorigin href="/assets/auth.service-OC2eH-QB.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-superadmin-CuyXlJLc.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-capacitor-iSztLXCN.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-hrms-Ugmsq-Dg.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-setup-Ct2Fgss1.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-client-BnIfSXXe.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-hrms-DB7-ztek.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-setup-DLrPdxb7.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-client-Dx7jF482.js">
     <link rel="stylesheet" crossorigin href="/assets/vendor-react-CA_sXLh1.css">
-    <link rel="stylesheet" crossorigin href="/assets/index-XLjvecOx.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-ClFekGz3.css">
   <link rel="manifest" href="/manifest.webmanifest"></head>
 
   <body>

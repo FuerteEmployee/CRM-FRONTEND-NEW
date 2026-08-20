@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { usePermissionContext } from './PermissionContext';
 import { playNotificationSound } from '@/lib/soundUtils';
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 import { meetingService } from '@/api/services/meeting.service';
 import { chatService } from '@/api/services/chat.service';
 import { useQuery } from '@tanstack/react-query';
@@ -24,6 +24,10 @@ interface NotificationContextType {
   markAllAsRead: () => void;
   markAsRead: (id: string) => void;
   setChatUnreadCount: React.Dispatch<React.SetStateAction<number>>;
+  // The one app-wide socket connection — exposed so other pages (e.g.
+  // Calling Agent) can attach their own listeners instead of opening a
+  // second connection just for themselves.
+  socket: Socket | null;
 }
 
 const NotificationContext = createContext<NotificationContextType>({
@@ -34,12 +38,14 @@ const NotificationContext = createContext<NotificationContextType>({
   markAllAsRead: () => {},
   markAsRead: () => {},
   setChatUnreadCount: () => {},
+  socket: null,
 });
 
 export const NotificationProvider = ({ children }: { children: React.ReactNode }) => {
   const { user } = usePermissionContext();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -147,6 +153,14 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     });
 
     socket.emit("join", user._id);
+    // A calling-agent update with no single assigned staff member (an
+    // unrecognized-caller or ambiguous-match row) is broadcast to this
+    // room instead — see Backend's src/utils/callingAgentSocket.js. Same
+    // generic "join" mechanism, just a different room name.
+    const tenantId = (user as any)?.tenant?._id;
+    if (tenantId) socket.emit("join", `tenant-${tenantId}`);
+
+    setSocket(socket);
 
     socket.on("newMessage", (msg: any) => {
       // Don't notify if the message is from the current user
@@ -170,11 +184,12 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
 
     return () => {
       socket.disconnect();
+      setSocket(null);
     };
   }, [user]);
 
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, chatUnreadCount, addNotification, markAllAsRead, markAsRead, setChatUnreadCount }}>
+    <NotificationContext.Provider value={{ notifications, unreadCount, chatUnreadCount, addNotification, markAllAsRead, markAsRead, setChatUnreadCount, socket }}>
       {children}
     </NotificationContext.Provider>
   );

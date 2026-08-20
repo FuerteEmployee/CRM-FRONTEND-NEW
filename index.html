@@ -40,6 +40,22 @@
         var KILL = "sw-reset-2026-08";
         if ("serviceWorker" in navigator && localStorage.getItem(KILL) !== "1") {
           navigator.serviceWorker.getRegistrations().then(function (rs) {
+            if (rs.length === 0) {
+              // Nothing stale to clean up on this visit. Mark done and stop —
+              // do NOT reload. iOS Safari evicts localStorage far more
+              // aggressively than desktop browsers (ITP's 7-day cutoff,
+              // Private Browsing not persisting it at all), so without this
+              // check every iPhone visit looked "fresh" and re-ran the
+              // unregister/wipe/reload cycle below — which raced against
+              // src/pwa.ts's own registerSW() call for this same page load
+              // and could tear down the service worker it was mid-installing.
+              // WebKit handles that torn-down-mid-install state far worse
+              // than Chromium, which is why this only ever showed up as a
+              // blank white screen on iPhone (Safari and Chrome-on-iOS both
+              // run on WebKit) and not on desktop.
+              localStorage.setItem(KILL, "1");
+              return;
+            }
             Promise.all(rs.map(function (r) { return r.unregister(); })).then(function () {
               caches.keys().then(function (ks) {
                 return Promise.all(ks.map(function (k) { return caches.delete(k); }));
