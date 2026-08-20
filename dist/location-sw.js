@@ -1,4 +1,10 @@
 // location-sw.js — Background Service Worker for HRMS Location Tracking
+//
+// Registered under its own dedicated scope (see LocationService.ts) that no
+// real app page ever navigates to, so this registration never competes with
+// the main app-shell service worker (vite.config.ts's VitePWA workbox
+// output) for control of "/". skipWaiting/clients.claim are safe here
+// precisely because no real client ever falls under this scope.
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
