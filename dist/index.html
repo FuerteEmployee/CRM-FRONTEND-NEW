@@ -203,7 +203,23 @@
           "google_translate_element"
         );
       }
-    </script>
-    <script type="text/javascript" async src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+      // Only fetch Google's widget for visitors who have actually chosen a
+      // non-English language before (the googtrans cookie the Language menu
+      // sets) — for the default English case (nearly everyone) it has
+      // nothing to do at boot time. Loading it unconditionally meant a
+      // third-party script was always racing our own app's startup, which
+      // was the source of intermittent iOS crashes/hangs (a "Maximum call
+      // stack size exceeded" and a silent stuck-mount, on two different
+      // reloads of the same page — a real-network-timing-dependent race,
+      // not something reproducible against a local dev/preview server).
+      // Injected dynamically rather than a static <script> tag so it never
+      // sits in the document's own parse/script order at all.
+      if (document.cookie.indexOf("googtrans=") !== -1) {
+        var gt = document.createElement("script");
+        gt.async = true;
+        gt.src = "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
+        document.head.appendChild(gt);
+      }
+    </script>
   </body>
 </html>
