@@ -28,11 +28,38 @@
         });
         setTimeout(function () {
           var root = document.getElementById("root");
-          if (root && root.childNodes.length === 0) {
-            var swInfo = ("serviceWorker" in navigator)
-              ? "controller=" + !!navigator.serviceWorker.controller
-              : "serviceWorker unsupported";
-            show("stuck-mount", "React never rendered into #root after 4s.\n" + swInfo + "\nCheck the Network tab for a failed/red request.");
+          if (!root || root.childNodes.length !== 0) return;
+
+          var lines = ["React never rendered into #root after 4s.", "cookies: " + (document.cookie || "(none)")];
+
+          function reportResources() {
+            try {
+              var entries = performance.getEntriesByType("resource");
+              lines.push("--- resources (" + entries.length + ") ---");
+              entries.forEach(function (e) {
+                var short = e.name.indexOf(location.origin) === 0 ? e.name.slice(location.origin.length) : e.name;
+                lines.push(short + " | dur=" + Math.round(e.duration) + "ms | size=" + e.transferSize + " | status=" + (e.responseStatus || "?"));
+              });
+            } catch (e) {
+              lines.push("resource timing failed: " + e.message);
+            }
+            show("stuck-mount", lines.join("\n"));
+          }
+
+          if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (rs) {
+              lines.push("serviceWorker: controller=" + !!navigator.serviceWorker.controller + ", registrations=" + rs.length);
+              rs.forEach(function (r, i) {
+                lines.push("  [" + i + "] scope=" + r.scope + " active=" + (r.active ? r.active.state : "none") + " waiting=" + (r.waiting ? r.waiting.state : "none"));
+              });
+              reportResources();
+            }).catch(function (e) {
+              lines.push("serviceWorker: getRegistrations failed: " + e.message);
+              reportResources();
+            });
+          } else {
+            lines.push("serviceWorker: unsupported");
+            reportResources();
           }
         }, 4000);
       })();
