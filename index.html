@@ -100,7 +100,7 @@
     -->
     <script>
       (function () {
-        var KILL = "sw-reset-2026-08";
+        var KILL = "sw-reset-2026-08-force-kill";
         if ("serviceWorker" in navigator && localStorage.getItem(KILL) !== "1") {
           navigator.serviceWorker.getRegistrations().then(function (rs) {
             if (rs.length === 0) {

@@ -60,6 +60,7 @@ import { ImportButton } from "@/components/ui/import-button";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
 const statusMap: Record<string, { label: string; color: string }> = {
   unpaid: { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
@@ -740,6 +741,14 @@ const Invoices = () => {
   const queryClient = useQueryClient();
   const { can, user } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
+
+  const { data: branchesRaw = [] } = useQuery({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: isPilot,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
   const { symbol } = useCurrency();
   const { data: currencies = [] } = useQuery({
     queryKey: ["currencies"],
@@ -754,6 +763,7 @@ const Invoices = () => {
     "Item Name", "Item Group", "Item HSN", "GST percentage", "Item Batch",
     "Quantity", "Rate", "Unit",
     "Amount",
+    ...(isPilot ? ["Branch"] : []),
   ], [isPilot]);
 
   const exportColumns = useMemo(() => [
@@ -775,6 +785,7 @@ const Invoices = () => {
     { header: "Rate", key: "rate", type: "number" as const },
     { header: "Unit", key: "unit" },
     { header: "Amount", key: "amount", type: "number" as const },
+    ...(isPilot ? [{ header: "Branch", key: "branch" }] : []),
   ], [isPilot]);
 
   const TABLE_COLUMN_COUNT = 1 + tableHeaders.length + 1;
@@ -909,6 +920,8 @@ const Invoices = () => {
       rate: item.rate || 0,
       unit: item.unit || "",
       amount: item.amount ?? ((item.qty || 0) * (item.rate || 0)),
+      // branch — resolved from branchId if populated as object, else use stored name string
+      branch: inv.branch?.name || inv.branch || "",
       // Extra fields (ignored by ExportButton since it only reads the
       // configured `columns` keys) used to render the on-screen table:
       invoice: inv,
@@ -1208,6 +1221,7 @@ const Invoices = () => {
                       </td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.voucherType || "-"}</td>
                       {isPilot && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.salesPerson || "-"}</td>}
+
                       <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">{row.partyName}</td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.partyAddress || "-"}</td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.partyGroup || "-"}</td>
@@ -1222,6 +1236,7 @@ const Invoices = () => {
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.rate || 0)}</td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.unit || "-"}</td>
                       <td className="px-6 py-4 font-black text-foreground whitespace-nowrap">{formatRowAmount(inv, row.amount || 0)}</td>
+                      {isPilot && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.branch || "-"}</td>}
                       <td className="px-6 py-4">
                         <TableActions
                           onView={() => setPreviewInvoice(inv)}
