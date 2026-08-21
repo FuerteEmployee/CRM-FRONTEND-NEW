@@ -1,5 +1,4 @@
-import React, { useMemo } from "react";
-import { State, City } from "country-state-city";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Select,
   SelectContent,
@@ -10,6 +9,55 @@ import {
 
 // India-scoped — consistent with the rest of the app (₹ currency, the hardcoded
 // INDIAN_STATES list already used in CRM-FRONTEND/src/pages/Purchases.tsx).
+//
+// IMPORTANT: We do NOT statically import country-state-city here. That package
+// bundles all world geography as a single 8.5 MB JSON blob, which previously
+// ended up in the initial JS payload and blocked the app from mounting on
+// servers with a ~10 MB response-size cap. Instead:
+//   • Indian states are hardcoded (there are only 36 — they never change).
+//   • Cities are fetched via a dynamic import() that only runs after the user
+//     has already loaded the HRMS module and selected a state, so the large
+//     dataset is an async chunk that never delays the first paint.
+
+const INDIAN_STATES: { isoCode: string; name: string }[] = [
+  { isoCode: "AN", name: "Andaman and Nicobar Islands" },
+  { isoCode: "AP", name: "Andhra Pradesh" },
+  { isoCode: "AR", name: "Arunachal Pradesh" },
+  { isoCode: "AS", name: "Assam" },
+  { isoCode: "BR", name: "Bihar" },
+  { isoCode: "CH", name: "Chandigarh" },
+  { isoCode: "CT", name: "Chhattisgarh" },
+  { isoCode: "DN", name: "Dadra and Nagar Haveli and Daman and Diu" },
+  { isoCode: "DL", name: "Delhi" },
+  { isoCode: "GA", name: "Goa" },
+  { isoCode: "GJ", name: "Gujarat" },
+  { isoCode: "HR", name: "Haryana" },
+  { isoCode: "HP", name: "Himachal Pradesh" },
+  { isoCode: "JK", name: "Jammu and Kashmir" },
+  { isoCode: "JH", name: "Jharkhand" },
+  { isoCode: "KA", name: "Karnataka" },
+  { isoCode: "KL", name: "Kerala" },
+  { isoCode: "LA", name: "Ladakh" },
+  { isoCode: "LD", name: "Lakshadweep" },
+  { isoCode: "MP", name: "Madhya Pradesh" },
+  { isoCode: "MH", name: "Maharashtra" },
+  { isoCode: "MN", name: "Manipur" },
+  { isoCode: "ML", name: "Meghalaya" },
+  { isoCode: "MZ", name: "Mizoram" },
+  { isoCode: "NL", name: "Nagaland" },
+  { isoCode: "OR", name: "Odisha" },
+  { isoCode: "PY", name: "Puducherry" },
+  { isoCode: "PB", name: "Punjab" },
+  { isoCode: "RJ", name: "Rajasthan" },
+  { isoCode: "SK", name: "Sikkim" },
+  { isoCode: "TN", name: "Tamil Nadu" },
+  { isoCode: "TG", name: "Telangana" },
+  { isoCode: "TR", name: "Tripura" },
+  { isoCode: "UP", name: "Uttar Pradesh" },
+  { isoCode: "UT", name: "Uttarakhand" },
+  { isoCode: "WB", name: "West Bengal" },
+];
+
 const COUNTRY_CODE = "IN";
 
 interface LocationSelectProps {
@@ -27,8 +75,6 @@ export const StateSelect: React.FC<LocationSelectProps> = ({
   allOption,
   placeholder = "Select state",
 }) => {
-  const states = useMemo(() => State.getStatesOfCountry(COUNTRY_CODE), []);
-
   return (
     <Select value={value || (allOption ? "all" : "")} onValueChange={onValueChange}>
       <SelectTrigger className={className}>
@@ -36,7 +82,7 @@ export const StateSelect: React.FC<LocationSelectProps> = ({
       </SelectTrigger>
       <SelectContent className="max-h-72">
         {allOption && <SelectItem value="all">All States</SelectItem>}
-        {states.map((s) => (
+        {INDIAN_STATES.map((s) => (
           <SelectItem key={s.isoCode} value={s.name}>
             {s.name}
           </SelectItem>
@@ -58,10 +104,26 @@ export const CitySelect: React.FC<CitySelectProps> = ({
   stateName,
   placeholder = "Select city",
 }) => {
-  const cities = useMemo(() => {
-    if (!stateName || stateName === "all") return [];
-    const state = State.getStatesOfCountry(COUNTRY_CODE).find((s) => s.name === stateName);
-    return state ? City.getCitiesOfState(COUNTRY_CODE, state.isoCode) : [];
+  const [cities, setCities] = useState<{ name: string; latitude?: string; longitude?: string }[]>(
+    []
+  );
+
+  useEffect(() => {
+    if (!stateName || stateName === "all") {
+      setCities([]);
+      return;
+    }
+    // Lazy-load the heavy geography dataset only when actually needed.
+    // This keeps vendor-geo out of the initial JS payload entirely.
+    let cancelled = false;
+    import("country-state-city").then(({ State, City }) => {
+      if (cancelled) return;
+      const state = State.getStatesOfCountry(COUNTRY_CODE).find((s) => s.name === stateName);
+      setCities(state ? City.getCitiesOfState(COUNTRY_CODE, state.isoCode) : []);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [stateName]);
 
   return (
