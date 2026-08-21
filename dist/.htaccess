@@ -1,0 +1,107 @@
+# Enable mod_rewrite
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Force HTTPS — required for the browser microphone/speech APIs FuerteAI's
+  # voice assistant uses; they silently refuse to run on a plain-http origin
+  # (no permission prompt at all), which only shows up on the live site since
+  # local dev always runs on the exempt "localhost" secure context.
+  RewriteCond %{HTTPS} off
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301,END]
+
+  # ---- Social-media bot proxy for dynamic OG tags ----
+  # WhatsApp, Facebook, Slack etc. fetch raw HTML and never execute JS, so
+  # SettingsContext.tsx's live DOM updates are invisible to them. Instead,
+  # proxy known bot User-Agents to the backend /api/bot-preview endpoint
+  # which reads ogImage / compLogoDark / compLogoLight directly from the DB
+  # and serves a minimal HTML document with fully-qualified og:image tags.
+  # Real browser visitors are NOT matched here — they get the normal SPA.
+  RewriteCond %{HTTP_USER_AGENT} "facebookexternalhit|Facebot|Twitterbot|Slackbot|WhatsApp|LinkedInBot|TelegramBot|Discordbot|Googlebot|bingbot|Pinterest|redditbot|Skype|vkShare" [NC]
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^(.*)$ https://crm-backend.beontimeofficial.com/api/bot-preview?path=/$1 [L,R=302]
+
+  # Remove .html extension from URLs
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^([^\.]+)$ $1.html [NC,L]
+  
+  # Redirect to index.html for SPA routing
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ index.html [QSA,L]
+</IfModule>
+
+# ---- Correct MIME type for the PWA manifest ----
+# Apache has no built-in mapping for .webmanifest, so without this it gets
+# served as text/plain — which fails the browser's PWA-installability
+# check silently (no error anywhere, the install prompt just never fires).
+AddType application/manifest+json .webmanifest
+
+<Files "manifest-trinetra.json">
+  ForceType application/manifest+json
+</Files>
+
+# Security Headers
+<IfModule mod_headers.c>
+  # Prevent MIME type sniffing
+  Header always set X-Content-Type-Options "nosniff"
+  
+  # Enable XSS protection
+  Header always set X-XSS-Protection "1; mode=block"
+  
+  # Clickjacking protection
+  Header always set X-Frame-Options "SAMEORIGIN"
+  
+  # Referrer policy
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Cache control for static assets
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/html "access plus 0 seconds"
+  ExpiresByType application/manifest+json "access plus 0 seconds"
+  # No blanket rule for JS/CSS here — Cache-Control below (mod_headers)
+  # decides per-file, and would otherwise fight with a stale Expires header.
+</IfModule>
+
+# ---- Long cache: hashed build assets only ----
+# Safe because Vite renames the file whenever content changes.
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|woff2?|ttf|otf|eot|svg|png|jpe?g|gif|webp|avif|ico)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+
+  # ---- NEVER cache: PWA control files ----
+  # These are how the browser discovers a new version exists. Must always
+  # be revalidated, or a stale Service Worker keeps serving an old app
+  # shell that mixes old/new build chunks and throws import errors.
+  <FilesMatch "^(sw|registerSW|workbox-.*|service-worker)\.js$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+
+  <FilesMatch "\.(webmanifest|json)$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+
+  <FilesMatch "\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>
+
+# Compression
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html
+  AddOutputFilterByType DEFLATE text/plain
+  AddOutputFilterByType DEFLATE text/css
+  AddOutputFilterByType DEFLATE text/javascript
+  AddOutputFilterByType DEFLATE application/javascript
+  AddOutputFilterByType DEFLATE application/json
+</IfModule>
+
+# Disable directory listing
+Options -Indexes
+
+
