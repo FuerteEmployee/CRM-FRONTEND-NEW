@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Save,
@@ -58,6 +58,11 @@ export default function StaffBranchFormPage() {
   const location = useLocation();
   const { id } = useParams();
   const isEdit = !!id;
+  // When opened via "+ Add new branch" from another page (e.g. Quotation Maker),
+  // returnTo sends the user straight back there instead of the branches list.
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
+  const backDestination = () => returnTo || `${location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms"}/staff/branches`;
 
   const [loading, setLoading]         = useState(false);
   const [branchTypes, setBranchTypes] = useState<BranchType[]>([]);
@@ -353,8 +358,12 @@ export default function StaffBranchFormPage() {
           ...removed.map(cid => customerService.update(cid, { branch: null })),
         ]);
         toast.success(`Branch ${isEdit ? "updated" : "created"} successfully`);
-        const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
-        navigate(`${basePath}/staff/branches`);
+        if (returnTo && branchId) {
+          const sep = returnTo.includes("?") ? "&" : "?";
+          navigate(`${returnTo}${sep}newBranchId=${branchId}`);
+        } else {
+          navigate(backDestination());
+        }
       }
     } catch { toast.error("Failed to save branch"); }
     finally { setLoading(false); }
@@ -388,10 +397,7 @@ export default function StaffBranchFormPage() {
       <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 bg-white sticky top-0 z-20 shadow-sm">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-slate-100 text-slate-500"
-            onClick={() => {
-              const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
-              navigate(`${basePath}/staff/branches`);
-            }}>
+            onClick={() => navigate(backDestination())}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -402,10 +408,7 @@ export default function StaffBranchFormPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => {
-            const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
-            navigate(`${basePath}/staff/branches`);
-          }}
+          <Button variant="ghost" size="sm" onClick={() => navigate(backDestination())}
             className="h-9 px-4 rounded-md text-slate-500 text-xs font-semibold hover:bg-slate-100">
             Discard
           </Button>

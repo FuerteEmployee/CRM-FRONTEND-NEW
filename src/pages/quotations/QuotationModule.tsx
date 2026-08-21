@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -238,6 +238,7 @@ const loadImageAsDataUrl = async (url?: string): Promise<LoadedImage | null> => 
 };
 
 export default function QuotationModule() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "dashboard");
   const typeSlug = searchParams.get("type") || "";
@@ -322,6 +323,9 @@ export default function QuotationModule() {
   // ─── Create/Edit Quotation form state ────────────────────────────────
   const [editingId, setEditingId] = useState<string | null>(null);
   const [clientId, setClientId] = useState("");
+  // Branch picked first on the Create Quotation form — the Customer dropdown
+  // below only lists customers belonging to this branch.
+  const [selectedBranchId, setSelectedBranchId] = useState("");
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
   const emptyNewCustomer = {
     company: "", customer_reference: "", contact_person: "", vat: "",
@@ -417,16 +421,30 @@ export default function QuotationModule() {
     queryFn: () => customerService.getAll().then((res: any) => res.data || res),
     enabled: activeTab === "create",
   });
-  // Scope the Customer dropdown to the branch(es) tied to this quotation type, when
-  // any are configured — otherwise fall back to the full customer list unchanged.
-  const customersForType = branchIdsForType.length
-    ? customers.filter((c: any) => branchIdsForType.includes(idOf(c.branch)))
-    : customers;
-  // Same scoping for the "Add New Customer" popup's Branch field, so a manually
-  // added customer can be tied to a branch relevant to this quotation type.
+  // Branch choices offered on the Create Quotation form — scoped to the branch(es)
+  // tied to this quotation type, when any are configured, otherwise every branch.
   const branchesForType = branchIdsForType.length
     ? branches.filter((b: any) => branchIdsForType.includes(idOf(b)))
     : branches;
+  // Auto-pick the branch when only one is available for this quotation type.
+  useEffect(() => {
+    if (!selectedBranchId && branchesForType.length === 1) {
+      setSelectedBranchId(idOf(branchesForType[0]));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchesForType.length]);
+  // The Customer dropdown only lists customers belonging to the selected branch.
+  const customersForType = selectedBranchId
+    ? customers.filter((c: any) => idOf(c.branch) === selectedBranchId)
+    : [];
+  // When editing an existing quotation, derive the branch from the loaded client
+  // so the Customer field stays populated (the quotation itself has no branch of its own).
+  useEffect(() => {
+    if (!editingId || !clientId || selectedBranchId) return;
+    const c = customers.find((x: any) => x._id === clientId);
+    if (c?.branch) setSelectedBranchId(idOf(c.branch));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId, clientId, customers]);
 
   // Rudraverse-only: let the user fill in a brand-new customer's details straight
   // from this form instead of only picking from the existing list — creates a
@@ -446,6 +464,20 @@ export default function QuotationModule() {
     },
   });
 
+  // "+ Add new branch" redirects to the real HRMS "New Branch" page (same full form
+  // used everywhere else), which redirects back here afterwards with ?newBranchId=...
+  // — pick it up and auto-select it, then strip it from the URL.
+  useEffect(() => {
+    const newBranchId = searchParams.get("newBranchId");
+    if (!newBranchId) return;
+    setSelectedBranchId(newBranchId);
+    setClientId("");
+    const params = new URLSearchParams(searchParams);
+    params.delete("newBranchId");
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const { data: selectedCustomer } = useQuery({
     queryKey: ["customer", clientId],
     queryFn: () => customerService.getById(clientId).then((res: any) => res.data || res),
@@ -464,6 +496,7 @@ export default function QuotationModule() {
   const resetForm = () => {
     setEditingId(null);
     setClientId("");
+    setSelectedBranchId("");
     setContactNumber("");
     setAddress("");
     setQuotationDate(todayISO());
@@ -1458,19 +1491,41 @@ export default function QuotationModule() {
                   <CardContent className="p-6 space-y-5">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <div className="space-y-1.5">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Branch</Label>
+                        <div className="space-y-1">
+                          <SearchableSelect
+                            placeholder="Select branch"
+                            options={branchesForType.map((b: any) => ({ value: idOf(b), label: b.name }))}
+                            value={selectedBranchId}
+                            onValueChange={(val) => { setSelectedBranchId(val); setClientId(""); }}
+                          />
+                          <button
+                            type="button"
+                            className="text-xs font-bold text-primary hover:underline"
+                            onClick={() => {
+                              const here = `${window.location.pathname}${window.location.search}`;
+                              navigate(`/admin/hrms/staff/branches/new?returnTo=${encodeURIComponent(here)}`);
+                            }}
+                          >
+                            + Add new branch
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Customer</Label>
                         <div className="space-y-1">
                           <SearchableSelect
-                            placeholder="Select customer"
+                            placeholder={selectedBranchId ? "Select customer" : "Select a branch first"}
                             options={customersForType.map((c: any) => ({ value: c._id, label: c.company || "Unnamed customer" }))}
                             value={clientId}
                             onValueChange={setClientId}
+                            disabled={!selectedBranchId}
                           />
                           {isPilot && (
                             <button
                               type="button"
                               className="text-xs font-bold text-primary hover:underline"
-                              onClick={() => { setNewCustomerForm(emptyNewCustomer); setIsAddingCustomer(true); }}
+                              onClick={() => { setNewCustomerForm({ ...emptyNewCustomer, branch: selectedBranchId }); setIsAddingCustomer(true); }}
                             >
                               + Add new customer manually
                             </button>

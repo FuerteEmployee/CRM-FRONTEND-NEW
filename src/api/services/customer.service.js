@@ -12,7 +12,8 @@ export const customerService = {
 
   delete: (id) => apiClient.delete(`/clients/${id}`),
 
-  importClients: (data) => apiClient.post("/clients/import", data),
+  importClients: (data, branchId) =>
+    apiClient.post("/clients/import", branchId ? { clients: data, branchId } : data),
 
   importContacts: (data) => apiClient.post("/clients/contacts/import", data),
   getStatement: (id, params) => apiClient.get(`/clients/${id}/statement`, { params }),
