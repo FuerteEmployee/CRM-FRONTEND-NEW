@@ -67,7 +67,25 @@ import {
 import { useState, useEffect } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { computeReorderPayload } from "@/lib/sidebarReorder";
+import { toast } from "sonner";
 import { mainSidebarService } from "@/api/services/mainsidebar.service";
 import { quotationTypeService } from "@/api/services/quotationType.service";
 import * as Icons from "lucide-react";
@@ -181,6 +199,39 @@ const setupMenuItems = [
   { title: "Help", url: "https://fuertedevelopers.com/", icon: HelpCircle },
 ];
 
+// Wraps a DB-backed sidebar item so it stays fully clickable/navigable as
+// normal, while adding a small grip handle on the left that drags to
+// reorder it. The handle is rendered in-flow (via the render-prop) rather
+// than overlaid on top of the label, so it never covers/clips the item's
+// text — it just takes its own sliver of space to the left of the icon.
+const SortableNavItem = ({
+  id,
+  children,
+}: {
+  id: string;
+  children: (handle: { attributes: any; listeners: any }) => React.ReactNode;
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 };
+  return (
+    <SidebarMenuItem ref={setNodeRef} style={style}>
+      {children({ attributes, listeners })}
+    </SidebarMenuItem>
+  );
+};
+
+const DragHandle = ({ attributes, listeners }: { attributes: any; listeners: any }) => (
+  <button
+    type="button"
+    {...attributes}
+    {...listeners}
+    title="Drag to reorder"
+    className="flex items-center justify-center h-6 w-4 shrink-0 rounded text-sidebar-foreground/30 hover:text-sidebar-foreground cursor-grab active:cursor-grabbing"
+  >
+    <Icons.GripVertical className="h-3.5 w-3.5" />
+  </button>
+);
+
 export function AppSidebar() {
   const { state, setOpenMobile, isMobile } = useSidebar();
   const collapsed = state === "collapsed";
@@ -266,6 +317,26 @@ export function AppSidebar() {
     queryFn: () => quotationTypeService.getQuotationTypes(true),
   });
 
+  // Drag-and-drop reordering of the DB-backed sidebar groups — a small grip
+  // handle appears directly on each item (no separate "reorder mode"),
+  // gated by the same permission the backend reorder endpoint requires.
+  const queryClient = useQueryClient();
+  const canReorderSidebar = can("Settings", "Edit");
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const reorderMutation = useMutation({
+    mutationFn: (items: { id: string; order: number }[]) => mainSidebarService.reorderSidebarItems(items),
+    onSuccess: (data: any[]) => {
+      queryClient.setQueryData(["mainsidebar"], data);
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to reorder menu");
+      queryClient.invalidateQueries({ queryKey: ["mainsidebar"] });
+    },
+  });
+
   const getMenuItems = () => {
     const rawItems = dbMenuItems.length > 0 ? dbMenuItems : fallbackNav;
     const items = rawItems.filter((i: any) => i.active !== false);
@@ -312,6 +383,38 @@ export function AppSidebar() {
   };
 
   const dynamicNav = getMenuItems();
+
+  // Reordering only ever changes `order`, never `group` — a drop is only
+  // honored when it lands within the same DB-backed section it started in,
+  // since a cross-section drop would visually look like the item jumped
+  // into a different collapsible even though it never actually changed group.
+  const handleSidebarDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const sections = [
+      dynamicNav.mainNav,
+      dynamicNav.customersNav,
+      dynamicNav.salesNav,
+      dynamicNav.managementNav,
+      dynamicNav.utilitiesNav,
+      dynamicNav.reportsNav,
+      dynamicNav.hrmsNav,
+    ];
+    const section = sections.find((items) => items.some((i: any) => i._id === active.id));
+    if (!section || !section.some((i: any) => i._id === over.id)) return;
+
+    const oldIndex = section.findIndex((i: any) => i._id === active.id);
+    const newIndex = section.findIndex((i: any) => i._id === over.id);
+    const { payload } = computeReorderPayload(section, oldIndex, newIndex);
+
+    queryClient.setQueryData(["mainsidebar"], (old: any[] = []) =>
+      old.map((item) => {
+        const match = payload.find((p) => p.id === item._id);
+        return match ? { ...item, order: match.order } : item;
+      }),
+    );
+    reorderMutation.mutate(payload);
+  };
 
   // Each active QuotationType becomes its own sidebar link to the Quotation
   // Maker module, scoped to that type via ?type=<slug>.
@@ -385,6 +488,7 @@ export function AppSidebar() {
   const renderItems = (
     items: any[],
     onItemClick?: () => void,
+    dragEnabled?: boolean,
   ) => {
     const handleClick = () => {
       if (onItemClick) onItemClick();
@@ -459,74 +563,94 @@ export function AppSidebar() {
         const isActive = checkIsActive(item.url);
         const isExternal = urlStr.startsWith("http");
         const IconComponent = (Icons as any)[item.icon] || Icons.Circle;
+        // Icon-only (collapsed) sidebar has no room for a handle alongside it.
+        const showHandle = !!dragEnabled && canReorderSidebar && !collapsed;
 
-        return (
-          <SidebarMenuItem key={item.title}>
-            <SidebarMenuButton asChild isActive={!isExternal && isActive}>
-              {isExternal ? (
-                <a
-                  href={getUrl(item.url)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={handleClick}
-                  className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                >
-                  <IconComponent className="mr-2.5 h-4 w-4 shrink-0 transition-colors" />
-                  {!collapsed && (
-                    <span className="text-[13px] font-medium flex-1 text-left flex items-center justify-between">
-                      {item.title}
-                      {item.title === "Chat" && chatUnreadCount > 0 && (
-                        <Badge variant="destructive" className="ml-auto h-5 px-1.5 flex items-center justify-center text-[10px] min-w-[20px]">
-                          {chatUnreadCount}
-                        </Badge>
-                      )}
-                    </span>
-                  )}
-                </a>
-              ) : (
-                <NavLink
-                  to={getUrl(item.url)}
-                  end
-                  onClick={handleClick}
-                  className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                  activeClassName={isActive ? "sidebar-active-item font-semibold" : ""}
-                >
-                  {isActive && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
-                  )}
-                  <IconComponent
-                    className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isActive ? "text-primary" : ""}`}
-                  />
-                  {!collapsed && (
-                    <span className="text-[13px] font-medium flex-1 text-left flex items-center justify-between">
-                      {item.title}
-                      {item.title === "Chat" && chatUnreadCount > 0 && (
-                        <Badge variant="destructive" className="ml-auto h-5 px-1.5 flex items-center justify-center text-[10px] min-w-[20px]">
-                          {chatUnreadCount}
-                        </Badge>
-                      )}
-                    </span>
-                  )}
-                </NavLink>
-              )}
-            </SidebarMenuButton>
-            {/* Quick-create "+" button — always visible for Tasks row, works for both admin & staff */}
-            {!collapsed && item.title === "Tasks" && (isAdmin || isStaff || can("Tasks", "Create")) && (
-              <button
-                title="New Task"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (isMobile) setOpenMobile(false);
-                  navigate(`${basePath}/tasks?new=1`);
-                }}
-                style={{ zIndex: 10 }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors duration-150 shrink-0"
+        const button = (
+          <SidebarMenuButton asChild isActive={!isExternal && isActive}>
+            {isExternal ? (
+              <a
+                href={getUrl(item.url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleClick}
+                className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
               >
-                <Icons.Plus className="h-3.5 w-3.5" />
-              </button>
+                <IconComponent className="mr-2.5 h-4 w-4 shrink-0 transition-colors" />
+                {!collapsed && (
+                  <span className="text-[13px] font-medium flex-1 min-w-0 text-left flex items-center justify-between gap-1">
+                    <span className="truncate">{item.title}</span>
+                    {item.title === "Chat" && chatUnreadCount > 0 && (
+                      <Badge variant="destructive" className="ml-auto h-5 px-1.5 flex items-center justify-center text-[10px] min-w-[20px] shrink-0">
+                        {chatUnreadCount}
+                      </Badge>
+                    )}
+                  </span>
+                )}
+              </a>
+            ) : (
+              <NavLink
+                to={getUrl(item.url)}
+                end
+                onClick={handleClick}
+                className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
+                activeClassName={isActive ? "sidebar-active-item font-semibold" : ""}
+              >
+                {isActive && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
+                )}
+                <IconComponent
+                  className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isActive ? "text-primary" : ""}`}
+                />
+                {!collapsed && (
+                  <span className="text-[13px] font-medium flex-1 min-w-0 text-left flex items-center justify-between gap-1">
+                    <span className="truncate">{item.title}</span>
+                    {item.title === "Chat" && chatUnreadCount > 0 && (
+                      <Badge variant="destructive" className="ml-auto h-5 px-1.5 flex items-center justify-center text-[10px] min-w-[20px] shrink-0">
+                        {chatUnreadCount}
+                      </Badge>
+                    )}
+                  </span>
+                )}
+              </NavLink>
             )}
-          </SidebarMenuItem>
+          </SidebarMenuButton>
         );
+
+        const quickCreateButton = !collapsed && item.title === "Tasks" && (isAdmin || isStaff || can("Tasks", "Create")) && (
+          <button
+            title="New Task"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isMobile) setOpenMobile(false);
+              navigate(`${basePath}/tasks?new=1`);
+            }}
+            style={{ zIndex: 10 }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors duration-150 shrink-0"
+          >
+            <Icons.Plus className="h-3.5 w-3.5" />
+          </button>
+        );
+
+        const row = (handle?: { attributes: any; listeners: any }) => (
+          <>
+            <div className="flex items-center w-full">
+              {showHandle && handle && <DragHandle attributes={handle.attributes} listeners={handle.listeners} />}
+              <div className="flex-1 min-w-0">{button}</div>
+            </div>
+            {quickCreateButton}
+          </>
+        );
+
+        if (showHandle) {
+          return (
+            <SortableNavItem key={item._id} id={item._id}>
+              {(handle) => row(handle)}
+            </SortableNavItem>
+          );
+        }
+
+        return <SidebarMenuItem key={item.title}>{row()}</SidebarMenuItem>;
       });
   };
 
@@ -534,6 +658,7 @@ export function AppSidebar() {
     label: string,
     icon: React.ElementType,
     items: any[],
+    dragEnabled?: boolean,
   ) => {
     const visibleItems = items.filter(
       (item: any) => !item.permission || canView(item.permission),
@@ -572,13 +697,32 @@ export function AppSidebar() {
           <CollapsibleContent className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
             <SidebarGroupContent className="pl-3 border-l border-sidebar-border/60 ml-[18px] mt-0.5 space-y-0">
               <SidebarMenu className="gap-0.5">
-                {renderItems(visibleItems)}
+                {dragEnabled && canReorderSidebar ? (
+                  <SortableContext items={visibleItems.map((i: any) => i._id)} strategy={verticalListSortingStrategy}>
+                    {renderItems(visibleItems, undefined, dragEnabled)}
+                  </SortableContext>
+                ) : (
+                  renderItems(visibleItems)
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </CollapsibleContent>
         </SidebarMenuItem>
       </Collapsible>
     );
+  };
+
+  // Wraps a flat (non-collapsible) DB-backed section in its own SortableContext
+  // so its grip handles can only reorder within that same section.
+  const renderDraggableSection = (items: any[], dragEnabled: boolean = true) => {
+    if (dragEnabled && canReorderSidebar) {
+      return (
+        <SortableContext items={items.map((i: any) => i._id)} strategy={verticalListSortingStrategy}>
+          {renderItems(items, undefined, true)}
+        </SortableContext>
+      );
+    }
+    return renderItems(items);
   };
 
   return (
@@ -618,24 +762,25 @@ export function AppSidebar() {
         ) : menuMode === "main" ? (
           <SidebarGroup className="py-2">
             <SidebarGroupContent>
+              <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleSidebarDragEnd}>
               <SidebarMenu className="gap-0.5">
-                {renderItems(dynamicNav.mainNav.filter((i: any) => !isHrmsOnly || i.title === "Dashboard"))}
+                {renderDraggableSection(dynamicNav.mainNav.filter((i: any) => !isHrmsOnly || i.title === "Dashboard"))}
                 {!isHrmsOnly ? (
                   <>
-                    {renderItems(dynamicNav.customersNav)}
-                    {isModuleEnabled("sales") && renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
+                    {renderDraggableSection(dynamicNav.customersNav)}
+                    {isModuleEnabled("sales") && renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav, true)}
                     {isModuleEnabled("sales") && renderCollapsibleItem("Quotation Maker", Icons.FileBarChart, quotationMakerNav)}
-                    {renderItems(dynamicNav.managementNav)}
+                    {renderDraggableSection(dynamicNav.managementNav)}
                   </>
                 ) : (
                   /* HRMS-only staff can still be assigned tasks — always show Tasks link */
                   isStaff && renderItems(dynamicNav.managementNav.filter((i: any) => i.title === "Tasks"))
                 )}
-                {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav)}
+                {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav, true)}
                 {!isHrmsOnly && (
                   <>
-                    {isModuleEnabled("utility") && renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav)}
-                    {isModuleEnabled("reports") && renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav)}
+                    {isModuleEnabled("utility") && renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav, true)}
+                    {isModuleEnabled("reports") && renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav, true)}
                     {hasSetupAccess && (
                       <SidebarMenuItem>
                         <SidebarMenuButton
@@ -665,6 +810,7 @@ export function AppSidebar() {
                   </>
                 )}
               </SidebarMenu>
+              </DndContext>
             </SidebarGroupContent>
           </SidebarGroup>
         ) : (
