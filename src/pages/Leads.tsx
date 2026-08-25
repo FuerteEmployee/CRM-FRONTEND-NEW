@@ -906,12 +906,14 @@ const Leads = () => {
         {/* Ads-wise view — only shows once at least one lead has been imported from a Meta form */}
         {adFormTabs.length > 0 && (
           <Tabs value={metaFormFilter} onValueChange={setMetaFormFilter}>
-            <TabsList className="flex-wrap h-auto">
-              <TabsTrigger value="all">All Leads</TabsTrigger>
+            <div className="overflow-x-auto no-scrollbar w-full">
+            <TabsList className="flex w-max h-auto min-w-full">
+              <TabsTrigger value="all" className="shrink-0 whitespace-nowrap">All Leads</TabsTrigger>
               {adFormTabs.map((form) => (
-                <TabsTrigger key={form.id} value={form.id}>{form.name}</TabsTrigger>
+                <TabsTrigger key={form.id} value={form.id} className="shrink-0 whitespace-nowrap">{form.name}</TabsTrigger>
               ))}
             </TabsList>
+          </div>
           </Tabs>
         )}
 
