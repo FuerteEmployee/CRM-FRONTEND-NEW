@@ -24,6 +24,7 @@ import { authService } from "@/api/services/auth.service";
 import { toast } from "sonner";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useSettings } from "@/context/SettingsContext";
+import { useCurrency } from "@/context/CurrencyContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { getLandingPath } from "@/lib/landingPath";
 import { AlreadyLoggedInBanner } from "@/components/auth/AlreadyLoggedInBanner";
@@ -38,6 +39,7 @@ const Login = () => {
   const navigate = useNavigate();
   const { setFromLoginResponse } = usePermissionContext();
   const { settings, refreshSettings } = useSettings();
+  const { refetch: refetchCurrencies } = useCurrency();
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState("admin");
   const [loading, setLoading] = useState(false);
@@ -59,6 +61,9 @@ const Login = () => {
         // Reload settings with the new auth token so this admin's own
         // branding (logo, favicon, company name) applies immediately
         refreshSettings();
+        // Currency queries are disabled until a token exists (avoids a 401
+        // on the public login page) — fetch now that we just logged in.
+        refetchCurrencies();
         const userAdmin = response.user?.admin;
         const isAdmin = userAdmin === true || userAdmin === 1 || userAdmin === "1" || userAdmin === "true";
         navigate(getLandingPath(response.user, response.permissions, !isAdmin && !response.user?.is_superadmin));

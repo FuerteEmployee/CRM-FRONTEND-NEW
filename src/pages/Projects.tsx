@@ -52,6 +52,7 @@ import { TableActions } from "@/components/TableActions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 
 const statusConfig = [
   { id: 1, label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
@@ -70,7 +71,11 @@ const Projects = () => {
   const [bulkState, setBulkState] = useState({ massDelete: false, status: "" });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
   const navigate = useNavigate();
 
   const { data: projects = [], isLoading } = useQuery<any[]>({
@@ -336,6 +341,7 @@ const Projects = () => {
                     <th className="p-3 font-semibold">#</th>
                     <th className="p-3 font-semibold">Project Name ↕</th>
                     <th className="p-3 font-semibold">Customer</th>
+                    {canUseBranch && <th className="p-3 font-semibold">Branch</th>}
                     <th className="p-3 font-semibold">Tags</th>
                     <th className="p-3 font-semibold text-center">Start Date</th>
                     <th className="p-3 font-semibold text-center">Deadline</th>
@@ -348,7 +354,7 @@ const Projects = () => {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="border-b">
-                        <td colSpan={10} className="p-8">
+                        <td colSpan={10 + (canUseBranch ? 1 : 0)} className="p-8">
                           <Skeleton className="h-8 w-full" />
                         </td>
                       </tr>
@@ -394,6 +400,11 @@ const Projects = () => {
                             {project.clientid?.company || "Unknown"}
                           </span>
                         </td>
+                        {canUseBranch && (
+                          <td className="p-3 text-xs text-zinc-600 whitespace-nowrap">
+                            {typeof project.branch === "object" ? (project.branch?.name || "-") : (project.branch || "-")}
+                          </td>
+                        )}
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1">
                             {project.tags && project.tags.length > 0 ? (

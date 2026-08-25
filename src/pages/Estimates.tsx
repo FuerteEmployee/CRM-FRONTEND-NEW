@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { ExportButton } from "@/components/ui/export-button";
@@ -529,7 +530,11 @@ const Estimates = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const navigate = useNavigate();
-  const { can } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { formatAmount, symbol } = useCurrency();
@@ -860,7 +865,7 @@ const Estimates = () => {
                     );
                   })()}
                 </th>
-                {["Company Name", "Connect Person", "Phone Number", "Mail Id", "Item", "Quantity", "Rate", "Amount", "Sales Person", "Date", "Actions"].map(h => (
+                {["Company Name", "Connect Person", "Phone Number", "Mail Id", "Item", "Quantity", "Rate", "Amount", "Sales Person", "Date", ...(canUseBranch ? ["Branch"] : []), "Actions"].map(h => (
                   <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
                 ))}
               </tr>
@@ -868,11 +873,11 @@ const Estimates = () => {
             <tbody className="divide-y divide-border/50">
               {isLoadingEstimates ? (
                 Array(3).fill(0).map((_, i) => (
-                  <tr key={i}><td colSpan={12} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={12 + (canUseBranch ? 1 : 0)} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
                 ))
               ) : tableRows.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-6 py-12 text-center text-muted-foreground italic">
+                  <td colSpan={12 + (canUseBranch ? 1 : 0)} className="px-6 py-12 text-center text-muted-foreground italic">
                     No estimates found.
                   </td>
                 </tr>
@@ -906,6 +911,11 @@ const Estimates = () => {
                       <td className="px-6 py-4 font-black text-foreground">{row.amount !== "" ? formatRowAmount(est, Number(row.amount)) : "-"}</td>
                       <td className="px-6 py-4 text-muted-foreground">{row.salesPerson || "-"}</td>
                       <td className="px-6 py-4 text-muted-foreground">{row.date ? formatDate(row.date) : "-"}</td>
+                      {canUseBranch && (
+                        <td className="px-6 py-4 text-muted-foreground">
+                          {typeof est.branch === "object" ? (est.branch?.name || "-") : (est.branch || "-")}
+                        </td>
+                      )}
                       <td className="px-6 py-4">
                         <TableActions
                           onView={() => setPreviewEstimate(est)}

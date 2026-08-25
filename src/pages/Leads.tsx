@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast as SonnerToast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { useCurrency } from "@/context/CurrencyContext";
 import { staffService } from "@/api/services/staff.service";
 import { customFieldService } from "@/api/services/custom-field.service";
@@ -87,8 +88,18 @@ const Leads = () => {
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can, user } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show/fetch it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+  const { data: branchesRaw = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
   const { symbol, formatAmount } = useCurrency();
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
   useOpenCreateModal(() => setIsNewLeadOpen(true));
@@ -113,7 +124,7 @@ const Leads = () => {
   const [isAddingSource, setIsAddingSource] = useState(false);
 
   const [leadForm, setLeadForm] = useState({
-    status: "", source: "", assigned: "", salesPerson: "", tags: "", name: "", position: "", email: "", website: "",
+    status: "", source: "", assigned: "", salesPerson: "", branch: "", tags: "", name: "", position: "", email: "", website: "",
     phonenumber: "", lead_value: "", company: "", address: "", city: "", state: "", country: "",
     zip: "", default_language: "English", description: "", is_public: false, contacted_today: false
   });
@@ -201,6 +212,7 @@ const Leads = () => {
         source: lead.source?._id || lead.source?.id || (typeof lead.source === 'string' ? lead.source : ""),
         assigned: lead.assigned?._id || lead.assigned?.id || (typeof lead.assigned === 'string' ? lead.assigned : ""),
         salesPerson: lead.salesPerson || "",
+        branch: typeof lead.branch === "object" ? (lead.branch?.name || "") : (lead.branch || ""),
         tags: Array.isArray(lead.tags) ? lead.tags.join(", ") : (lead.tags || ""),
         name: lead.name || "",
         position: lead.position || lead.title || "",
@@ -221,7 +233,7 @@ const Leads = () => {
       });
     } else {
       setLeadForm({
-        status: "", source: "", assigned: "", salesPerson: "", tags: "", name: "", position: "", email: "", website: "",
+        status: "", source: "", assigned: "", salesPerson: "", branch: "", tags: "", name: "", position: "", email: "", website: "",
         phonenumber: "", lead_value: "", company: "", address: "", city: "", state: "", country: "",
         zip: "", default_language: "English", description: "", is_public: false, contacted_today: false
       });
@@ -379,6 +391,14 @@ const Leads = () => {
 
   const handleSaveLead = () => {
     if (modalMode === "view") return;
+    if (canUseBranch && !leadForm.branch) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a branch",
+        variant: "destructive"
+      });
+      return;
+    }
     if (!leadForm.name || !leadForm.status || !leadForm.source) {
       toast({
         title: "Validation Error",
@@ -599,6 +619,23 @@ const Leads = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {/* Left Column */}
                     <div className="space-y-6">
+                      {canUseBranch && (
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Branch *</Label>
+                          <Select disabled={modalMode === "view"} value={leadForm.branch || "none"} onValueChange={(v) => setLeadForm(prev => ({ ...prev, branch: v === "none" ? "" : v }))}>
+                            <SelectTrigger className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white">
+                              <SelectValue placeholder="Select Branch" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Select Branch</SelectItem>
+                              {branches.map((b) => (
+                                <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1 flex justify-between">
                           Status *
@@ -985,6 +1022,12 @@ const Leads = () => {
                     { header: "Zip", key: "zip" },
                     { header: "Website", key: "website" },
                     { header: "Created At", key: (l) => l.createdAt ? new Date(l.createdAt).toLocaleDateString() : "" },
+                    ...(isPilot ? [
+                      { header: "Sales Person", key: (l: any) => l.salesPerson || "" },
+                    ] : []),
+                    ...(canUseBranch ? [
+                      { header: "Branch", key: (l: any) => typeof l.branch === "object" ? (l.branch?.name || "") : (l.branch || "") },
+                    ] : []),
                   ]}
                 />
                 <MetaFormsFilterDropdown forms={adFormTabs} value={metaFormFilter} onChange={setMetaFormFilter} />
@@ -1201,6 +1244,7 @@ const Leads = () => {
                     <th className="p-4 bg-slate-50/50">Tags</th>
                     <th className="p-4 bg-slate-50/50">Assigned</th>
                     {isPilot && <th className="p-4 bg-slate-50/50">Sales Person</th>}
+                    {canUseBranch && <th className="p-4 bg-slate-50/50">Branch</th>}
                     <th className="p-4 bg-slate-50/50">Status</th>
                     <th className="p-4 bg-slate-50/50">Source</th>
                     <th className="p-4 bg-slate-50/50">Last Contact</th>
@@ -1215,12 +1259,12 @@ const Leads = () => {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="border-b border-slate-50">
-                        <td colSpan={(isPilot ? 15 : 14) + tableCustomFields.length} className="p-10"><Skeleton className="h-12 w-full rounded-2xl" /></td>
+                        <td colSpan={14 + (isPilot ? 1 : 0) + (canUseBranch ? 1 : 0) + tableCustomFields.length} className="p-10"><Skeleton className="h-12 w-full rounded-2xl" /></td>
                       </tr>
                     ))
                   ) : paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={(isPilot ? 15 : 14) + tableCustomFields.length} className="p-20 text-center"><div className="flex flex-col items-center gap-3"><Users className="h-12 w-12 text-slate-100" /><p className="text-slate-400 font-black uppercase tracking-widest text-xs">No leads found in the pipeline</p></div></td>
+                      <td colSpan={14 + (isPilot ? 1 : 0) + (canUseBranch ? 1 : 0) + tableCustomFields.length} className="p-20 text-center"><div className="flex flex-col items-center gap-3"><Users className="h-12 w-12 text-slate-100" /><p className="text-slate-400 font-black uppercase tracking-widest text-xs">No leads found in the pipeline</p></div></td>
                     </tr>
                   ) : (
                     paginated.map((l, index) => (
@@ -1307,6 +1351,11 @@ const Leads = () => {
                         {isPilot && (
                           <td className="p-4 text-xs font-bold text-slate-700">
                               {l.salesPerson || "-"}
+                          </td>
+                        )}
+                        {canUseBranch && (
+                          <td className="p-4 text-xs font-bold text-slate-700">
+                              {typeof l.branch === "object" ? (l.branch?.name || "-") : (l.branch || "-")}
                           </td>
                         )}
                         <td className="p-4" onClick={(e) => e.stopPropagation()}>

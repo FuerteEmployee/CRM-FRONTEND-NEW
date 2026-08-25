@@ -233,8 +233,13 @@ export default function SetupStaffForm() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showPassword, setShowPassword] = useState(false);
-  const { can, isStaff } = usePermissions();
+  const { can, isStaff, isModuleEnabled } = usePermissions();
   const basePath = isStaff ? "/staff" : "/admin";
+  // Employment Details / Salary & Banking / Legal Documents are HRMS-only
+  // fields — a tenant whose plan doesn't include the HRMS module shouldn't
+  // see or be able to fetch/save them here, same as the HRMS section being
+  // hidden from the sidebar for that plan.
+  const hrmsEnabled = isModuleEnabled("hrms");
   const [formData, setFormData] = useState<any>({
     firstname: "",
     lastname: "",
@@ -285,21 +290,25 @@ export default function SetupStaffForm() {
       const res = await hrmsbranchService.getAll();
       return res?.data || [];
     },
+    enabled: hrmsEnabled,
   });
 
   const { data: hrmsDepartments = [] } = useQuery({
     queryKey: ["hrms-departments-picker"],
     queryFn: () => hrmsDepartmentService.getAll(),
+    enabled: hrmsEnabled,
   });
 
   const { data: hrmsDesignations = [] } = useQuery({
     queryKey: ["hrms-designations-picker"],
     queryFn: () => hrmsDesignationService.getAll(),
+    enabled: hrmsEnabled,
   });
 
   const { data: hrmsShifts = [] } = useQuery({
     queryKey: ["hrms-shifts-picker"],
     queryFn: () => hrmsShiftService.getAll(),
+    enabled: hrmsEnabled,
   });
 
   const { isLoading: isLoadingStaff } = useQuery({
@@ -576,24 +585,28 @@ export default function SetupStaffForm() {
             >
               Profile
             </TabsTrigger>
-            <TabsTrigger
-              value="employment"
-              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
-            >
-              Employment Details
-            </TabsTrigger>
-            <TabsTrigger
-              value="salary"
-              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
-            >
-              Salary & Banking
-            </TabsTrigger>
-            <TabsTrigger
-              value="documents"
-              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
-            >
-              Legal Documents
-            </TabsTrigger>
+            {hrmsEnabled && (
+              <>
+                <TabsTrigger
+                  value="employment"
+                  className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
+                >
+                  Employment Details
+                </TabsTrigger>
+                <TabsTrigger
+                  value="salary"
+                  className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
+                >
+                  Salary & Banking
+                </TabsTrigger>
+                <TabsTrigger
+                  value="documents"
+                  className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
+                >
+                  Legal Documents
+                </TabsTrigger>
+              </>
+            )}
             <TabsTrigger
               value="permissions"
               className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
@@ -1029,6 +1042,8 @@ export default function SetupStaffForm() {
             </div>
           </TabsContent>
 
+          {hrmsEnabled && (
+          <>
           <TabsContent
             value="employment"
             className="bg-white border rounded-lg p-8 shadow-sm mt-6 space-y-8"
@@ -1344,6 +1359,8 @@ export default function SetupStaffForm() {
               </div>
             </div>
           </TabsContent>
+          </>
+          )}
 
           <TabsContent
             value="permissions"
