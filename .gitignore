@@ -28,3 +28,10 @@ vite.config.ts.timestamp-*
 dist/
 dist.zip
 dev-dist/
+
+# Environment files
+.env
+.env.development
+.env.production
+.env.local
+.env.*.local

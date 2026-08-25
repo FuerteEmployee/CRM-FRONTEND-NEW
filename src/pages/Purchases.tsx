@@ -607,7 +607,8 @@ const Purchases = () => {
     );
   }, [filteredPurchases]);
 
-  const money = (n: number) => `${symbol}${(n || 0).toFixed(2)}`;
+  const money = (n: number | null | undefined) =>
+    n == null || n === 0 ? "-" : `${symbol}${n.toFixed(2)}`;
 
   // Pagination
   const totalItems = filteredPurchases.length;
@@ -931,21 +932,13 @@ const Purchases = () => {
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.rate)}</td>
                         <td className="p-4 font-bold text-slate-800">{money(p.amount)}</td>
                         <td className="p-4 font-black text-green-700">{money(p.total)}</td>
-                        {/* Tally posts the taxable value to the "PURCHASE GST" ledger — same
-                            number as Amount, just relabeled for the ledger-wise view (mirrors
-                            exportColumns above). */}
+                        {/* PURCHASE GST = taxable value (same as Amount) */}
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.amount)}</td>
-                        {/* A bill is either intra-state (CGST+SGST) or inter-state (IGST) —
-                            never both — so the non-applicable pair is genuinely 0. Shown as
-                            "₹0.00" (not "-") to match how the source Excel sheet itself always
-                            prints an explicit ₹0.00 in the non-applicable cells. */}
+                        {/* Zero tax cells show "-" instead of ₹0.00 */}
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.cgst)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.sgst)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.igst)}</td>
                         {isPilot && <td className="p-4 text-xs font-medium text-slate-600">{money(p.freight_charge)}</td>}
-                        {/* Same figure as "PURCHASE IGST" — shown again under its rate-labeled
-                            column so IGST reads the same way CGST 9%/SGST 9% already do, instead
-                            of forcing a lookup one column to the left (mirrors exportColumns above). */}
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.igst)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{p.round_off ? money(p.round_off) : "-"}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{p.branch || "-"}</td>

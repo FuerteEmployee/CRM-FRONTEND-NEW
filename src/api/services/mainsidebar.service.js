@@ -5,4 +5,5 @@ export const mainSidebarService = {
   createSidebarItem: (data) => apiClient.post('/mainsidebar', data),
   updateSidebarItem: (id, data) => apiClient.put(`/mainsidebar/${id}`, data),
   deleteSidebarItem: (id) => apiClient.delete(`/mainsidebar/${id}`),
+  reorderSidebarItems: (items) => apiClient.put('/mainsidebar/reorder', { items }),
 };

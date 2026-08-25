@@ -57,6 +57,7 @@ import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemS
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/CurrencyContext";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
 export default function InvoiceCreate() {
   const { clientId, id } = useParams();
@@ -94,6 +95,7 @@ export default function InvoiceCreate() {
     termsOfPayment: "",
     gstin: "",
     salesPerson: "",
+    branch: "",
   });
 
   const [status, setStatus] = useState("unpaid");
@@ -222,6 +224,7 @@ export default function InvoiceCreate() {
         termsOfPayment: invoice.termsOfPayment || "",
         gstin: invoice.gstin || "",
         salesPerson: invoice.salesPerson || "",
+        branch: typeof invoice.branch === "object" ? (invoice.branch?.name || "") : (invoice.branch || ""),
       });
 
       if (invoice.status) {
@@ -250,6 +253,14 @@ export default function InvoiceCreate() {
 
   const { user } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
+
+  const { data: branchesRaw = [] } = useQuery({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: isPilot,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
 
   const isIntraState = () => {
     if (!customer) return true; // default/fallback
@@ -408,6 +419,7 @@ export default function InvoiceCreate() {
       termsOfPayment: formData.termsOfPayment,
       gstin: formData.gstin,
       salesPerson: formData.salesPerson || "",
+      branch: formData.branch || "",
       items: items.map(item => ({
         description: item.description,
         long_description: item.long_description,
@@ -723,6 +735,27 @@ export default function InvoiceCreate() {
                           <SelectItem key={s._id || s.id} value={name}>{name}</SelectItem>
                         );
                       })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Branch — pilot-only, dynamically fetched from HRMS */}
+              {isPilot && (
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Branch</Label>
+                  <Select
+                    value={formData.branch || "none"}
+                    onValueChange={(v) => setFormData(p => ({ ...p, branch: v === "none" ? "" : v }))}
+                  >
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="Select Branch" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      <SelectItem value="none">None</SelectItem>
+                      {branches.map((b) => (
+                        <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

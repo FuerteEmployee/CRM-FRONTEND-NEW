@@ -265,7 +265,7 @@ const Customers = () => {
         c.gst_number || "",
         c.account_details || "",
         c.sales_person ? `${c.sales_person.firstname || ""} ${c.sales_person.lastname || ""}`.trim() : "",
-        c.branch?.name || "",
+        branches.find((b: any) => b._id === c.branch || b._id === c.branch?._id)?.name || c.branch?.name || (typeof c.branch === "string" ? c.branch : ""),
         c.active ? "Yes" : "No",
         c.groups ? c.groups.map((g: any) => g.name || g).join(", ") : "",
         c.datecreated ? formatDate(c.datecreated) : "-"
@@ -1250,7 +1250,7 @@ const Customers = () => {
                           </div>
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
-                          {(c.branch as any)?.name || "-"}
+                          {branches.find((b: any) => b._id === c.branch || b._id === c.branch?._id)?.name || (c.branch as any)?.name || (typeof c.branch === "string" ? c.branch : "-")}
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
                           {formatDate(c.datecreated)}

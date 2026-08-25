@@ -1,4 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  DndContext,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { computeReorderPayload } from "@/lib/sidebarReorder";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,12 +32,13 @@ import {
   TableRow 
 } from "@/components/ui/table";
 import { 
-  Plus, 
-  Search, 
+  Plus,
+  Search,
   Edit2,
   Trash2,
   Zap,
   Menu,
+  GripVertical,
   Icon as LucideIcon
 } from "lucide-react";
 import * as Icons from "lucide-react";
@@ -34,6 +52,31 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { mainSidebarService } from "@/api/services/mainsidebar.service";
 import { toast } from "sonner";
+
+const SortableRow = ({ id, canDrag, children }: { id: string; canDrag: boolean; children: React.ReactNode }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled: !canDrag });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+  return (
+    <TableRow ref={setNodeRef} style={style} className="hover:bg-accent/5 transition-colors border-border/40 group">
+      <TableCell className="w-8 px-2 py-4">
+        <button
+          type="button"
+          {...(canDrag ? { ...attributes, ...listeners } : {})}
+          disabled={!canDrag}
+          title={canDrag ? "Drag to reorder" : "Clear search to reorder"}
+          className={`flex items-center justify-center h-8 w-8 rounded-lg text-muted-foreground/50 ${canDrag ? "cursor-grab active:cursor-grabbing hover:text-foreground hover:bg-accent/10" : "cursor-not-allowed opacity-40"}`}
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+      </TableCell>
+      {children}
+    </TableRow>
+  );
+};
 
 const SetupMainSidebar = () => {
   const queryClient = useQueryClient();
@@ -59,6 +102,38 @@ const SetupMainSidebar = () => {
     queryKey: ["mainsidebar"],
     queryFn: mainSidebarService.getSidebarItems,
   });
+
+  const [orderedItems, setOrderedItems] = useState<any[]>([]);
+  useEffect(() => {
+    setOrderedItems(menuItems);
+  }, [menuItems]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const reorderMutation = useMutation({
+    mutationFn: (items: { id: string; order: number }[]) => mainSidebarService.reorderSidebarItems(items),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["mainsidebar"] });
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to reorder menu items");
+      setOrderedItems(menuItems);
+    }
+  });
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = orderedItems.findIndex((i: any) => i._id === active.id);
+    const newIndex = orderedItems.findIndex((i: any) => i._id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const { reordered, payload } = computeReorderPayload(orderedItems, oldIndex, newIndex);
+    setOrderedItems(reordered);
+    reorderMutation.mutate(payload);
+  };
 
   const createMutation = useMutation({
     mutationFn: (data: any) => mainSidebarService.createSidebarItem(data),
@@ -158,7 +233,7 @@ const SetupMainSidebar = () => {
     }
   };
 
-  const filteredData = menuItems.filter((item: any) => 
+  const filteredData = orderedItems.filter((item: any) =>
     item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.group?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -239,8 +314,9 @@ const SetupMainSidebar = () => {
               <Table>
                 <TableHeader className="bg-accent/10">
                   <TableRow className="hover:bg-transparent border-border/40">
+                    <TableHead className="w-8 px-2 py-4" title={searchTerm ? "Clear search to reorder" : "Drag to reorder"} />
                     <TableHead className="w-12 px-4 py-4">
-                      <Checkbox 
+                      <Checkbox
                         checked={selectedItems.length > 0 && selectedItems.length === filteredData.length}
                         onCheckedChange={handleSelectAll}
                         className="border-muted-foreground/30"
@@ -254,11 +330,13 @@ const SetupMainSidebar = () => {
                     <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 text-right pr-6">Options</TableHead>
                   </TableRow>
                 </TableHeader>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={filteredData.map((i: any) => i._id)} strategy={verticalListSortingStrategy}>
                 <TableBody>
                   {isLoading ? (
                     Array.from({ length: 3 }).map((_, i) => (
                       <TableRow key={i} className="animate-pulse border-border/40">
-                        <TableCell colSpan={7} className="py-8">
+                        <TableCell colSpan={8} className="py-8">
                            <div className="h-4 bg-muted rounded w-full" />
                         </TableCell>
                       </TableRow>
@@ -267,9 +345,9 @@ const SetupMainSidebar = () => {
                     filteredData.map((item: any) => {
                       const IconComponent = (Icons as any)[item.icon] || Icons.Circle;
                       return (
-                        <TableRow key={item._id} className="hover:bg-accent/5 transition-colors border-border/40 group">
+                        <SortableRow key={item._id} id={item._id} canDrag={!searchTerm}>
                           <TableCell className="px-4 py-4">
-                            <Checkbox 
+                            <Checkbox
                               checked={selectedItems.includes(item._id)}
                               onCheckedChange={(checked) => {
                                 if (checked) setSelectedItems([...selectedItems, item._id]);
@@ -297,9 +375,9 @@ const SetupMainSidebar = () => {
                           </TableCell>
                           <TableCell className="py-4 text-right pr-6">
                             <div className="flex items-center justify-end gap-1">
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
+                              <Button
+                                variant="ghost"
+                                size="icon"
                                 className="h-8 w-8 rounded-lg hover:bg-amber-50 hover:text-amber-600 transition-colors"
                                 onClick={() => openModal(item)}
                               >
@@ -315,12 +393,12 @@ const SetupMainSidebar = () => {
                               </Button>
                             </div>
                           </TableCell>
-                        </TableRow>
+                        </SortableRow>
                       );
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={7} className="h-64 text-center">
+                      <TableCell colSpan={8} className="h-64 text-center">
                         <div className="flex flex-col items-center justify-center gap-3">
                           <div className="p-4 rounded-full bg-accent/10 text-muted-foreground/40">
                             <Menu className="h-8 w-8" />
@@ -331,6 +409,8 @@ const SetupMainSidebar = () => {
                     </TableRow>
                   )}
                 </TableBody>
+                </SortableContext>
+                </DndContext>
               </Table>
             </div>
           </CardContent>
