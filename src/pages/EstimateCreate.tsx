@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
 export default function EstimateCreate() {
   const { clientId, id } = useParams();
@@ -93,7 +94,8 @@ export default function EstimateCreate() {
     shipping_city: "",
     shipping_state: "",
     shipping_zip: "",
-    shipping_country: ""
+    shipping_country: "",
+    branch: ""
   });
 
   const [showQtyAs, setShowQtyAs] = useState("qty");
@@ -175,8 +177,37 @@ export default function EstimateCreate() {
     }
   }, [estimate, taxes]);
 
-  const { user } = usePermissions();
+  const { user, isModuleEnabled } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show/fetch it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+
+  const { data: branchesRaw = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
+
+  const filteredCustomers = useMemo(() => {
+    if (!canUseBranch) return customers;
+    if (!formData.branch) return [];
+    const targetBranch = formData.branch.toLowerCase().trim();
+    const branchObj = branches.find((b: any) => b.name && b.name.toLowerCase().trim() === targetBranch);
+    return customers.filter((c: any) => {
+      const cBranchName = typeof c.branch === "object" ? c.branch?.name : c.branch;
+      const cBranchId = typeof c.branch === "object" ? (c.branch?._id || c.branch?.id) : c.branch;
+      if (cBranchName && typeof cBranchName === "string" && cBranchName.toLowerCase().trim() === targetBranch) {
+        return true;
+      }
+      if (branchObj && cBranchId && String(cBranchId) === String(branchObj._id)) {
+        return true;
+      }
+      return false;
+    });
+  }, [customers, formData.branch, canUseBranch, branches]);
 
   const isIntraState = () => {
     const customer = customers.find((c: any) => c._id === formData.client);
@@ -263,6 +294,10 @@ export default function EstimateCreate() {
   });
 
   const handleSave = (action: string = "save") => {
+    if (canUseBranch && !formData.branch) {
+      toast({ title: "Required Field", description: "Branch is mandatory.", variant: "destructive" });
+      return;
+    }
     if (!formData.client) {
       toast({ title: "Required Fields", description: "Customer is mandatory.", variant: "destructive" });
       return;
@@ -312,14 +347,41 @@ export default function EstimateCreate() {
           {/* Left Column: Core Details */}
           <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
             <CardContent className="p-8 space-y-8">
+              {/* Branch — pilot-only, dynamically fetched from HRMS */}
+              {canUseBranch && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Branch</Label>
+                    <span className="text-destructive text-lg leading-none">*</span>
+                  </div>
+                  <Select
+                    value={formData.branch || "none"}
+                    onValueChange={(v) => {
+                      const val = v === "none" ? "" : v;
+                      setFormData(p => ({ ...p, branch: val, client: "" }));
+                    }}
+                  >
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50">
+                      <SelectValue placeholder="Select Branch" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="none">Select Branch</SelectItem>
+                      {branches.map((b) => (
+                        <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Customer</Label>
                   <span className="text-destructive text-lg leading-none">*</span>
                 </div>
                 <SearchableSelect
-                  placeholder="Select Customer"
-                  options={customers.map((c: any) => ({ value: c._id, label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email }))}
+                  placeholder={canUseBranch && !formData.branch ? "Please select a branch first..." : "Select Customer"}
+                  options={filteredCustomers.map((c: any) => ({ value: c._id, label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email }))}
                   value={formData.client}
                   onValueChange={(val) => {
                     const client = customers.find((c: any) => c._id === val);

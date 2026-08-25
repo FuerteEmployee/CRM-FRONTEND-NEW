@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
@@ -26,10 +27,10 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
-  "1": { label: "Draft",    className: "bg-muted text-muted-foreground" },
-  "2": { label: "Sent",     className: "bg-blue-500/10 text-blue-500" },
-  "3": { label: "Open",     className: "bg-primary/10 text-primary" },
-  "4": { label: "Revised",  className: "bg-orange-500/10 text-orange-500" },
+  "1": { label: "Draft", className: "bg-muted text-muted-foreground" },
+  "2": { label: "Sent", className: "bg-blue-500/10 text-blue-500" },
+  "3": { label: "Open", className: "bg-primary/10 text-primary" },
+  "4": { label: "Revised", className: "bg-orange-500/10 text-orange-500" },
   "5": { label: "Declined", className: "bg-destructive/10 text-destructive" },
   "6": { label: "Accepted", className: "bg-green-500/10 text-green-500" },
 };
@@ -495,7 +496,11 @@ const Proposals = () => {
   const [previewProposal, setPreviewProposal] = useState<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const navigate = useNavigate();
-  const { can } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
   const { formatAmount, symbol } = useCurrency();
   const { data: currencies = [] } = useQuery<any>({
     queryKey: ["currencies"],
@@ -562,7 +567,7 @@ const Proposals = () => {
 
   const handleBulkAction = async () => {
     if (selectedProposals.length === 0) {
-      toast({ title: "Error", description: "No items selected."});
+      toast({ title: "Error", description: "No items selected." });
       return;
     }
     setIsBulkLoading(true);
@@ -579,7 +584,7 @@ const Proposals = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false, status: "" });
     } catch {
-      toast({ title: "Error", description: "Failed to perform bulk action."});
+      toast({ title: "Error", description: "Failed to perform bulk action." });
     } finally {
       setIsBulkLoading(false);
     }
@@ -633,7 +638,7 @@ const Proposals = () => {
             </Select>
             <Dialog open={bulkActionOpen} onOpenChange={(open) => {
               if (open && selectedProposals.length === 0) {
-                toast({ title: "Error", description: "Please select at least one item first."});
+                toast({ title: "Error", description: "Please select at least one item first." });
                 return;
               }
               setBulkActionOpen(open);
@@ -654,13 +659,13 @@ const Proposals = () => {
                       id="mass_delete"
                       className="border-red-200 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
                       checked={bulkState.massDelete}
-                      onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                      onCheckedChange={(checked) => setBulkState({ ...bulkState, massDelete: checked as boolean })}
                     />
                     <Label htmlFor="mass_delete" className="text-sm font-semibold text-red-600">Mass Delete</Label>
                   </div>
                   <div className="space-y-1.5 pt-2">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Change Status</Label>
-                    <Select value={bulkState.status} onValueChange={(val) => setBulkState({...bulkState, status: val})} disabled={bulkState.massDelete}>
+                    <Select value={bulkState.status} onValueChange={(val) => setBulkState({ ...bulkState, status: val })} disabled={bulkState.massDelete}>
                       <SelectTrigger className="h-10 bg-slate-50/50 border-slate-200 rounded-lg">
                         <SelectValue placeholder="Select Status" />
                       </SelectTrigger>
@@ -692,7 +697,8 @@ const Proposals = () => {
                 { header: "To", key: (p) => p.proposal_to || p.rel_id || p.customer || "N/A" },
                 { header: "Total", key: (p) => p.total || p.amount || "0" },
                 { header: "Date", key: "date" },
-                { header: "Status", key: "status" }
+                { header: "Status", key: "status" },
+                ...(canUseBranch ? [{ header: "Branch", key: (p: any) => (typeof p.branch === "object" ? (p.branch?.name || "-") : (p.branch || "-")) }] : []),
               ]}
             />
             <ImportButton onData={handleImportData} loading={importMutation.isPending} />
@@ -724,7 +730,11 @@ const Proposals = () => {
                     onChange={(e) => handleSelectAll(e.target.checked)}
                   />
                 </th>
-                {["Proposal #", "Subject", "To", "Total", "Date", "Open Till", "Tags", "Date Created", "Status", "Actions"].map(h => (
+                {[
+                  "Proposal #", "Subject", "To", "Total", "Date", "Open Till", "Tags", "Date Created", "Status",
+                  ...(canUseBranch ? ["Branch"] : []),
+                  "Actions",
+                ].map(h => (
                   <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
                 ))}
               </tr>
@@ -732,11 +742,11 @@ const Proposals = () => {
             <tbody className="divide-y divide-border/50">
               {isLoadingProposals ? (
                 Array(3).fill(0).map((_, i) => (
-                  <tr key={i}><td colSpan={11} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                  <tr key={i}><td colSpan={11 + (canUseBranch ? 1 : 0)} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
                 ))
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-muted-foreground italic">
+                  <td colSpan={11 + (canUseBranch ? 1 : 0)} className="px-6 py-12 text-center text-muted-foreground italic">
                     No proposals found.
                   </td>
                 </tr>
@@ -788,6 +798,11 @@ const Proposals = () => {
                           {status.label}
                         </Badge>
                       </td>
+                      {canUseBranch && (
+                        <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                          {typeof prop.branch === "object" ? (prop.branch?.name || "-") : (prop.branch || "-")}
+                        </td>
+                      )}
                       <td className="px-6 py-4">
                         <TableActions
                           onView={() => setPreviewProposal(prop)}

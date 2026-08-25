@@ -59,6 +59,13 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
   const [loading, setLoading] = useState(true);
 
   const syncPermissions = async () => {
+    // No token yet (e.g. on the public login page) — nothing to sync, and
+    // calling /auth/me here would just be a guaranteed 401.
+    if (!localStorage.getItem("crm_token")) {
+      setLoading(false);
+      return;
+    }
+
     // Only set loading if we don't have cached data to show
     if (!user) setLoading(true);
 

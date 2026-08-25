@@ -43,6 +43,7 @@ import { fileService } from "@/api/services/file.service";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { InquiryOutcomeDialog } from "@/components/tasks/InquiryOutcomeDialog";
 
 interface TaskViewModalProps {
@@ -72,7 +73,11 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { symbol } = useCurrency();
-  const { user, isAdmin } = usePermissions();
+  const { user, isAdmin, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
   const [newChecklist, setNewChecklist] = useState("");
   const [newComment, setNewComment] = useState("");
   const [isEditingDesc, setIsEditingDesc] = useState(false);
@@ -652,6 +657,13 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
                   <span className="text-slate-500 font-medium w-24">Priority:</span>
                   <span className="font-bold text-cyan-500">{priorityText}</span>
                 </div>
+                {canUseBranch && task?.branch && (
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 flex justify-center"><div className="h-4 w-4 text-slate-400">🏢</div></div>
+                    <span className="text-slate-500 font-medium w-24">Branch:</span>
+                    <span className="font-bold text-slate-800">{typeof task.branch === "object" ? (task.branch?.name || "-") : task.branch}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-3">
                   <div className="w-6 flex justify-center"><div className="h-4 w-4 text-slate-400">⏱</div></div>
                   <span className="text-slate-500 font-medium w-24">Hourly Rate:</span>

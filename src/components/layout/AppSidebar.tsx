@@ -70,13 +70,16 @@ import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   KeyboardSensor,
   useSensor,
   useSensors,
   closestCenter,
+  type DragStartEvent,
   type DragEndEvent,
 } from "@dnd-kit/core";
+import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
@@ -326,6 +329,29 @@ export function AppSidebar() {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
+  // The menu list scrolls (overflow-auto), which clips the dragged row if it's
+  // just moved in-place via CSS transform — render the active row in a
+  // DragOverlay instead, which portals to <body> so it floats above the
+  // scroll container instead of being cut off by it.
+  const [activeDragItem, setActiveDragItem] = useState<any>(null);
+  const handleSidebarDragStart = (event: DragStartEvent) => {
+    const allSections = [
+      dynamicNav.mainNav,
+      dynamicNav.customersNav,
+      dynamicNav.salesNav,
+      dynamicNav.managementNav,
+      dynamicNav.utilitiesNav,
+      dynamicNav.reportsNav,
+      dynamicNav.hrmsNav,
+    ];
+    for (const section of allSections) {
+      const found = section.find((i: any) => i._id === event.active.id);
+      if (found) {
+        setActiveDragItem(found);
+        return;
+      }
+    }
+  };
   const reorderMutation = useMutation({
     mutationFn: (items: { id: string; order: number }[]) => mainSidebarService.reorderSidebarItems(items),
     onSuccess: (data: any[]) => {
@@ -389,6 +415,7 @@ export function AppSidebar() {
   // since a cross-section drop would visually look like the item jumped
   // into a different collapsible even though it never actually changed group.
   const handleSidebarDragEnd = (event: DragEndEvent) => {
+    setActiveDragItem(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const sections = [
@@ -732,13 +759,21 @@ export function AppSidebar() {
           to={`${basePath}/dashboard`}
           className="flex items-center gap-2.5 group"
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm group-hover:shadow-md transition-shadow duration-300 overflow-hidden">
-            {logoLight && !logoError ? (
-              <img src={logoLight} alt="Logo" className="h-full w-full object-cover" onError={() => setLogoError(true)} />
-            ) : (
-              companyName[0]
-            )}
-          </div>
+          {logoLight && !logoError ? (
+            <img
+              src={logoLight}
+              alt="Logo"
+              className={cn(
+                "h-9 w-auto object-contain shrink-0",
+                collapsed ? "max-w-9" : "max-w-[140px]",
+              )}
+              onError={() => setLogoError(true)}
+            />
+          ) : (
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm group-hover:shadow-md transition-shadow duration-300 shrink-0">
+              {companyName[0]}
+            </div>
+          )}
           {!collapsed && (
             <span className="text-lg font-bold tracking-tight text-sidebar-foreground">
               {companyName}
@@ -762,7 +797,14 @@ export function AppSidebar() {
         ) : menuMode === "main" ? (
           <SidebarGroup className="py-2">
             <SidebarGroupContent>
-              <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleSidebarDragEnd}>
+              <DndContext
+                sensors={dndSensors}
+                collisionDetection={closestCenter}
+                modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+                onDragStart={handleSidebarDragStart}
+                onDragEnd={handleSidebarDragEnd}
+                onDragCancel={() => setActiveDragItem(null)}
+              >
               <SidebarMenu className="gap-0.5">
                 {renderDraggableSection(dynamicNav.mainNav.filter((i: any) => !isHrmsOnly || i.title === "Dashboard"))}
                 {!isHrmsOnly ? (
@@ -810,6 +852,17 @@ export function AppSidebar() {
                   </>
                 )}
               </SidebarMenu>
+              <DragOverlay dropAnimation={null}>
+                {activeDragItem ? (() => {
+                  const OverlayIcon = (Icons as any)[activeDragItem.icon] || Icons.Circle;
+                  return (
+                    <div className="flex items-center gap-2.5 h-8 pl-2 pr-3 rounded-md bg-sidebar-accent shadow-lg border border-sidebar-border text-[13px] font-medium text-sidebar-foreground">
+                      <OverlayIcon className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{activeDragItem.title}</span>
+                    </div>
+                  );
+                })() : null}
+              </DragOverlay>
               </DndContext>
             </SidebarGroupContent>
           </SidebarGroup>

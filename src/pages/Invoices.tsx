@@ -739,13 +739,16 @@ const Invoices = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can, user } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show/fetch it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
 
   const { data: branchesRaw = [] } = useQuery({
     queryKey: ["hrms-branches-list"],
     queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
-    enabled: isPilot,
+    enabled: canUseBranch,
     staleTime: 5 * 60 * 1000,
   });
   const branches: { _id: string; name: string }[] = branchesRaw;
@@ -763,8 +766,8 @@ const Invoices = () => {
     "Item Name", "Item Group", "Item HSN", "GST percentage", "Item Batch",
     "Quantity", "Rate", "Unit",
     "Amount",
-    ...(isPilot ? ["Branch"] : []),
-  ], [isPilot]);
+    ...(canUseBranch ? ["Branch"] : []),
+  ], [isPilot, canUseBranch]);
 
   const exportColumns = useMemo(() => [
     { header: "Voucher Number", key: "voucherNumber" },
@@ -785,8 +788,8 @@ const Invoices = () => {
     { header: "Rate", key: "rate", type: "number" as const },
     { header: "Unit", key: "unit" },
     { header: "Amount", key: "amount", type: "number" as const },
-    ...(isPilot ? [{ header: "Branch", key: "branch" }] : []),
-  ], [isPilot]);
+    ...(canUseBranch ? [{ header: "Branch", key: "branch" }] : []),
+  ], [isPilot, canUseBranch]);
 
   const TABLE_COLUMN_COUNT = 1 + tableHeaders.length + 1;
 
@@ -1236,7 +1239,7 @@ const Invoices = () => {
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.rate || 0)}</td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.unit || "-"}</td>
                       <td className="px-6 py-4 font-black text-foreground whitespace-nowrap">{formatRowAmount(inv, row.amount || 0)}</td>
-                      {isPilot && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.branch || "-"}</td>}
+                      {canUseBranch && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.branch || "-"}</td>}
                       <td className="px-6 py-4">
                         <TableActions
                           onView={() => setPreviewInvoice(inv)}

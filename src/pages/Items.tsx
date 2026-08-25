@@ -35,6 +35,8 @@ import { customFieldService } from "@/api/services/custom-field.service";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrency } from "@/context/CurrencyContext";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
 const Items = () => {
   const { symbol } = useCurrency();
@@ -46,7 +48,19 @@ const Items = () => {
   const [itemsPerPage, setItemsPerPage] = useState("10");
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show/fetch it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+
+  const { data: branchesRaw = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
 
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
@@ -65,6 +79,7 @@ const Items = () => {
     hsn_sac_code: "",
     cess_rate: "0",
     tax_inclusive: false,
+    branch: "",
     custom_fields: {},
   });
 
@@ -80,6 +95,7 @@ const Items = () => {
     hsn_sac_code: "",
     cess_rate: "0",
     tax_inclusive: false,
+    branch: "",
     custom_fields: {},
   });
 
@@ -318,6 +334,10 @@ const Items = () => {
   };
 
   const validateForm = (form: any) => {
+    if (canUseBranch && (!form.branch || !form.branch.trim())) {
+      toast({ title: "Required Field", description: "Branch is required.", variant: "destructive" });
+      return false;
+    }
     if (!form.name || !form.name.trim()) {
       toast({ title: "Required Field", description: "Item Name is required.", variant: "destructive" });
       return false;
@@ -379,6 +399,7 @@ const Items = () => {
       hsn_sac_code: item.hsn_sac_code || "",
       cess_rate: String(item.cess_rate ?? 0),
       tax_inclusive: item.tax_inclusive || false,
+      branch: typeof item.branch === "object" ? (item.branch?.name || "") : (item.branch || ""),
       custom_fields: item.custom_fields || {},
     });
   };
@@ -486,6 +507,9 @@ const Items = () => {
         },
       },
     ];
+    if (canUseBranch) {
+      cols.push({ header: "Branch", key: (i: any) => (typeof i.branch === "object" ? (i.branch?.name || "-") : (i.branch || "-")) });
+    }
     tableCustomFields.forEach((cf: any) => {
       cols.push({
         header: cf.name,
@@ -493,7 +517,7 @@ const Items = () => {
       });
     });
     return cols;
-  }, [tableCustomFields]);
+  }, [tableCustomFields, canUseBranch]);
 
   return (
     <DashboardLayout>
@@ -528,6 +552,25 @@ const Items = () => {
                   </DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleCreateSubmit} className="space-y-4 pt-2">
+                  {canUseBranch && (
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold text-slate-700">Branch <span className="text-destructive">*</span></Label>
+                      <Select
+                        value={createForm.branch || "none"}
+                        onValueChange={(v) => setCreateForm((p: any) => ({ ...p, branch: v === "none" ? "" : v }))}
+                      >
+                        <SelectTrigger className="rounded-xl h-11 border-slate-200 bg-white">
+                          <SelectValue placeholder="Select Branch" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                          <SelectItem value="none">Select Branch</SelectItem>
+                          {branches.map((b) => (
+                            <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label className="text-xs font-bold text-slate-700">Name <span className="text-destructive">*</span></Label>
                     <Input
@@ -761,6 +804,7 @@ const Items = () => {
                     <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Unit</th>
                     <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Tax</th>
                     <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">HSN/SAC</th>
+                    {canUseBranch && <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Branch</th>}
                     {tableCustomFields.map((cf: any) => (
                       <th key={cf._id} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
                         {cf.name}
@@ -775,14 +819,14 @@ const Items = () => {
                       .fill(0)
                       .map((_, i) => (
                         <tr key={i}>
-                          <td colSpan={11 + tableCustomFields.length} className="p-4">
+                          <td colSpan={11 + (canUseBranch ? 1 : 0) + tableCustomFields.length} className="p-4">
                             <Skeleton className="h-10 w-full" />
                           </td>
                         </tr>
                       ))
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={11 + tableCustomFields.length} className="px-6 py-12 text-center text-muted-foreground italic">
+                      <td colSpan={11 + (canUseBranch ? 1 : 0) + tableCustomFields.length} className="px-6 py-12 text-center text-muted-foreground italic">
                         No database items found. Use "New Item" to populate the list.
                       </td>
                     </tr>
@@ -832,6 +876,11 @@ const Items = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 font-medium text-slate-500">{item.hsn_sac_code || "-"}</td>
+                        {canUseBranch && (
+                          <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                            {typeof item.branch === "object" ? (item.branch?.name || "-") : (item.branch || "-")}
+                          </td>
+                        )}
                         {tableCustomFields.map((cf: any) => {
                           const val = item.custom_fields?.[cf.slug] ?? item.custom_fields?.[cf._id] ?? "-";
                           return (
@@ -977,6 +1026,25 @@ const Items = () => {
           </DialogHeader>
           {editItem && (
             <form onSubmit={handleEditSubmit} className="space-y-4 pt-2">
+              {canUseBranch && (
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-slate-700">Branch <span className="text-destructive">*</span></Label>
+                  <Select
+                    value={editForm.branch || "none"}
+                    onValueChange={(v) => setEditForm((p: any) => ({ ...p, branch: v === "none" ? "" : v }))}
+                  >
+                    <SelectTrigger className="rounded-xl h-11 border-slate-200 bg-white">
+                      <SelectValue placeholder="Select Branch" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                      <SelectItem value="none">Select Branch</SelectItem>
+                      {branches.map((b) => (
+                        <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-700">Name <span className="text-destructive">*</span></Label>
                 <Input

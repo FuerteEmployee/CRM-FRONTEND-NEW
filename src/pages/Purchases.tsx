@@ -32,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { useCurrency } from "@/context/CurrencyContext";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
@@ -108,8 +109,12 @@ const toDateInput = (d: any) => (d ? new Date(d).toISOString().split("T")[0] : "
 const Purchases = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can, user } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show/fetch the HRMS branch
+  // picker when the tenant's plan actually includes HRMS, even for a
+  // pilot-flagged user (fall back to a plain text Branch field otherwise).
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
   const { symbol } = useCurrency();
   const { getSetting } = useSettings();
   const vendorLinkageEnabled = !!getSetting("vendor_linked_purchases", false);
@@ -126,6 +131,14 @@ const Purchases = () => {
     queryKey: ["staff"],
     queryFn: staffService.getAll,
   });
+
+  const { data: branchesRaw = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
 
   const [search, setSearch] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -529,6 +542,10 @@ const Purchases = () => {
   };
 
   const handleSave = () => {
+    if (canUseBranch && !formData.branch) {
+      toast({ title: "Error", description: "Branch is required", variant: "destructive" });
+      return;
+    }
     if (!formData.bill_no || !formData.supplier_name || !(parseFloat(formData.amount) > 0)) {
       toast({ title: "Error", description: "Bill Reference, Company Name and Price are required", variant: "destructive" });
       return;
@@ -1014,6 +1031,26 @@ const Purchases = () => {
             </DialogHeader>
             <div className="space-y-6 py-2">
 
+              {/* Branch Selection (Top of form, required for pilot) */}
+              {canUseBranch && (
+                <div className="space-y-1.5">
+                  <Label className={labelCls}>* Branch</Label>
+                  <Select value={formData.branch || "none"} onValueChange={(val) => setField("branch", val === "none" ? "" : val)}>
+                    <SelectTrigger className={inputCls}>
+                      <SelectValue placeholder="Select branch..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Select Branch</SelectItem>
+                      {branches.map((b: any) => (
+                        <SelectItem key={b._id} value={b.name}>
+                          {b.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Supplier */}
               <div>
                 <div className="text-xs font-black uppercase tracking-widest text-primary mb-3">Supplier</div>
@@ -1085,10 +1122,12 @@ const Purchases = () => {
                         <Label className={labelCls}>Journal</Label>
                         <Input value={formData.journal} onChange={(e) => setField("journal", e.target.value)} placeholder="Journal entry / ledger" className={inputCls} />
                       </div>
-                      <div className="space-y-1.5">
-                        <Label className={labelCls}>Branch</Label>
-                        <Input value={formData.branch} onChange={(e) => setField("branch", e.target.value)} placeholder="e.g. Sparkling Techno Tools" className={inputCls} />
-                      </div>
+                      {!canUseBranch && (
+                        <div className="space-y-1.5">
+                          <Label className={labelCls}>Branch</Label>
+                          <Input value={formData.branch} onChange={(e) => setField("branch", e.target.value)} placeholder="e.g. Sparkling Techno Tools" className={inputCls} />
+                        </div>
+                      )}
                       <div className="space-y-1.5">
                         <Label className={labelCls}>Sales Person</Label>
                         {isPilot ? (

@@ -140,10 +140,42 @@ export default function InvoiceCreate() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const { user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show/fetch it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+
+  const { data: branchesRaw = [] } = useQuery({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
+
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: () => customerService.getAll().then((res: any) => res.data || res)
   });
+
+  const filteredCustomers = useMemo(() => {
+    if (!canUseBranch) return customers;
+    if (!formData.branch) return [];
+    const targetBranch = formData.branch.toLowerCase().trim();
+    const branchObj = branches.find((b: any) => b.name && b.name.toLowerCase().trim() === targetBranch);
+    return customers.filter((c: any) => {
+      const cBranchName = typeof c.branch === "object" ? c.branch?.name : c.branch;
+      const cBranchId = typeof c.branch === "object" ? (c.branch?._id || c.branch?.id) : c.branch;
+      if (cBranchName && typeof cBranchName === "string" && cBranchName.toLowerCase().trim() === targetBranch) {
+        return true;
+      }
+      if (branchObj && cBranchId && String(cBranchId) === String(branchObj._id)) {
+        return true;
+      }
+      return false;
+    });
+  }, [customers, formData.branch, canUseBranch, branches]);
 
   const { data: customer } = useQuery({
     queryKey: ["customer", formData.client],
@@ -250,17 +282,6 @@ export default function InvoiceCreate() {
       setAdjustmentValue(invoice.adjustment || 0);
     }
   }, [invoice, taxes, payments]);
-
-  const { user } = usePermissions();
-  const isPilot = isTrinetraPilotUser(user?.email);
-
-  const { data: branchesRaw = [] } = useQuery({
-    queryKey: ["hrms-branches-list"],
-    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
-    enabled: isPilot,
-    staleTime: 5 * 60 * 1000,
-  });
-  const branches: { _id: string; name: string }[] = branchesRaw;
 
   const isIntraState = () => {
     if (!customer) return true; // default/fallback
@@ -373,6 +394,14 @@ export default function InvoiceCreate() {
   });
 
   const handleSave = (statusArg: string) => {
+    if (canUseBranch && !formData.branch) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a branch."
+      });
+      return;
+    }
+
     if (!formData.client) {
       toast({ 
         title: "Validation Error", 
@@ -469,6 +498,33 @@ export default function InvoiceCreate() {
           {/* Left Column: Basic Info */}
           <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
             <CardContent className="p-8 space-y-8">
+              {/* Branch — pilot-only, dynamically fetched from HRMS */}
+              {canUseBranch && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Branch</Label>
+                    <span className="text-destructive text-lg leading-none">*</span>
+                  </div>
+                  <Select
+                    value={formData.branch || "none"}
+                    onValueChange={(v) => {
+                      const val = v === "none" ? "" : v;
+                      setFormData(p => ({ ...p, branch: val, client: "", project: "" }));
+                    }}
+                  >
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="Select Branch" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      <SelectItem value="none">Select Branch</SelectItem>
+                      {branches.map((b) => (
+                        <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Customer Selection */}
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
@@ -476,8 +532,8 @@ export default function InvoiceCreate() {
                   <span className="text-destructive text-lg leading-none">*</span>
                 </div>
                 <SearchableSelect
-                  placeholder="Select Customer"
-                  options={customers.map((c: any) => ({ value: c._id, label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email }))}
+                  placeholder={canUseBranch && !formData.branch ? "Please select a branch first..." : "Select Customer"}
+                  options={filteredCustomers.map((c: any) => ({ value: c._id, label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email }))}
                   value={formData.client}
                   onValueChange={(val) => setFormData(p => ({ ...p, client: val, project: "" }))}
                 />
@@ -735,27 +791,6 @@ export default function InvoiceCreate() {
                           <SelectItem key={s._id || s.id} value={name}>{name}</SelectItem>
                         );
                       })}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Branch — pilot-only, dynamically fetched from HRMS */}
-              {isPilot && (
-                <div className="space-y-2.5">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Branch</Label>
-                  <Select
-                    value={formData.branch || "none"}
-                    onValueChange={(v) => setFormData(p => ({ ...p, branch: v === "none" ? "" : v }))}
-                  >
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
-                      <SelectValue placeholder="Select Branch" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
-                      <SelectItem value="none">None</SelectItem>
-                      {branches.map((b) => (
-                        <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
-                      ))}
                     </SelectContent>
                   </Select>
                 </div>

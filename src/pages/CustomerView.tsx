@@ -1959,15 +1959,22 @@ export default function CustomerView() {
                                   <div className="space-y-1.5">
                                     <Label className="text-xs text-muted-foreground uppercase">Branch</Label>
                                     <Select
-                                      value={formData.branch || ""}
-                                      onValueChange={(v) => handleSelectChange("branch", v)}
-                                      disabled={!formData.city}
+                                      value={formData.branch || "none"}
+                                      onValueChange={(v) => {
+                                        const val = v === "none" ? "" : v;
+                                        handleSelectChange("branch", val);
+                                        const selectedB = branches.find((b: any) => (b._id || b.id) === val || b.name === val);
+                                        if (selectedB?.city && !formData.city) {
+                                          handleSelectChange("city", selectedB.city);
+                                        }
+                                      }}
                                     >
                                       <SelectTrigger className="h-9">
-                                        <SelectValue placeholder={formData.city ? "Select branch" : "Set a city first"} />
+                                        <SelectValue placeholder="Select branch" />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        {branchesForFormCity.map((b) => (
+                                        <SelectItem value="none">None</SelectItem>
+                                        {branches.map((b) => (
                                           <SelectItem key={b._id || b.id} value={(b._id || b.id) as string}>{b.name}</SelectItem>
                                         ))}
                                       </SelectContent>

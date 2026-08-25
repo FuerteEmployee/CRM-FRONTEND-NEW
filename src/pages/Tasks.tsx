@@ -58,6 +58,8 @@ import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { customerService } from "@/api/services/customer.service";
@@ -107,7 +109,8 @@ const Tasks = () => {
     assignees: [],
     followers: [],
     category: "To-Do",
-    inquiry_outcome: ""
+    inquiry_outcome: "",
+    branch: ""
   });
 
   const handleInputChange = (e: any) => {
@@ -146,7 +149,18 @@ const Tasks = () => {
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can, user, isStaff, isAdmin } = usePermissions();
+  const { can, user, isStaff, isAdmin, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show/fetch it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+  const { data: branchesRaw = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
   const navigate = useNavigate();
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery<any[]>({
@@ -169,12 +183,30 @@ const Tasks = () => {
     queryFn: customerService.getAll,
   });
 
+  const filteredCustomers = useMemo(() => {
+    if (!canUseBranch) return customers;
+    if (!formData.branch) return [];
+    const targetBranch = formData.branch.toLowerCase().trim();
+    const branchObj = branches.find((b: any) => b.name && b.name.toLowerCase().trim() === targetBranch);
+    return customers.filter((c: any) => {
+      const cBranchName = typeof c.branch === "object" ? c.branch?.name : c.branch;
+      const cBranchId = typeof c.branch === "object" ? (c.branch?._id || c.branch?.id) : c.branch;
+      if (cBranchName && typeof cBranchName === "string" && cBranchName.toLowerCase().trim() === targetBranch) {
+        return true;
+      }
+      if (branchObj && cBranchId && String(cBranchId) === String(branchObj._id)) {
+        return true;
+      }
+      return false;
+    });
+  }, [customers, formData.branch, canUseBranch, branches]);
+
   const customerOptions = useMemo(() =>
-    customers.map((c: any) => ({
-      label: c.company || c.firstname + ' ' + c.lastname,
+    filteredCustomers.map((c: any) => ({
+      label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email,
       value: c._id
     }))
-    , [customers]);
+    , [filteredCustomers]);
 
   const staffOptions = useMemo(() =>
     staffMembers.map((member: any) => ({
@@ -410,7 +442,8 @@ const Tasks = () => {
       assignees: [],
       followers: [],
       category: "To-Do",
-      inquiry_outcome: ""
+      inquiry_outcome: "",
+      branch: ""
     });
   };
 
@@ -433,7 +466,8 @@ const Tasks = () => {
       assignees: task.assignees || [],
       followers: task.followers || [],
       category: task.category || "To-Do",
-      inquiry_outcome: task.inquiry_outcome || ""
+      inquiry_outcome: task.inquiry_outcome || "",
+      branch: typeof task.branch === "object" ? (task.branch?.name || "") : (task.branch || "")
     });
     setIsNewTaskModalOpen(true);
   };
@@ -462,6 +496,10 @@ const Tasks = () => {
   };
 
   const handleSave = () => {
+    if (canUseBranch && !formData.branch) {
+      toast({ title: "Error", description: "Please select a branch", variant: "destructive" });
+      return;
+    }
     if (!formData.name || !formData.startdate) {
       toast({ title: "Error", description: "Subject and Start Date are required fields", variant: "destructive" });
       return;
@@ -583,6 +621,34 @@ const Tasks = () => {
                       </div>
 
                       <div className="grid grid-cols-2 gap-6">
+                        {canUseBranch && (
+                          <div className="col-span-2 space-y-1">
+                            <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
+                              <span className="text-red-500">*</span> Branch
+                            </Label>
+                            <Select
+                              value={formData.branch || "none"}
+                              onValueChange={(v) => {
+                                const val = v === "none" ? "" : v;
+                                handleSelectChange('branch', val);
+                                if (canUseBranch && formData.related_to === 'customer') {
+                                  handleSelectChange('rel_id', '');
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
+                                <SelectValue placeholder="Select Branch" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Select Branch</SelectItem>
+                                {branches.map((b) => (
+                                  <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
                         <div className="col-span-2 space-y-1">
                           <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
                             <span className="text-red-500">*</span> Subject
@@ -619,7 +685,7 @@ const Tasks = () => {
                               options={customerOptions}
                               value={formData.rel_id}
                               onValueChange={(v) => handleSelectChange('rel_id', v)}
-                              placeholder="Search customer..."
+                              placeholder={canUseBranch && !formData.branch ? "Please select a branch first..." : "Search customer..."}
                               className="h-12 rounded-xl border-slate-200 shadow-none bg-white"
                             />
                           </div>
@@ -937,6 +1003,7 @@ const Tasks = () => {
                     { header: "Due Date", key: (t) => t.duedate ? formatDate(t.duedate) : "-" },
                     { header: "Tags", key: (t) => t.tags ? t.tags.join(", ") : "" },
                     { header: "Priority", key: (t) => priorityLabels[t.displayPriority] || "Medium" },
+                    ...(canUseBranch ? [{ header: "Branch", key: (t: any) => typeof t.branch === "object" ? (t.branch?.name || "-") : (t.branch || "-") }] : []),
                   ]}
                 />
 
@@ -1081,6 +1148,7 @@ const Tasks = () => {
                     <th className="p-4 font-bold">Start Date</th>
                     <th className="p-4 font-bold">Due Date</th>
                     <th className="p-4 font-bold">Assigned to</th>
+                    {canUseBranch && <th className="p-4 font-bold">Branch</th>}
                     <th className="p-4 font-bold">Tags</th>
                     <th className="p-4 font-bold">Priority</th>
                     <th className="p-4 font-bold text-right">Options</th>
@@ -1090,14 +1158,14 @@ const Tasks = () => {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="border-b">
-                        <td colSpan={10} className="p-4">
+                        <td colSpan={canUseBranch ? 12 : 11} className="p-4">
                           <Skeleton className="h-10 w-full" />
                         </td>
                       </tr>
                     ))
                   ) : paginatedTasks.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="p-10 text-center text-slate-500">
+                      <td colSpan={canUseBranch ? 12 : 11} className="p-10 text-center text-slate-500">
                         No tasks found.
                       </td>
                     </tr>
@@ -1193,6 +1261,11 @@ const Tasks = () => {
                               )}
                             </div>
                           </td>
+                          {canUseBranch && (
+                            <td className="p-4 text-xs font-bold text-slate-700">
+                              {typeof task.branch === "object" ? (task.branch?.name || "-") : (task.branch || "-")}
+                            </td>
+                          )}
                           <td className="p-4">
                             <div className="flex flex-wrap gap-1">
                               {task.tags && task.tags.length > 0 ? (

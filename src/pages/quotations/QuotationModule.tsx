@@ -245,8 +245,12 @@ export default function QuotationModule() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { getSetting } = useSettings();
-  const { user } = usePermissions();
+  const { user, isModuleEnabled } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch-scoped customer selection is sourced from the HRMS module — only
+  // show/fetch it when the tenant's plan actually includes HRMS, otherwise
+  // fall back to picking a customer from the full, unscoped list.
+  const canUseBranch = isModuleEnabled("hrms");
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams);
@@ -270,7 +274,7 @@ export default function QuotationModule() {
   const { data: branches = [] } = useQuery<any[]>({
     queryKey: ["hrms-branches-for-quotation"],
     queryFn: () => hrmsbranchService.getAll({ limit: 1000 }).then(res => res.data),
-    enabled: activeTab === "create",
+    enabled: activeTab === "create" && canUseBranch,
   });
   const idOf = (ref: any): string => (typeof ref === "string" ? ref : ref?._id || ref?.id || "");
   const branchIdsForType = currentType
@@ -433,10 +437,14 @@ export default function QuotationModule() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branchesForType.length]);
-  // The Customer dropdown only lists customers belonging to the selected branch.
-  const customersForType = selectedBranchId
-    ? customers.filter((c: any) => idOf(c.branch) === selectedBranchId)
-    : [];
+  // The Customer dropdown only lists customers belonging to the selected branch —
+  // unless the tenant's plan doesn't include HRMS, in which case there's no
+  // branch data to scope by, so every customer is offered instead.
+  const customersForType = !canUseBranch
+    ? customers
+    : selectedBranchId
+      ? customers.filter((c: any) => idOf(c.branch) === selectedBranchId)
+      : [];
   // When editing an existing quotation, derive the branch from the loaded client
   // so the Customer field stays populated (the quotation itself has no branch of its own).
   useEffect(() => {
@@ -1490,36 +1498,38 @@ export default function QuotationModule() {
                   </div>
                   <CardContent className="p-6 space-y-5">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Branch</Label>
-                        <div className="space-y-1">
-                          <SearchableSelect
-                            placeholder="Select branch"
-                            options={branchesForType.map((b: any) => ({ value: idOf(b), label: b.name }))}
-                            value={selectedBranchId}
-                            onValueChange={(val) => { setSelectedBranchId(val); setClientId(""); }}
-                          />
-                          <button
-                            type="button"
-                            className="text-xs font-bold text-primary hover:underline"
-                            onClick={() => {
-                              const here = `${window.location.pathname}${window.location.search}`;
-                              navigate(`/admin/hrms/staff/branches/new?returnTo=${encodeURIComponent(here)}`);
-                            }}
-                          >
-                            + Add new branch
-                          </button>
+                      {canUseBranch && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Branch</Label>
+                          <div className="space-y-1">
+                            <SearchableSelect
+                              placeholder="Select branch"
+                              options={branchesForType.map((b: any) => ({ value: idOf(b), label: b.name }))}
+                              value={selectedBranchId}
+                              onValueChange={(val) => { setSelectedBranchId(val); setClientId(""); }}
+                            />
+                            <button
+                              type="button"
+                              className="text-xs font-bold text-primary hover:underline"
+                              onClick={() => {
+                                const here = `${window.location.pathname}${window.location.search}`;
+                                navigate(`/admin/hrms/staff/branches/new?returnTo=${encodeURIComponent(here)}`);
+                              }}
+                            >
+                              + Add new branch
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      )}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Customer</Label>
                         <div className="space-y-1">
                           <SearchableSelect
-                            placeholder={selectedBranchId ? "Select customer" : "Select a branch first"}
+                            placeholder={!canUseBranch || selectedBranchId ? "Select customer" : "Select a branch first"}
                             options={customersForType.map((c: any) => ({ value: c._id, label: c.company || "Unnamed customer" }))}
                             value={clientId}
                             onValueChange={setClientId}
-                            disabled={!selectedBranchId}
+                            disabled={canUseBranch && !selectedBranchId}
                           />
                           {isPilot && (
                             <button

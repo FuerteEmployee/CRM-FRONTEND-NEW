@@ -19,12 +19,22 @@
             document.documentElement.appendChild(pre);
           } catch (e) {}
         }
+        // Browser extensions (chrome-extension://, moz-extension://, etc.) inject
+        // their own scripts that can throw independently of this page — those
+        // errors aren't ours to show and would otherwise blank out the real app
+        // for any visitor who happens to have a buggy extension installed.
+        function isFromExtension(text) {
+          return typeof text === "string" && /-extension:\/\//.test(text);
+        }
         window.addEventListener("error", function (e) {
+          if (isFromExtension(e.filename) || isFromExtension(e.error && e.error.stack)) return;
           show("error", (e.error && (e.error.stack || e.error.message)) || e.message || "unknown error");
         });
         window.addEventListener("unhandledrejection", function (e) {
           var r = e.reason;
-          show("unhandledrejection", (r && (r.stack || r.message)) || String(r));
+          var detail = (r && (r.stack || r.message)) || String(r);
+          if (isFromExtension(detail)) return;
+          show("unhandledrejection", detail);
         });
         setTimeout(function () {
           var root = document.getElementById("root");
