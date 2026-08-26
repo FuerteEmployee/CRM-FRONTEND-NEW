@@ -334,24 +334,7 @@ export function AppSidebar() {
   // DragOverlay instead, which portals to <body> so it floats above the
   // scroll container instead of being cut off by it.
   const [activeDragItem, setActiveDragItem] = useState<any>(null);
-  const handleSidebarDragStart = (event: DragStartEvent) => {
-    const allSections = [
-      dynamicNav.mainNav,
-      dynamicNav.customersNav,
-      dynamicNav.salesNav,
-      dynamicNav.managementNav,
-      dynamicNav.utilitiesNav,
-      dynamicNav.reportsNav,
-      dynamicNav.hrmsNav,
-    ];
-    for (const section of allSections) {
-      const found = section.find((i: any) => i._id === event.active.id);
-      if (found) {
-        setActiveDragItem(found);
-        return;
-      }
-    }
-  };
+
   const reorderMutation = useMutation({
     mutationFn: (items: { id: string; order: number }[]) => mainSidebarService.reorderSidebarItems(items),
     onSuccess: (data: any[]) => {
@@ -360,6 +343,21 @@ export function AppSidebar() {
     onError: (err: any) => {
       toast.error(err.message || "Failed to reorder menu");
       queryClient.invalidateQueries({ queryKey: ["mainsidebar"] });
+    },
+  });
+
+  // Quotation Maker's items live in their own collection (QuotationType),
+  // not MainSidebar, so reordering them hits a different endpoint and
+  // invalidates a different query — kept as its own mutation rather than
+  // overloading reorderMutation.
+  const reorderQuotationMutation = useMutation({
+    mutationFn: (items: { id: string; order: number }[]) => quotationTypeService.reorderQuotationTypes(items),
+    onSuccess: (data: any[]) => {
+      queryClient.setQueryData(["quotation-types"], data);
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to reorder quotation types");
+      queryClient.invalidateQueries({ queryKey: ["quotation-types"] });
     },
   });
 
@@ -410,6 +408,61 @@ export function AppSidebar() {
 
   const dynamicNav = getMenuItems();
 
+  // Each active QuotationType becomes its own sidebar link to the Quotation
+  // Maker module, scoped to that type via ?type=<slug>.
+  const quotationMakerNav = quotationTypes
+    .filter((t: any) => t.active !== false)
+    .map((t: any) => ({
+      _id: t._id,
+      title: t.name,
+      url: `/admin/quotations?type=${t.slug}`,
+      icon: t.icon || "FileBarChart",
+      order: t.order,
+    }));
+
+  // Every drag/select-reorderable section on the live sidebar, paired with
+  // the mutation + query key that owns its persistence — Quotation Maker is
+  // backed by QuotationType (a separate collection) while everything else
+  // is backed by MainSidebar, so a reorder needs to know which API to hit.
+  const dragSections = () => [
+    { items: dynamicNav.mainNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.customersNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.salesNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.managementNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.utilitiesNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.reportsNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.hrmsNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: quotationMakerNav, mutation: reorderQuotationMutation, queryKey: ["quotation-types"] },
+  ];
+  const findDragSection = (id: string) => dragSections().find((s) => s.items.some((i: any) => i._id === id));
+
+  // Shared by both the drag handle and the "move to position" select below —
+  // reassigns this section's own existing order slots to the new sequence.
+  const applyReorder = (
+    section: any[],
+    fromId: string,
+    toIndex: number,
+    mutation: typeof reorderMutation,
+    queryKey: string[],
+  ) => {
+    const oldIndex = section.findIndex((i: any) => i._id === fromId);
+    if (oldIndex === -1 || oldIndex === toIndex) return;
+    const { payload } = computeReorderPayload(section, oldIndex, toIndex);
+    queryClient.setQueryData(queryKey, (old: any[] = []) =>
+      old.map((item) => {
+        const match = payload.find((p) => p.id === item._id);
+        return match ? { ...item, order: match.order } : item;
+      }),
+    );
+    mutation.mutate(payload);
+  };
+
+  const handleSidebarDragStart = (event: DragStartEvent) => {
+    const section = findDragSection(event.active.id as string);
+    const found = section?.items.find((i: any) => i._id === event.active.id);
+    if (found) setActiveDragItem(found);
+  };
+
   // Reordering only ever changes `order`, never `group` — a drop is only
   // honored when it lands within the same DB-backed section it started in,
   // since a cross-section drop would visually look like the item jumped
@@ -418,40 +471,14 @@ export function AppSidebar() {
     setActiveDragItem(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const sections = [
-      dynamicNav.mainNav,
-      dynamicNav.customersNav,
-      dynamicNav.salesNav,
-      dynamicNav.managementNav,
-      dynamicNav.utilitiesNav,
-      dynamicNav.reportsNav,
-      dynamicNav.hrmsNav,
-    ];
-    const section = sections.find((items) => items.some((i: any) => i._id === active.id));
-    if (!section || !section.some((i: any) => i._id === over.id)) return;
-
-    const oldIndex = section.findIndex((i: any) => i._id === active.id);
-    const newIndex = section.findIndex((i: any) => i._id === over.id);
-    const { payload } = computeReorderPayload(section, oldIndex, newIndex);
-
-    queryClient.setQueryData(["mainsidebar"], (old: any[] = []) =>
-      old.map((item) => {
-        const match = payload.find((p) => p.id === item._id);
-        return match ? { ...item, order: match.order } : item;
-      }),
-    );
-    reorderMutation.mutate(payload);
+    const section = findDragSection(active.id as string);
+    if (!section || !section.items.some((i: any) => i._id === over.id)) return;
+    const newIndex = section.items.findIndex((i: any) => i._id === over.id);
+    applyReorder(section.items, active.id as string, newIndex, section.mutation, section.queryKey);
   };
 
-  // Each active QuotationType becomes its own sidebar link to the Quotation
-  // Maker module, scoped to that type via ?type=<slug>.
-  const quotationMakerNav = quotationTypes
-    .filter((t: any) => t.active !== false)
-    .map((t: any) => ({
-      title: t.name,
-      url: `/admin/quotations?type=${t.slug}`,
-      icon: t.icon || "FileBarChart",
-    }));
+  const mainSidebarDragCtx = { mutation: reorderMutation, queryKey: ["mainsidebar"] };
+  const quotationDragCtx = { mutation: reorderQuotationMutation, queryKey: ["quotation-types"] };
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     () => {
       try {
@@ -515,7 +542,7 @@ export function AppSidebar() {
   const renderItems = (
     items: any[],
     onItemClick?: () => void,
-    dragEnabled?: boolean,
+    dragCtx?: { mutation: any; queryKey: string[] },
   ) => {
     const handleClick = () => {
       if (onItemClick) onItemClick();
@@ -578,20 +605,21 @@ export function AppSidebar() {
       "/admin/reports": "reports",
     };
 
-    return items
+    const visible = items
       .filter((item: any) => !item.permission || canView(item.permission))
       .filter((item: any) => {
         // Hide modules disabled in the tenant's plan
         const moduleKey = URL_MODULE_MAP[getUrl(item.url)];
         return !moduleKey || isModuleEnabled(moduleKey);
-      })
-      .map((item: any) => {
+      });
+
+    return visible.map((item: any) => {
         const urlStr = getUrl(item.url) || "";
         const isActive = checkIsActive(item.url);
         const isExternal = urlStr.startsWith("http");
         const IconComponent = (Icons as any)[item.icon] || Icons.Circle;
         // Icon-only (collapsed) sidebar has no room for a handle alongside it.
-        const showHandle = !!dragEnabled && canReorderSidebar && !collapsed;
+        const showHandle = !!dragCtx && canReorderSidebar && !collapsed;
 
         const button = (
           <SidebarMenuButton asChild isActive={!isExternal && isActive}>
@@ -685,7 +713,7 @@ export function AppSidebar() {
     label: string,
     icon: React.ElementType,
     items: any[],
-    dragEnabled?: boolean,
+    dragCtx?: { mutation: any; queryKey: string[] },
   ) => {
     const visibleItems = items.filter(
       (item: any) => !item.permission || canView(item.permission),
@@ -724,9 +752,9 @@ export function AppSidebar() {
           <CollapsibleContent className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
             <SidebarGroupContent className="pl-3 border-l border-sidebar-border/60 ml-[18px] mt-0.5 space-y-0">
               <SidebarMenu className="gap-0.5">
-                {dragEnabled && canReorderSidebar ? (
+                {dragCtx && canReorderSidebar ? (
                   <SortableContext items={visibleItems.map((i: any) => i._id)} strategy={verticalListSortingStrategy}>
-                    {renderItems(visibleItems, undefined, dragEnabled)}
+                    {renderItems(visibleItems, undefined, dragCtx)}
                   </SortableContext>
                 ) : (
                   renderItems(visibleItems)
@@ -741,11 +769,11 @@ export function AppSidebar() {
 
   // Wraps a flat (non-collapsible) DB-backed section in its own SortableContext
   // so its grip handles can only reorder within that same section.
-  const renderDraggableSection = (items: any[], dragEnabled: boolean = true) => {
-    if (dragEnabled && canReorderSidebar) {
+  const renderDraggableSection = (items: any[], dragCtx?: { mutation: any; queryKey: string[] }) => {
+    if (dragCtx && canReorderSidebar) {
       return (
         <SortableContext items={items.map((i: any) => i._id)} strategy={verticalListSortingStrategy}>
-          {renderItems(items, undefined, true)}
+          {renderItems(items, undefined, dragCtx)}
         </SortableContext>
       );
     }
@@ -806,23 +834,23 @@ export function AppSidebar() {
                 onDragCancel={() => setActiveDragItem(null)}
               >
               <SidebarMenu className="gap-0.5">
-                {renderDraggableSection(dynamicNav.mainNav.filter((i: any) => !isHrmsOnly || i.title === "Dashboard"))}
+                {renderDraggableSection(dynamicNav.mainNav.filter((i: any) => !isHrmsOnly || i.title === "Dashboard"), mainSidebarDragCtx)}
                 {!isHrmsOnly ? (
                   <>
-                    {renderDraggableSection(dynamicNav.customersNav)}
-                    {isModuleEnabled("sales") && renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav, true)}
-                    {isModuleEnabled("sales") && renderCollapsibleItem("Quotation Maker", Icons.FileBarChart, quotationMakerNav)}
-                    {renderDraggableSection(dynamicNav.managementNav)}
+                    {renderDraggableSection(dynamicNav.customersNav, mainSidebarDragCtx)}
+                    {isModuleEnabled("sales") && renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav, mainSidebarDragCtx)}
+                    {isModuleEnabled("sales") && renderCollapsibleItem("Quotation Maker", Icons.FileBarChart, quotationMakerNav, quotationDragCtx)}
+                    {renderDraggableSection(dynamicNav.managementNav, mainSidebarDragCtx)}
                   </>
                 ) : (
                   /* HRMS-only staff can still be assigned tasks — always show Tasks link */
                   isStaff && renderItems(dynamicNav.managementNav.filter((i: any) => i.title === "Tasks"))
                 )}
-                {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav, true)}
+                {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav, mainSidebarDragCtx)}
                 {!isHrmsOnly && (
                   <>
-                    {isModuleEnabled("utility") && renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav, true)}
-                    {isModuleEnabled("reports") && renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav, true)}
+                    {isModuleEnabled("utility") && renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav, mainSidebarDragCtx)}
+                    {isModuleEnabled("reports") && renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav, mainSidebarDragCtx)}
                     {hasSetupAccess && (
                       <SidebarMenuItem>
                         <SidebarMenuButton
