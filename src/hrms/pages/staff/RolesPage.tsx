@@ -934,7 +934,7 @@ export default function RolesPage() {
                   </div>
 
                   {/* Stats Row */}
-                  <div className="grid grid-cols-2 gap-3 mb-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
                     <div className="flex flex-col gap-1 p-3 bg-gray-50/50 rounded-xl border border-gray-200/50 transition-all hover:bg-white hover:border-gray-200 hover:shadow-sm">
                       <div className="flex items-center gap-1.5">
                         <Users className="h-3 w-3 text-primary/70" />
@@ -985,7 +985,7 @@ export default function RolesPage() {
         <DialogContent className="bg-white border border-gray-200 rounded-3xl max-w-2xl shadow-2xl p-0 max-h-[92vh] overflow-hidden flex flex-col">
           <DialogHeader className="px-8 pt-8 pb-4 border-b border-gray-100 shrink-0">
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <span className="text-xl">{editingRole ? "✏️" : "➕"}</span>
+              <span className="text-xl shrink-0">{editingRole ? "✏️" : "➕"}</span>
               {editingRole
                 ? `Edit "${editingRole.label}"`
                 : "Create a New Role"}
@@ -1044,7 +1044,7 @@ export default function RolesPage() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-sm font-bold">Icon</Label>
                       <Select value={formIcon} onValueChange={setFormIcon}>

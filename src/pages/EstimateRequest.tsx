@@ -360,14 +360,14 @@ export default function EstimateRequest() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b pb-4">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Info className="h-5 w-5 text-primary" />
+              <div className="p-2 shrink-0 bg-primary/10 rounded-lg">
+                <Info className="h-5 w-5 shrink-0 text-primary" />
               </div>
-              <div>
-                <DialogTitle className="text-xl">
+              <div className="min-w-0">
+                <DialogTitle className="text-xl truncate">
                   Request Submission Details
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="truncate">
                   Review professional data submitted via{" "}
                   {selectedRequest?.form_name || "Public Form"}
                 </DialogDescription>
@@ -377,7 +377,7 @@ export default function EstimateRequest() {
 
           <div className="py-6 space-y-8">
             {/* Meta Info */}
-            <div className="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
               <div className="space-y-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Contact Email
@@ -460,7 +460,7 @@ export default function EstimateRequest() {
                   Rudraverse Specific Information
                 </h3>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Connect Person</label>
                     <Input 

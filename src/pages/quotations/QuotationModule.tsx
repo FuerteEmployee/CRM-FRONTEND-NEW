@@ -1369,7 +1369,7 @@ export default function QuotationModule() {
                 </div>
 
                 <Card className="rounded-2xl border-border/50 shadow-sm overflow-hidden">
-                  <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-border/50">
                     <h3 className="text-sm font-bold text-foreground">Recent Quotations</h3>
                     <Button onClick={() => setActiveTab("create")} className="rounded-xl font-semibold gap-2">
                       <Plus className="h-4 w-4" /> New Quotation
@@ -1384,42 +1384,44 @@ export default function QuotationModule() {
                         <p className="text-sm text-muted-foreground italic">No quotations yet.</p>
                       </div>
                     ) : (
-                      <table className="w-full text-sm text-left">
-                        <thead>
-                          <tr className="border-b border-border/40">
-                            <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">#</th>
-                            <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Client</th>
-                            <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Date</th>
-                            <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Amount</th>
-                            <th className="px-6 py-2.5 w-24" />
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/30">
-                          {recent.map((q) => (
-                            <tr key={q._id} className="hover:bg-muted/20 transition-colors">
-                              <td className="px-6 py-2.5 font-medium text-slate-700">{q.number}</td>
-                              <td className="px-6 py-2.5">{q.client?.company || "—"}</td>
-                              <td className="px-6 py-2.5 text-muted-foreground">
-                                {q.date ? new Date(q.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
-                              </td>
-                              <td className="px-6 py-2.5">₹{(q.total || 0).toLocaleString("en-IN")}</td>
-                              <td className="px-6 py-2.5 text-right">
-                                <div className="flex items-center justify-end gap-1">
-                                  <button onClick={() => handleDownloadPDF(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Download PDF">
-                                    <Download className="h-3.5 w-3.5" />
-                                  </button>
-                                  <button onClick={() => handleEdit(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Edit">
-                                    <Edit className="h-3.5 w-3.5" />
-                                  </button>
-                                  <button onClick={() => { if (window.confirm('Delete this quotation?')) deleteMutation.mutate(q._id) }} className="p-1.5 rounded-lg hover:red-50 text-muted-foreground hover:text-red-600 transition-colors">
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
-                                </div>
-                              </td>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left min-w-[640px]">
+                          <thead>
+                            <tr className="border-b border-border/40">
+                              <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">#</th>
+                              <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Client</th>
+                              <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Date</th>
+                              <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Amount</th>
+                              <th className="px-6 py-2.5 w-24" />
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-border/30">
+                            {recent.map((q) => (
+                              <tr key={q._id} className="hover:bg-muted/20 transition-colors">
+                                <td className="px-6 py-2.5 font-medium text-slate-700">{q.number}</td>
+                                <td className="px-6 py-2.5">{q.client?.company || "—"}</td>
+                                <td className="px-6 py-2.5 text-muted-foreground">
+                                  {q.date ? new Date(q.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                                </td>
+                                <td className="px-6 py-2.5">₹{(q.total || 0).toLocaleString("en-IN")}</td>
+                                <td className="px-6 py-2.5 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button onClick={() => handleDownloadPDF(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Download PDF">
+                                      <Download className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button onClick={() => handleEdit(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Edit">
+                                      <Edit className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button onClick={() => { if (window.confirm('Delete this quotation?')) deleteMutation.mutate(q._id) }} className="p-1.5 rounded-lg hover:red-50 text-muted-foreground hover:text-red-600 transition-colors">
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -1613,7 +1615,7 @@ export default function QuotationModule() {
                             onValueChange={(val) => setNewCustomerForm((f) => ({ ...f, branch: val }))}
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label>Customer Reference</Label>
                             <Input
@@ -1631,7 +1633,7 @@ export default function QuotationModule() {
                             />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label>VAT Number</Label>
                             <Input
@@ -1652,7 +1654,7 @@ export default function QuotationModule() {
                             />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label>Email</Label>
                             <Input
@@ -1672,7 +1674,7 @@ export default function QuotationModule() {
                             />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label>PAN Number</Label>
                             <Input
@@ -1708,7 +1710,7 @@ export default function QuotationModule() {
                             onChange={(e) => setNewCustomerForm((f) => ({ ...f, address: e.target.value }))}
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label>City</Label>
                             <Input
@@ -1726,7 +1728,7 @@ export default function QuotationModule() {
                             />
                           </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label>Zip Code</Label>
                             <Input
@@ -2492,7 +2494,7 @@ function QuotationPreviewDialog({
           </div>
 
           {/* Client info */}
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-widest mb-0.5">Client</p>
               <p className="font-medium">{clientLabel || "—"}</p>

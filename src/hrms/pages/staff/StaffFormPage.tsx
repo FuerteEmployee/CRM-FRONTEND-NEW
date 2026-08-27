@@ -1034,7 +1034,7 @@ export default function StaffFormPage() {
                         </div>
 
                         <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <FormField control={form.control} name="payType" render={({ field }) => (
                               <FormItem>
                                 <FormLabel className={labelClass}>Pay Cycle</FormLabel>
@@ -1056,7 +1056,7 @@ export default function StaffFormPage() {
                           <div className="p-4 rounded-lg bg-white border border-slate-200 space-y-6">
                             <h4 className="text-xs font-semibold text-slate-700 flex items-center gap-2"><Info className="h-3.5 w-3.5 text-primary" /> Salary Breakdown</h4>
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                               <FormField
                                 control={form.control}
                                 name="salaryConfig.basic.value"

@@ -179,6 +179,16 @@ export default function SuperAdminPlans() {
     }));
   };
 
+  const toggleAllModules = (enabled: boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      module_access: MODULE_META.reduce(
+        (acc, { key }) => ({ ...acc, [key]: enabled }),
+        {} as SaasPlan["module_access"],
+      ),
+    }));
+  };
+
   const showSkeleton = useMinimumLoading(loading);
   if (showSkeleton) return <SuperAdminPlansSkeleton />;
 
@@ -337,7 +347,7 @@ export default function SuperAdminPlans() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-gray-600">Price (₹)</label>
                       <input
@@ -360,7 +370,7 @@ export default function SuperAdminPlans() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-gray-600">Trial Days</label>
                       <input
@@ -430,7 +440,26 @@ export default function SuperAdminPlans() {
 
                 {/* ── RIGHT: Module Access ── */}
                 <div className="space-y-3">
-                  <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider pb-1.5 border-b border-gray-100">Module Access</p>
+                  <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
+                    <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Module Access</p>
+                    {(() => {
+                      const allEnabled = MODULE_META.every(({ key }) => formData.module_access?.[key] ?? true);
+                      return (
+                        <div
+                          onClick={() => toggleAllModules(!allEnabled)}
+                          className="flex items-center gap-1.5 cursor-pointer select-none group"
+                          title={allEnabled ? "Disable all modules" : "Enable all modules"}
+                        >
+                          <span className="text-[10px] font-semibold text-gray-500 group-hover:text-gray-700">
+                            {allEnabled ? "All Enabled" : "Enable All"}
+                          </span>
+                          <span className={`relative inline-flex h-4 w-8 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${allEnabled ? "bg-emerald-500" : "bg-gray-300"}`}>
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform duration-200 ${allEnabled ? "translate-x-4" : "translate-x-0"}`} />
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
                   <div className="space-y-2">
                     {MODULE_META.map(({ key, label, icon: Icon, color }) => {
                       const isActive = formData.module_access?.[key] ?? true;

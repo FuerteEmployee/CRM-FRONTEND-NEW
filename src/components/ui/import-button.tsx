@@ -65,10 +65,10 @@ export function ImportButton({ onData, loading, label = "Import" }: ImportButton
         size="sm"
         disabled={loading}
         onClick={() => fileRef.current?.click()}
-        className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest"
+        className="h-9 px-3 sm:h-11 sm:px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest"
       >
         <Upload className="h-3.5 w-3.5" />
-        {loading ? "Importing..." : label}
+        <span className="hidden sm:inline">{loading ? "Importing..." : label}</span>
       </Button>
     </>
   );

@@ -65,7 +65,8 @@ const Contacts = () => {
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const itemsPerPage = 25;
+  const [itemsPerPage, setItemsPerPage] = useState("25");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: allContacts = [], isLoading, refetch } = useQuery<any[]>({
     queryKey: ["all-contacts"],
@@ -251,6 +252,11 @@ const Contacts = () => {
     return nameA.localeCompare(nameB);
   });
 
+  const contactPageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
+  const totalContactPages = Math.max(1, Math.ceil(filtered.length / contactPageSize));
+  const safeContactPage = Math.min(currentPage, totalContactPages);
+  const paginatedContacts = itemsPerPage === "All" ? filtered : filtered.slice((safeContactPage - 1) * contactPageSize, safeContactPage * contactPageSize);
+
   const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
     if (filtered.length === 0) {
       toast({ title: "Error", description: "No data to export", variant: "destructive" });
@@ -306,8 +312,8 @@ const Contacts = () => {
         
         <Card>
           <CardContent className="p-0">
-            <div className="flex items-center justify-between p-3 border-b">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
+              <div className="flex flex-wrap items-center gap-2">
                 <Select defaultValue="25">
                   <SelectTrigger className="w-[70px] h-8 text-xs">
                     <SelectValue />
@@ -370,13 +376,13 @@ const Contacts = () => {
                   <RefreshCcw className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search contacts..."
-                  className="pl-8 h-8 w-[200px] text-xs"
+                  className="pl-8 h-8 w-full sm:w-[200px] text-xs"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 />
               </div>
             </div>
@@ -411,7 +417,7 @@ const Contacts = () => {
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((contact) => (
+                    paginatedContacts.map((contact) => (
                       <tr
                         key={contact._id}
                         className="border-b last:border-0 hover:bg-muted/50 transition-colors group"
@@ -460,11 +466,42 @@ const Contacts = () => {
               </table>
             </div>
 
-            <div className="flex items-center justify-between p-3 border-t text-sm text-muted-foreground">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3 border-t text-sm text-muted-foreground">
               <span>
-                Showing 1 to {Math.min(itemsPerPage, filtered.length)} of{" "}
+                Showing {filtered.length === 0 ? 0 : (safeContactPage - 1) * contactPageSize + 1} to {Math.min(safeContactPage * contactPageSize, filtered.length)} of{" "}
                 {filtered.length} entries
               </span>
+              <div className="flex items-center gap-2">
+                <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
+                  <SelectTrigger className="h-8 w-[80px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["10", "25", "50", "100", "All"].map(v => (
+                      <SelectItem key={v} value={v}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safeContactPage <= 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs px-1">{safeContactPage} of {totalContactPages}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                  onClick={() => setCurrentPage(p => Math.min(totalContactPages, p + 1))}
+                  disabled={safeContactPage >= totalContactPages}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -477,7 +514,7 @@ const Contacts = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 py-4 overflow-y-auto max-h-[70vh] px-1">
               {/* Left Column */}
               <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="firstname" className="text-[11px] font-bold uppercase text-muted-foreground">First Name <span className="text-destructive">*</span></Label>
                     <Input
@@ -601,7 +638,7 @@ const Contacts = () => {
                       </Tooltip>
                     </TooltipProvider>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
                     {["Invoices", "Estimates", "Contracts", "Proposals", "Support", "Projects"].map((p) => (
                       <div key={p} className="flex items-center gap-3">
                         <Checkbox 
@@ -619,7 +656,7 @@ const Contacts = () => {
                   <div className="flex items-center gap-2 mb-4">
                     <Label className="text-[11px] font-bold uppercase text-primary tracking-wider">Email Notifications</Label>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
                     {["Invoice", "Estimate", "Credit Note", "Project", "Tickets", "Task", "Contract"].map((n) => (
                       <div key={n} className="flex items-center gap-3">
                         <Checkbox 

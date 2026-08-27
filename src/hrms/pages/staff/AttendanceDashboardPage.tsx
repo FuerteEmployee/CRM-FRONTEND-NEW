@@ -908,7 +908,7 @@ const AttendanceDashboardPage: React.FC = () => {
         <DialogContent className="rounded-3xl max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-violet-500" /> Correct Attendance
+              <ShieldCheck className="h-5 w-5 shrink-0 text-violet-500" /> Correct Attendance
             </DialogTitle>
             <DialogDescription>
               <span className="font-semibold text-slate-700">{overrideTarget?.name}</span>
@@ -921,7 +921,7 @@ const AttendanceDashboardPage: React.FC = () => {
           </DialogHeader>
           <div className="space-y-4 pt-1">
             {/* Time inputs — both optional, fill whichever needs correcting */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                   Punch In <span className="text-slate-300 normal-case font-normal">(optional)</span>
@@ -970,7 +970,7 @@ const AttendanceDashboardPage: React.FC = () => {
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                 Set Status Directly <span className="text-slate-300 normal-case font-normal">(optional — overrides the calculation above)</span>
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {(["Full Day", "Half Day"] as const).map((s) => (
                   <button
                     key={s}
@@ -1023,7 +1023,7 @@ const AttendanceDashboardPage: React.FC = () => {
           {viewingAttendance && (
             <div className="space-y-4">
               {/* Punch In / Punch Out selfies */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
                   { key: "punchIn", label: "Punch In", color: "emerald", bg: "10b981" },
                   { key: "punchOut", label: "Punch Out", color: "blue", bg: "3b82f6" },
@@ -1076,7 +1076,7 @@ const AttendanceDashboardPage: React.FC = () => {
               {/* Lunch In / Lunch Out */}
               {(viewingAttendance.lunchIn?.time || viewingAttendance.lunchOut?.time) && (
                 <div className={cn(
-                  "grid grid-cols-2 gap-4 p-4 rounded-2xl border",
+                  "grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl border",
                   viewingAttendance.lunchOverLimit ? "bg-red-50/70 border-red-200" : "bg-amber-50/60 border-amber-100"
                 )}>
                   {[
@@ -1162,7 +1162,7 @@ const AttendanceDashboardPage: React.FC = () => {
               )}
 
               {/* Stats row */}
-              <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100 text-center">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100 text-center">
                 <div>
                   <p className="text-[9px] uppercase font-bold text-slate-400 mb-1">Total Hours</p>
                   <p className="text-sm font-bold text-slate-700">{viewingAttendance.totalHours ? Number(viewingAttendance.totalHours).toFixed(2) : "0.00"} hrs</p>

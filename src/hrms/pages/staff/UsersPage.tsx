@@ -539,7 +539,7 @@ export default function UsersPage() {
           <DialogHeader><DialogTitle className="text-lg font-semibold">Import Field Mapping</DialogTitle></DialogHeader>
           <div className="p-4 space-y-6">
             <p className="text-sm text-muted-foreground font-medium">Map your Excel columns to the system fields. We've tried to auto-match them for you.</p>
-            <div className="grid grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-2">
               {SYSTEM_FIELDS.map(field => (
                 <div key={field.key} className="space-y-1">
                   <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{field.label}</Label>

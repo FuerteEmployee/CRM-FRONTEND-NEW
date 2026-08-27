@@ -27,6 +27,7 @@ export default function SetupEstimateRequestForms() {
   const { can } = usePermissions();
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: forms = [], isLoading } = useQuery<any[]>({
     queryKey: ["estimate-request-forms"],
@@ -46,7 +47,10 @@ export default function SetupEstimateRequestForms() {
     return forms.filter((f: any) => (f.name || "").toLowerCase().includes(search.toLowerCase()));
   }, [forms, search]);
 
-  const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
+  const formPageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
+  const totalFormPages = Math.max(1, Math.ceil(filtered.length / formPageSize));
+  const safeFormPage = Math.min(currentPage, totalFormPages);
+  const pageData = itemsPerPage === "All" ? filtered : filtered.slice((safeFormPage - 1) * formPageSize, safeFormPage * formPageSize);
 
   return (
     <DashboardLayout>
@@ -76,7 +80,7 @@ export default function SetupEstimateRequestForms() {
 
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
           <div className="flex items-center gap-3">
-            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+            <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -103,7 +107,7 @@ export default function SetupEstimateRequestForms() {
               placeholder="Search..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
@@ -162,8 +166,32 @@ export default function SetupEstimateRequestForms() {
 
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing 1 to {pageData.length} of {filtered.length} entries
+            Showing {filtered.length === 0 ? 0 : (safeFormPage - 1) * formPageSize + 1} to {Math.min(safeFormPage * formPageSize, filtered.length)} of {filtered.length} entries
           </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safeFormPage <= 1}
+            >
+              Previous
+            </Button>
+            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
+              {safeFormPage}
+            </div>
+            <span className="text-xs text-muted-foreground px-1">of {totalFormPages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalFormPages, p + 1))}
+              disabled={safeFormPage >= totalFormPages}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       </div>
     </DashboardLayout>

@@ -127,10 +127,10 @@ export function ExportButton({ data, filename, columns }: ExportButtonProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest">
+        <Button variant="outline" size="sm" className="h-9 px-3 sm:h-11 sm:px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest">
           <Download className="h-3.5 w-3.5" />
-          Export
-          <ChevronDown className="h-3 w-3 opacity-50" />
+          <span className="hidden sm:inline">Export</span>
+          <ChevronDown className="hidden sm:inline h-3 w-3 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-40 rounded-xl border-border/50 shadow-xl">

@@ -558,7 +558,7 @@ export default function InvoiceCreate() {
               </div>
 
               {/* Bill To / Ship To */}
-              <div className="grid grid-cols-2 gap-8 py-4 border-y border-border/30 border-dashed">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 py-4 border-y border-border/30 border-dashed">
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-primary">
                     <Edit2 className="h-3.5 w-3.5" />
@@ -607,7 +607,7 @@ export default function InvoiceCreate() {
               </div>
 
               {/* Dates */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Invoice Date</Label>
@@ -647,7 +647,7 @@ export default function InvoiceCreate() {
               </div>
 
               {/* Voucher / Party Details */}
-              <div className="grid grid-cols-2 gap-6 pt-4 border-t border-border/30 border-dashed">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-border/30 border-dashed">
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Voucher Type</Label>
                   <Input
@@ -676,7 +676,7 @@ export default function InvoiceCreate() {
                   onChange={(e) => setFormData(p => ({ ...p, partyAddress: e.target.value }))}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Party Group</Label>
                   <Input
@@ -732,7 +732,7 @@ export default function InvoiceCreate() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {/* Currency */}
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
@@ -796,7 +796,7 @@ export default function InvoiceCreate() {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {/* Recurring */}
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Recurring Invoice?</Label>
@@ -827,7 +827,7 @@ export default function InvoiceCreate() {
               </div>
 
               {/* Status and Initial Payment */}
-              <div className="grid grid-cols-2 gap-6 pt-4 border-t border-border/30 border-dashed">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-border/30 border-dashed">
                 {/* Status Selection */}
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Status</Label>
@@ -1362,8 +1362,8 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
         <div className="bg-slate-50 dark:bg-slate-800/50 px-8 py-6 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-4 tracking-tight">
-              <div className="p-2.5 bg-primary/10 rounded-2xl">
-                <Plus className="h-6 w-6 text-primary" />
+              <div className="p-2.5 shrink-0 bg-primary/10 rounded-2xl">
+                <Plus className="h-6 w-6 shrink-0 text-primary" />
               </div>
               Add New Item
             </DialogTitle>
@@ -1389,7 +1389,7 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
               className="min-h-[100px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium resize-none p-4 focus-visible:ring-1 focus-visible:ring-primary/30"
             />
           </div>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Item Group</Label>
               <Input
@@ -1407,7 +1407,7 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Item Batch</Label>
               <Input
@@ -1425,7 +1425,7 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
               />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Qty</Label>
               <Input

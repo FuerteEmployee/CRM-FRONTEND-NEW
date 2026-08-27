@@ -82,9 +82,35 @@ const COUNTRIES = [
 
 const LANGUAGES = LANGUAGES_ISO;
 
+// `core` columns mirror the fields shown in the customers table (Company,
+// Primary Contact, Primary Email, Phone, Pan/Gst Number, Branch) — these
+// stay visible by default. Everything else is optional and hidden behind
+// the "Show more fields" toggle so the popup isn't cluttered.
+const IMPORT_COLUMNS = [
+  { key: "Company Name", sample: "Acme Corporation", required: true, core: true },
+  { key: "Branch Name", sample: "Mumbai Branch", required: false, core: true },
+  { key: "Connect Person", sample: "John Doe", required: false, core: true },
+  { key: "Phone Number", sample: "9876543210", required: false, core: true },
+  { key: "Email", sample: "john@acme.com", required: false, core: true },
+  { key: "PAN Number", sample: "ABCDE1234F", required: false, core: true },
+  { key: "GST Number", sample: "27ABCDE1234F1Z5", required: false, core: true },
+  { key: "Customer Reference", sample: "CUST-1001", required: false, core: false },
+  { key: "Website", sample: "www.acme.com", required: false, core: false },
+  { key: "Address", sample: "123 MG Road", required: false, core: false },
+  { key: "City", sample: "Mumbai", required: false, core: false },
+  { key: "State", sample: "Maharashtra", required: false, core: false },
+  { key: "Zip Code", sample: "400001", required: false, core: false },
+  { key: "Country", sample: "India", required: false, core: false },
+  { key: "Account details", sample: "Bank of India - 1234567890", required: false, core: false },
+  { key: "Sales Person", sample: "Jane Smith", required: false, core: false },
+];
+
+const DEFAULT_IMPORT_SAMPLE_COLUMNS = IMPORT_COLUMNS.filter((c) => c.core).map((c) => c.key);
+
 const Customers = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [branchFilter, setBranchFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [viewItem, setViewItem] = useState(null);
@@ -103,6 +129,8 @@ const Customers = () => {
   });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [sampleColumns, setSampleColumns] = useState<string[]>(DEFAULT_IMPORT_SAMPLE_COLUMNS);
+  const [showMoreColumns, setShowMoreColumns] = useState(false);
   const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false);
   useOpenCreateModal(() => setIsNewCustomerOpen(true));
 
@@ -213,22 +241,34 @@ const Customers = () => {
     }
   };
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedCustomers(paginatedCustomers.map((c: any) => c._id));
-    } else {
-      setSelectedCustomers([]);
-    }
+  const handleSelectAll = () => {
+    const pageIds = paginatedCustomers.map((c: any) => c._id);
+    const allSelected = pageIds.length > 0 && pageIds.every((id: string) => selectedCustomers.includes(id));
+    setSelectedCustomers(prev =>
+      allSelected ? prev.filter((id: string) => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]
+    );
   };
 
+  const getCustomerBranchId = (c: any) =>
+    (typeof c.branch === "string" ? c.branch : c.branch?._id || c.branch?.id) || "";
+
+  const getCustomerBranchName = (c: any) =>
+    (c.branch as any)?.name ||
+    branches.find((b: any) => (b._id || b.id) === c.branch || (b._id || b.id) === c.branch?._id || (b._id || b.id) === c.branch?.id)?.name ||
+    (typeof c.branch === "string" ? c.branch : "") ||
+    "";
+
   const filtered = customers.filter((c) => {
-    const matchSearch = (c.company || "")
-      .toLowerCase()
-      .includes(search.toLowerCase());
+    const searchLower = search.toLowerCase();
+    const matchSearch =
+      (c.company || "").toLowerCase().includes(searchLower) ||
+      getCustomerBranchName(c).toLowerCase().includes(searchLower);
     const matchStatus =
       statusFilter === "all" ||
       (c.active ? "Active" : "Inactive") === statusFilter;
-    return matchSearch && matchStatus;
+    const matchBranch =
+      branchFilter === "all" || getCustomerBranchId(c) === branchFilter;
+    return matchSearch && matchStatus && matchBranch;
   });
 
   const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
@@ -349,37 +389,16 @@ const Customers = () => {
   });
 
   const importFileRef = useRef<HTMLInputElement>(null);
-  // Branch picked in the Import Customers dialog — applied to any imported row
-  // that doesn't already carry its own "Branch" column value.
-  const [importBranchId, setImportBranchId] = useState("");
-  const [isAddingImportBranch, setIsAddingImportBranch] = useState(false);
-  const [newImportBranchName, setNewImportBranchName] = useState("");
-
-  const createImportBranchMutation = useMutation({
-    mutationFn: (name: string) => hrmsbranchService.create({ name }),
-    onSuccess: async (res: any) => {
-      const created = res?.data?.data || res?.data;
-      await queryClient.invalidateQueries({ queryKey: ["hrms-branches-for-customer"] });
-      if (created?._id) setImportBranchId(created._id);
-      setIsAddingImportBranch(false);
-      setNewImportBranchName("");
-      toast({ title: "Branch added", description: `"${created?.name || newImportBranchName}" is now saved and selected.` });
-    },
-    onError: (err: any) => {
-      toast({ title: "Error", description: err.response?.data?.message || "Failed to add branch", variant: "destructive" });
-    },
-  });
 
   const importMutation = useMutation({
-    mutationFn: (data: any) => customerService.importClients(data, importBranchId || undefined),
+    mutationFn: (data: any) => customerService.importClients(data),
     onSuccess: async (data: any) => {
       await queryClient.invalidateQueries({ queryKey: ["customers"] });
       await queryClient.refetchQueries({ queryKey: ["customers"] });
       setIsImportOpen(false);
-      setImportBranchId("");
       toast({
         title: data.count === 0 ? "No New Customers" : "Import Successful",
-        description: data.message || "Customers imported",
+        description: data.message || "Customers processed successfully",
         variant: data.count === 0 ? "destructive" : "default",
       });
     },
@@ -388,9 +407,7 @@ const Customers = () => {
     },
   });
 
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processImportFile = (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase();
 
     const processRows = (rows: any[]) => {
@@ -421,7 +438,53 @@ const Customers = () => {
         complete: (res) => processRows(res.data as any[]),
       });
     }
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processImportFile(file);
     e.target.value = "";
+  };
+
+  const [isImportDragging, setIsImportDragging] = useState(false);
+  const handleImportDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!importMutation.isPending) setIsImportDragging(true);
+  };
+  const handleImportDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsImportDragging(false);
+  };
+  const handleImportDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsImportDragging(false);
+    if (importMutation.isPending) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) processImportFile(file);
+  };
+
+  const toggleSampleColumn = (key: string) => {
+    setSampleColumns((prev) =>
+      prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key]
+    );
+  };
+
+  const handleDownloadSample = () => {
+    if (sampleColumns.length === 0) {
+      toast({ title: "Error", description: "Select at least one column to download.", variant: "destructive" });
+      return;
+    }
+    const columns = IMPORT_COLUMNS.filter((c) => sampleColumns.includes(c.key));
+    const headers = columns.map((c) => c.key);
+    const sampleRow = columns.map((c) => c.sample);
+    const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sample");
+    XLSX.writeFile(wb, "customers_sample_import.xlsx");
   };
 
   const [newCustomer, setNewCustomer] = useState<any>({
@@ -516,7 +579,7 @@ const Customers = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Dialog
               open={isNewCustomerOpen}
               onOpenChange={(open) => {
@@ -559,7 +622,7 @@ const Customers = () => {
                           }
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Customer Reference</Label>
                           <Input
@@ -581,7 +644,7 @@ const Customers = () => {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>VAT Number</Label>
                           <Input
@@ -612,7 +675,7 @@ const Customers = () => {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Email</Label>
                           <Input
@@ -632,7 +695,7 @@ const Customers = () => {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>PAN Number</Label>
                           <Input
@@ -677,7 +740,7 @@ const Customers = () => {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Groups</Label>
                           <div className="flex gap-2">
@@ -743,7 +806,7 @@ const Customers = () => {
                           onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>City</Label>
                           <SearchableSelect
@@ -762,7 +825,7 @@ const Customers = () => {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Branch</Label>
                           <Select
@@ -784,7 +847,7 @@ const Customers = () => {
                           </Select>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Zip Code</Label>
                           <Input 
@@ -939,59 +1002,124 @@ const Customers = () => {
                   {importMutation.isPending ? "Importing..." : "Import Customers"}
                 </Button>
                 <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-                  <DialogContent className="max-w-md">
+                  <DialogContent className="max-w-xl w-full min-w-[340px] sm:min-w-[560px] min-h-[520px] max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
-                      <DialogTitle>Import Customers</DialogTitle>
+                      <DialogTitle className="text-lg font-bold">Import Customers</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 pt-2">
-                      <div className="space-y-2">
-                        <Label>Branch</Label>
-                        {isAddingImportBranch ? (
-                          <div className="flex gap-2">
-                            <Input
-                              autoFocus
-                              placeholder="New branch name"
-                              value={newImportBranchName}
-                              onChange={(e) => setNewImportBranchName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" && newImportBranchName.trim()) createImportBranchMutation.mutate(newImportBranchName.trim());
-                              }}
-                            />
-                            <Button
-                              type="button"
-                              disabled={!newImportBranchName.trim() || createImportBranchMutation.isPending}
-                              onClick={() => createImportBranchMutation.mutate(newImportBranchName.trim())}
-                            >
-                              Add
-                            </Button>
-                            <Button type="button" variant="outline" onClick={() => { setIsAddingImportBranch(false); setNewImportBranchName(""); }}>
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : (
-                          <>
-                            <SearchableSelect
-                              placeholder="Select branch (optional)"
-                              options={branches.map((b) => ({ value: b._id, label: b.name }))}
-                              value={importBranchId}
-                              onValueChange={setImportBranchId}
-                            />
-                            <button
-                              type="button"
-                              className="text-xs font-bold text-primary hover:underline"
-                              onClick={() => setIsAddingImportBranch(true)}
-                            >
-                              + Add new branch
-                            </button>
-                          </>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          Applied to every imported customer unless the file already has its own "Branch" column.
+                      <div
+                        onClick={() => importFileRef.current?.click()}
+                        onDragOver={handleImportDragOver}
+                        onDragLeave={handleImportDragLeave}
+                        onDrop={handleImportDrop}
+                        className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 group ${
+                          isImportDragging
+                            ? "border-primary bg-primary/10 scale-[1.01]"
+                            : "border-primary/30 hover:border-primary/60 bg-primary/5 hover:bg-primary/10"
+                        }`}
+                      >
+                        <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner group-hover:scale-105 transition-transform">
+                          <FileSpreadsheet className="h-7 w-7 text-primary" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-bold text-foreground">
+                            {importMutation.isPending
+                              ? "Processing spreadsheet..."
+                              : isImportDragging
+                              ? "Drop the file to upload"
+                              : "Drag & drop your file here, or click to choose"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Supports .xlsx, .xls, and .csv formats
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          disabled={importMutation.isPending}
+                          className="mt-2 rounded-xl font-bold gap-2 px-6 h-10 text-xs shadow-md"
+                        >
+                          <Upload className="h-4 w-4" />
+                          {importMutation.isPending ? "Importing..." : "Choose File"}
+                        </Button>
+                      </div>
+
+                      <div className="rounded-xl bg-muted/40 border border-border/50 p-3 text-[11.5px] text-muted-foreground space-y-1">
+                        <p className="font-semibold text-foreground flex items-center gap-1.5">
+                          <span>✨</span> Automatic Column Mapping:
+                        </p>
+                        <p>
+                          Your Excel columns (<strong>Company Name, Branch Name, Phone, Email, PAN Number, GST Number, Address, Sales Person</strong>) will be automatically detected and mapped to customers.
                         </p>
                       </div>
-                      <Button className="w-full" onClick={() => importFileRef.current?.click()}>
-                        <Upload className="h-4 w-4 mr-2" /> Choose File
-                      </Button>
+
+                      <div className="rounded-xl border border-border/50 p-3 space-y-2">
+                        <p className="text-xs font-semibold text-foreground">
+                          Select columns to include in sample file:
+                        </p>
+                        <div className="min-w-[280px] sm:min-w-[480px] w-full grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5 pr-1">
+                          {IMPORT_COLUMNS.filter((col) => col.core).map((col) => (
+                            <label
+                              key={col.key}
+                              className="flex items-center gap-2 text-xs cursor-pointer select-none"
+                            >
+                              <Checkbox
+                                checked={sampleColumns.includes(col.key)}
+                                onCheckedChange={() => toggleSampleColumn(col.key)}
+                              />
+                              <span className="whitespace-nowrap">
+                                {col.key}
+                                {col.required && <span className="text-destructive"> *</span>}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+
+                        {showMoreColumns && (
+                          <div className="min-w-[280px] sm:min-w-[480px] w-full grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5 pr-1 pt-2 border-t border-border/50">
+                            {IMPORT_COLUMNS.filter((col) => !col.core).map((col) => (
+                              <label
+                                key={col.key}
+                                className="flex items-center gap-2 text-xs cursor-pointer select-none"
+                              >
+                                <Checkbox
+                                  checked={sampleColumns.includes(col.key)}
+                                  onCheckedChange={() => toggleSampleColumn(col.key)}
+                                />
+                                <span className="whitespace-nowrap">{col.key}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setShowMoreColumns((v) => !v)}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                        >
+                          {showMoreColumns ? (
+                            <>
+                              <ChevronDown className="h-3 w-3" />
+                              Hide optional fields
+                            </>
+                          ) : (
+                            <>
+                              <ChevronRight className="h-3 w-3" />
+                              Show {IMPORT_COLUMNS.filter((c) => !c.core).length} more optional fields
+                            </>
+                          )}
+                        </button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full rounded-xl font-bold gap-2 text-xs mt-1"
+                          onClick={handleDownloadSample}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Download Sample Data
+                        </Button>
+                      </div>
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -1020,15 +1148,26 @@ const Customers = () => {
                 <SelectItem value="Inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All Branches" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Branches</SelectItem>
+                {branches.map((b: any) => (
+                  <SelectItem key={b._id} value={b._id}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
 
         <Card>
           <CardContent className="p-0">
-            <div className="flex items-center justify-between p-3 border-b">
-              <div className="flex items-center gap-2">
-                <Select 
-                  value={itemsPerPage.toString()} 
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
+                  value={itemsPerPage.toString()}
                   onValueChange={(val) => {
                     setItemsPerPage(val === "all" ? "all" : parseInt(val));
                     setCurrentPage(1);
@@ -1124,11 +1263,11 @@ const Customers = () => {
                   </DialogContent>
                 </Dialog>
               </div>
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search..."
-                  className="pl-8 h-11 rounded-xl w-[200px] text-xs font-bold"
+                  className="pl-8 h-11 rounded-xl w-full sm:w-[200px] text-xs font-bold"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -1143,8 +1282,8 @@ const Customers = () => {
                       <input
                         type="checkbox"
                         className="rounded border-border"
-                        checked={paginatedCustomers.length > 0 && selectedCustomers.length === paginatedCustomers.length}
-                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        checked={paginatedCustomers.length > 0 && paginatedCustomers.every((c: any) => selectedCustomers.includes(c._id))}
+                        onChange={handleSelectAll}
                       />
                     </th>
                     <th className="p-3 font-medium">#</th>
@@ -1250,7 +1389,7 @@ const Customers = () => {
                           </div>
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
-                          {branches.find((b: any) => b._id === c.branch || b._id === c.branch?._id)?.name || (c.branch as any)?.name || (typeof c.branch === "string" ? c.branch : "-")}
+                          {getCustomerBranchName(c) || "-"}
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
                           {formatDate(c.datecreated)}

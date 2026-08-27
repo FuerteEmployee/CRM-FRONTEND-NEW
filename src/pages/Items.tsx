@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search, Layers, Edit, Zap } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -38,14 +38,32 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
+const ITEM_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Item Name", sample: "Laptop Stand", required: true, core: true },
+  { key: "Group", sample: "Accessories", core: true },
+  { key: "Description", sample: "Aluminium adjustable laptop stand", core: true },
+  { key: "Quantity", sample: 10, core: true },
+  { key: "Rate", sample: 1200, core: true },
+  { key: "Amount", sample: 12000, core: true },
+  { key: "Unit", sample: "Nos", core: true },
+  { key: "Tax", sample: "GST 18%", core: true },
+  { key: "HSN/SAC", sample: "8473", core: true },
+  { key: "Branch", sample: "Mumbai", core: true },
+  { key: "Long Description", sample: "Premium aluminium stand with cable management", core: false },
+  { key: "Cess Rate", sample: 0, core: false },
+  { key: "Tax Inclusive", sample: "No", core: false },
+];
+
 const Items = () => {
   const { symbol } = useCurrency();
   const [search, setSearch] = useState("");
+  const [branchFilter, setBranchFilter] = useState("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   useOpenCreateModal(() => setIsCreateOpen(true));
   const [viewItem, setViewItem] = useState<any>(null);
   const [editItem, setEditItem] = useState<any>(null);
   const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can, user, isModuleEnabled } = usePermissions();
@@ -255,19 +273,33 @@ const Items = () => {
     },
   });
 
-  const filtered = useMemo(() => {
-    return items.filter(
-      (i: any) =>
-        (i.name || i.description || "").toLowerCase().includes(search.toLowerCase()) ||
-        (i.long_description || "").toLowerCase().includes(search.toLowerCase()) ||
-        (i.group || "").toLowerCase().includes(search.toLowerCase())
-    );
-  }, [items, search]);
+  const getItemBranchName = (i: any) => (typeof i.branch === "object" ? (i.branch?.name || "") : (i.branch || ""));
 
-  const handleSelectAll = (checked: boolean) => {
-    const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
-    if (checked) setSelectedItems(pageData.map((item: any) => item._id).filter(Boolean));
-    else setSelectedItems([]);
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return items.filter((i: any) => {
+      const matchesSearch =
+        (i.name || i.description || "").toLowerCase().includes(q) ||
+        (i.long_description || "").toLowerCase().includes(q) ||
+        (i.group || "").toLowerCase().includes(q) ||
+        getItemBranchName(i).toLowerCase().includes(q);
+      const matchesBranch = branchFilter === "all" || getItemBranchName(i) === branchFilter;
+      return matchesSearch && matchesBranch;
+    });
+  }, [items, search, branchFilter]);
+
+  const totalItemRows = filtered.length;
+  const itemPageSize = itemsPerPage === "All" ? (totalItemRows || 1) : parseInt(itemsPerPage);
+  const totalItemPages = Math.max(1, Math.ceil(totalItemRows / itemPageSize));
+  const safeItemPage = Math.min(currentPage, totalItemPages);
+  const paginatedItems = itemsPerPage === "All" ? filtered : filtered.slice((safeItemPage - 1) * itemPageSize, safeItemPage * itemPageSize);
+  const itemPageIds = paginatedItems.map((item: any) => item._id).filter(Boolean);
+  const allItemPageSelected = itemPageIds.length > 0 && itemPageIds.every((id: string) => selectedItems.includes(id));
+
+  const handleSelectAll = () => {
+    setSelectedItems(prev =>
+      allItemPageSelected ? prev.filter((id: string) => !itemPageIds.includes(id)) : [...new Set([...prev, ...itemPageIds])]
+    );
   };
 
   const handleBulkAction = async () => {
@@ -547,7 +579,7 @@ const Items = () => {
               <DialogContent className="max-w-lg rounded-3xl p-6 border-none shadow-2xl bg-white max-h-[90vh] overflow-y-auto">
                 <DialogHeader className="border-b border-border/50 pb-4 mb-4">
                   <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                    <Plus className="h-5 w-5 text-primary" />
+                    <Plus className="h-5 w-5 shrink-0 text-primary" />
                     Create New Item
                   </DialogTitle>
                 </DialogHeader>
@@ -589,7 +621,7 @@ const Items = () => {
                       className="rounded-xl min-h-[80px] border-slate-200 resize-none"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-700">Quantity</Label>
                       <Input
@@ -611,7 +643,7 @@ const Items = () => {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-700">Amount ({symbol})</Label>
                       <Input
@@ -632,7 +664,7 @@ const Items = () => {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-700">Group / Category</Label>
                       <Input
@@ -659,7 +691,7 @@ const Items = () => {
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-700">HSN/SAC Code</Label>
                       <Input
@@ -710,8 +742,8 @@ const Items = () => {
 
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
-          <div className="flex items-center gap-3">
-            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+          <div className="flex flex-wrap items-center gap-3">
+            <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -764,15 +796,37 @@ const Items = () => {
               filename="items"
               columns={exportColumns}
             />
-            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            <ImportDialog
+              title="Import Items"
+              columns={ITEM_IMPORT_COLUMNS}
+              onData={handleImportData}
+              loading={importMutation.isPending}
+              triggerLabel="Import"
+              templateFilename="items_sample_import.xlsx"
+              sheetName="Items"
+              mappingNote="Your Excel columns (Item Name, Group, Description, Quantity, Rate, Amount, Unit, Tax, HSN/SAC, Branch) will be automatically detected and mapped to items."
+            />
+            {canUseBranch && (
+              <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
+                <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                  <SelectValue placeholder="All Branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {branches.map((b: any) => (
+                    <SelectItem key={b._id || b.id} value={b.name}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search items library..."
+              placeholder="Search items or branch..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
@@ -788,11 +842,8 @@ const Items = () => {
                       <input
                         type="checkbox"
                         className="rounded border-border"
-                        checked={(() => {
-                          const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
-                          return pageData.length > 0 && selectedItems.length === pageData.length;
-                        })()}
-                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        checked={allItemPageSelected}
+                        onChange={handleSelectAll}
                       />
                     </th>
                     <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Name</th>
@@ -831,8 +882,7 @@ const Items = () => {
                       </td>
                     </tr>
                   ) : (
-                    filtered
-                      .slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage))
+                    paginatedItems
                       .map((item: any) => (
                       <tr key={item._id} className={`hover:bg-muted/30 transition-colors ${selectedItems.includes(item._id) ? 'bg-primary/5' : ''}`}>
                         <td className="p-3">
@@ -908,16 +958,29 @@ const Items = () => {
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing 1 to {filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage)).length} of {filtered.length} entries
+            Showing {totalItemRows === 0 ? 0 : (safeItemPage - 1) * itemPageSize + 1} to {Math.min(safeItemPage * itemPageSize, totalItemRows)} of {totalItemRows} entries
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safeItemPage <= 1}
+            >
               Previous
             </Button>
             <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              1
+              {safeItemPage}
             </div>
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <span className="text-xs text-muted-foreground px-1">of {totalItemPages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalItemPages, p + 1))}
+              disabled={safeItemPage >= totalItemPages}
+            >
               Next
             </Button>
           </div>
@@ -929,7 +992,7 @@ const Items = () => {
         <DialogContent className="max-w-md rounded-3xl p-6 border-none shadow-2xl bg-white max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b border-border/50 pb-4 mb-4">
             <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <Layers className="h-5 w-5 text-primary" />
+              <Layers className="h-5 w-5 shrink-0 text-primary" />
               Item Information
             </DialogTitle>
           </DialogHeader>
@@ -945,7 +1008,7 @@ const Items = () => {
                   <p className="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-xl p-3 leading-relaxed">{viewItem.long_description}</p>
                 </div>
               )}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Quantity</p>
                   <p className="text-sm font-extrabold text-slate-900">{viewItem.quantity ?? 1}</p>
@@ -959,7 +1022,7 @@ const Items = () => {
                   <p className="text-sm font-extrabold text-slate-900">{symbol}{(viewItem.amount ?? ((viewItem.quantity ?? 1) * (viewItem.rate ?? 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Unit</p>
                   <p className="text-sm font-bold text-slate-700">{viewItem.unit || "item"}</p>
@@ -976,7 +1039,7 @@ const Items = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">HSN/SAC</p>
                   <p className="text-sm font-bold text-slate-700">{viewItem.hsn_sac_code || "-"}</p>
@@ -994,7 +1057,7 @@ const Items = () => {
               {customFieldDefs.length > 0 && viewItem.custom_fields && (
                 <div className="border-t border-border/50 pt-3 space-y-2">
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Custom Fields</p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {customFieldDefs.map((cf: any) => {
                       const val = viewItem.custom_fields?.[cf.slug] ?? viewItem.custom_fields?.[cf._id];
                       if (val === undefined || val === null || val === "") return null;
@@ -1020,7 +1083,7 @@ const Items = () => {
         <DialogContent className="max-w-lg rounded-3xl p-6 border-none shadow-2xl bg-white max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b border-border/50 pb-4 mb-4">
             <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <Edit className="h-5 w-5 text-primary" />
+              <Edit className="h-5 w-5 shrink-0 text-primary" />
               Edit Item Settings
             </DialogTitle>
           </DialogHeader>
@@ -1063,7 +1126,7 @@ const Items = () => {
                   className="rounded-xl min-h-[80px] border-slate-200 resize-none"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-700">Quantity</Label>
                   <Input
@@ -1085,7 +1148,7 @@ const Items = () => {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-700">Amount ({symbol})</Label>
                   <Input
@@ -1106,7 +1169,7 @@ const Items = () => {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-700">Group / Category</Label>
                   <Input
@@ -1133,7 +1196,7 @@ const Items = () => {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-700">HSN/SAC Code</Label>
                   <Input

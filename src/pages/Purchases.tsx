@@ -35,12 +35,29 @@ import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { useCurrency } from "@/context/CurrencyContext";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { useSettings } from "@/context/SettingsContext";
 import { VendorSelect, type VendorRecord } from "@/components/VendorSelect";
 import { vendorService } from "@/api/services/vendor.service";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemSelect";
+
+const PURCHASE_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Bill Date", sample: "27-08-2026", core: true },
+  { key: "Particulars", sample: "Sunrise Traders", required: true, core: true },
+  { key: "Voucher Type", sample: "Purchase", core: true },
+  { key: "Voucher No.", sample: "PB-3301", required: true, core: true },
+  { key: "Quantity", sample: 5, core: true },
+  { key: "Rate", sample: 2000, core: true },
+  { key: "Amount", sample: 10000, core: true },
+  { key: "Total", sample: 11800, core: true },
+  { key: "CGST 9%", sample: 900, core: true },
+  { key: "SGST 9%", sample: 900, core: true },
+  { key: "PURCHASE IGST", sample: 0, core: true },
+  { key: "Round off", sample: 0, core: true },
+  { key: "Branch", sample: "Chennai", core: true },
+  { key: "Item Description", sample: "Office Chairs", core: false },
+];
 
 const HOME_STATE = "Gujarat";
 const HOME_STATE_GST_CODE = "24";
@@ -121,6 +138,7 @@ const Purchases = () => {
   const simplifiedRegister = !!getSetting("simplified_purchase_register", false);
   const getNewPurchaseForm = () => ({ ...emptyForm, gst_rate: simplifiedRegister ? "0" : emptyForm.gst_rate });
   const [vendorFilter, setVendorFilter] = useState<string[]>([]);
+  const [branchFilter, setBranchFilter] = useState("all");
 
   const { data: vendors = [] } = useQuery<VendorRecord[]>({
     queryKey: ["vendors"],
@@ -594,6 +612,13 @@ const Purchases = () => {
 
   const filteredPurchases = useMemo(() => {
     const q = search.toLowerCase();
+
+    // Prepare selected vendor IDs, company names, and normalized names for resilient dual matching
+    const selectedIds = Array.isArray(vendorFilter) ? vendorFilter : (vendorFilter ? [vendorFilter] : []);
+    const selectedVendors = vendors.filter((v) => selectedIds.includes(v._id));
+    const selectedNames = selectedVendors.map((v) => (v.company_name || "").toLowerCase().trim()).filter(Boolean);
+    const selectedNorms = selectedNames.map((name) => name.replace(/[^a-z0-9]/g, ""));
+
     return (purchases as any[]).filter((p) => {
       const matchesSearch = !q ||
         p.bill_no?.toLowerCase().includes(q) ||
@@ -604,11 +629,24 @@ const Purchases = () => {
         p.hsn_code?.toLowerCase().includes(q) ||
         p.sales_person?.toLowerCase().includes(q) ||
         p.branch?.toLowerCase().includes(q);
-      const matchesVendor = vendorFilter.length === 0 ||
-        vendorFilter.includes(typeof p.vendor_id === "object" ? p.vendor_id?._id : p.vendor_id);
-      return matchesSearch && matchesVendor;
+
+      let matchesVendor = selectedIds.length === 0;
+      if (!matchesVendor) {
+        const pVendorId = typeof p.vendor_id === "object" ? p.vendor_id?._id : p.vendor_id;
+        const pSupplierName = (p.supplier_name || "").toLowerCase().trim();
+        const pSupplierNorm = pSupplierName.replace(/[^a-z0-9]/g, "");
+
+        matchesVendor = Boolean(
+          (pVendorId && selectedIds.includes(String(pVendorId))) ||
+          (pSupplierName && selectedNames.includes(pSupplierName)) ||
+          (pSupplierNorm && selectedNorms.some((norm) => pSupplierNorm.includes(norm) || norm.includes(pSupplierNorm)))
+        );
+      }
+
+      const matchesBranch = branchFilter === "all" || p.branch === branchFilter;
+      return matchesSearch && matchesVendor && matchesBranch;
     });
-  }, [purchases, search, vendorFilter]);
+  }, [purchases, search, vendorFilter, branchFilter, vendors]);
 
   const totals = useMemo(() => {
     return filteredPurchases.reduce(
@@ -624,8 +662,12 @@ const Purchases = () => {
     );
   }, [filteredPurchases]);
 
-  const money = (n: number | null | undefined) =>
-    n == null || n === 0 ? "-" : `${symbol}${n.toFixed(2)}`;
+  const money = (n: number | null | undefined, showZeroAsDash = true) => {
+    if (n == null || isNaN(Number(n))) return "-";
+    const val = Number(n);
+    if (val === 0 && showZeroAsDash) return "-";
+    return `${symbol}${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   // Pagination
   const totalItems = filteredPurchases.length;
@@ -708,10 +750,10 @@ const Purchases = () => {
     ...(isPilot ? [{ header: "FREIGHT 1%", key: "freight_charge", type: "number" as const }] : []),
     { header: "IGST 18%", key: "igst", type: "number" as const },
     { header: "Round off", key: "round_off", type: "number" as const },
-    { header: "Branch Name", key: "branch" },
-  ], [isPilot]);
+    ...(canUseBranch ? [{ header: "Branch Name", key: "branch" }] : []),
+  ], [isPilot, canUseBranch]);
 
-  const tableColSpan = 1 + (15 + (isPilot ? 2 : 0)) + 1;
+  const tableColSpan = 1 + (14 + (isPilot ? 2 : 0) + (canUseBranch ? 1 : 0)) + 1;
 
   const inputCls = "h-11 rounded-xl border-slate-200";
   const labelCls = "text-[10px] font-black uppercase tracking-widest text-slate-500";
@@ -719,14 +761,23 @@ const Purchases = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <ShoppingCart className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold">Purchases</h1>
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center">
             {can("Purchases", "Create") && (
-              <ImportButton onData={handlePurchaseImport} loading={importMutation.isPending} label="Import Purchases" />
+              <ImportDialog
+                title="Import Purchases"
+                columns={PURCHASE_IMPORT_COLUMNS}
+                onData={handlePurchaseImport}
+                loading={importMutation.isPending}
+                triggerLabel="Import Purchases"
+                templateFilename="purchases_sample_import.xlsx"
+                sheetName="Purchases"
+                mappingNote="Your Excel columns (Bill Date, Particulars, Voucher No., Quantity, Rate, Amount, Total, CGST, SGST, Branch) will be automatically detected and mapped to purchases."
+              />
             )}
             <ExportButton data={filteredPurchases} filename="purchases" columns={exportColumns} />
             {can("Purchases", "Create") && (
@@ -755,7 +806,7 @@ const Purchases = () => {
             <Card key={c.label} className="rounded-2xl border-slate-100 shadow-sm">
               <CardContent className="p-4">
                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">{c.label}</div>
-                <div className={`text-lg font-black mt-1 ${c.color}`}>{money(c.value)}</div>
+                <div className={`text-lg font-black mt-1 ${c.color}`}>{money(c.value, false)}</div>
               </CardContent>
             </Card>
           ))}
@@ -868,12 +919,27 @@ const Purchases = () => {
                 {vendorLinkageEnabled && (
                   <SearchableSelect
                     multiple
-                    options={vendors.map((v) => ({ label: v.company_name, value: v._id }))}
+                    options={Array.from(
+                      new Map(vendors.filter((v) => Boolean(v.company_name)).map((v) => [(v.company_name || "").trim().toLowerCase(), v])).values()
+                    ).map((v) => ({ label: v.company_name, value: v._id }))}
                     value={vendorFilter}
                     onValueChange={(v) => { setVendorFilter(v); setCurrentPage(1); }}
                     placeholder="Filter by vendor"
                     className="h-9 w-full sm:w-[200px] text-sm bg-slate-50 border-slate-200"
                   />
+                )}
+                {canUseBranch && (
+                  <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
+                    <SelectTrigger className="h-9 w-full sm:w-[180px] text-sm bg-slate-50 border-slate-200">
+                      <SelectValue placeholder="All Branches" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Branches</SelectItem>
+                      {branches.map((b: any) => (
+                        <SelectItem key={b._id || b.id} value={b.name}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
                 <div className="relative w-full sm:w-auto">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -912,7 +978,7 @@ const Purchases = () => {
                     {isPilot && <th className="p-4 font-bold">FREIGHT 1%</th>}
                     <th className="p-4 font-bold">IGST 18%</th>
                     <th className="p-4 font-bold">Round off</th>
-                    <th className="p-4 font-bold">Branch</th>
+                    {canUseBranch && <th className="p-4 font-bold">Branch</th>}
                     <th className="p-4 font-bold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -958,7 +1024,7 @@ const Purchases = () => {
                         {isPilot && <td className="p-4 text-xs font-medium text-slate-600">{money(p.freight_charge)}</td>}
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.igst)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{p.round_off ? money(p.round_off) : "-"}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{p.branch || "-"}</td>
+                        {canUseBranch && <td className="p-4 text-xs font-medium text-slate-600">{p.branch || "-"}</td>}
                         <td className="p-4">
                           <div className="flex justify-end gap-1">
                             {can("Purchases", "Edit") && (
@@ -1125,7 +1191,7 @@ const Purchases = () => {
                       {!canUseBranch && (
                         <div className="space-y-1.5">
                           <Label className={labelCls}>Branch</Label>
-                          <Input value={formData.branch} onChange={(e) => setField("branch", e.target.value)} placeholder="e.g. Sparkling Techno Tools" className={inputCls} />
+                          <Input value={formData.branch} onChange={(e) => setField("branch", e.target.value)} placeholder="e.g. Sparkling Techo Tools" className={inputCls} />
                         </div>
                       )}
                       <div className="space-y-1.5">

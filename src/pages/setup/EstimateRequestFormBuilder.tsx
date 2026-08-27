@@ -1007,7 +1007,7 @@ export default function EstimateRequestFormBuilder() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div className="space-y-2">
                           <Label className="text-sm font-semibold text-muted-foreground">
                             Submit button background color

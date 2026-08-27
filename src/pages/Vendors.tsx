@@ -29,8 +29,24 @@ import { vendorService } from "@/api/services/vendor.service";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
+
+const VENDOR_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Company Name", sample: "Orion Supplies Pvt Ltd", required: true, core: true },
+  { key: "Vendor Reference", sample: "VEN-045", core: true },
+  { key: "Connect Person", sample: "Suresh Nair", core: true },
+  { key: "Phone Number", sample: "9845012345", core: true },
+  { key: "Address with State", sample: "45 Anna Salai, Chennai, Tamil Nadu", core: true },
+  { key: "Email", sample: "suresh@orionsupplies.com", core: true },
+  { key: "PAN Number", sample: "AAOCS1234H", core: true },
+  { key: "GST Number", sample: "33AAOCS1234H1Z2", core: true },
+  { key: "Account Details", sample: "HDFC Bank A/C 1234567890", core: true },
+  { key: "Sales Person", sample: "Divya Menon", core: true },
+  { key: "Branch", sample: "Chennai", core: true },
+];
 
 const emptyForm = {
   company_name: "",
@@ -43,15 +59,29 @@ const emptyForm = {
   gst_number: "",
   account_details: "",
   sales_person: "",
+  branch: "",
 };
 
 const Vendors = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
   const navigate = useNavigate();
 
+  const { data: branchesRaw = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
+
   const [search, setSearch] = useState("");
+  const [branchFilter, setBranchFilter] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<any>(null);
   const [formData, setFormData] = useState<any>(emptyForm);
@@ -146,6 +176,7 @@ const Vendors = () => {
       gst_number: String(getField(row, "gst number", "gstin", "gst no")),
       account_details: String(getField(row, "account details", "bank details", "account")),
       sales_person: String(getField(row, "sales person", "salesperson", "sales man")),
+      branch: String(getField(row, "branch name", "branch")),
     }));
 
     const valid = vendorsData.filter((v) => v.company_name);
@@ -179,6 +210,7 @@ const Vendors = () => {
       gst_number: v.gst_number || "",
       account_details: v.account_details || "",
       sales_person: v.sales_person || "",
+      branch: v.branch || "",
     });
     setIsModalOpen(true);
   };
@@ -200,18 +232,21 @@ const Vendors = () => {
 
   const filteredVendors = useMemo(() => {
     const q = search.toLowerCase();
-    return (vendors as any[]).filter((v) =>
-      !q ||
-      v.company_name?.toLowerCase().includes(q) ||
-      v.vendor_reference?.toLowerCase().includes(q) ||
-      v.connect_person?.toLowerCase().includes(q) ||
-      v.phone_number?.toLowerCase().includes(q) ||
-      v.email?.toLowerCase().includes(q) ||
-      v.gst_number?.toLowerCase().includes(q) ||
-      v.pan_number?.toLowerCase().includes(q) ||
-      v.sales_person?.toLowerCase().includes(q)
-    );
-  }, [vendors, search]);
+    return (vendors as any[]).filter((v) => {
+      const matchesSearch = !q ||
+        v.company_name?.toLowerCase().includes(q) ||
+        v.vendor_reference?.toLowerCase().includes(q) ||
+        v.connect_person?.toLowerCase().includes(q) ||
+        v.phone_number?.toLowerCase().includes(q) ||
+        v.email?.toLowerCase().includes(q) ||
+        v.gst_number?.toLowerCase().includes(q) ||
+        v.pan_number?.toLowerCase().includes(q) ||
+        v.sales_person?.toLowerCase().includes(q) ||
+        v.branch?.toLowerCase().includes(q);
+      const matchesBranch = branchFilter === "all" || v.branch === branchFilter;
+      return matchesSearch && matchesBranch;
+    });
+  }, [vendors, search, branchFilter]);
 
   // Pagination
   const totalItems = filteredVendors.length;
@@ -277,6 +312,7 @@ const Vendors = () => {
     { header: "GST number", key: "gst_number" },
     { header: "Account details", key: "account_details" },
     { header: "Sales person", key: "sales_person" },
+    ...(canUseBranch ? [{ header: "Branch Name", key: "branch" }] : []),
   ];
 
   const inputCls = "h-11 rounded-xl border-slate-200";
@@ -285,14 +321,23 @@ const Vendors = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Truck className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold">Vendors</h1>
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center">
             {can("Vendors", "Create") && (
-              <ImportButton onData={processVendorRows} loading={importMutation.isPending} label="Import Vendors" />
+              <ImportDialog
+                title="Import Vendors"
+                columns={VENDOR_IMPORT_COLUMNS}
+                onData={processVendorRows}
+                loading={importMutation.isPending}
+                triggerLabel="Import Vendors"
+                templateFilename="vendors_sample_import.xlsx"
+                sheetName="Vendors"
+                mappingNote="Your Excel columns (Company Name, Connect Person, Phone Number, Email, PAN Number, GST Number, Address with State, Sales Person, Branch) will be automatically detected and mapped to vendors."
+              />
             )}
             <ExportButton data={filteredVendors} filename="vendors" columns={exportColumns} />
             {can("Vendors", "Create") && (
@@ -389,14 +434,29 @@ const Vendors = () => {
                 )}
               </div>
 
-              <div className="relative w-full sm:w-auto">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Search company, contact, phone, GSTIN, PAN..."
-                  className="pl-9 h-9 w-full sm:w-[280px] text-sm bg-slate-50 border-slate-200 focus-visible:ring-primary/20"
-                  value={search}
-                  onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
-                />
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {canUseBranch && (
+                  <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
+                    <SelectTrigger className="h-9 w-full sm:w-[180px] text-sm bg-slate-50 border-slate-200">
+                      <SelectValue placeholder="All Branches" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Branches</SelectItem>
+                      {branches.map((b: any) => (
+                        <SelectItem key={b._id || b.id} value={b.name}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <div className="relative w-full sm:w-auto">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder="Search company, contact, phone, GSTIN, PAN..."
+                    className="pl-9 h-9 w-full sm:w-[280px] text-sm bg-slate-50 border-slate-200 focus-visible:ring-primary/20"
+                    value={search}
+                    onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+                  />
+                </div>
               </div>
             </div>
 
@@ -417,6 +477,7 @@ const Vendors = () => {
                     <th className="p-4 font-bold">GST Number</th>
                     <th className="p-4 font-bold">Account Details</th>
                     <th className="p-4 font-bold">Sales Person</th>
+                    {canUseBranch && <th className="p-4 font-bold">Branch</th>}
                     <th className="p-4 font-bold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -424,12 +485,12 @@ const Vendors = () => {
                   {isLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
                       <tr key={i} className="border-b">
-                        <td colSpan={12} className="p-4"><Skeleton className="h-6 w-full" /></td>
+                        <td colSpan={12 + (canUseBranch ? 1 : 0)} className="p-4"><Skeleton className="h-6 w-full" /></td>
                       </tr>
                     ))
                   ) : paginatedVendors.length === 0 ? (
                     <tr>
-                      <td colSpan={12} className="p-10 text-center text-slate-400 font-medium">
+                      <td colSpan={12 + (canUseBranch ? 1 : 0)} className="p-10 text-center text-slate-400 font-medium">
                         No vendors found. Create one or import from Excel.
                       </td>
                     </tr>
@@ -453,6 +514,7 @@ const Vendors = () => {
                         <td className="p-4 text-xs font-medium text-slate-600">{v.gst_number || "-"}</td>
                         <td className="p-4 text-xs font-medium text-slate-600 max-w-[180px] truncate">{v.account_details || "-"}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{v.sales_person || "-"}</td>
+                        {canUseBranch && <td className="p-4 text-xs font-medium text-slate-600">{v.branch || "-"}</td>}
                         <td className="p-4">
                           <div className="flex justify-end gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => navigate(`/admin/vendors/${v._id}`)}>
@@ -568,6 +630,27 @@ const Vendors = () => {
                   <Label className={labelCls}>Account Details</Label>
                   <Input value={formData.account_details} onChange={(e) => setField("account_details", e.target.value)} placeholder="Bank name / account number / IFSC" className={inputCls} />
                 </div>
+                {canUseBranch ? (
+                  <div className="space-y-1.5">
+                    <Label className={labelCls}>Branch</Label>
+                    <Select value={formData.branch || "none"} onValueChange={(val) => setField("branch", val === "none" ? "" : val)}>
+                      <SelectTrigger className={inputCls}>
+                        <SelectValue placeholder="Select branch..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select Branch</SelectItem>
+                        {branches.map((b: any) => (
+                          <SelectItem key={b._id || b.id} value={b.name}>{b.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <Label className={labelCls}>Branch</Label>
+                    <Input value={formData.branch} onChange={(e) => setField("branch", e.target.value)} placeholder="e.g. Sparkling Techo Tools" className={inputCls} />
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>

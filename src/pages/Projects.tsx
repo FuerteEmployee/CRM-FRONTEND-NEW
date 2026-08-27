@@ -66,6 +66,7 @@ const Projects = () => {
   const [search, setSearch] = useState("");
   const [activeStatus, setActiveStatus] = useState<number | "all">("all");
   const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
   const [bulkState, setBulkState] = useState({ massDelete: false, status: "" });
@@ -103,6 +104,13 @@ const Projects = () => {
       return matchesSearch && matchesStatus;
     });
   }, [projects, search, activeStatus]);
+
+  const projectPageSize = itemsPerPage >= 999999 ? (filteredProjects.length || 1) : itemsPerPage;
+  const totalProjectPages = Math.max(1, Math.ceil(filteredProjects.length / projectPageSize));
+  const safeProjectPage = Math.min(currentPage, totalProjectPages);
+  const paginatedProjects = itemsPerPage >= 999999 ? filteredProjects : filteredProjects.slice((safeProjectPage - 1) * projectPageSize, safeProjectPage * projectPageSize);
+  const projectPageIds = paginatedProjects.map((p: any) => p._id);
+  const allProjectPageSelected = projectPageIds.length > 0 && projectPageIds.every((id: string) => selectedProjects.includes(id));
 
   const handleBulkAction = async () => {
     if (selectedProjects.length === 0) {
@@ -191,7 +199,7 @@ const Projects = () => {
           <Button
             variant={activeStatus === "all" ? "default" : "outline"}
             size="sm"
-            onClick={() => setActiveStatus("all")}
+            onClick={() => { setActiveStatus("all"); setCurrentPage(1); }}
             className="h-8 text-xs font-medium"
           >
             All
@@ -202,7 +210,7 @@ const Projects = () => {
               key={status.id}
               variant={activeStatus === status.id ? "default" : "outline"}
               size="sm"
-              onClick={() => setActiveStatus(status.id)}
+              onClick={() => { setActiveStatus(status.id); setCurrentPage(1); }}
               className="h-8 text-xs font-medium"
             >
               {status.label}
@@ -214,11 +222,11 @@ const Projects = () => {
         <Card>
           <CardContent className="p-0">
             {/* Control Bar */}
-            <div className="flex items-center justify-between p-3 border-b">
-              <div className="flex items-center gap-2">
-                <Select 
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
                   value={itemsPerPage.toString()} 
-                  onValueChange={(val) => setItemsPerPage(val === "All" ? 999999 : Number(val))}
+                  onValueChange={(val) => { setItemsPerPage(val === "All" ? 999999 : Number(val)); setCurrentPage(1); }}
                 >
                   <SelectTrigger className="w-[70px] h-8 text-[11px] font-bold">
                     <SelectValue />
@@ -310,13 +318,13 @@ const Projects = () => {
                 </Dialog>
               </div>
 
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search projects..."
-                  className="pl-8 h-8 w-[200px] text-xs"
+                  className="pl-8 h-8 w-full sm:w-[200px] text-xs"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 />
               </div>
             </div>
@@ -327,14 +335,12 @@ const Projects = () => {
                 <thead>
                   <tr className="border-b text-left text-[11px] text-muted-foreground uppercase tracking-wider bg-zinc-50/50">
                     <th className="p-3 font-semibold w-8">
-                      <Checkbox 
-                        checked={selectedProjects.length === filteredProjects.length && filteredProjects.length > 0}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedProjects(filteredProjects.map((p: any) => p._id));
-                          } else {
-                            setSelectedProjects([]);
-                          }
+                      <Checkbox
+                        checked={allProjectPageSelected}
+                        onCheckedChange={() => {
+                          setSelectedProjects(prev =>
+                            allProjectPageSelected ? prev.filter((id: string) => !projectPageIds.includes(id)) : [...new Set([...prev, ...projectPageIds])]
+                          );
                         }}
                       />
                     </th>
@@ -366,7 +372,7 @@ const Projects = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredProjects.map((project, index) => (
+                    paginatedProjects.map((project, index) => (
                       <tr key={project._id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
                         <td className="p-3">
                           <Checkbox 
@@ -455,6 +461,37 @@ const Projects = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Pagination Footer */}
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 py-4">
+              <p className="text-xs font-bold text-muted-foreground italic">
+                Showing {filteredProjects.length === 0 ? 0 : (safeProjectPage - 1) * projectPageSize + 1} to {Math.min(safeProjectPage * projectPageSize, filteredProjects.length)} of {filteredProjects.length} entries
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-4 rounded-lg font-bold text-xs"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safeProjectPage <= 1}
+                >
+                  Previous
+                </Button>
+                <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
+                  {safeProjectPage}
+                </div>
+                <span className="text-xs text-muted-foreground px-1">of {totalProjectPages}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-4 rounded-lg font-bold text-xs"
+                  onClick={() => setCurrentPage(p => Math.min(totalProjectPages, p + 1))}
+                  disabled={safeProjectPage >= totalProjectPages}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

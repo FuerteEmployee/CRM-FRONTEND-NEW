@@ -56,11 +56,34 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
+
+const INVOICE_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Voucher Number", sample: "INV-2201", core: true },
+  { key: "Bill Date", sample: "27-08-2026", core: true },
+  { key: "Voucher Type", sample: "Sales", core: true },
+  { key: "Party Name", sample: "Bright Solutions Pvt Ltd", required: true, core: true },
+  { key: "Party Address", sample: "12 MG Road, Bangalore", core: true },
+  { key: "Party Group", sample: "Retail", core: true },
+  { key: "GSTIN/UIN", sample: "29ABCDE1234F1Z5", core: true },
+  { key: "Item Name", sample: "Consulting Services", core: true },
+  { key: "Quantity", sample: 1, core: true },
+  { key: "Rate", sample: 25000, core: true },
+  { key: "Amount", sample: 25000, core: true },
+  { key: "Branch", sample: "Bangalore", core: true },
+  { key: "Terms of Payment", sample: "Net 30", core: false },
+  { key: "Item Group", sample: "Services", core: false },
+  { key: "Item HSN", sample: "9983", core: false },
+  { key: "GST percentage", sample: 18, core: false },
+  { key: "Item Batch", sample: "B-01", core: false },
+  { key: "Unit", sample: "Nos", core: false },
+  { key: "Due Date", sample: "26-09-2026", core: false },
+  { key: "Status", sample: "unpaid", core: false },
+];
 
 const statusMap: Record<string, { label: string; color: string }> = {
   unpaid: { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
@@ -435,7 +458,7 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                 </div>
 
                 {/* Invoice meta details grid */}
-                <div className="border border-border/40 rounded-xl p-4 grid grid-cols-2 gap-x-6 gap-y-3">
+                <div className="border border-border/40 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
                   {[
                     { label: "GSTIN / UIN",        value: d.gstin || "—" },
                     { label: "Voucher Type",        value: d.voucherType || "—" },
@@ -731,7 +754,9 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
 const Invoices = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [branchFilter, setBranchFilter] = useState("all");
   const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [previewInvoice, setPreviewInvoice] = useState<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -815,7 +840,9 @@ const Invoices = () => {
   };
 
   const toggleSelectAll = (items: any[]) => {
-    setSelectedIds(prev => prev.length === items.length ? [] : items.map(i => i._id));
+    const pageIds = items.map(i => i._id);
+    const allSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.includes(id));
+    setSelectedIds(prev => allSelected ? prev.filter(id => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]);
   };
 
   const handleBulkAction = async () => {
@@ -932,83 +959,37 @@ const Invoices = () => {
     }));
   });
 
+  const getInvoiceBranchName = (i: any) => (i.branch?.name || i.branch || "");
+
   const filtered = useMemo(() => {
     return invoices.filter((i: any) => {
       const matchSearch =
         (i.number || "").toLowerCase().includes(search.toLowerCase()) ||
         (i.client?.company || "").toLowerCase().includes(search.toLowerCase()) ||
         (i.salesPerson || "").toLowerCase().includes(search.toLowerCase()) ||
-        (i._id || "").toLowerCase().includes(search.toLowerCase());
-      
+        (i._id || "").toLowerCase().includes(search.toLowerCase()) ||
+        getInvoiceBranchName(i).toLowerCase().includes(search.toLowerCase());
+
       const matchStatus =
         statusFilter === "all" || String(i.status) === statusFilter;
-      
-      return matchSearch && matchStatus;
-    });
-  }, [invoices, search, statusFilter]);
 
+      const matchBranch =
+        branchFilter === "all" || getInvoiceBranchName(i) === branchFilter;
+
+      return matchSearch && matchStatus && matchBranch;
+    });
+  }, [invoices, search, statusFilter, branchFilter]);
+
+  const invoicePageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
+  const totalInvoicePages = Math.max(1, Math.ceil(filtered.length / invoicePageSize));
+  const safeInvoicePage = Math.min(currentPage, totalInvoicePages);
   const pageInvoices = useMemo(() => {
-    return filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
-  }, [filtered, itemsPerPage]);
+    return itemsPerPage === "All" ? filtered : filtered.slice((safeInvoicePage - 1) * invoicePageSize, safeInvoicePage * invoicePageSize);
+  }, [filtered, itemsPerPage, safeInvoicePage, invoicePageSize]);
 
   // One row per line item for the on-screen table (mirrors buildExportRows),
   // keeping a reference to the parent invoice for checkbox/actions handling.
   const flatRows = useMemo(() => buildExportRows(pageInvoices), [pageInvoices]);
-
-  const handleExport = (type: "pdf" | "csv" | "print") => {
-    if (filtered.length === 0) {
-      toast({
-        title: "No data",
-        description: "There are no invoices to export.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (type === "csv") {
-      const headers = [
-        "Voucher Number", "Bill Date", "Voucher Type", "Party Name", "Party Address",
-        "Party Group", "Terms of Payment", "GSTIN/UIN", "Item Name", "Item Group",
-        "Item HSN", "GST percentage", "Item Batch", "Quantity", "Rate", "Unit", "Amount",
-      ];
-      const rows = filtered.flatMap((inv: any) => {
-        const items = inv.items?.length > 0 ? inv.items : [{}];
-        return items.map((item: any) => [
-          inv.number || `INV-${inv._id?.substring(0, 6)}`,
-          inv.date ? formatDate(inv.date) : "-",
-          inv.voucherType || "",
-          inv.client?.company || "N/A",
-          inv.partyAddress || "",
-          inv.partyGroup || "",
-          inv.termsOfPayment || "",
-          inv.gstin || "",
-          item.description || "",
-          item.itemGroup || "",
-          item.itemHSN || "",
-          item.gstPercentage || 0,
-          item.itemBatch || "",
-          item.qty || 0,
-          item.rate || 0,
-          item.unit || "",
-          item.amount ?? ((item.qty || 0) * (item.rate || 0)),
-        ]);
-      });
-
-      const csvData = [headers.join(","), ...rows.map((e) => e.map((val) => `"${val}"`).join(","))].join("\n");
-      const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `invoices_export_${new Date().toISOString().split("T")[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      toast({ title: "Exported", description: "CSV exported successfully." });
-    } else {
-      window.print();
-    }
-  };
 
   return (
     <DashboardLayout>
@@ -1052,7 +1033,7 @@ const Invoices = () => {
                   config.border,
                   statusFilter === String(config.statusId) ? "ring-2 ring-primary border-transparent" : ""
                 )}
-                onClick={() => setStatusFilter(statusFilter === String(config.statusId) ? "all" : String(config.statusId))}
+                onClick={() => { setStatusFilter(statusFilter === String(config.statusId) ? "all" : String(config.statusId)); setCurrentPage(1); }}
               >
                 <CardContent className="p-5">
                   <div className="flex flex-col gap-1">
@@ -1074,8 +1055,8 @@ const Invoices = () => {
 
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
-          <div className="flex items-center gap-3">
-            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+          <div className="flex flex-wrap items-center gap-3">
+            <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -1144,7 +1125,29 @@ const Invoices = () => {
               filename="invoices"
               columns={exportColumns}
             />
-            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            <ImportDialog
+              title="Import Invoices"
+              columns={INVOICE_IMPORT_COLUMNS}
+              onData={handleImportData}
+              loading={importMutation.isPending}
+              triggerLabel="Import"
+              templateFilename="invoices_sample_import.xlsx"
+              sheetName="Invoices"
+              mappingNote="Your Excel columns (Voucher Number, Bill Date, Party Name, GSTIN/UIN, Item Name, Quantity, Rate, Amount, Branch) will be automatically detected and mapped to invoices."
+            />
+            {canUseBranch && (
+              <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
+                <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                  <SelectValue placeholder="All Branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {branches.map((b: any) => (
+                    <SelectItem key={b._id || b.id} value={b.name}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -1152,7 +1155,7 @@ const Invoices = () => {
               placeholder="Search invoices..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
@@ -1165,7 +1168,7 @@ const Invoices = () => {
               <tr>
                 <th className="w-10 px-3 py-4">
                   <Checkbox
-                    checked={selectedIds.length === pageInvoices.length && pageInvoices.length > 0}
+                    checked={pageInvoices.length > 0 && pageInvoices.every((i: any) => selectedIds.includes(i._id))}
                     onCheckedChange={() => toggleSelectAll(pageInvoices)}
                   />
                 </th>
@@ -1259,16 +1262,29 @@ const Invoices = () => {
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing 1 to {filtered.length} of {filtered.length} entries
+            Showing {filtered.length === 0 ? 0 : (safeInvoicePage - 1) * invoicePageSize + 1} to {Math.min(safeInvoicePage * invoicePageSize, filtered.length)} of {filtered.length} entries
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safeInvoicePage <= 1}
+            >
               Previous
             </Button>
             <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              1
+              {safeInvoicePage}
             </div>
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <span className="text-xs text-muted-foreground px-1">of {totalInvoicePages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalInvoicePages, p + 1))}
+              disabled={safeInvoicePage >= totalInvoicePages}
+            >
               Next
             </Button>
           </div>

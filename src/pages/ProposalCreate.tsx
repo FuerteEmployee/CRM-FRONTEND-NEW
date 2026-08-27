@@ -469,7 +469,7 @@ export default function ProposalCreate() {
               </div>
 
               {/* Related Entity */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Related</Label>
@@ -523,7 +523,7 @@ export default function ProposalCreate() {
               )}
 
               {/* Dates */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Date</Label>
@@ -554,7 +554,7 @@ export default function ProposalCreate() {
               </div>
 
               {/* Currency & Discount */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Currency</Label>
@@ -614,7 +614,7 @@ export default function ProposalCreate() {
           <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
             <CardContent className="p-8 space-y-8">
               {/* Status & Assigned */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Status</Label>
                   <Select value={formData.status.toString()} onValueChange={(v) => setFormData(p => ({ ...p, status: parseInt(v) }))}>
@@ -668,7 +668,7 @@ export default function ProposalCreate() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2.5">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">City</Label>
                     <Input 
@@ -687,7 +687,7 @@ export default function ProposalCreate() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2.5">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Country</Label>
                     <SearchableSelect 
@@ -706,7 +706,7 @@ export default function ProposalCreate() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2.5">
                     <div className="flex items-center gap-2">
                       <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Email</Label>
@@ -1007,8 +1007,8 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
         <div className="bg-slate-50 dark:bg-slate-800/50 px-8 py-6 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-4 tracking-tight">
-              <div className="p-2.5 bg-primary/10 rounded-2xl">
-                <Plus className="h-6 w-6 text-primary" />
+              <div className="p-2.5 shrink-0 bg-primary/10 rounded-2xl">
+                <Plus className="h-6 w-6 shrink-0 text-primary" />
               </div>
               Add New Item
             </DialogTitle>
@@ -1034,7 +1034,7 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
               className="min-h-[100px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium resize-none p-4 focus-visible:ring-1 focus-visible:ring-primary/30"
             />
           </div>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Qty</Label>
               <Input 

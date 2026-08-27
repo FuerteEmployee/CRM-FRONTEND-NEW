@@ -101,7 +101,7 @@ export const MetaAdsDialog = () => {
       <DialogContent className="max-w-lg rounded-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-black">
-            <Facebook className="h-5 w-5 text-[#1877F2]" />
+            <Facebook className="h-5 w-5 shrink-0 text-[#1877F2]" />
             Meta Lead Ads Integration
           </DialogTitle>
         </DialogHeader>

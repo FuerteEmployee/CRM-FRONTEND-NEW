@@ -376,7 +376,7 @@ const Goals = () => {
               </div>
 
               {/* Goal Metadata */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Staff Member</span>
                   <div className="flex items-center gap-2 text-sm font-bold text-gray-800">
@@ -397,7 +397,7 @@ const Goals = () => {
               </div>
 
               {/* Dates */}
-              <div className="grid grid-cols-2 gap-4 border-t border-b border-border/40 py-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-b border-border/40 py-4">
                 <div className="space-y-1">
                   <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Start Date</span>
                   <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">

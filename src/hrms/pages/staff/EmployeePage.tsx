@@ -812,7 +812,7 @@ const EmployeePage = () => {
                       const lunchOutTime = fmtTime(att.lunchOut?.time || att.lunchOut);
                       return (
                         <div className="space-y-1">
-                          <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-1">
                             <Badge variant="outline" className="text-[10px] font-medium bg-emerald-50 text-emerald-600 border-emerald-100 justify-center">
                               ↑ {punchInTime || "--:--"}
                             </Badge>
@@ -1298,7 +1298,7 @@ const EmployeePage = () => {
                             </div>
 
                             {/* Stats grid */}
-                            <div className="grid grid-cols-3 gap-3 mb-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                               <InfoPill icon={Wifi} label="Signal" value="Strong" color="emerald" />
                               <InfoPill icon={Activity} label="Speed" value={`${(selectedLocation?.location?.speed || 0).toFixed(1)} km/h`} color="indigo" />
                               <InfoPill icon={Crosshair} label="Accuracy" value={`±${selectedLocation?.location?.accuracy || 0}m`} color="blue" />
@@ -1790,11 +1790,11 @@ const EmployeePage = () => {
       <Dialog open={!!viewingAttendance} onOpenChange={() => setViewingAttendance(null)}>
         <DialogContent className="max-w-2xl p-0 overflow-hidden border-0 shadow-2xl rounded-3xl">
           <DialogHeader className="p-6 bg-indigo-600">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
-                  <UserCheck className="h-5 w-5" />
-                  {viewingAttendance ? getEmployeeName((viewingAttendance.userId && typeof viewingAttendance.userId === "object" ? viewingAttendance.userId._id : viewingAttendance.userId) || viewingAttendance.employeeId) : ""}
+            <div className="flex items-start justify-between gap-4 min-w-0">
+              <div className="min-w-0">
+                <DialogTitle className="text-lg font-bold text-white flex items-center gap-2 truncate">
+                  <UserCheck className="h-5 w-5 shrink-0" />
+                  <span className="truncate">{viewingAttendance ? getEmployeeName((viewingAttendance.userId && typeof viewingAttendance.userId === "object" ? viewingAttendance.userId._id : viewingAttendance.userId) || viewingAttendance.employeeId) : ""}</span>
                 </DialogTitle>
                 <DialogDescription className="text-indigo-200 text-xs mt-1">
                   {viewingAttendance ? getEmployeeRole((viewingAttendance.userId && typeof viewingAttendance.userId === "object" ? viewingAttendance.userId._id : viewingAttendance.userId) || viewingAttendance.employeeId) : ""}
@@ -1809,7 +1809,7 @@ const EmployeePage = () => {
           {viewingAttendance && (
             <div className="p-6 space-y-6 bg-white">
               {/* Punch In / Punch Out selfies */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {[
                   { key: "punchIn", label: "Punch In", color: "emerald", bgHex: "10b981" },
                   { key: "punchOut", label: "Punch Out", color: "blue", bgHex: "3b82f6" },
@@ -1858,7 +1858,7 @@ const EmployeePage = () => {
 
               {/* Lunch In / Lunch Out */}
               <div className={cn(
-                "grid grid-cols-2 gap-4 p-4 rounded-2xl border",
+                "grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl border",
                 viewingAttendance.lunchOverLimit ? "bg-red-50/60 border-red-200" : "bg-amber-50/50 border-amber-100"
               )}>
                 {[
@@ -1888,7 +1888,7 @@ const EmployeePage = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
                 <div className="text-center">
                   <p className="text-[9px] uppercase font-bold text-slate-400 mb-1.5">Status</p>
                   <Badge className={cn("text-[10px] border-0", statusColor(viewingAttendance.status) === "emerald" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>{viewingAttendance.status}</Badge>

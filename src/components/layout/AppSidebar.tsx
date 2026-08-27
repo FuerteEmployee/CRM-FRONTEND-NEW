@@ -15,7 +15,6 @@ import {
   FileSignature,
   HeadphonesIcon,
   Target,
-  ChevronDown,
   ChevronLeft,
   ClipboardList,
   BookOpen,
@@ -229,7 +228,7 @@ const DragHandle = ({ attributes, listeners }: { attributes: any; listeners: any
     {...attributes}
     {...listeners}
     title="Drag to reorder"
-    className="flex items-center justify-center h-6 w-4 shrink-0 rounded text-sidebar-foreground/30 hover:text-sidebar-foreground cursor-grab active:cursor-grabbing"
+    className="flex items-center justify-center h-6 w-4 shrink-0 rounded text-sidebar-foreground/30 hover:text-sidebar-foreground cursor-grab active:cursor-grabbing mr-0.5"
   >
     <Icons.GripVertical className="h-3.5 w-3.5" />
   </button>
@@ -632,6 +631,7 @@ export function AppSidebar() {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={handleClick}
+                title={item.title}
                 className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
               >
                 <IconComponent className="mr-2.5 h-4 w-4 shrink-0 transition-colors" />
@@ -651,6 +651,7 @@ export function AppSidebar() {
                 to={getUrl(item.url)}
                 end
                 onClick={handleClick}
+                title={item.title}
                 className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
                 activeClassName={isActive ? "sidebar-active-item font-semibold" : ""}
               >
@@ -745,18 +746,21 @@ export function AppSidebar() {
               />
               {!collapsed && (
                 <>
-                  <span className="flex-1 text-left text-[13px] font-medium">
+                  <span className="flex-1 text-left text-[13px] font-medium truncate">
                     {label}
                   </span>
-                  <ChevronDown
-                    className={`h-3.5 w-3.5 transition-transform duration-300 ${open ? "" : "-rotate-90"}`}
+                  <Icons.ChevronRight
+                    className={cn(
+                      "h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 transition-transform duration-200 group-hover:text-sidebar-foreground",
+                      open && "rotate-90 text-sidebar-foreground",
+                    )}
                   />
                 </>
               )}
             </SidebarMenuButton>
           </CollapsibleTrigger>
           <CollapsibleContent className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
-            <SidebarGroupContent className="pl-3 border-l border-sidebar-border/60 ml-[18px] mt-0.5 space-y-0">
+            <SidebarGroupContent className="pl-2.5 border-l border-sidebar-border/60 ml-[14px] mt-0.5 space-y-0">
               <SidebarMenu className="gap-0.5">
                 {dragCtx && canReorderSidebar ? (
                   <SortableContext items={visibleItems.map((i: any) => i._id)} strategy={verticalListSortingStrategy}>
@@ -870,7 +874,10 @@ export function AppSidebar() {
                         >
                           <Icons.Settings className="mr-2.5 h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
                           {!collapsed && (
-                            <span className="text-[13px] font-medium">Setup</span>
+                            <>
+                              <span className="flex-1 text-left text-[13px] font-medium">Setup</span>
+                              <Icons.ChevronRight className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 group-hover:text-sidebar-foreground transition-colors" />
+                            </>
                           )}
                         </SidebarMenuButton>
                       </SidebarMenuItem>
@@ -958,13 +965,13 @@ export function AppSidebar() {
                                 />
                                 {!collapsed && (
                                   <>
-                                    <span className="flex-1 text-left text-[13px] font-medium">
+                                    <span className="flex-1 text-left text-[13px] font-medium truncate">
                                       {item.title}
                                     </span>
-                                    <ChevronDown
+                                    <Icons.ChevronRight
                                       className={cn(
-                                        "h-3.5 w-3.5 transition-transform duration-300",
-                                        !isOpen && "-rotate-90",
+                                        "h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 transition-transform duration-200 group-hover:text-sidebar-foreground",
+                                        isOpen && "rotate-90 text-sidebar-foreground",
                                       )}
                                     />
                                   </>
@@ -972,7 +979,7 @@ export function AppSidebar() {
                               </SidebarMenuButton>
                             </CollapsibleTrigger>
                             <CollapsibleContent className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
-                              <SidebarGroupContent className="pl-3 border-l border-sidebar-border/60 ml-[18px] mt-0.5 space-y-0.5">
+                              <SidebarGroupContent className="pl-2.5 border-l border-sidebar-border/60 ml-[14px] mt-0.5 space-y-0.5">
                                 <SidebarMenu className="gap-0.5">
                                   {item.subItems.filter((sub: any) => isPilot || sub.url !== "/admin/setup/finance/bank-details").map((sub: any) => {
                                     const isSubActive = checkIsActive(sub.url);
@@ -986,6 +993,7 @@ export function AppSidebar() {
                                               if (isMobile)
                                                 setOpenMobile(false);
                                             }}
+                                            title={sub.title}
                                             className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
                                             activeClassName={isSubActive ? "sidebar-active-item font-semibold" : ""}
                                           >

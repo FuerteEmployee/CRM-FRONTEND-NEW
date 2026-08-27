@@ -100,7 +100,7 @@ export const WebsiteFormsDialog = () => {
       <DialogContent className="max-w-lg rounded-3xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-black">
-            <Globe className="h-5 w-5 text-primary" />
+            <Globe className="h-5 w-5 shrink-0 text-primary" />
             Website Lead Forms
           </DialogTitle>
         </DialogHeader>

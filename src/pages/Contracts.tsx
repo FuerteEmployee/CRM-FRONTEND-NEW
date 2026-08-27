@@ -52,6 +52,7 @@ const Contracts = () => {
   useOpenCreateModal(() => setIsAddOpen(true));
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
   const { can } = usePermissions();
   const { formatAmount } = useCurrency();
@@ -68,10 +69,16 @@ const Contracts = () => {
     );
   }, [contracts, search]);
 
+  const contractPageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
+  const totalContractPages = Math.max(1, Math.ceil(filtered.length / contractPageSize));
+  const safeContractPage = Math.min(currentPage, totalContractPages);
+  const paginatedContracts = itemsPerPage === "All" ? filtered : filtered.slice((safeContractPage - 1) * contractPageSize, safeContractPage * contractPageSize);
+  const allContractPageSelected = paginatedContracts.length > 0 && paginatedContracts.every((item: any) => selectedContracts.includes(item._id));
+
   const handleSelectAll = (checked: boolean) => {
-    const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
-    if (checked) setSelectedContracts(pageData.map((item: any) => item._id));
-    else setSelectedContracts([]);
+    const pageIds = paginatedContracts.map((item: any) => item._id);
+    if (checked) setSelectedContracts(prev => [...new Set([...prev, ...pageIds])]);
+    else setSelectedContracts(prev => prev.filter((id: string) => !pageIds.includes(id)));
   };
 
   const handleBulkAction = async () => {
@@ -256,7 +263,7 @@ const Contracts = () => {
                     <Label>Subject *</Label>
                     <Input placeholder="Contract subject" value={formData.subject} onChange={(e) => setFormData({ ...formData, subject: e.target.value })} />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Contract Value</Label>
                       <Input type="number" placeholder="0.00" value={formData.contract_value} onChange={(e) => setFormData({ ...formData, contract_value: e.target.value })} />
@@ -275,7 +282,7 @@ const Contracts = () => {
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Start Date</Label>
                       <Input type="date" value={formData.datestart} onChange={(e) => setFormData({ ...formData, datestart: e.target.value })} />
@@ -298,8 +305,8 @@ const Contracts = () => {
 
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
-          <div className="flex items-center gap-3">
-            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+          <div className="flex flex-wrap items-center gap-3">
+            <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -367,7 +374,7 @@ const Contracts = () => {
               placeholder="Search contracts..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
@@ -381,10 +388,7 @@ const Contracts = () => {
                       <input
                         type="checkbox"
                         className="rounded border-border"
-                        checked={(() => {
-                          const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
-                          return pageData.length > 0 && selectedContracts.length === pageData.length;
-                        })()}
+                        checked={allContractPageSelected}
                         onChange={(e) => handleSelectAll(e.target.checked)}
                       />
                     </th>
@@ -402,7 +406,7 @@ const Contracts = () => {
                     <tr><td colSpan={8} className="text-center p-4">Loading...</td></tr>
                   ) : filtered.length === 0 ? (
                     <tr><td colSpan={8} className="text-center p-4">No contracts found.</td></tr>
-                  ) : filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage)).map((c) => (
+                  ) : paginatedContracts.map((c) => (
                     <tr
                       key={c._id}
                       className={`border-b last:border-0 hover:bg-muted/50 ${selectedContracts.includes(c._id) ? 'bg-primary/5' : ''}`}
@@ -458,16 +462,29 @@ const Contracts = () => {
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing 1 to {filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage)).length} of {filtered.length} entries
+            Showing {filtered.length === 0 ? 0 : (safeContractPage - 1) * contractPageSize + 1} to {Math.min(safeContractPage * contractPageSize, filtered.length)} of {filtered.length} entries
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safeContractPage <= 1}
+            >
               Previous
             </Button>
             <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              1
+              {safeContractPage}
             </div>
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <span className="text-xs text-muted-foreground px-1">of {totalContractPages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalContractPages, p + 1))}
+              disabled={safeContractPage >= totalContractPages}
+            >
               Next
             </Button>
           </div>
@@ -486,7 +503,7 @@ const Contracts = () => {
               </p>
             </div>
             <div className="space-y-2"><Label>Subject</Label><Input value={editItem.subject || ""} onChange={(e) => setEditItem({...editItem, subject: e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Contract Value</Label><Input type="number" value={editItem.contract_value || ""} onChange={(e) => setEditItem({...editItem, contract_value: e.target.value})} /></div>
               <div className="space-y-2">
                 <Label>Contract Type</Label>
@@ -502,7 +519,7 @@ const Contracts = () => {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Start Date</Label><Input type="date" value={editItem.datestart?.substring(0, 10) || ""} onChange={(e) => setEditItem({...editItem, datestart: e.target.value})} /></div>
               <div className="space-y-2"><Label>End Date</Label><Input type="date" value={editItem.dateend?.substring(0, 10) || ""} onChange={(e) => setEditItem({...editItem, dateend: e.target.value})} /></div>
             </div>

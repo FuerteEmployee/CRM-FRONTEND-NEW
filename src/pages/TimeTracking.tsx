@@ -136,7 +136,7 @@ const TimeTracking = () => {
                 </div>
                 <div className="space-y-2"><Label>Task *</Label><Input placeholder="What did you work on?" value={formData.task} onChange={e => setFormData({...formData, task: e.target.value})} /></div>
                 <div className="space-y-2"><Label>Member</Label><Input placeholder="Team member name" value={formData.member} onChange={e => setFormData({...formData, member: e.target.value})} /></div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Hours *</Label><Input type="number" placeholder="0" step="0.5" value={formData.hours} onChange={e => setFormData({...formData, hours: e.target.value})} /></div>
                   <div className="space-y-2"><Label>Date *</Label><Input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} /></div>
                 </div>
@@ -214,7 +214,7 @@ const TimeTracking = () => {
 
       <Dialog open={!!viewItem} onOpenChange={() => setViewItem(null)}>
         <DialogContent><DialogHeader><DialogTitle>Time Entry Details</DialogTitle></DialogHeader>
-          {viewItem && (<div className="space-y-3 pt-2"><div className="grid grid-cols-2 gap-4">
+          {viewItem && (<div className="space-y-3 pt-2"><div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><p className="text-xs text-muted-foreground">Task</p><p className="text-sm font-medium">{viewItem.task}</p></div>
             <div><p className="text-xs text-muted-foreground">Project</p><p className="text-sm">{viewItem.project || "-"}</p></div>
             <div><p className="text-xs text-muted-foreground">Member</p><p className="text-sm">{viewItem.member || "-"}</p></div>
@@ -231,7 +231,7 @@ const TimeTracking = () => {
             <div className="space-y-2"><Label>Task *</Label><Input value={editItem.task || ""} onChange={e => setEditItem({...editItem, task: e.target.value})} /></div>
             <div className="space-y-2"><Label>Project</Label><Input value={editItem.project || ""} onChange={e => setEditItem({...editItem, project: e.target.value})} /></div>
             <div className="space-y-2"><Label>Member</Label><Input value={editItem.member || ""} onChange={e => setEditItem({...editItem, member: e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Hours *</Label><Input type="number" step="0.5" value={editItem.hours || ""} onChange={e => setEditItem({...editItem, hours: e.target.value})} /></div>
               <div className="space-y-2"><Label>Date *</Label><Input type="date" value={editItem.date || ""} onChange={e => setEditItem({...editItem, date: e.target.value})} /></div>
             </div>
