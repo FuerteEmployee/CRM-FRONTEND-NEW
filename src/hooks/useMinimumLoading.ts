@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
  * Ensures a loading state stays true for at least `minimumMs` milliseconds.
  * Prevents skeleton from flashing too quickly when the API responds fast.
  */
-export function useMinimumLoading(actual: boolean, minimumMs = 700): boolean {
+export function useMinimumLoading(actual: boolean, minimumMs = 300): boolean {
   const [show, setShow] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startRef = useRef<number>(Date.now());

@@ -5,8 +5,11 @@ export const queryClient = new QueryClient({
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
-      // Always fetch fresh data — never serve stale cache from a previous admin session.
-      staleTime: 0,
+      // Cross-session leakage is handled by queryClient.clear() on login/logout
+      // (see PermissionContext), not by this setting — so we can safely cache
+      // data briefly and avoid re-fetching + re-showing loading spinners every
+      // time a page is revisited within the same session.
+      staleTime: 30_000,
     },
   },
 });
