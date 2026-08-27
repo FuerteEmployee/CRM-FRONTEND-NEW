@@ -1790,11 +1790,11 @@ const EmployeePage = () => {
       <Dialog open={!!viewingAttendance} onOpenChange={() => setViewingAttendance(null)}>
         <DialogContent className="max-w-2xl p-0 overflow-hidden border-0 shadow-2xl rounded-3xl">
           <DialogHeader className="p-6 bg-indigo-600">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
-                  <UserCheck className="h-5 w-5" />
-                  {viewingAttendance ? getEmployeeName((viewingAttendance.userId && typeof viewingAttendance.userId === "object" ? viewingAttendance.userId._id : viewingAttendance.userId) || viewingAttendance.employeeId) : ""}
+            <div className="flex items-start justify-between gap-4 min-w-0">
+              <div className="min-w-0">
+                <DialogTitle className="text-lg font-bold text-white flex items-center gap-2 truncate">
+                  <UserCheck className="h-5 w-5 shrink-0" />
+                  <span className="truncate">{viewingAttendance ? getEmployeeName((viewingAttendance.userId && typeof viewingAttendance.userId === "object" ? viewingAttendance.userId._id : viewingAttendance.userId) || viewingAttendance.employeeId) : ""}</span>
                 </DialogTitle>
                 <DialogDescription className="text-indigo-200 text-xs mt-1">
                   {viewingAttendance ? getEmployeeRole((viewingAttendance.userId && typeof viewingAttendance.userId === "object" ? viewingAttendance.userId._id : viewingAttendance.userId) || viewingAttendance.employeeId) : ""}

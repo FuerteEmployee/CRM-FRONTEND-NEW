@@ -66,6 +66,7 @@ import { cn } from "@/lib/utils";
 const Payments = () => {
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
   const [viewItem, setViewItem] = useState<any>(null);
   const [viewTab, setViewTab] = useState<"receipt" | "payment">("receipt");
   const [paymentForm, setPaymentForm] = useState({ amount: "", date: "", paymentmode: "", paymentmethod: "", transactionid: "", note: "", companyName: "", voucherNumber: "", billDate: "", journal: "" });
@@ -83,7 +84,9 @@ const Payments = () => {
   };
 
   const toggleSelectAll = (items: any[]) => {
-    setSelectedIds(prev => prev.length === items.length ? [] : items.map(i => i._id));
+    const pageIds = items.map(i => i._id);
+    const allSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.includes(id));
+    setSelectedIds(prev => allSelected ? prev.filter(id => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]);
   };
 
   const handleBulkAction = async () => {
@@ -217,6 +220,11 @@ const Payments = () => {
     });
   }, [payments, search]);
 
+  const paymentPageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
+  const totalPaymentPages = Math.max(1, Math.ceil(filtered.length / paymentPageSize));
+  const safePaymentPage = Math.min(currentPage, totalPaymentPages);
+  const paginatedPayments = itemsPerPage === "All" ? filtered : filtered.slice((safePaymentPage - 1) * paymentPageSize, safePaymentPage * paymentPageSize);
+
   const totalReceived = useMemo(() => {
     return payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
   }, [payments]);
@@ -312,7 +320,7 @@ const Payments = () => {
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
           <div className="flex items-center gap-3">
-            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+            <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -381,7 +389,7 @@ const Payments = () => {
               placeholder="Search payments..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
@@ -392,15 +400,10 @@ const Payments = () => {
             <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
               <tr>
                 <th className="w-10 px-3 py-4">
-                  {(() => {
-                    const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
-                    return (
-                      <Checkbox
-                        checked={selectedIds.length === pageData.length && pageData.length > 0}
-                        onCheckedChange={() => toggleSelectAll(pageData)}
-                      />
-                    );
-                  })()}
+                  <Checkbox
+                    checked={paginatedPayments.length > 0 && paginatedPayments.every((p: any) => selectedIds.includes(p._id))}
+                    onCheckedChange={() => toggleSelectAll(paginatedPayments)}
+                  />
                 </th>
                 {["Company Name", "Voucher Number", "Bill Date", "Payment Mode", "Journal", "Amount", "Transaction ID", "Actions"].map((h) => (
                   <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
@@ -427,8 +430,7 @@ const Payments = () => {
                   </td>
                 </tr>
               ) : (
-                filtered
-                  .slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage))
+                paginatedPayments
                   .map((p: any) => (
                     <tr key={p._id} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(p._id) ? 'bg-primary/5' : ''}`}>
                       <td className="px-3 py-2">
@@ -476,16 +478,29 @@ const Payments = () => {
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing 1 to {filtered.length} of {filtered.length} entries
+            Showing {filtered.length === 0 ? 0 : (safePaymentPage - 1) * paymentPageSize + 1} to {Math.min(safePaymentPage * paymentPageSize, filtered.length)} of {filtered.length} entries
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safePaymentPage <= 1}
+            >
               Previous
             </Button>
             <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              1
+              {safePaymentPage}
             </div>
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <span className="text-xs text-muted-foreground px-1">of {totalPaymentPages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalPaymentPages, p + 1))}
+              disabled={safePaymentPage >= totalPaymentPages}
+            >
               Next
             </Button>
           </div>

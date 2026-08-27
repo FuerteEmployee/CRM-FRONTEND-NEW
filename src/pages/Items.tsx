@@ -41,11 +41,13 @@ import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 const Items = () => {
   const { symbol } = useCurrency();
   const [search, setSearch] = useState("");
+  const [branchFilter, setBranchFilter] = useState("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   useOpenCreateModal(() => setIsCreateOpen(true));
   const [viewItem, setViewItem] = useState<any>(null);
   const [editItem, setEditItem] = useState<any>(null);
   const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can, user, isModuleEnabled } = usePermissions();
@@ -255,19 +257,33 @@ const Items = () => {
     },
   });
 
-  const filtered = useMemo(() => {
-    return items.filter(
-      (i: any) =>
-        (i.name || i.description || "").toLowerCase().includes(search.toLowerCase()) ||
-        (i.long_description || "").toLowerCase().includes(search.toLowerCase()) ||
-        (i.group || "").toLowerCase().includes(search.toLowerCase())
-    );
-  }, [items, search]);
+  const getItemBranchName = (i: any) => (typeof i.branch === "object" ? (i.branch?.name || "") : (i.branch || ""));
 
-  const handleSelectAll = (checked: boolean) => {
-    const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
-    if (checked) setSelectedItems(pageData.map((item: any) => item._id).filter(Boolean));
-    else setSelectedItems([]);
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return items.filter((i: any) => {
+      const matchesSearch =
+        (i.name || i.description || "").toLowerCase().includes(q) ||
+        (i.long_description || "").toLowerCase().includes(q) ||
+        (i.group || "").toLowerCase().includes(q) ||
+        getItemBranchName(i).toLowerCase().includes(q);
+      const matchesBranch = branchFilter === "all" || getItemBranchName(i) === branchFilter;
+      return matchesSearch && matchesBranch;
+    });
+  }, [items, search, branchFilter]);
+
+  const totalItemRows = filtered.length;
+  const itemPageSize = itemsPerPage === "All" ? (totalItemRows || 1) : parseInt(itemsPerPage);
+  const totalItemPages = Math.max(1, Math.ceil(totalItemRows / itemPageSize));
+  const safeItemPage = Math.min(currentPage, totalItemPages);
+  const paginatedItems = itemsPerPage === "All" ? filtered : filtered.slice((safeItemPage - 1) * itemPageSize, safeItemPage * itemPageSize);
+  const itemPageIds = paginatedItems.map((item: any) => item._id).filter(Boolean);
+  const allItemPageSelected = itemPageIds.length > 0 && itemPageIds.every((id: string) => selectedItems.includes(id));
+
+  const handleSelectAll = () => {
+    setSelectedItems(prev =>
+      allItemPageSelected ? prev.filter((id: string) => !itemPageIds.includes(id)) : [...new Set([...prev, ...itemPageIds])]
+    );
   };
 
   const handleBulkAction = async () => {
@@ -547,7 +563,7 @@ const Items = () => {
               <DialogContent className="max-w-lg rounded-3xl p-6 border-none shadow-2xl bg-white max-h-[90vh] overflow-y-auto">
                 <DialogHeader className="border-b border-border/50 pb-4 mb-4">
                   <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                    <Plus className="h-5 w-5 text-primary" />
+                    <Plus className="h-5 w-5 shrink-0 text-primary" />
                     Create New Item
                   </DialogTitle>
                 </DialogHeader>
@@ -711,7 +727,7 @@ const Items = () => {
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
           <div className="flex items-center gap-3">
-            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+            <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -765,14 +781,27 @@ const Items = () => {
               columns={exportColumns}
             />
             <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            {canUseBranch && (
+              <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
+                <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                  <SelectValue placeholder="All Branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {branches.map((b: any) => (
+                    <SelectItem key={b._id || b.id} value={b.name}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search items library..."
+              placeholder="Search items or branch..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
@@ -788,11 +817,8 @@ const Items = () => {
                       <input
                         type="checkbox"
                         className="rounded border-border"
-                        checked={(() => {
-                          const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
-                          return pageData.length > 0 && selectedItems.length === pageData.length;
-                        })()}
-                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        checked={allItemPageSelected}
+                        onChange={handleSelectAll}
                       />
                     </th>
                     <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Name</th>
@@ -831,8 +857,7 @@ const Items = () => {
                       </td>
                     </tr>
                   ) : (
-                    filtered
-                      .slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage))
+                    paginatedItems
                       .map((item: any) => (
                       <tr key={item._id} className={`hover:bg-muted/30 transition-colors ${selectedItems.includes(item._id) ? 'bg-primary/5' : ''}`}>
                         <td className="p-3">
@@ -908,16 +933,29 @@ const Items = () => {
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing 1 to {filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage)).length} of {filtered.length} entries
+            Showing {totalItemRows === 0 ? 0 : (safeItemPage - 1) * itemPageSize + 1} to {Math.min(safeItemPage * itemPageSize, totalItemRows)} of {totalItemRows} entries
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safeItemPage <= 1}
+            >
               Previous
             </Button>
             <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              1
+              {safeItemPage}
             </div>
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <span className="text-xs text-muted-foreground px-1">of {totalItemPages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalItemPages, p + 1))}
+              disabled={safeItemPage >= totalItemPages}
+            >
               Next
             </Button>
           </div>
@@ -929,7 +967,7 @@ const Items = () => {
         <DialogContent className="max-w-md rounded-3xl p-6 border-none shadow-2xl bg-white max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b border-border/50 pb-4 mb-4">
             <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <Layers className="h-5 w-5 text-primary" />
+              <Layers className="h-5 w-5 shrink-0 text-primary" />
               Item Information
             </DialogTitle>
           </DialogHeader>
@@ -1020,7 +1058,7 @@ const Items = () => {
         <DialogContent className="max-w-lg rounded-3xl p-6 border-none shadow-2xl bg-white max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b border-border/50 pb-4 mb-4">
             <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <Edit className="h-5 w-5 text-primary" />
+              <Edit className="h-5 w-5 shrink-0 text-primary" />
               Edit Item Settings
             </DialogTitle>
           </DialogHeader>

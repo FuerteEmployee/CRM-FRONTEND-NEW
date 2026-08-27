@@ -6335,8 +6335,8 @@ function ZipCreditNotesModal({ open, onOpenChange, formData, setFormData }: any)
         <div className="bg-zinc-950 px-6 py-5 flex items-center justify-between border-b border-white/5">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-white flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-xl">
-                <Receipt className="h-5 w-5 text-primary" />
+              <div className="p-2 shrink-0 bg-primary/10 rounded-xl">
+                <Receipt className="h-5 w-5 shrink-0 text-primary" />
               </div>
               ZIP Credit Notes
             </DialogTitle>
@@ -6396,8 +6396,8 @@ function ZipPaymentsModal({ open, onOpenChange, formData, setFormData }: any) {
         <div className="bg-zinc-950 px-6 py-5 flex items-center justify-between border-b border-white/5">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-white flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-xl">
-                <CreditCard className="h-5 w-5 text-primary" />
+              <div className="p-2 shrink-0 bg-primary/10 rounded-xl">
+                <CreditCard className="h-5 w-5 shrink-0 text-primary" />
               </div>
               ZIP Payments
             </DialogTitle>
@@ -6476,8 +6476,8 @@ function ReminderModal({ open, onOpenChange, formData, setFormData, staff, onSav
         <div className="bg-primary/5 px-8 py-6 border-b border-primary/10">
           <DialogHeader>
             <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-xl">
-                <Bell className="h-5 w-5 text-primary" />
+              <div className="p-2 shrink-0 bg-primary/10 rounded-xl">
+                <Bell className="h-5 w-5 shrink-0 text-primary" />
               </div>
               Set Reminder
             </DialogTitle>
@@ -6571,8 +6571,8 @@ function VaultEntryModal({ open, onOpenChange, formData, setFormData, onSave, is
         <div className="bg-primary/5 px-8 py-6 border-b border-primary/10">
           <DialogHeader>
             <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-xl">
-                <Lock className="h-5 w-5 text-primary" />
+              <div className="p-2 shrink-0 bg-primary/10 rounded-xl">
+                <Lock className="h-5 w-5 shrink-0 text-primary" />
               </div>
               New Vault Entry
             </DialogTitle>

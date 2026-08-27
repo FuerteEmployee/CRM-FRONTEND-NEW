@@ -85,6 +85,7 @@ const LANGUAGES = LANGUAGES_ISO;
 const Customers = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [branchFilter, setBranchFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [viewItem, setViewItem] = useState(null);
@@ -213,22 +214,33 @@ const Customers = () => {
     }
   };
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedCustomers(paginatedCustomers.map((c: any) => c._id));
-    } else {
-      setSelectedCustomers([]);
-    }
+  const handleSelectAll = () => {
+    const pageIds = paginatedCustomers.map((c: any) => c._id);
+    const allSelected = pageIds.length > 0 && pageIds.every((id: string) => selectedCustomers.includes(id));
+    setSelectedCustomers(prev =>
+      allSelected ? prev.filter((id: string) => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]
+    );
   };
 
+  const getCustomerBranchId = (c: any) =>
+    (typeof c.branch === "string" ? c.branch : c.branch?._id) || "";
+
+  const getCustomerBranchName = (c: any) =>
+    branches.find((b: any) => b._id === c.branch || b._id === c.branch?._id)?.name ||
+    (c.branch as any)?.name ||
+    "";
+
   const filtered = customers.filter((c) => {
-    const matchSearch = (c.company || "")
-      .toLowerCase()
-      .includes(search.toLowerCase());
+    const searchLower = search.toLowerCase();
+    const matchSearch =
+      (c.company || "").toLowerCase().includes(searchLower) ||
+      getCustomerBranchName(c).toLowerCase().includes(searchLower);
     const matchStatus =
       statusFilter === "all" ||
       (c.active ? "Active" : "Inactive") === statusFilter;
-    return matchSearch && matchStatus;
+    const matchBranch =
+      branchFilter === "all" || getCustomerBranchId(c) === branchFilter;
+    return matchSearch && matchStatus && matchBranch;
   });
 
   const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
@@ -1020,6 +1032,17 @@ const Customers = () => {
                 <SelectItem value="Inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={branchFilter} onValueChange={setBranchFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="All Branches" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Branches</SelectItem>
+                {branches.map((b: any) => (
+                  <SelectItem key={b._id} value={b._id}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
 
@@ -1143,8 +1166,8 @@ const Customers = () => {
                       <input
                         type="checkbox"
                         className="rounded border-border"
-                        checked={paginatedCustomers.length > 0 && selectedCustomers.length === paginatedCustomers.length}
-                        onChange={(e) => handleSelectAll(e.target.checked)}
+                        checked={paginatedCustomers.length > 0 && paginatedCustomers.every((c: any) => selectedCustomers.includes(c._id))}
+                        onChange={handleSelectAll}
                       />
                     </th>
                     <th className="p-3 font-medium">#</th>
@@ -1250,7 +1273,7 @@ const Customers = () => {
                           </div>
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
-                          {branches.find((b: any) => b._id === c.branch || b._id === c.branch?._id)?.name || (c.branch as any)?.name || (typeof c.branch === "string" ? c.branch : "-")}
+                          {getCustomerBranchName(c) || "-"}
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
                           {formatDate(c.datecreated)}

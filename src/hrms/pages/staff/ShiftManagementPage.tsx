@@ -260,11 +260,11 @@ export default function ShiftManagementPage() {
                     <DialogContent className="bg-white border-0 rounded-[2.5rem] max-w-lg shadow-2xl p-0 overflow-hidden flex flex-col max-h-[90vh]">
                         <DialogHeader className="p-8 pb-4 shrink-0">
                             <div className="flex items-center gap-3 mb-2">
-                                <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center text-white shadow-soft">
-                                    <AlarmClock className="h-6 w-6" />
+                                <div className="h-10 w-10 shrink-0 rounded-xl gradient-primary flex items-center justify-center text-white shadow-soft">
+                                    <AlarmClock className="h-6 w-6 shrink-0" />
                                 </div>
-                                <div>
-                                    <DialogTitle className="text-2xl font-bold">
+                                <div className="min-w-0">
+                                    <DialogTitle className="text-2xl font-bold truncate">
                                         {editingShift ? "Update Shift" : "New Shift"}
                                     </DialogTitle>
                                     <DialogDescription className="text-muted-foreground font-medium">
@@ -274,9 +274,9 @@ export default function ShiftManagementPage() {
                             </div>
                         </DialogHeader>
 
-                        <div className="overflow-y-auto flex-1">
-                            <Form {...form}>
-                                <form onSubmit={form.handleSubmit(onFormSubmit)} className="space-y-6 px-8 py-4">
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(onFormSubmit)} className="flex flex-col flex-1 overflow-hidden">
+                                <div className="overflow-y-auto flex-1 space-y-6 px-8 py-4">
 
                                     {/* Shift Name */}
                                     <FormField
@@ -616,18 +616,19 @@ export default function ShiftManagementPage() {
                                         );
                                     })()}
 
-                                    <DialogFooter className="py-4 flex items-center gap-3">
-                                        <Button variant="ghost" type="button" onClick={() => setIsAddOpen(false)} className="rounded-xl h-12">
-                                            Cancel
-                                        </Button>
-                                        <Button disabled={isSubmitting} type="submit" className="flex-1 rounded-xl h-12 gradient-primary font-bold shadow-glow">
-                                            {isSubmitting && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />}
-                                            {editingShift ? "Save Changes" : "Create Shift"}
-                                        </Button>
-                                    </DialogFooter>
-                                </form>
-                            </Form>
-                        </div>
+                                </div>
+
+                                <DialogFooter className="px-8 py-4 border-t border-gray-100 shrink-0 flex items-center gap-3">
+                                    <Button variant="ghost" type="button" onClick={() => setIsAddOpen(false)} className="rounded-xl h-12">
+                                        Cancel
+                                    </Button>
+                                    <Button disabled={isSubmitting} type="submit" className="flex-1 rounded-xl h-12 gradient-primary font-bold shadow-glow">
+                                        {isSubmitting && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />}
+                                        {editingShift ? "Save Changes" : "Create Shift"}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </Form>
                     </DialogContent>
                 </Dialog>
             </div>

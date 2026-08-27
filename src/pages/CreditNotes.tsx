@@ -72,6 +72,7 @@ const statusMap: Record<number, { label: string; color: string }> = {
 const CreditNotes = () => {
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
   const [viewItem, setViewItem] = useState<any>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -154,6 +155,11 @@ const CreditNotes = () => {
       return matchSearch;
     });
   }, [creditNotes, search]);
+
+  const cnPageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
+  const totalCnPages = Math.max(1, Math.ceil(filtered.length / cnPageSize));
+  const safeCnPage = Math.min(currentPage, totalCnPages);
+  const paginatedCreditNotes = itemsPerPage === "All" ? filtered : filtered.slice((safeCnPage - 1) * cnPageSize, safeCnPage * cnPageSize);
 
   const totalCreditsAvailable = useMemo(() => {
     return creditNotes
@@ -246,7 +252,7 @@ const CreditNotes = () => {
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
           <div className="flex items-center gap-3">
-            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+            <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -287,7 +293,7 @@ const CreditNotes = () => {
               placeholder="Search credit notes..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
@@ -329,8 +335,7 @@ const CreditNotes = () => {
                   </td>
                 </tr>
               ) : (
-                filtered
-                  .slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage))
+                paginatedCreditNotes
                   .map((note: any) => {
                     const status = statusMap[note.status] || statusMap[1];
                     return (
@@ -379,16 +384,29 @@ const CreditNotes = () => {
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing 1 to {filtered.length} of {filtered.length} entries
+            Showing {filtered.length === 0 ? 0 : (safeCnPage - 1) * cnPageSize + 1} to {Math.min(safeCnPage * cnPageSize, filtered.length)} of {filtered.length} entries
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safeCnPage <= 1}
+            >
               Previous
             </Button>
             <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              1
+              {safeCnPage}
             </div>
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <span className="text-xs text-muted-foreground px-1">of {totalCnPages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalCnPages, p + 1))}
+              disabled={safeCnPage >= totalCnPages}
+            >
               Next
             </Button>
           </div>

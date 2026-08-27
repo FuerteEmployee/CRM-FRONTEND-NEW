@@ -417,7 +417,7 @@ const LeaveManagementPage = () => {
         <DialogContent className="max-w-2xl rounded-2xl border border-slate-200 shadow-2xl bg-white p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50/60 to-white">
             <DialogTitle className="text-lg font-semibold flex items-center gap-2 text-slate-800">
-              <ArrowLeftRight className="h-5 w-5 text-indigo-500" />
+              <ArrowLeftRight className="h-5 w-5 shrink-0 text-indigo-500" />
               Swap Weekly Off Days
             </DialogTitle>
             <p className="text-sm text-slate-400 mt-0.5">

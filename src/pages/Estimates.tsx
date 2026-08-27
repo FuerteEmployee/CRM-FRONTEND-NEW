@@ -25,6 +25,7 @@ import { ImportButton } from "@/components/ui/import-button";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
+import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
   "draft": { label: "Draft", className: "bg-slate-100 text-slate-600" },
@@ -524,7 +525,9 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
 
 const Estimates = () => {
   const [estimateSearch, setEstimateSearch] = useState("");
+  const [branchFilter, setBranchFilter] = useState("all");
   const [estimateItemsPerPage, setEstimateItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
   const [previewEstimate, setPreviewEstimate] = useState<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -538,6 +541,14 @@ const Estimates = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { formatAmount, symbol } = useCurrency();
+
+  const { data: branchesData } = useQuery({
+    queryKey: ["hrms-branches"],
+    queryFn: () => hrmsbranchService.getAll(),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches = branchesData?.data || [];
 
   const { data: currencies = [] } = useQuery({
     queryKey: ["currencies"],
@@ -566,8 +577,9 @@ const Estimates = () => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
-  const toggleSelectAll = (items: any[]) => {
-    setSelectedIds(prev => prev.length === items.length ? [] : items.map(i => i._id || i.id));
+  const toggleSelectAll = (pageIds: string[]) => {
+    const allSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.includes(id));
+    setSelectedIds(prev => allSelected ? prev.filter(id => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]);
   };
 
   const handleBulkAction = async () => {
@@ -643,9 +655,14 @@ const Estimates = () => {
     importMutation.mutate(valid as any);
   };
 
-  const filtered = estimates.filter((e: any) =>
-    (e.subject || e.number || "").toLowerCase().includes(estimateSearch.toLowerCase())
-  );
+  const getBranchName = (e: any) => (typeof e.branch === "object" ? (e.branch?.name || "") : (e.branch || ""));
+
+  const filtered = estimates.filter((e: any) => {
+    const q = estimateSearch.toLowerCase();
+    const matchesSearch = (e.subject || e.number || "").toLowerCase().includes(q) || getBranchName(e).toLowerCase().includes(q);
+    const matchesBranch = branchFilter === "all" || getBranchName(e) === branchFilter;
+    return matchesSearch && matchesBranch;
+  });
 
   // One export row per line item — an estimate with 3 items produces 3 rows,
   // each repeating the estimate-level fields and varying only Item/Qty/Rate/Amount.
@@ -661,6 +678,7 @@ const Estimates = () => {
       "Sales Person": e.salesPerson || "",
       "Date": e.date ? new Date(e.date).toLocaleDateString("en-GB") : "",
       "Status": e.status || "draft",
+      ...(canUseBranch ? { "Branch": getBranchName(e) } : {}),
     };
     const items = e.items?.length ? e.items : [{ description: "", qty: "", rate: "", amount: "" }];
     return items.map((item: any) => ({
@@ -696,6 +714,14 @@ const Estimates = () => {
       amount: item.amount ?? (item.qty && item.rate ? item.qty * item.rate : ""),
     }));
   }), [filtered]);
+
+  const totalRows = tableRows.length;
+  const pageSize = estimateItemsPerPage === "All" ? (totalRows || 1) : parseInt(estimateItemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedRows = estimateItemsPerPage === "All" ? tableRows : tableRows.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pageEstIds = [...new Set(paginatedRows.map((r: any) => r.estimate._id || r.estimate.id))] as string[];
+  const allPageSelected = pageEstIds.length > 0 && pageEstIds.every(id => selectedIds.includes(id));
 
   return (
     <DashboardLayout>
@@ -759,7 +785,7 @@ const Estimates = () => {
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
           <div className="flex items-center gap-3">
-            <Select value={estimateItemsPerPage} onValueChange={setEstimateItemsPerPage}>
+            <Select value={estimateItemsPerPage} onValueChange={(v) => { setEstimateItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -824,46 +850,58 @@ const Estimates = () => {
               data={exportRows}
               filename="estimates"
               columns={[
-                { header: "Company Name", key: "companyName" },
-                { header: "Connect Person", key: "connectPerson" },
-                { header: "Phone Number", key: "phone" },
-                { header: "Mail Id", key: "mailId" },
-                { header: "Item", key: "itemDescription" },
-                { header: "Quantity", key: "qty" },
-                { header: "Rate", key: "rate" },
-                { header: "Amount", key: "amount" },
-                { header: "Sales Person", key: "salesPerson" },
-                { header: "Date", key: "date" }
+                { header: "Estimate #", key: "Estimate #" },
+                { header: "Company Name", key: "Company Name" },
+                { header: "Connect Person", key: "Connect Person" },
+                { header: "Phone Number", key: "Phone Number" },
+                { header: "Mail Id", key: "Mail Id" },
+                { header: "Item", key: "Item" },
+                { header: "Quantity", key: "Quantity", type: "number" },
+                { header: "Rate", key: "Rate", type: "number" },
+                { header: "Amount", key: "Amount", type: "number" },
+                { header: "Sales Person", key: "Sales Person" },
+                { header: "Date", key: "Date" },
+                { header: "Status", key: "Status" },
+                ...(canUseBranch ? [{ header: "Branch", key: "Branch" }] : []),
               ]}
             />
             <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            {canUseBranch && (
+              <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
+                <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                  <SelectValue placeholder="All Branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {branches.map((b: any) => (
+                    <SelectItem key={b._id || b.id} value={b.name}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search estimates..."
+              placeholder="Search estimates or branch..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={estimateSearch}
-              onChange={(e) => setEstimateSearch(e.target.value)}
+              onChange={(e) => { setEstimateSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
 
         {/* Estimates Table */}
         <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+        <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
               <tr>
                 <th className="w-10 px-3 py-4">
-                  {(() => {
-                    const pageData = filtered.slice(0, estimateItemsPerPage === "All" ? filtered.length : parseInt(estimateItemsPerPage));
-                    return (
-                      <Checkbox
-                        checked={selectedIds.length === pageData.length && pageData.length > 0}
-                        onCheckedChange={() => toggleSelectAll(pageData)}
-                      />
-                    );
-                  })()}
+                  <Checkbox
+                    checked={allPageSelected}
+                    onCheckedChange={() => toggleSelectAll(pageEstIds)}
+                  />
                 </th>
                 {["Company Name", "Connect Person", "Phone Number", "Mail Id", "Item", "Quantity", "Rate", "Amount", "Sales Person", "Date", ...(canUseBranch ? ["Branch"] : []), "Actions"].map(h => (
                   <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
@@ -882,7 +920,7 @@ const Estimates = () => {
                   </td>
                 </tr>
               ) : (
-                tableRows.map((row: any) => {
+                paginatedRows.map((row: any) => {
                   const est = row.estimate;
                   const estId = est._id || est.id;
                   return (
@@ -913,7 +951,7 @@ const Estimates = () => {
                       <td className="px-6 py-4 text-muted-foreground">{row.date ? formatDate(row.date) : "-"}</td>
                       {canUseBranch && (
                         <td className="px-6 py-4 text-muted-foreground">
-                          {typeof est.branch === "object" ? (est.branch?.name || "-") : (est.branch || "-")}
+                          {getBranchName(est) || "-"}
                         </td>
                       )}
                       <td className="px-6 py-4">
@@ -930,16 +968,34 @@ const Estimates = () => {
             </tbody>
           </table>
         </div>
+        </div>
 
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing 1 to {filtered.length} of {filtered.length} entries
+            Showing {totalRows === 0 ? 0 : (safePage - 1) * pageSize + 1} to {Math.min(safePage * pageSize, totalRows)} of {totalRows} entries
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+            >
+              Previous
+            </Button>
+            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">{safePage}</div>
+            <span className="text-xs text-muted-foreground px-1">of {totalPages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+            >
+              Next
+            </Button>
           </div>
         </div>
       </div>

@@ -25,6 +25,7 @@ import { ImportButton } from "@/components/ui/import-button";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
+import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
   "1": { label: "Draft", className: "bg-muted text-muted-foreground" },
@@ -492,6 +493,7 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
 const Proposals = () => {
   const [proposalSearch, setProposalSearch] = useState("");
   const [proposalItemsPerPage, setProposalItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedProposal, setSelectedProposal] = useState<any>(null);
   const [previewProposal, setPreviewProposal] = useState<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -501,6 +503,14 @@ const Proposals = () => {
   // Branch is sourced from the HRMS module — only show it when the
   // tenant's plan actually includes HRMS, even for a pilot-flagged user.
   const canUseBranch = isPilot && isModuleEnabled("hrms");
+  const [branchFilter, setBranchFilter] = useState("all");
+  const { data: branchesRaw = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
   const { formatAmount, symbol } = useCurrency();
   const { data: currencies = [] } = useQuery<any>({
     queryKey: ["currencies"],
@@ -559,11 +569,6 @@ const Proposals = () => {
     }
   });
 
-  const handleSelectAll = (checked: boolean) => {
-    const pageData = filtered.slice(0, proposalItemsPerPage === "All" ? filtered.length : parseInt(proposalItemsPerPage));
-    if (checked) setSelectedProposals(pageData.map((item: any) => item._id || item.id));
-    else setSelectedProposals([]);
-  };
 
   const handleBulkAction = async () => {
     if (selectedProposals.length === 0) {
@@ -590,9 +595,28 @@ const Proposals = () => {
     }
   };
 
-  const filtered = (Array.isArray(proposals) ? proposals : []).filter((p: any) =>
-    (p.subject || p.title || "").toLowerCase().includes(proposalSearch.toLowerCase())
-  );
+  const getProposalBranchName = (p: any) => (typeof p.branch === "object" ? (p.branch?.name || "") : (p.branch || ""));
+
+  const filtered = (Array.isArray(proposals) ? proposals : []).filter((p: any) => {
+    const q = proposalSearch.toLowerCase();
+    const matchesSearch = (p.subject || p.title || "").toLowerCase().includes(q) || getProposalBranchName(p).toLowerCase().includes(q);
+    const matchesBranch = branchFilter === "all" || getProposalBranchName(p) === branchFilter;
+    return matchesSearch && matchesBranch;
+  });
+
+  const totalRows = filtered.length;
+  const pageSize = proposalItemsPerPage === "All" ? (totalRows || 1) : parseInt(proposalItemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedProposals = proposalItemsPerPage === "All" ? filtered : filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pageIds = paginatedProposals.map((p: any) => p._id || p.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selectedProposals.includes(id));
+
+  const handleSelectAll = () => {
+    setSelectedProposals(prev =>
+      allPageSelected ? prev.filter(id => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]
+    );
+  };
 
   return (
     <DashboardLayout>
@@ -626,7 +650,7 @@ const Proposals = () => {
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
           <div className="flex items-center gap-3">
-            <Select value={proposalItemsPerPage} onValueChange={setProposalItemsPerPage}>
+            <Select value={proposalItemsPerPage} onValueChange={(v) => { setProposalItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -702,14 +726,27 @@ const Proposals = () => {
               ]}
             />
             <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            {canUseBranch && (
+              <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
+                <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                  <SelectValue placeholder="All Branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {branches.map((b: any) => (
+                    <SelectItem key={b._id || b.id} value={b.name}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search proposals..."
+              placeholder="Search proposals or branch..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={proposalSearch}
-              onChange={(e) => setProposalSearch(e.target.value)}
+              onChange={(e) => { setProposalSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
@@ -723,11 +760,8 @@ const Proposals = () => {
                   <input
                     type="checkbox"
                     className="rounded border-border"
-                    checked={(() => {
-                      const pageData = filtered.slice(0, proposalItemsPerPage === "All" ? filtered.length : parseInt(proposalItemsPerPage));
-                      return pageData.length > 0 && selectedProposals.length === pageData.length;
-                    })()}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    checked={allPageSelected}
+                    onChange={handleSelectAll}
                   />
                 </th>
                 {[
@@ -751,7 +785,7 @@ const Proposals = () => {
                   </td>
                 </tr>
               ) : (
-                filtered.map((prop: any) => {
+                paginatedProposals.map((prop: any) => {
                   const status = getStatus(prop.status);
                   const proposalNum = (prop._id || prop.id)?.slice(-6).toUpperCase();
                   return (
@@ -821,12 +855,29 @@ const Proposals = () => {
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing 1 to {filtered.length} of {filtered.length} entries
+            Showing {totalRows === 0 ? 0 : (safePage - 1) * pageSize + 1} to {Math.min(safePage * pageSize, totalRows)} of {totalRows} entries
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+            >
+              Previous
+            </Button>
+            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">{safePage}</div>
+            <span className="text-xs text-muted-foreground px-1">of {totalPages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+            >
+              Next
+            </Button>
           </div>
         </div>
       </div>

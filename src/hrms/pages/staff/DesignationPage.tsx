@@ -204,11 +204,11 @@ export default function DesignationPage() {
           <DialogContent className="bg-white border-0 rounded-[2.5rem] max-w-lg shadow-2xl p-0 overflow-hidden flex flex-col">
             <DialogHeader className="p-8 pb-4">
               <div className="flex items-center gap-3 mb-2">
-                <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center text-white shadow-soft">
-                  <Briefcase className="h-6 w-6" />
+                <div className="h-10 w-10 shrink-0 rounded-xl gradient-primary flex items-center justify-center text-white shadow-soft">
+                  <Briefcase className="h-6 w-6 shrink-0" />
                 </div>
-                <div>
-                  <DialogTitle className="text-2xl font-bold">
+                <div className="min-w-0">
+                  <DialogTitle className="text-2xl font-bold truncate">
                     {editingDesg ? "Update Designation" : "New Designation"}
                   </DialogTitle>
                   <DialogDescription className="text-muted-foreground font-medium">

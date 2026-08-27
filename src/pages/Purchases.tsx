@@ -121,6 +121,7 @@ const Purchases = () => {
   const simplifiedRegister = !!getSetting("simplified_purchase_register", false);
   const getNewPurchaseForm = () => ({ ...emptyForm, gst_rate: simplifiedRegister ? "0" : emptyForm.gst_rate });
   const [vendorFilter, setVendorFilter] = useState<string[]>([]);
+  const [branchFilter, setBranchFilter] = useState("all");
 
   const { data: vendors = [] } = useQuery<VendorRecord[]>({
     queryKey: ["vendors"],
@@ -606,9 +607,10 @@ const Purchases = () => {
         p.branch?.toLowerCase().includes(q);
       const matchesVendor = vendorFilter.length === 0 ||
         vendorFilter.includes(typeof p.vendor_id === "object" ? p.vendor_id?._id : p.vendor_id);
-      return matchesSearch && matchesVendor;
+      const matchesBranch = branchFilter === "all" || p.branch === branchFilter;
+      return matchesSearch && matchesVendor && matchesBranch;
     });
-  }, [purchases, search, vendorFilter]);
+  }, [purchases, search, vendorFilter, branchFilter]);
 
   const totals = useMemo(() => {
     return filteredPurchases.reduce(
@@ -708,10 +710,10 @@ const Purchases = () => {
     ...(isPilot ? [{ header: "FREIGHT 1%", key: "freight_charge", type: "number" as const }] : []),
     { header: "IGST 18%", key: "igst", type: "number" as const },
     { header: "Round off", key: "round_off", type: "number" as const },
-    { header: "Branch Name", key: "branch" },
-  ], [isPilot]);
+    ...(canUseBranch ? [{ header: "Branch Name", key: "branch" }] : []),
+  ], [isPilot, canUseBranch]);
 
-  const tableColSpan = 1 + (15 + (isPilot ? 2 : 0)) + 1;
+  const tableColSpan = 1 + (14 + (isPilot ? 2 : 0) + (canUseBranch ? 1 : 0)) + 1;
 
   const inputCls = "h-11 rounded-xl border-slate-200";
   const labelCls = "text-[10px] font-black uppercase tracking-widest text-slate-500";
@@ -875,6 +877,19 @@ const Purchases = () => {
                     className="h-9 w-full sm:w-[200px] text-sm bg-slate-50 border-slate-200"
                   />
                 )}
+                {canUseBranch && (
+                  <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
+                    <SelectTrigger className="h-9 w-full sm:w-[180px] text-sm bg-slate-50 border-slate-200">
+                      <SelectValue placeholder="All Branches" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Branches</SelectItem>
+                      {branches.map((b: any) => (
+                        <SelectItem key={b._id || b.id} value={b.name}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <div className="relative w-full sm:w-auto">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                   <Input
@@ -912,7 +927,7 @@ const Purchases = () => {
                     {isPilot && <th className="p-4 font-bold">FREIGHT 1%</th>}
                     <th className="p-4 font-bold">IGST 18%</th>
                     <th className="p-4 font-bold">Round off</th>
-                    <th className="p-4 font-bold">Branch</th>
+                    {canUseBranch && <th className="p-4 font-bold">Branch</th>}
                     <th className="p-4 font-bold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -958,7 +973,7 @@ const Purchases = () => {
                         {isPilot && <td className="p-4 text-xs font-medium text-slate-600">{money(p.freight_charge)}</td>}
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.igst)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{p.round_off ? money(p.round_off) : "-"}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{p.branch || "-"}</td>
+                        {canUseBranch && <td className="p-4 text-xs font-medium text-slate-600">{p.branch || "-"}</td>}
                         <td className="p-4">
                           <div className="flex justify-end gap-1">
                             {can("Purchases", "Edit") && (
@@ -1125,7 +1140,7 @@ const Purchases = () => {
                       {!canUseBranch && (
                         <div className="space-y-1.5">
                           <Label className={labelCls}>Branch</Label>
-                          <Input value={formData.branch} onChange={(e) => setField("branch", e.target.value)} placeholder="e.g. Sparkling Techno Tools" className={inputCls} />
+                          <Input value={formData.branch} onChange={(e) => setField("branch", e.target.value)} placeholder="e.g. Sparkling Techo Tools" className={inputCls} />
                         </div>
                       )}
                       <div className="space-y-1.5">

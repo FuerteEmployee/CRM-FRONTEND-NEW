@@ -215,12 +215,12 @@ export function ImportExcelButton({
       >
         <DialogContent className="sm:max-w-[550px] rounded-3xl border-0 shadow-2xl p-0 overflow-hidden bg-white/95 backdrop-blur-md">
           <DialogHeader className="p-6 pb-0 flex flex-row items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-inner">
-                <FileSpreadsheet className="h-6 w-6 animate-pulse" />
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="h-12 w-12 shrink-0 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 shadow-inner">
+                <FileSpreadsheet className="h-6 w-6 shrink-0 animate-pulse" />
               </div>
-              <div>
-                <DialogTitle className="text-xl font-black text-slate-800">{title}</DialogTitle>
+              <div className="min-w-0">
+                <DialogTitle className="text-xl font-black text-slate-800 truncate">{title}</DialogTitle>
                 <DialogDescription className="text-[13px] text-slate-500 mt-0.5">
                   Upload Excel sheet to bulk import entries
                 </DialogDescription>

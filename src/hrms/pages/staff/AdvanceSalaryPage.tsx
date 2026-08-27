@@ -555,7 +555,7 @@ const AdvanceSalaryPage = () => {
         <DialogContent className="max-w-md rounded-2xl border border-slate-200 shadow-2xl bg-white p-0 overflow-hidden flex flex-col max-h-[90vh]">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50/60 to-white shrink-0">
             <DialogTitle className="text-lg font-semibold flex items-center gap-2 text-slate-800">
-              <HandCoins className="h-5 w-5 text-indigo-500" />
+              <HandCoins className="h-5 w-5 shrink-0 text-indigo-500" />
               New Request
             </DialogTitle>
             <p className="text-sm text-slate-400 mt-0.5">

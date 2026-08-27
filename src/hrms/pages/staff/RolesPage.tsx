@@ -985,7 +985,7 @@ export default function RolesPage() {
         <DialogContent className="bg-white border border-gray-200 rounded-3xl max-w-2xl shadow-2xl p-0 max-h-[92vh] overflow-hidden flex flex-col">
           <DialogHeader className="px-8 pt-8 pb-4 border-b border-gray-100 shrink-0">
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <span className="text-xl">{editingRole ? "✏️" : "➕"}</span>
+              <span className="text-xl shrink-0">{editingRole ? "✏️" : "➕"}</span>
               {editingRole
                 ? `Edit "${editingRole.label}"`
                 : "Create a New Role"}

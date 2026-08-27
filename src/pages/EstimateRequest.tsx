@@ -360,14 +360,14 @@ export default function EstimateRequest() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader className="border-b pb-4">
             <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Info className="h-5 w-5 text-primary" />
+              <div className="p-2 shrink-0 bg-primary/10 rounded-lg">
+                <Info className="h-5 w-5 shrink-0 text-primary" />
               </div>
-              <div>
-                <DialogTitle className="text-xl">
+              <div className="min-w-0">
+                <DialogTitle className="text-xl truncate">
                   Request Submission Details
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="truncate">
                   Review professional data submitted via{" "}
                   {selectedRequest?.form_name || "Public Form"}
                 </DialogDescription>

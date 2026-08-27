@@ -49,6 +49,7 @@ import { useCurrency } from "@/context/CurrencyContext";
 const Expenses = () => {
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedExpenses, setSelectedExpenses] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
   const [bulkState, setBulkState] = useState({ massDelete: false });
@@ -72,6 +73,12 @@ const Expenses = () => {
       (e.reference_no || "").toLowerCase().includes(searchStr)
     );
   });
+
+  const expensePageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
+  const totalExpensePages = Math.max(1, Math.ceil(filtered.length / expensePageSize));
+  const safeExpensePage = Math.min(currentPage, totalExpensePages);
+  const paginatedExpenses = itemsPerPage === "All" ? filtered : filtered.slice((safeExpensePage - 1) * expensePageSize, safeExpensePage * expensePageSize);
+  const allExpensePageSelected = paginatedExpenses.length > 0 && paginatedExpenses.every((e: any) => selectedExpenses.includes(e._id));
 
   const handleBulkAction = async () => {
     if (selectedExpenses.length === 0) {
@@ -165,7 +172,7 @@ const Expenses = () => {
             {/* Table Controls */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-6 mb-8">
               <div className="flex items-center gap-4 w-full md:w-auto">
-                <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+                <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
                   <SelectTrigger className="h-12 w-[100px] rounded-2xl border-none bg-muted/50 font-bold text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -242,7 +249,7 @@ const Expenses = () => {
                   placeholder="Search expenses..."
                   className="pl-12 h-12 rounded-2xl border-none bg-muted/50 font-bold text-xs focus-visible:ring-primary/20 transition-all"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 />
               </div>
             </div>
@@ -253,11 +260,13 @@ const Expenses = () => {
                 <thead>
                   <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
                     <th className="px-6 pb-2 w-12">
-                      <Checkbox 
-                        checked={selectedExpenses.length === filtered.length && filtered.length > 0}
-                        onCheckedChange={(checked) => {
-                          if (checked) setSelectedExpenses(filtered.map((e: any) => e._id));
-                          else setSelectedExpenses([]);
+                      <Checkbox
+                        checked={allExpensePageSelected}
+                        onCheckedChange={() => {
+                          const pageIds = paginatedExpenses.map((e: any) => e._id);
+                          setSelectedExpenses(prev =>
+                            allExpensePageSelected ? prev.filter((id: string) => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]
+                          );
                         }}
                       />
                     </th>
@@ -294,7 +303,7 @@ const Expenses = () => {
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((e: any) => (
+                    paginatedExpenses.map((e: any) => (
                       <tr key={e._id} className="group bg-muted/5 hover:bg-primary/5 transition-all duration-300 rounded-[1.5rem] relative">
                         <td className="px-6 py-5 first:rounded-l-[1.5rem] last:rounded-r-[1.5rem]">
                           <Checkbox 
@@ -402,16 +411,29 @@ const Expenses = () => {
             {/* Pagination Info */}
             <div className="mt-8 flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-6 rounded-[2rem] border border-border/50">
               <p className="text-xs font-bold text-muted-foreground/60 tracking-widest uppercase">
-                Showing {filtered.length > 0 ? 1 : 0} to {filtered.length} of {filtered.length} entries
+                Showing {filtered.length === 0 ? 0 : (safeExpensePage - 1) * expensePageSize + 1} to {Math.min(safeExpensePage * expensePageSize, filtered.length)} of {filtered.length} entries
               </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-10 rounded-xl font-black text-[10px] uppercase tracking-widest px-6 bg-background border-none shadow-sm disabled:opacity-30" disabled>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-10 rounded-xl font-black text-[10px] uppercase tracking-widest px-6 bg-background border-none shadow-sm disabled:opacity-30"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safeExpensePage <= 1}
+                >
                   Previous
                 </Button>
                 <Button variant="outline" size="sm" className="h-10 w-10 rounded-xl font-black text-xs bg-primary text-white border-none shadow-lg shadow-primary/20">
-                  1
+                  {safeExpensePage}
                 </Button>
-                <Button variant="outline" size="sm" className="h-10 rounded-xl font-black text-[10px] uppercase tracking-widest px-6 bg-background border-none shadow-sm disabled:opacity-30" disabled>
+                <span className="text-xs text-muted-foreground/60 font-bold px-1">of {totalExpensePages}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-10 rounded-xl font-black text-[10px] uppercase tracking-widest px-6 bg-background border-none shadow-sm disabled:opacity-30"
+                  onClick={() => setCurrentPage(p => Math.min(totalExpensePages, p + 1))}
+                  disabled={safeExpensePage >= totalExpensePages}
+                >
                   Next
                 </Button>
               </div>

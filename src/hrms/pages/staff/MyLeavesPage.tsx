@@ -476,7 +476,7 @@ const MyLeavesPage = () => {
         <DialogContent className="max-w-2xl rounded-2xl border border-border/40 shadow-2xl bg-background p-0 overflow-hidden flex flex-col max-h-[90vh]">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/20 bg-gradient-to-r from-primary/5 to-transparent shrink-0">
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <ArrowLeftRight className="h-5 w-5 text-primary" /> Swap Weekly Off Days
+              <ArrowLeftRight className="h-5 w-5 shrink-0 text-primary" /> Swap Weekly Off Days
             </DialogTitle>
             <DialogDescription className="text-xs">
               Select an employee to swap your weekly off day with.
@@ -575,16 +575,16 @@ const MyLeavesPage = () => {
           <div className="gradient-primary h-1.5 w-full" />
           <DialogHeader className="px-6 pt-6 pb-4 bg-accent/40 border-b border-border/30">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
-                  <Briefcase className="h-5 w-5" />
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                  <Briefcase className="h-5 w-5 shrink-0" />
                 </div>
-                <div>
-                  <DialogTitle className="text-xl font-bold tracking-tight">Apply for Leave</DialogTitle>
+                <div className="min-w-0">
+                  <DialogTitle className="text-xl font-bold tracking-tight truncate">Apply for Leave</DialogTitle>
                   <DialogDescription className="text-[10px]">New time-off request</DialogDescription>
                 </div>
               </div>
-              <Badge className="bg-primary/10 text-primary border-primary/20 px-3 py-1 rounded-lg font-bold text-xs">
+              <Badge className="shrink-0 bg-primary/10 text-primary border-primary/20 px-3 py-1 rounded-lg font-bold text-xs">
                 {calculateDays()} Days
               </Badge>
             </div>

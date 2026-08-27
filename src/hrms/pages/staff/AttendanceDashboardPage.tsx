@@ -908,7 +908,7 @@ const AttendanceDashboardPage: React.FC = () => {
         <DialogContent className="rounded-3xl max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-violet-500" /> Correct Attendance
+              <ShieldCheck className="h-5 w-5 shrink-0 text-violet-500" /> Correct Attendance
             </DialogTitle>
             <DialogDescription>
               <span className="font-semibold text-slate-700">{overrideTarget?.name}</span>

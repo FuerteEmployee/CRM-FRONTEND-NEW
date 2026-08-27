@@ -704,8 +704,8 @@ export default function Meetings() {
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-purple-700">
-                <Sparkles className="h-5 w-5" />
-                AI Meeting Scribe — {scribeMeeting?.topic}
+                <Sparkles className="h-5 w-5 shrink-0" />
+                <span className="truncate">AI Meeting Scribe — {scribeMeeting?.topic}</span>
               </DialogTitle>
               <DialogDescription>
                 Live Hindi transcript and FuerteAI Q&amp;A log for this meeting — recording starts automatically on Join Meet.
