@@ -5,4 +5,5 @@ export const quotationTypeService = {
   createQuotationType: (data) => apiClient.post('/quotation-types', data),
   updateQuotationType: (id, data) => apiClient.put(`/quotation-types/${id}`, data),
   deleteQuotationType: (id) => apiClient.delete(`/quotation-types/${id}`),
+  reorderQuotationTypes: (items) => apiClient.put('/quotation-types/reorder', { items }),
 };
