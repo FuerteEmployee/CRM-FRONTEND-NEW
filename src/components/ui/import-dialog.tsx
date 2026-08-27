@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -43,6 +43,7 @@ export function ImportDialog({
   const fileRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [showMore, setShowMore] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [selected, setSelected] = useState<string[]>(
     columns.filter((c) => c.core !== false).map((c) => c.key)
   );
@@ -103,6 +104,27 @@ export function ImportDialog({
     }
   };
 
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!loading) setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (loading) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleFile(file);
+  };
+
   return (
     <>
       <input
@@ -135,14 +157,25 @@ export function ImportDialog({
           <div className="space-y-4 pt-2">
             <div
               onClick={() => fileRef.current?.click()}
-              className="border-2 border-dashed border-primary/30 hover:border-primary/60 bg-primary/5 hover:bg-primary/10 rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 group"
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 group ${
+                isDragging
+                  ? "border-primary bg-primary/10 scale-[1.01]"
+                  : "border-primary/30 hover:border-primary/60 bg-primary/5 hover:bg-primary/10"
+              }`}
             >
               <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner group-hover:scale-105 transition-transform">
                 <FileSpreadsheet className="h-7 w-7 text-primary" />
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-bold text-foreground">
-                  {loading ? "Processing spreadsheet..." : "Click to choose Excel / CSV file"}
+                  {loading
+                    ? "Processing spreadsheet..."
+                    : isDragging
+                    ? "Drop the file to upload"
+                    : "Drag & drop your file here, or click to choose"}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   Supports .xlsx, .xls, and .csv formats

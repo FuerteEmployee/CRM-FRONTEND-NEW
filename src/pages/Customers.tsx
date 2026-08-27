@@ -407,9 +407,7 @@ const Customers = () => {
     },
   });
 
-  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processImportFile = (file: File) => {
     const ext = file.name.split(".").pop()?.toLowerCase();
 
     const processRows = (rows: any[]) => {
@@ -440,7 +438,33 @@ const Customers = () => {
         complete: (res) => processRows(res.data as any[]),
       });
     }
+  };
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processImportFile(file);
     e.target.value = "";
+  };
+
+  const [isImportDragging, setIsImportDragging] = useState(false);
+  const handleImportDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!importMutation.isPending) setIsImportDragging(true);
+  };
+  const handleImportDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsImportDragging(false);
+  };
+  const handleImportDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsImportDragging(false);
+    if (importMutation.isPending) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) processImportFile(file);
   };
 
   const toggleSampleColumn = (key: string) => {
@@ -985,14 +1009,25 @@ const Customers = () => {
                     <div className="space-y-4 pt-2">
                       <div
                         onClick={() => importFileRef.current?.click()}
-                        className="border-2 border-dashed border-primary/30 hover:border-primary/60 bg-primary/5 hover:bg-primary/10 rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 group"
+                        onDragOver={handleImportDragOver}
+                        onDragLeave={handleImportDragLeave}
+                        onDrop={handleImportDrop}
+                        className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 group ${
+                          isImportDragging
+                            ? "border-primary bg-primary/10 scale-[1.01]"
+                            : "border-primary/30 hover:border-primary/60 bg-primary/5 hover:bg-primary/10"
+                        }`}
                       >
                         <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner group-hover:scale-105 transition-transform">
                           <FileSpreadsheet className="h-7 w-7 text-primary" />
                         </div>
                         <div className="space-y-1">
                           <p className="text-sm font-bold text-foreground">
-                            {importMutation.isPending ? "Processing spreadsheet..." : "Click to choose Excel / CSV file"}
+                            {importMutation.isPending
+                              ? "Processing spreadsheet..."
+                              : isImportDragging
+                              ? "Drop the file to upload"
+                              : "Drag & drop your file here, or click to choose"}
                           </p>
                           <p className="text-xs text-muted-foreground">
                             Supports .xlsx, .xls, and .csv formats

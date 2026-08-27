@@ -48,6 +48,7 @@ const ITEM_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Unit", sample: "Nos", core: true },
   { key: "Tax", sample: "GST 18%", core: true },
   { key: "HSN/SAC", sample: "8473", core: true },
+  { key: "Branch", sample: "Mumbai", core: true },
   { key: "Long Description", sample: "Premium aluminium stand with cable management", core: false },
   { key: "Cess Rate", sample: 0, core: false },
   { key: "Tax Inclusive", sample: "No", core: false },
@@ -803,7 +804,7 @@ const Items = () => {
               triggerLabel="Import"
               templateFilename="items_sample_import.xlsx"
               sheetName="Items"
-              mappingNote="Your Excel columns (Item Name, Group, Description, Quantity, Rate, Amount, Unit, Tax, HSN/SAC) will be automatically detected and mapped to items."
+              mappingNote="Your Excel columns (Item Name, Group, Description, Quantity, Rate, Amount, Unit, Tax, HSN/SAC, Branch) will be automatically detected and mapped to items."
             />
             {canUseBranch && (
               <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
