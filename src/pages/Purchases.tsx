@@ -595,6 +595,13 @@ const Purchases = () => {
 
   const filteredPurchases = useMemo(() => {
     const q = search.toLowerCase();
+
+    // Prepare selected vendor IDs, company names, and normalized names for resilient dual matching
+    const selectedIds = Array.isArray(vendorFilter) ? vendorFilter : (vendorFilter ? [vendorFilter] : []);
+    const selectedVendors = vendors.filter((v) => selectedIds.includes(v._id));
+    const selectedNames = selectedVendors.map((v) => (v.company_name || "").toLowerCase().trim()).filter(Boolean);
+    const selectedNorms = selectedNames.map((name) => name.replace(/[^a-z0-9]/g, ""));
+
     return (purchases as any[]).filter((p) => {
       const matchesSearch = !q ||
         p.bill_no?.toLowerCase().includes(q) ||
@@ -605,12 +612,24 @@ const Purchases = () => {
         p.hsn_code?.toLowerCase().includes(q) ||
         p.sales_person?.toLowerCase().includes(q) ||
         p.branch?.toLowerCase().includes(q);
-      const matchesVendor = vendorFilter.length === 0 ||
-        vendorFilter.includes(typeof p.vendor_id === "object" ? p.vendor_id?._id : p.vendor_id);
+
+      let matchesVendor = selectedIds.length === 0;
+      if (!matchesVendor) {
+        const pVendorId = typeof p.vendor_id === "object" ? p.vendor_id?._id : p.vendor_id;
+        const pSupplierName = (p.supplier_name || "").toLowerCase().trim();
+        const pSupplierNorm = pSupplierName.replace(/[^a-z0-9]/g, "");
+
+        matchesVendor = Boolean(
+          (pVendorId && selectedIds.includes(String(pVendorId))) ||
+          (pSupplierName && selectedNames.includes(pSupplierName)) ||
+          (pSupplierNorm && selectedNorms.some((norm) => pSupplierNorm.includes(norm) || norm.includes(pSupplierNorm)))
+        );
+      }
+
       const matchesBranch = branchFilter === "all" || p.branch === branchFilter;
       return matchesSearch && matchesVendor && matchesBranch;
     });
-  }, [purchases, search, vendorFilter, branchFilter]);
+  }, [purchases, search, vendorFilter, branchFilter, vendors]);
 
   const totals = useMemo(() => {
     return filteredPurchases.reduce(
@@ -626,8 +645,12 @@ const Purchases = () => {
     );
   }, [filteredPurchases]);
 
-  const money = (n: number | null | undefined) =>
-    n == null || n === 0 ? "-" : `${symbol}${n.toFixed(2)}`;
+  const money = (n: number | null | undefined, showZeroAsDash = true) => {
+    if (n == null || isNaN(Number(n))) return "-";
+    const val = Number(n);
+    if (val === 0 && showZeroAsDash) return "-";
+    return `${symbol}${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
 
   // Pagination
   const totalItems = filteredPurchases.length;
@@ -757,7 +780,7 @@ const Purchases = () => {
             <Card key={c.label} className="rounded-2xl border-slate-100 shadow-sm">
               <CardContent className="p-4">
                 <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">{c.label}</div>
-                <div className={`text-lg font-black mt-1 ${c.color}`}>{money(c.value)}</div>
+                <div className={`text-lg font-black mt-1 ${c.color}`}>{money(c.value, false)}</div>
               </CardContent>
             </Card>
           ))}
@@ -870,7 +893,9 @@ const Purchases = () => {
                 {vendorLinkageEnabled && (
                   <SearchableSelect
                     multiple
-                    options={vendors.map((v) => ({ label: v.company_name, value: v._id }))}
+                    options={Array.from(
+                      new Map(vendors.filter((v) => Boolean(v.company_name)).map((v) => [(v.company_name || "").trim().toLowerCase(), v])).values()
+                    ).map((v) => ({ label: v.company_name, value: v._id }))}
                     value={vendorFilter}
                     onValueChange={(v) => { setVendorFilter(v); setCurrentPage(1); }}
                     placeholder="Filter by vendor"
