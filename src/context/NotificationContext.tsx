@@ -182,6 +182,13 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       );
     });
 
+    // Fired by the backend's reminderDelivery cron (Backend/src/cron/reminderDelivery.js)
+    // the moment a Lead or Customer reminder's scheduled time arrives.
+    socket.on("reminderDue", (payload: any) => {
+      const title = payload?.relType === "customer" ? "Customer Reminder" : "Lead Reminder";
+      addNotification(title, payload?.description || "A reminder is due.");
+    });
+
     return () => {
       socket.disconnect();
       setSocket(null);

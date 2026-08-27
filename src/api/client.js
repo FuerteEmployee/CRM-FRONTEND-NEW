@@ -38,7 +38,21 @@ class ApiClient {
 
   async get(endpoint, options) {
     try {
-      const result = await this.request(endpoint, { ...options, method: "GET" });
+      // Callers pass `{ params: {...} }` expecting axios-style query-string
+      // serialization (e.g. salesService.getProposals({ rel_id, rel_type })) —
+      // build that querystring here since `fetch` has no concept of `params`
+      // and would otherwise silently ignore it, returning unfiltered data.
+      const { params, ...rest } = options || {};
+      let url = endpoint;
+      if (params && typeof params === "object") {
+        const query = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== "") query.append(key, value);
+        });
+        const qs = query.toString();
+        if (qs) url += (endpoint.includes("?") ? "&" : "?") + qs;
+      }
+      const result = await this.request(url, { ...rest, method: "GET" });
       // Deduplicate array responses by _id so backend duplicates never reach the UI.
       if (Array.isArray(result)) {
         const seen = new Set();

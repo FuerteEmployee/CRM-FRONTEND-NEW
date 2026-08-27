@@ -21,7 +21,7 @@ export const utilityService = {
   
   updateSettings: (data) => apiClient.post('/settings', data),
   
-  getActivityLogs: () => apiClient.get('/activity-logs'),
+  getActivityLogs: (params) => apiClient.get('/activity-logs', { params }),
   
   deleteActivityLog: (id) => apiClient.delete(`/activity-logs/${id}`),
   
