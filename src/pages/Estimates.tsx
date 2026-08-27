@@ -21,11 +21,29 @@ import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
 import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
+
+const ESTIMATE_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Company Name", sample: "Acme Traders", required: true, core: true },
+  { key: "Connect Person", sample: "Rahul Mehta", core: true },
+  { key: "Phone Number", sample: "9876543210", core: true },
+  { key: "Mail Id", sample: "rahul@acme.com", core: true },
+  { key: "Item", sample: "Website Design", core: true },
+  { key: "Quantity", sample: 2, core: true },
+  { key: "Rate", sample: 15000, core: true },
+  { key: "Amount", sample: 30000, core: true },
+  { key: "Sales Person", sample: "Priya Singh", core: true },
+  { key: "Date", sample: "27-08-2026", core: true },
+  { key: "Branch", sample: "Mumbai", core: true },
+  { key: "Subject", sample: "Website Redesign Proposal", core: false },
+  { key: "Status", sample: "sent", core: false },
+  { key: "Open Till", sample: "10-09-2026", core: false },
+  { key: "Estimate #", sample: "EST-1042", core: false },
+];
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
   "draft": { label: "Draft", className: "bg-slate-100 text-slate-600" },
@@ -865,7 +883,16 @@ const Estimates = () => {
                 ...(canUseBranch ? [{ header: "Branch", key: "Branch" }] : []),
               ]}
             />
-            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            <ImportDialog
+              title="Import Estimates"
+              columns={ESTIMATE_IMPORT_COLUMNS}
+              onData={handleImportData}
+              loading={importMutation.isPending}
+              triggerLabel="Import"
+              templateFilename="estimates_sample_import.xlsx"
+              sheetName="Estimates"
+              mappingNote="Your Excel columns (Company Name, Connect Person, Phone Number, Mail Id, Item, Quantity, Rate, Amount, Sales Person, Date, Branch) will be automatically detected and mapped to estimates."
+            />
             {canUseBranch && (
               <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
                 <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">

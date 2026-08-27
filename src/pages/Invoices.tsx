@@ -56,11 +56,34 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
+
+const INVOICE_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Voucher Number", sample: "INV-2201", core: true },
+  { key: "Bill Date", sample: "27-08-2026", core: true },
+  { key: "Voucher Type", sample: "Sales", core: true },
+  { key: "Party Name", sample: "Bright Solutions Pvt Ltd", required: true, core: true },
+  { key: "Party Address", sample: "12 MG Road, Bangalore", core: true },
+  { key: "Party Group", sample: "Retail", core: true },
+  { key: "GSTIN/UIN", sample: "29ABCDE1234F1Z5", core: true },
+  { key: "Item Name", sample: "Consulting Services", core: true },
+  { key: "Quantity", sample: 1, core: true },
+  { key: "Rate", sample: 25000, core: true },
+  { key: "Amount", sample: 25000, core: true },
+  { key: "Branch", sample: "Bangalore", core: true },
+  { key: "Terms of Payment", sample: "Net 30", core: false },
+  { key: "Item Group", sample: "Services", core: false },
+  { key: "Item HSN", sample: "9983", core: false },
+  { key: "GST percentage", sample: 18, core: false },
+  { key: "Item Batch", sample: "B-01", core: false },
+  { key: "Unit", sample: "Nos", core: false },
+  { key: "Due Date", sample: "26-09-2026", core: false },
+  { key: "Status", sample: "unpaid", core: false },
+];
 
 const statusMap: Record<string, { label: string; color: string }> = {
   unpaid: { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
@@ -1102,7 +1125,16 @@ const Invoices = () => {
               filename="invoices"
               columns={exportColumns}
             />
-            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            <ImportDialog
+              title="Import Invoices"
+              columns={INVOICE_IMPORT_COLUMNS}
+              onData={handleImportData}
+              loading={importMutation.isPending}
+              triggerLabel="Import"
+              templateFilename="invoices_sample_import.xlsx"
+              sheetName="Invoices"
+              mappingNote="Your Excel columns (Voucher Number, Bill Date, Party Name, GSTIN/UIN, Item Name, Quantity, Rate, Amount, Branch) will be automatically detected and mapped to invoices."
+            />
             {canUseBranch && (
               <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
                 <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">

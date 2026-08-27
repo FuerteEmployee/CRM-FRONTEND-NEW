@@ -32,7 +32,21 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
+
+const VENDOR_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Company Name", sample: "Orion Supplies Pvt Ltd", required: true, core: true },
+  { key: "Vendor Reference", sample: "VEN-045", core: true },
+  { key: "Connect Person", sample: "Suresh Nair", core: true },
+  { key: "Phone Number", sample: "9845012345", core: true },
+  { key: "Address with State", sample: "45 Anna Salai, Chennai, Tamil Nadu", core: true },
+  { key: "Email", sample: "suresh@orionsupplies.com", core: true },
+  { key: "PAN Number", sample: "AAOCS1234H", core: true },
+  { key: "GST Number", sample: "33AAOCS1234H1Z2", core: true },
+  { key: "Account Details", sample: "HDFC Bank A/C 1234567890", core: true },
+  { key: "Sales Person", sample: "Divya Menon", core: true },
+  { key: "Branch", sample: "Chennai", core: true },
+];
 
 const emptyForm = {
   company_name: "",
@@ -314,7 +328,16 @@ const Vendors = () => {
           </div>
           <div className="flex flex-wrap gap-2 items-center">
             {can("Vendors", "Create") && (
-              <ImportButton onData={processVendorRows} loading={importMutation.isPending} label="Import Vendors" />
+              <ImportDialog
+                title="Import Vendors"
+                columns={VENDOR_IMPORT_COLUMNS}
+                onData={processVendorRows}
+                loading={importMutation.isPending}
+                triggerLabel="Import Vendors"
+                templateFilename="vendors_sample_import.xlsx"
+                sheetName="Vendors"
+                mappingNote="Your Excel columns (Company Name, Connect Person, Phone Number, Email, PAN Number, GST Number, Address with State, Sales Person, Branch) will be automatically detected and mapped to vendors."
+              />
             )}
             <ExportButton data={filteredVendors} filename="vendors" columns={exportColumns} />
             {can("Vendors", "Create") && (

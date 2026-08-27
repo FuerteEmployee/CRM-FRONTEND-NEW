@@ -21,11 +21,20 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
 import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
+
+const PROPOSAL_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Subject", sample: "Q3 Marketing Proposal", required: true, core: true },
+  { key: "Company", sample: "Bright Solutions Pvt Ltd", required: true, core: true },
+  { key: "Total", sample: 50000, core: true },
+  { key: "Date", sample: "27-08-2026", core: true },
+  { key: "Branch", sample: "Delhi", core: true },
+  { key: "Status", sample: 1, core: false },
+];
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
   "1": { label: "Draft", className: "bg-muted text-muted-foreground" },
@@ -725,7 +734,16 @@ const Proposals = () => {
                 ...(canUseBranch ? [{ header: "Branch", key: (p: any) => (typeof p.branch === "object" ? (p.branch?.name || "-") : (p.branch || "-")) }] : []),
               ]}
             />
-            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            <ImportDialog
+              title="Import Proposals"
+              columns={PROPOSAL_IMPORT_COLUMNS}
+              onData={handleImportData}
+              loading={importMutation.isPending}
+              triggerLabel="Import"
+              templateFilename="proposals_sample_import.xlsx"
+              sheetName="Proposals"
+              mappingNote="Your Excel columns (Subject, Company, Total, Date, Branch) will be automatically detected and mapped to proposals. Company must match an existing customer."
+            />
             {canUseBranch && (
               <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
                 <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">

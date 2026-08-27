@@ -82,6 +82,31 @@ const COUNTRIES = [
 
 const LANGUAGES = LANGUAGES_ISO;
 
+// `core` columns mirror the fields shown in the customers table (Company,
+// Primary Contact, Primary Email, Phone, Pan/Gst Number, Branch) — these
+// stay visible by default. Everything else is optional and hidden behind
+// the "Show more fields" toggle so the popup isn't cluttered.
+const IMPORT_COLUMNS = [
+  { key: "Company Name", sample: "Acme Corporation", required: true, core: true },
+  { key: "Branch Name", sample: "Mumbai Branch", required: false, core: true },
+  { key: "Connect Person", sample: "John Doe", required: false, core: true },
+  { key: "Phone Number", sample: "9876543210", required: false, core: true },
+  { key: "Email", sample: "john@acme.com", required: false, core: true },
+  { key: "PAN Number", sample: "ABCDE1234F", required: false, core: true },
+  { key: "GST Number", sample: "27ABCDE1234F1Z5", required: false, core: true },
+  { key: "Customer Reference", sample: "CUST-1001", required: false, core: false },
+  { key: "Website", sample: "www.acme.com", required: false, core: false },
+  { key: "Address", sample: "123 MG Road", required: false, core: false },
+  { key: "City", sample: "Mumbai", required: false, core: false },
+  { key: "State", sample: "Maharashtra", required: false, core: false },
+  { key: "Zip Code", sample: "400001", required: false, core: false },
+  { key: "Country", sample: "India", required: false, core: false },
+  { key: "Account details", sample: "Bank of India - 1234567890", required: false, core: false },
+  { key: "Sales Person", sample: "Jane Smith", required: false, core: false },
+];
+
+const DEFAULT_IMPORT_SAMPLE_COLUMNS = IMPORT_COLUMNS.filter((c) => c.core).map((c) => c.key);
+
 const Customers = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -104,6 +129,8 @@ const Customers = () => {
   });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [sampleColumns, setSampleColumns] = useState<string[]>(DEFAULT_IMPORT_SAMPLE_COLUMNS);
+  const [showMoreColumns, setShowMoreColumns] = useState(false);
   const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false);
   useOpenCreateModal(() => setIsNewCustomerOpen(true));
 
@@ -414,6 +441,26 @@ const Customers = () => {
       });
     }
     e.target.value = "";
+  };
+
+  const toggleSampleColumn = (key: string) => {
+    setSampleColumns((prev) =>
+      prev.includes(key) ? prev.filter((c) => c !== key) : [...prev, key]
+    );
+  };
+
+  const handleDownloadSample = () => {
+    if (sampleColumns.length === 0) {
+      toast({ title: "Error", description: "Select at least one column to download.", variant: "destructive" });
+      return;
+    }
+    const columns = IMPORT_COLUMNS.filter((c) => sampleColumns.includes(c.key));
+    const headers = columns.map((c) => c.key);
+    const sampleRow = columns.map((c) => c.sample);
+    const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Sample");
+    XLSX.writeFile(wb, "customers_sample_import.xlsx");
   };
 
   const [newCustomer, setNewCustomer] = useState<any>({
@@ -931,7 +978,7 @@ const Customers = () => {
                   {importMutation.isPending ? "Importing..." : "Import Customers"}
                 </Button>
                 <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-                  <DialogContent className="max-w-md">
+                  <DialogContent className="max-w-xl w-full min-w-[340px] sm:min-w-[560px] min-h-[520px] max-h-[85vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle className="text-lg font-bold">Import Customers</DialogTitle>
                     </DialogHeader>
@@ -968,6 +1015,75 @@ const Customers = () => {
                         <p>
                           Your Excel columns (<strong>Company Name, Branch Name, Phone, Email, PAN Number, GST Number, Address, Sales Person</strong>) will be automatically detected and mapped to customers.
                         </p>
+                      </div>
+
+                      <div className="rounded-xl border border-border/50 p-3 space-y-2">
+                        <p className="text-xs font-semibold text-foreground">
+                          Select columns to include in sample file:
+                        </p>
+                        <div className="min-w-[280px] sm:min-w-[480px] w-full grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5 pr-1">
+                          {IMPORT_COLUMNS.filter((col) => col.core).map((col) => (
+                            <label
+                              key={col.key}
+                              className="flex items-center gap-2 text-xs cursor-pointer select-none"
+                            >
+                              <Checkbox
+                                checked={sampleColumns.includes(col.key)}
+                                onCheckedChange={() => toggleSampleColumn(col.key)}
+                              />
+                              <span className="whitespace-nowrap">
+                                {col.key}
+                                {col.required && <span className="text-destructive"> *</span>}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+
+                        {showMoreColumns && (
+                          <div className="min-w-[280px] sm:min-w-[480px] w-full grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5 pr-1 pt-2 border-t border-border/50">
+                            {IMPORT_COLUMNS.filter((col) => !col.core).map((col) => (
+                              <label
+                                key={col.key}
+                                className="flex items-center gap-2 text-xs cursor-pointer select-none"
+                              >
+                                <Checkbox
+                                  checked={sampleColumns.includes(col.key)}
+                                  onCheckedChange={() => toggleSampleColumn(col.key)}
+                                />
+                                <span className="whitespace-nowrap">{col.key}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => setShowMoreColumns((v) => !v)}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                        >
+                          {showMoreColumns ? (
+                            <>
+                              <ChevronDown className="h-3 w-3" />
+                              Hide optional fields
+                            </>
+                          ) : (
+                            <>
+                              <ChevronRight className="h-3 w-3" />
+                              Show {IMPORT_COLUMNS.filter((c) => !c.core).length} more optional fields
+                            </>
+                          )}
+                        </button>
+
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full rounded-xl font-bold gap-2 text-xs mt-1"
+                          onClick={handleDownloadSample}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Download Sample Data
+                        </Button>
                       </div>
                     </div>
                   </DialogContent>

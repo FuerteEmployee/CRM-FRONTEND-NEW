@@ -35,12 +35,29 @@ import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { useCurrency } from "@/context/CurrencyContext";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { useSettings } from "@/context/SettingsContext";
 import { VendorSelect, type VendorRecord } from "@/components/VendorSelect";
 import { vendorService } from "@/api/services/vendor.service";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemSelect";
+
+const PURCHASE_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Bill Date", sample: "27-08-2026", core: true },
+  { key: "Particulars", sample: "Sunrise Traders", required: true, core: true },
+  { key: "Voucher Type", sample: "Purchase", core: true },
+  { key: "Voucher No.", sample: "PB-3301", required: true, core: true },
+  { key: "Quantity", sample: 5, core: true },
+  { key: "Rate", sample: 2000, core: true },
+  { key: "Amount", sample: 10000, core: true },
+  { key: "Total", sample: 11800, core: true },
+  { key: "CGST 9%", sample: 900, core: true },
+  { key: "SGST 9%", sample: 900, core: true },
+  { key: "PURCHASE IGST", sample: 0, core: true },
+  { key: "Round off", sample: 0, core: true },
+  { key: "Branch", sample: "Chennai", core: true },
+  { key: "Item Description", sample: "Office Chairs", core: false },
+];
 
 const HOME_STATE = "Gujarat";
 const HOME_STATE_GST_CODE = "24";
@@ -751,7 +768,16 @@ const Purchases = () => {
           </div>
           <div className="flex flex-wrap gap-2 items-center">
             {can("Purchases", "Create") && (
-              <ImportButton onData={handlePurchaseImport} loading={importMutation.isPending} label="Import Purchases" />
+              <ImportDialog
+                title="Import Purchases"
+                columns={PURCHASE_IMPORT_COLUMNS}
+                onData={handlePurchaseImport}
+                loading={importMutation.isPending}
+                triggerLabel="Import Purchases"
+                templateFilename="purchases_sample_import.xlsx"
+                sheetName="Purchases"
+                mappingNote="Your Excel columns (Bill Date, Particulars, Voucher No., Quantity, Rate, Amount, Total, CGST, SGST, Branch) will be automatically detected and mapped to purchases."
+              />
             )}
             <ExportButton data={filteredPurchases} filename="purchases" columns={exportColumns} />
             {can("Purchases", "Create") && (

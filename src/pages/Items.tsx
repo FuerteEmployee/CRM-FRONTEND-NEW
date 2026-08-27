@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search, Layers, Edit, Zap } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -37,6 +37,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrency } from "@/context/CurrencyContext";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
+
+const ITEM_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Item Name", sample: "Laptop Stand", required: true, core: true },
+  { key: "Group", sample: "Accessories", core: true },
+  { key: "Description", sample: "Aluminium adjustable laptop stand", core: true },
+  { key: "Quantity", sample: 10, core: true },
+  { key: "Rate", sample: 1200, core: true },
+  { key: "Amount", sample: 12000, core: true },
+  { key: "Unit", sample: "Nos", core: true },
+  { key: "Tax", sample: "GST 18%", core: true },
+  { key: "HSN/SAC", sample: "8473", core: true },
+  { key: "Long Description", sample: "Premium aluminium stand with cable management", core: false },
+  { key: "Cess Rate", sample: 0, core: false },
+  { key: "Tax Inclusive", sample: "No", core: false },
+];
 
 const Items = () => {
   const { symbol } = useCurrency();
@@ -780,7 +795,16 @@ const Items = () => {
               filename="items"
               columns={exportColumns}
             />
-            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            <ImportDialog
+              title="Import Items"
+              columns={ITEM_IMPORT_COLUMNS}
+              onData={handleImportData}
+              loading={importMutation.isPending}
+              triggerLabel="Import"
+              templateFilename="items_sample_import.xlsx"
+              sheetName="Items"
+              mappingNote="Your Excel columns (Item Name, Group, Description, Quantity, Rate, Amount, Unit, Tax, HSN/SAC) will be automatically detected and mapped to items."
+            />
             {canUseBranch && (
               <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
                 <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
