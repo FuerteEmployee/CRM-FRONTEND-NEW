@@ -312,8 +312,8 @@ const Contacts = () => {
         
         <Card>
           <CardContent className="p-0">
-            <div className="flex items-center justify-between p-3 border-b">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
+              <div className="flex flex-wrap items-center gap-2">
                 <Select defaultValue="25">
                   <SelectTrigger className="w-[70px] h-8 text-xs">
                     <SelectValue />
@@ -376,11 +376,11 @@ const Contacts = () => {
                   <RefreshCcw className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search contacts..."
-                  className="pl-8 h-8 w-[200px] text-xs"
+                  className="pl-8 h-8 w-full sm:w-[200px] text-xs"
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 />
@@ -514,7 +514,7 @@ const Contacts = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 py-4 overflow-y-auto max-h-[70vh] px-1">
               {/* Left Column */}
               <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="firstname" className="text-[11px] font-bold uppercase text-muted-foreground">First Name <span className="text-destructive">*</span></Label>
                     <Input
@@ -638,7 +638,7 @@ const Contacts = () => {
                       </Tooltip>
                     </TooltipProvider>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
                     {["Invoices", "Estimates", "Contracts", "Proposals", "Support", "Projects"].map((p) => (
                       <div key={p} className="flex items-center gap-3">
                         <Checkbox 
@@ -656,7 +656,7 @@ const Contacts = () => {
                   <div className="flex items-center gap-2 mb-4">
                     <Label className="text-[11px] font-bold uppercase text-primary tracking-wider">Email Notifications</Label>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
                     {["Invoice", "Estimate", "Credit Note", "Project", "Tickets", "Task", "Contract"].map((n) => (
                       <div key={n} className="flex items-center gap-3">
                         <Checkbox 

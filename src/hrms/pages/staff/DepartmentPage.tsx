@@ -222,7 +222,7 @@ export default function DepartmentPage() {
 
                         <Form {...form}>
                             <form onSubmit={form.handleSubmit(onFormSubmit)} className="space-y-6 px-8 py-4">
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
                                         name="name"
@@ -309,7 +309,7 @@ export default function DepartmentPage() {
             </div>
 
             <div className="space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-2xl gradient-primary flex items-center justify-center text-white shadow-soft">
                             <Building className="h-5 w-5" />
@@ -321,7 +321,7 @@ export default function DepartmentPage() {
                             </p>
                         </div>
                     </div>
-                    <div className="relative w-64">
+                    <div className="relative w-full sm:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
                         <Input
                             placeholder="Search departments..."

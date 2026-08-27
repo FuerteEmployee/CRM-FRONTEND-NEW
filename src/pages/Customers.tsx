@@ -528,7 +528,7 @@ const Customers = () => {
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Dialog
               open={isNewCustomerOpen}
               onOpenChange={(open) => {
@@ -571,7 +571,7 @@ const Customers = () => {
                           }
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Customer Reference</Label>
                           <Input
@@ -593,7 +593,7 @@ const Customers = () => {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>VAT Number</Label>
                           <Input
@@ -624,7 +624,7 @@ const Customers = () => {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Email</Label>
                           <Input
@@ -644,7 +644,7 @@ const Customers = () => {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>PAN Number</Label>
                           <Input
@@ -689,7 +689,7 @@ const Customers = () => {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Groups</Label>
                           <div className="flex gap-2">
@@ -755,7 +755,7 @@ const Customers = () => {
                           onChange={(e) => setNewCustomer({ ...newCustomer, address: e.target.value })}
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>City</Label>
                           <SearchableSelect
@@ -774,7 +774,7 @@ const Customers = () => {
                           />
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Branch</Label>
                           <Select
@@ -796,7 +796,7 @@ const Customers = () => {
                           </Select>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>Zip Code</Label>
                           <Input 
@@ -1048,10 +1048,10 @@ const Customers = () => {
 
         <Card>
           <CardContent className="p-0">
-            <div className="flex items-center justify-between p-3 border-b">
-              <div className="flex items-center gap-2">
-                <Select 
-                  value={itemsPerPage.toString()} 
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
+                  value={itemsPerPage.toString()}
                   onValueChange={(val) => {
                     setItemsPerPage(val === "all" ? "all" : parseInt(val));
                     setCurrentPage(1);
@@ -1147,11 +1147,11 @@ const Customers = () => {
                   </DialogContent>
                 </Dialog>
               </div>
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search..."
-                  className="pl-8 h-11 rounded-xl w-[200px] text-xs font-bold"
+                  className="pl-8 h-11 rounded-xl w-full sm:w-[200px] text-xs font-bold"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />

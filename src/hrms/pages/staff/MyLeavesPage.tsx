@@ -484,7 +484,7 @@ const MyLeavesPage = () => {
           </DialogHeader>
 
           <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* You (Employee A — read-only, pre-filled) */}
               <div className="space-y-3">
                 <Label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground block">You</Label>
@@ -540,7 +540,7 @@ const MyLeavesPage = () => {
             {emp1OffDay && emp2OffDay && (
               emp1OffDay === emp2OffDay
                 ? <div className="p-3 rounded-xl bg-warning/10 border border-warning/20 text-xs text-warning font-medium text-center">Both employees selected the same day — please choose different days.</div>
-                : <div className="grid grid-cols-2 gap-3">
+                : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="p-3 rounded-xl border border-primary/10 bg-primary/5 space-y-1">
                       <p className="text-xs font-semibold">{emp1?.name}</p>
                       <p className="text-[11px] text-red-500 font-semibold flex items-center gap-1"><MoonStar className="h-3 w-3" /> Off on <b>{emp2OffDay}</b></p>
@@ -591,7 +591,7 @@ const MyLeavesPage = () => {
           </DialogHeader>
 
           <div className="px-6 py-5 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Category</Label>
                 <Select 

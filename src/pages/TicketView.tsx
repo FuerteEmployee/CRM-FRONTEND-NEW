@@ -308,7 +308,7 @@ export default function TicketView() {
               {(activeTab === "reply" || activeTab === "note") ? (
                 <div className="space-y-4">
                   {activeTab === "reply" && (
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <Select onValueChange={(v) => {
                         const r = predefinedReplies.find((pr: any) => pr._id === v);
                         if (r) setReplyMessage(p => (p ? `${p}\n${r.message}` : r.message));
@@ -461,7 +461,7 @@ export default function TicketView() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold">Name</Label>
                   <Input value={selectedContact ? `${selectedContact.firstname} ${selectedContact.lastname}` : ""} disabled className="h-9 rounded-lg bg-muted/30" />
@@ -500,7 +500,7 @@ export default function TicketView() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold">Priority</Label>
                   <Select value={infoForm.priority} onValueChange={(v) => setInfoForm(p => ({ ...p, priority: v }))}>

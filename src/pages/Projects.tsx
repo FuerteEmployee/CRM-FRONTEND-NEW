@@ -222,9 +222,9 @@ const Projects = () => {
         <Card>
           <CardContent className="p-0">
             {/* Control Bar */}
-            <div className="flex items-center justify-between p-3 border-b">
-              <div className="flex items-center gap-2">
-                <Select 
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
                   value={itemsPerPage.toString()} 
                   onValueChange={(val) => { setItemsPerPage(val === "All" ? 999999 : Number(val)); setCurrentPage(1); }}
                 >
@@ -318,11 +318,11 @@ const Projects = () => {
                 </Dialog>
               </div>
 
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search projects..."
-                  className="pl-8 h-8 w-[200px] text-xs"
+                  className="pl-8 h-8 w-full sm:w-[200px] text-xs"
                   value={search}
                   onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 />

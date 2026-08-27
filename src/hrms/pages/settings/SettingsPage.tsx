@@ -538,7 +538,7 @@ export default function SettingsPage() {
                     </div>
                     {/* Content area */}
                     <div className="flex-1 p-3 space-y-2 overflow-hidden">
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                         {[0.9, 0.7, 0.5].map((op, i) => (
                           <div key={i} className="h-10 rounded-xl border border-black/5 flex items-end p-1.5"
                             style={{ backgroundColor: primaryHex + "18" }}>

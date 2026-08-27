@@ -429,7 +429,7 @@ const LeaveManagementPage = () => {
 
           <div className="px-6 py-5 space-y-5">
             {/* ── Employee columns ── */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
               {/* Employee A column */}
               <div className="space-y-3">
@@ -547,7 +547,7 @@ const LeaveManagementPage = () => {
                     Both employees selected the same day — please choose different days to swap.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="p-3 rounded-xl border border-indigo-100 bg-indigo-50/30 space-y-1.5">
                       <p className="text-xs font-semibold text-slate-700">{emp1?.name}</p>
                       <p className="text-[11px] text-red-500 font-semibold flex items-center gap-1">

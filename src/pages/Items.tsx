@@ -605,7 +605,7 @@ const Items = () => {
                       className="rounded-xl min-h-[80px] border-slate-200 resize-none"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-700">Quantity</Label>
                       <Input
@@ -627,7 +627,7 @@ const Items = () => {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-700">Amount ({symbol})</Label>
                       <Input
@@ -648,7 +648,7 @@ const Items = () => {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-700">Group / Category</Label>
                       <Input
@@ -675,7 +675,7 @@ const Items = () => {
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-700">HSN/SAC Code</Label>
                       <Input
@@ -726,7 +726,7 @@ const Items = () => {
 
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
@@ -983,7 +983,7 @@ const Items = () => {
                   <p className="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-xl p-3 leading-relaxed">{viewItem.long_description}</p>
                 </div>
               )}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Quantity</p>
                   <p className="text-sm font-extrabold text-slate-900">{viewItem.quantity ?? 1}</p>
@@ -997,7 +997,7 @@ const Items = () => {
                   <p className="text-sm font-extrabold text-slate-900">{symbol}{(viewItem.amount ?? ((viewItem.quantity ?? 1) * (viewItem.rate ?? 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Unit</p>
                   <p className="text-sm font-bold text-slate-700">{viewItem.unit || "item"}</p>
@@ -1014,7 +1014,7 @@ const Items = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">HSN/SAC</p>
                   <p className="text-sm font-bold text-slate-700">{viewItem.hsn_sac_code || "-"}</p>
@@ -1032,7 +1032,7 @@ const Items = () => {
               {customFieldDefs.length > 0 && viewItem.custom_fields && (
                 <div className="border-t border-border/50 pt-3 space-y-2">
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Custom Fields</p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {customFieldDefs.map((cf: any) => {
                       const val = viewItem.custom_fields?.[cf.slug] ?? viewItem.custom_fields?.[cf._id];
                       if (val === undefined || val === null || val === "") return null;
@@ -1101,7 +1101,7 @@ const Items = () => {
                   className="rounded-xl min-h-[80px] border-slate-200 resize-none"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-700">Quantity</Label>
                   <Input
@@ -1123,7 +1123,7 @@ const Items = () => {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-700">Amount ({symbol})</Label>
                   <Input
@@ -1144,7 +1144,7 @@ const Items = () => {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-700">Group / Category</Label>
                   <Input
@@ -1171,7 +1171,7 @@ const Items = () => {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-700">HSN/SAC Code</Label>
                   <Input

@@ -294,7 +294,7 @@ export default function ShiftManagementPage() {
                                     />
 
                                     {/* Start / End Time */}
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <FormField
                                             control={form.control}
                                             name="startTime"
@@ -548,7 +548,7 @@ export default function ShiftManagementPage() {
                                                 {lunch.enabled && (
                                                     <div className="space-y-3">
                                                         {/* Mode */}
-                                                        <div className="grid grid-cols-2 gap-2">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                             {([["flexible_duration", "Fixed duration"], ["fixed_window", "Fixed window"]] as const).map(([m, lbl]) => (
                                                                 <button key={m} type="button" onClick={() => setLunch({ mode: m })}
                                                                     className={cn("rounded-xl border-2 py-2 text-[12px] font-bold transition-all",
@@ -567,7 +567,7 @@ export default function ShiftManagementPage() {
                                                                 <p className="text-[11px] text-muted-foreground mt-1">Any {minsLabel} within the shift.</p>
                                                             </div>
                                                         ) : (
-                                                            <div className="grid grid-cols-2 gap-3">
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                                 <div>
                                                                     <label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Lunch start</label>
                                                                     <Input type="time" value={lunch.startTime} onChange={(e) => setLunch({ startTime: e.target.value })} className="h-10 rounded-xl mt-1" />
@@ -580,7 +580,7 @@ export default function ShiftManagementPage() {
                                                         )}
 
                                                         {/* Deduction mode */}
-                                                        <div className="grid grid-cols-2 gap-2">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                             {([["auto", "Auto-deduct"], ["punch", "From punches"]] as const).map(([d, lbl]) => (
                                                                 <button key={d} type="button" onClick={() => setLunch({ deduction: d })}
                                                                     className={cn("rounded-xl border-2 py-2 text-[12px] font-bold transition-all",
@@ -634,7 +634,7 @@ export default function ShiftManagementPage() {
             </div>
 
             <div className="space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-2xl gradient-primary flex items-center justify-center text-white shadow-soft">
                             <Clock className="h-5 w-5" />
@@ -646,7 +646,7 @@ export default function ShiftManagementPage() {
                             </p>
                         </div>
                     </div>
-                    <div className="relative w-64">
+                    <div className="relative w-full sm:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
                         <Input
                             placeholder="Search shifts..."

@@ -83,6 +83,10 @@ const ATT_CAL_CELL: Record<string, { bg: string; border: string; label: string; 
 
 const AttendancePage = () => {
   const { user, refreshUser } = useAuth();
+  // `user` comes from the main CRM's PermissionContext, which stores
+  // firstname/lastname — not a combined `name` field — so build it here.
+  const staffName = [(user as any)?.firstname, (user as any)?.lastname].filter(Boolean).join(" ").trim() || (user as any)?.name || "User";
+  const staffInitials = staffName !== "User" ? staffName.substring(0, 2).toUpperCase() : "US";
   const navigate = useNavigate();
   const location = useLocation();
   const { lightImpact } = useHaptics();
@@ -809,7 +813,7 @@ const AttendancePage = () => {
             <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Attendance</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Hi, {user?.name || "User"}
+            Hi, {staffName}
           </h1>
           <p className="text-muted-foreground text-xs mt-0.5">Manage your shifts and track your working hours.</p>
         </div>
@@ -817,10 +821,10 @@ const AttendancePage = () => {
         <div className="flex items-center gap-3 p-2 pl-3 bg-muted/30 rounded-xl border border-border/50">
           <div className="text-right">
             <p className="text-[10px] font-bold text-muted-foreground uppercase leading-none mb-1">Signed In As</p>
-            <p className="text-xs font-bold">{user?.name || "User"}</p>
+            <p className="text-xs font-bold">{staffName}</p>
           </div>
           <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs font-bold border border-primary/20">
-            {user?.name?.substring(0, 2).toUpperCase() || "US"}
+            {staffInitials}
           </div>
         </div>
       </div>

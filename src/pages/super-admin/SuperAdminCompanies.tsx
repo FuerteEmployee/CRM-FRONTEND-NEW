@@ -444,9 +444,9 @@ export default function SuperAdminCompanies() {
 
     {/* ── Add Customer Modal ── */}
     {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white border border-gray-200 rounded-xl w-full max-w-md shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
               <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-blue-600" />
                 Add New Customer
@@ -456,7 +456,7 @@ export default function SuperAdminCompanies() {
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
+            <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto">
               {/* Company Name */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Company Name</label>
@@ -568,9 +568,9 @@ export default function SuperAdminCompanies() {
 
       {/* ── Manage Subscription Modal ── */}
       {isManageOpen && selectedTenant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white border border-gray-200 rounded-xl w-full max-w-md shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
               <div>
                 <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
                   <Edit className="h-4 w-4 text-blue-600" />
@@ -587,7 +587,7 @@ export default function SuperAdminCompanies() {
               </button>
             </div>
 
-            <form onSubmit={handleManageSave} className="p-6 space-y-4">
+            <form onSubmit={handleManageSave} className="p-6 space-y-4 overflow-y-auto">
               {/* Company Name */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Company Name</label>
@@ -690,7 +690,7 @@ export default function SuperAdminCompanies() {
               {/* Status */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Account Status</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {(["trial", "active", "inactive", "expired"] as const).map((s) => {
                     const cfg = STATUS_CONFIG[s];
                     const Icon = cfg.icon;

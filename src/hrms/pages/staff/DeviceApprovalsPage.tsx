@@ -152,7 +152,7 @@ export default function DeviceApprovalsPage() {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center">
                         <Clock className="h-5 w-5 text-amber-600" />
@@ -183,7 +183,7 @@ export default function DeviceApprovalsPage() {
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
                 {(["pending", "approved", "rejected", "revoked", "all"] as const).map((tab) => (
                     <Button
                         key={tab}

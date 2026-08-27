@@ -403,7 +403,7 @@ export default function EstimateCreate() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Connect Person</Label>
                   <Input
@@ -432,7 +432,7 @@ export default function EstimateCreate() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-8 py-4 border-y border-border/30 border-dashed">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 py-4 border-y border-border/30 border-dashed">
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-primary">
                     <Receipt className="h-3.5 w-3.5" />
@@ -473,7 +473,7 @@ export default function EstimateCreate() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Estimate Date</Label>
@@ -516,7 +516,7 @@ export default function EstimateCreate() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Currency</Label>
@@ -568,7 +568,7 @@ export default function EstimateCreate() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Sale Agent</Label>
                   <Select value={formData.sale_agent} onValueChange={(v) => setFormData(p => ({ ...p, sale_agent: v }))}>
@@ -983,7 +983,7 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
               className="min-h-[100px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium resize-none p-4 focus-visible:ring-1 focus-visible:ring-primary/30"
             />
           </div>
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Qty</Label>
               <Input

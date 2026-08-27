@@ -353,7 +353,7 @@ export default function CreditNoteCreate() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-8 pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-4">
               <div className="space-y-3">
                 <div className="flex items-center gap-2 group cursor-pointer">
                   <Receipt className="h-3.5 w-3.5 text-primary" />
@@ -375,7 +375,7 @@ export default function CreditNoteCreate() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-6 pt-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4">
               <div className="space-y-2">
                 <div className="flex items-center gap-1">
                   <span className="text-destructive font-bold">*</span>
@@ -415,7 +415,7 @@ export default function CreditNoteCreate() {
 
           {/* Right Column */}
           <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-1">
                   <span className="text-destructive font-bold">*</span>
@@ -744,7 +744,7 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
               className="min-h-[100px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium resize-none p-4 focus-visible:ring-1 focus-visible:ring-primary/30"
             />
           </div>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Qty</Label>
               <Input 

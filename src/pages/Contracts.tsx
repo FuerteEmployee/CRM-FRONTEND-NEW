@@ -263,7 +263,7 @@ const Contracts = () => {
                     <Label>Subject *</Label>
                     <Input placeholder="Contract subject" value={formData.subject} onChange={(e) => setFormData({ ...formData, subject: e.target.value })} />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Contract Value</Label>
                       <Input type="number" placeholder="0.00" value={formData.contract_value} onChange={(e) => setFormData({ ...formData, contract_value: e.target.value })} />
@@ -282,7 +282,7 @@ const Contracts = () => {
                       </Select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Start Date</Label>
                       <Input type="date" value={formData.datestart} onChange={(e) => setFormData({ ...formData, datestart: e.target.value })} />
@@ -305,7 +305,7 @@ const Contracts = () => {
 
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
@@ -503,7 +503,7 @@ const Contracts = () => {
               </p>
             </div>
             <div className="space-y-2"><Label>Subject</Label><Input value={editItem.subject || ""} onChange={(e) => setEditItem({...editItem, subject: e.target.value})} /></div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Contract Value</Label><Input type="number" value={editItem.contract_value || ""} onChange={(e) => setEditItem({...editItem, contract_value: e.target.value})} /></div>
               <div className="space-y-2">
                 <Label>Contract Type</Label>
@@ -519,7 +519,7 @@ const Contracts = () => {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Start Date</Label><Input type="date" value={editItem.datestart?.substring(0, 10) || ""} onChange={(e) => setEditItem({...editItem, datestart: e.target.value})} /></div>
               <div className="space-y-2"><Label>End Date</Label><Input type="date" value={editItem.dateend?.substring(0, 10) || ""} onChange={(e) => setEditItem({...editItem, dateend: e.target.value})} /></div>
             </div>

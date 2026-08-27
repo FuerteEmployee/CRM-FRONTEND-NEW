@@ -567,7 +567,7 @@ const AdvanceSalaryPage = () => {
             {/* Request type toggle */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-600">Request Type *</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {(["Advance Salary", "Loan"] as RequestType[]).map((t) => (
                   <button
                     key={t}

@@ -597,7 +597,7 @@ const Leads = () => {
               <TooltipContent>{view === "kanban" ? "Switch to List view" : "Switch to Kanban view"}</TooltipContent>
             </Tooltip>
           {can("Leads", "Create") && (
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center">
               <MetaAdsDialog />
               <WebsiteFormsDialog />
               <ImportButton onData={processLeadRows} loading={importLeadsMutation.isPending} label="Import Leads" />
@@ -766,7 +766,7 @@ const Leads = () => {
                         <Input readOnly={modalMode === "view"} value={leadForm.address} onChange={(e) => setLeadForm(prev => ({ ...prev, address: e.target.value }))} className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white" />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">City</Label>
                           <Input readOnly={modalMode === "view"} value={leadForm.city} onChange={(e) => setLeadForm(prev => ({ ...prev, city: e.target.value }))} className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white" />
@@ -777,7 +777,7 @@ const Leads = () => {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Country</Label>
                           <Select disabled={modalMode === "view"} value={leadForm.country} onValueChange={(v) => setLeadForm(prev => ({ ...prev, country: v }))}>
@@ -817,7 +817,7 @@ const Leads = () => {
                           <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">
                             Custom Fields
                           </Label>
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {customFieldDefs.map((cf: any) => (
                               <div key={cf._id} className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{cf.name}</p>

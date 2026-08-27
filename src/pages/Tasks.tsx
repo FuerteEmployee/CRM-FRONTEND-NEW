@@ -547,12 +547,12 @@ const Tasks = () => {
           taskName={outcomeTask?.name}
           onSelect={handleOutcomeSelect}
         />
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex flex-col">
             <h1 className="text-2xl font-bold">Tasks</h1>
             <Link to="/admin/tasks/overview" className="text-sm text-primary hover:underline font-medium">Tasks Overview</Link>
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -572,7 +572,7 @@ const Tasks = () => {
               <TooltipContent>{view === "kanban" ? "Switch to List view" : "Switch to Kanban view"}</TooltipContent>
             </Tooltip>
           {(isAdmin || isStaff || can("Tasks", "Create")) && (
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center">
               {(isAdmin || can("Tasks", "Create")) && (
                 <ImportButton onData={processTaskRows} loading={importTasksMutation.isPending} label="Import Tasks" />
               )}
@@ -620,7 +620,7 @@ const Tasks = () => {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         {canUseBranch && (
                           <div className="col-span-2 space-y-1">
                             <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">

@@ -355,7 +355,7 @@ export default function ContractView() {
             <DialogTitle>Sign Contract</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">First Name</Label>
                 <Input value={signerFirstName} onChange={(e) => setSignerFirstName(e.target.value)} placeholder="First name" className="h-11 rounded-xl" />

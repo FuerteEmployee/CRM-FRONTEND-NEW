@@ -688,7 +688,7 @@ export default function StaffBranchFormPage() {
                   </div>
 
                   {/* Lat / Lng */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label className={lbl}>Latitude</Label>
                       <Input value={String(formData.latitude ?? "")} onChange={e => onManualCoord("latitude", e.target.value)}

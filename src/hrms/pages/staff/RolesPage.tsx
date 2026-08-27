@@ -934,7 +934,7 @@ export default function RolesPage() {
                   </div>
 
                   {/* Stats Row */}
-                  <div className="grid grid-cols-2 gap-3 mb-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
                     <div className="flex flex-col gap-1 p-3 bg-gray-50/50 rounded-xl border border-gray-200/50 transition-all hover:bg-white hover:border-gray-200 hover:shadow-sm">
                       <div className="flex items-center gap-1.5">
                         <Users className="h-3 w-3 text-primary/70" />
@@ -1044,7 +1044,7 @@ export default function RolesPage() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-sm font-bold">Icon</Label>
                       <Select value={formIcon} onValueChange={setFormIcon}>

@@ -324,7 +324,7 @@ const SetupQuotationTypes = () => {
               <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
                 Default PDF Theme
               </Label>
-              <div className="grid grid-cols-2 gap-3 mt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
                 {THEME_FIELDS.map((f) => (
                   <div key={f.key} className="space-y-1">
                     <Label className="text-xs font-medium">{f.label}</Label>

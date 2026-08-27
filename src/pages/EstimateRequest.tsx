@@ -377,7 +377,7 @@ export default function EstimateRequest() {
 
           <div className="py-6 space-y-8">
             {/* Meta Info */}
-            <div className="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl border border-slate-100">
               <div className="space-y-1">
                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Contact Email
@@ -460,7 +460,7 @@ export default function EstimateRequest() {
                   Rudraverse Specific Information
                 </h3>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Connect Person</label>
                     <Input 

@@ -307,12 +307,12 @@ const Vendors = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Truck className="h-6 w-6 text-primary" />
             <h1 className="text-2xl font-bold">Vendors</h1>
           </div>
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center">
             {can("Vendors", "Create") && (
               <ImportButton onData={processVendorRows} loading={importMutation.isPending} label="Import Vendors" />
             )}

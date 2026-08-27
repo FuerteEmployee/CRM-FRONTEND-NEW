@@ -458,8 +458,8 @@ export default function Meetings() {
             <h1 className="text-2xl font-bold">Meetings</h1>
             <p className="text-sm text-muted-foreground">Manage your team and client meetings</p>
           </div>
-          <div className="flex items-center gap-2">
-            <ExportButton 
+          <div className="flex flex-wrap items-center gap-2">
+            <ExportButton
               data={filteredMeetings} 
               filename="meetings"
               columns={[
@@ -489,7 +489,7 @@ export default function Meetings() {
                   <Label htmlFor="topic" className="text-xs font-bold uppercase tracking-wider">Topic <span className="text-red-500">*</span></Label>
                   <Input id="topic" value={formData.topic} onChange={handleInputChange} placeholder="E.g. Weekly Sync" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="date" className="text-xs font-bold uppercase tracking-wider">Date <span className="text-red-500">*</span></Label>
                     <Input id="date" type="date" value={formData.date} onChange={handleInputChange} />
@@ -520,7 +520,7 @@ export default function Meetings() {
                     )}
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="status" className="text-xs font-bold uppercase tracking-wider">Status</Label>
                     <Select value={formData.status} onValueChange={(v) => handleSelectChange('status', v)}>
