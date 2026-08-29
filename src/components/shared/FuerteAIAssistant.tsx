@@ -664,12 +664,12 @@ return (
       )}
 
       <div
-        className={`relative flex h-14 min-w-14 items-center justify-center rounded-full px-[14px] text-white shadow-xl ring-4 ring-background transition-all duration-300 group-hover:shadow-2xl group-hover:scale-[1.03] active:scale-95 ${fabColor}`}
+        className={`relative flex h-11 min-w-11 items-center justify-center rounded-full px-3 text-white shadow-xl ring-[3px] ring-background transition-all duration-300 group-hover:shadow-2xl group-hover:scale-[1.03] active:scale-95 ${fabColor}`}
       >
         {aiState === "sleeping" ? (
-          <Sparkles className="h-6 w-6 shrink-0" />
+          <Sparkles className="h-5 w-5 shrink-0" />
         ) : (
-          <Mic className="h-6 w-6 shrink-0" />
+          <Mic className="h-5 w-5 shrink-0" />
         )}
         {/* Label slides out on hover */}
         <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold tracking-tight opacity-0 transition-all duration-300 group-hover:ml-2 group-hover:max-w-[110px] group-hover:opacity-100">
@@ -679,7 +679,7 @@ return (
 
       {/* Status badge (thinking / speaking / awake / listening / off) */}
       <span
-        className={`absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full border-2 border-background ${fabBadge}`}
+        className={`absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-background ${fabBadge}`}
       />
     </button>
   </div>

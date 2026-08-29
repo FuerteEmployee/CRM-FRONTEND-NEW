@@ -105,12 +105,23 @@ export function TopNavbar() {
   };
 
   const handleLanguageChange = (langCode: string) => {
-    if (langCode === 'en') {
-      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=" + window.location.hostname + "; path=/;";
-    } else {
+    const hostname = window.location.hostname;
+    const expired = "expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    // Once Google's translate widget has actually run, it can persist its
+    // own copy of this cookie under a leading-dot domain (for subdomain-wide
+    // translation), independently of the exact variant we wrote when we set
+    // it. Clearing only that one variant leaves the dot-domain copy behind,
+    // so document.cookie still contains "googtrans=" after picking English
+    // — which makes index.html's loader keep fetching Google's script and
+    // re-translating instead of reverting. Clear every variant that could
+    // exist, not just the one we happened to set.
+    document.cookie = `googtrans=; ${expired}`;
+    document.cookie = `googtrans=; domain=${hostname}; ${expired}`;
+    document.cookie = `googtrans=; domain=.${hostname}; ${expired}`;
+
+    if (langCode !== 'en') {
       document.cookie = `googtrans=/en/${langCode}; path=/`;
-      document.cookie = `googtrans=/en/${langCode}; domain=` + window.location.hostname + `; path=/`;
+      document.cookie = `googtrans=/en/${langCode}; domain=${hostname}; path=/`;
     }
     window.location.reload();
   };
