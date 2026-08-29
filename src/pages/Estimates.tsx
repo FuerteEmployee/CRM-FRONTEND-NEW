@@ -384,7 +384,7 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
                               </td>
                               <td className="px-3 py-2.5 text-muted-foreground align-top">{item.qty || item.quantity || 1}</td>
                               <td className="px-3 py-2.5 text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">{(item.tax || item.gstPercentage) ? `${item.tax || item.gstPercentage}%` : "0%"}</td>
                               <td className="px-3 py-2.5 font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</td>
                             </tr>
                           ))}

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,11 @@ import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
 export default function ProposalCreate() {
   const { clientId, id } = useParams();
+  const [searchParams] = useSearchParams();
+  // A lead's Proposals tab links here with ?relType=lead so a proposal
+  // created from a lead is correctly tagged rel_type: "lead" instead of
+  // silently defaulting to "customer" with rel_id pointing at a Lead doc.
+  const initialRelType = searchParams.get("relType") === "lead" ? "lead" : "customer";
   const isEdit = !!id;
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -79,7 +84,7 @@ export default function ProposalCreate() {
 
   const [formData, setFormData] = useState({
     subject: "",
-    rel_type: "customer",
+    rel_type: initialRelType,
     rel_id: clientId || "",
     project: "",
     date: new Date().toISOString().split('T')[0],
@@ -357,6 +362,8 @@ export default function ProposalCreate() {
       });
       if (clientId && formData.rel_type === "customer") {
         navigate(`/admin/customers/${clientId}?tab=proposals`);
+      } else if (clientId && formData.rel_type === "lead") {
+        navigate(`/admin/leads?leadView=${clientId}&tab=proposals`);
       } else {
         navigate("/admin/proposals");
       }

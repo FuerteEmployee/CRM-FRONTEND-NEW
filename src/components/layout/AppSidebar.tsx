@@ -618,7 +618,10 @@ export function AppSidebar() {
         const isExternal = urlStr.startsWith("http");
         const IconComponent = (Icons as any)[item.icon] || Icons.Circle;
         // Icon-only (collapsed) sidebar has no room for a handle alongside it.
-        const showHandle = !!dragCtx && canReorderSidebar && !collapsed;
+        // Also requires a real _id — the transient fallbackNav placeholder
+        // (rendered before the DB-backed items have loaded) has none, and
+        // dnd-kit's sortable identity can't be undefined.
+        const showHandle = !!dragCtx && canReorderSidebar && !collapsed && !!item._id;
 
         const button = (
           <SidebarMenuButton asChild isActive={!isExternal && isActive}>
@@ -706,7 +709,10 @@ export function AppSidebar() {
           );
         }
 
-        return <SidebarMenuItem key={item.title}>{row()}</SidebarMenuItem>;
+        // Prefer the DB _id (guaranteed unique) — title alone isn't, and a
+        // duplicated title within the same section is exactly what produces
+        // React's "duplicate key" warning here.
+        return <SidebarMenuItem key={item._id || item.title}>{row()}</SidebarMenuItem>;
       });
   };
 

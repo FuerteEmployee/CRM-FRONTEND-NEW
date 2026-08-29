@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { LeadDetailDialog } from "@/components/leads/LeadDetailDialog";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { Plus, Search, ChevronDown, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon, KanbanSquare, List } from "lucide-react";
 
@@ -239,14 +240,44 @@ const Leads = () => {
       });
     }
     setIsNewLeadOpen(true);
+
+    // Keep the tabbed detail view's lead + tab shareable/refreshable via the URL.
+    if (mode === "view" && lead) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("leadView", lead._id);
+        if (!next.get("tab")) next.set("tab", "profile");
+        return next;
+      }, { replace: true });
+    }
   };
+
+  const closeLeadModal = () => {
+    setIsNewLeadOpen(false);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("leadView");
+      next.delete("tab");
+      return next;
+    }, { replace: true });
+  };
+
+  // Deep link / refresh support: if the URL already points at a lead
+  // (?leadView=<id>), reopen the view modal for it once the list has loaded.
+  useEffect(() => {
+    const leadViewId = searchParams.get("leadView");
+    if (!leadViewId || isNewLeadOpen || leads.length === 0) return;
+    const lead = leads.find((l: any) => l._id === leadViewId);
+    if (lead) openModal("view", lead);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, leads]);
 
   const createLeadMutation = useMutation({
     mutationFn: leadService.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast({ title: "Success", description: "Lead created successfully" });
-      setIsNewLeadOpen(false);
+      closeLeadModal();
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
@@ -258,7 +289,7 @@ const Leads = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast({ title: "Success", description: "Lead updated successfully" });
-      setIsNewLeadOpen(false);
+      closeLeadModal();
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
@@ -292,7 +323,7 @@ const Leads = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       queryClient.invalidateQueries({ queryKey: ["clients"] });
-      setIsNewLeadOpen(false);
+      closeLeadModal();
       SonnerToast.success("Lead converted to customer successfully");
     },
     onError: (err: any) => {
@@ -304,7 +335,7 @@ const Leads = () => {
     mutationFn: (id: string) => leadService.markAsLost(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
-      setIsNewLeadOpen(false);
+      closeLeadModal();
       SonnerToast.success("Lead marked as lost");
     },
     onError: (err: any) => {
@@ -316,7 +347,7 @@ const Leads = () => {
     mutationFn: (id: string) => leadService.markAsJunk(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
-      setIsNewLeadOpen(false);
+      closeLeadModal();
       SonnerToast.success("Lead marked as junk");
     },
     onError: (err: any) => {
@@ -601,12 +632,12 @@ const Leads = () => {
               <MetaAdsDialog />
               <WebsiteFormsDialog />
               <ImportButton onData={processLeadRows} loading={importLeadsMutation.isPending} label="Import Leads" />
-              <Dialog open={isNewLeadOpen} onOpenChange={setIsNewLeadOpen}>
+              <Dialog open={isNewLeadOpen} onOpenChange={(open) => open ? setIsNewLeadOpen(true) : closeLeadModal()}>
                   <Button onClick={() => openModal("create")} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest transition-all hover:scale-105">
                     <Plus className="h-4 w-4 stroke-[3]" />
                     New Lead
                   </Button>
-              <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white">
+              <DialogContent className={cn("p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white", modalMode === "view" ? "max-w-5xl" : "max-w-4xl")}>
                 <div className="bg-white px-8 py-5 flex items-center justify-between border-b border-slate-300 shrink-0">
                   <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                     <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -616,6 +647,9 @@ const Leads = () => {
                   </DialogTitle>
                 </div>
                 <div className="p-8 max-h-[75vh] overflow-y-auto no-scrollbar">
+                  {modalMode === "view" ? (
+                    <LeadDetailDialog lead={selectedLead} customFieldDefs={customFieldDefs} onEditClick={() => openModal("edit", selectedLead)} />
+                  ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {/* Left Column */}
                     <div className="space-y-6">
@@ -842,6 +876,7 @@ const Leads = () => {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   {/* Footer buttons moved inside the scrollable area to prevent cutoff */}
                   <div className="mt-8 flex items-center justify-between gap-3 pt-6 border-t border-slate-100">
@@ -896,7 +931,7 @@ const Leads = () => {
                                   if (!selectedLead) return;
                                   if (window.confirm("Delete this lead? This cannot be undone.")) {
                                     deleteLeadMutation.mutate(selectedLead._id);
-                                    setIsNewLeadOpen(false);
+                                    closeLeadModal();
                                   }
                                 }}
                                 disabled={deleteLeadMutation.isPending}

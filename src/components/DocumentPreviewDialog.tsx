@@ -345,7 +345,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                           </td>
                           <td className="px-4 py-3.5 text-muted-foreground text-xs">{item.qty || item.quantity || 1}</td>
                           <td className="px-4 py-3.5 text-muted-foreground text-xs">{currencySymbol}{Number(item.rate || item.price || 0).toFixed(2)}</td>
-                          <td className="px-4 py-3.5 text-muted-foreground text-xs">{item.tax ? `${item.tax}%` : "0%"}</td>
+                          <td className="px-4 py-3.5 text-muted-foreground text-xs">{(item.tax || item.gstPercentage) ? `${item.tax || item.gstPercentage}%` : "0%"}</td>
                           <td className="px-4 py-3.5 font-bold text-foreground text-xs">
                             {currencySymbol}{Number((item.qty || 1) * (item.rate || item.price || 0)).toFixed(2)}
                           </td>
