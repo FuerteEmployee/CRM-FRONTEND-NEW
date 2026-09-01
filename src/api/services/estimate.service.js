@@ -3,7 +3,13 @@ import { apiClient } from "../client";
 export const estimateService = {
   /** Fetch all estimates. Pass query params as needed: ?type=form_submission */
   getEstimates: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    // Drop undefined/null so callers can pass optional filters without them
+    // literally becoming the string "undefined" in the query (URLSearchParams
+    // stringifies every value it's given, undefined included).
+    const cleaned = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "")
+    );
+    const query = new URLSearchParams(cleaned).toString();
     return apiClient.get(`/estimates${query ? `?${query}` : ""}`);
   },
   getEstimateById: (id) => apiClient.get(`/estimates/${id}`),

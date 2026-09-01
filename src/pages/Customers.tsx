@@ -34,7 +34,6 @@ import {
   Search,
   Upload,
   Filter,
-  ChevronLeft,
   ChevronRight,
   ChevronDown,
   Download,
@@ -51,7 +50,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { customerService } from "@/api/services/customer.service";
 import { financeService } from "@/api/services/finance.service";
 import { staffService } from "@/api/services/staff.service";
@@ -109,9 +108,17 @@ const DEFAULT_IMPORT_SAMPLE_COLUMNS = IMPORT_COLUMNS.filter((c) => c.core).map((
 
 const Customers = () => {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [branchFilter, setBranchFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, branchFilter]);
   const [showFilters, setShowFilters] = useState(false);
   const [viewItem, setViewItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
@@ -155,13 +162,69 @@ const Customers = () => {
     defaultPassword: ""
   });
   const [showPassword, setShowPassword] = useState(false);
+  interface CustomersPage {
+    rows: any[];
+    total: number;
+    activeCount: number;
+    inactiveCount: number;
+    pages: number;
+  }
+
   const {
-    data: customers = [],
+    data: customersResult,
     isLoading,
     error,
-  } = useQuery<any[]>({
-    queryKey: ["customers"],
-    queryFn: customerService.getAll,
+  } = useQuery<CustomersPage>({
+    queryKey: ["customers", itemsPerPage, currentPage, debouncedSearch, statusFilter, branchFilter],
+    queryFn: async () => {
+      // "All" keeps the legacy unpaginated fetch (needed anyway for dropdown
+      // consumers elsewhere in the app), filtered the same way this page
+      // always has — company/branch-name search, status, branch.
+      if (itemsPerPage === "all") {
+        const all = await customerService.getAll();
+        const rows: any[] = Array.isArray(all) ? all : (all?.data ?? []);
+        const searchLower = debouncedSearch.toLowerCase();
+        const rowsFiltered = rows.filter((c: any) => {
+          const matchSearch =
+            !searchLower ||
+            (c.company || "").toLowerCase().includes(searchLower) ||
+            getCustomerBranchName(c).toLowerCase().includes(searchLower);
+          const matchStatus =
+            statusFilter === "all" || (c.active ? "Active" : "Inactive") === statusFilter;
+          const matchBranch = branchFilter === "all" || getCustomerBranchId(c) === branchFilter;
+          return matchSearch && matchStatus && matchBranch;
+        });
+        const activeCount = rowsFiltered.filter((c: any) => c.active).length;
+        return {
+          rows: rowsFiltered,
+          total: rowsFiltered.length,
+          activeCount,
+          inactiveCount: rowsFiltered.length - activeCount,
+          pages: 1,
+        };
+      }
+
+      const res: any = await customerService.getAll({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        branch: branchFilter !== "all" ? branchFilter : undefined,
+      });
+      // Defensive: the shared apiClient swallows non-auth errors into `[]`,
+      // which would otherwise crash the `.data`/`.total` access below.
+      if (Array.isArray(res)) {
+        return { rows: [], total: 0, activeCount: 0, inactiveCount: 0, pages: 1 };
+      }
+      return {
+        rows: res?.data ?? [],
+        total: res?.total ?? 0,
+        activeCount: res?.activeCount ?? 0,
+        inactiveCount: res?.inactiveCount ?? 0,
+        pages: res?.pages ?? 1,
+      };
+    },
+    placeholderData: keepPreviousData,
   });
 
   const { data: currencies = [] } = useQuery<any[]>({
@@ -258,97 +321,102 @@ const Customers = () => {
     (typeof c.branch === "string" ? c.branch : "") ||
     "";
 
-  const filtered = customers.filter((c) => {
-    const searchLower = search.toLowerCase();
-    const matchSearch =
-      (c.company || "").toLowerCase().includes(searchLower) ||
-      getCustomerBranchName(c).toLowerCase().includes(searchLower);
-    const matchStatus =
-      statusFilter === "all" ||
-      (c.active ? "Active" : "Inactive") === statusFilter;
-    const matchBranch =
-      branchFilter === "all" || getCustomerBranchId(c) === branchFilter;
-    return matchSearch && matchStatus && matchBranch;
-  });
+  // Export needs the *full* filtered set, not just the current page, so it
+  // fetches on demand (same legacy unpaginated endpoint the rest of the app
+  // relies on) instead of keeping every row in memory just in case.
+  const handleExport = async (type: "xlsx" | "csv" | "pdf" | "print") => {
+    if (type === "print" || type === "pdf") {
+      if (totalCustomers === 0) {
+        toast({ title: "Error", description: "No data to export", variant: "destructive" });
+        return;
+      }
+      if (type === "pdf") {
+        toast({ title: "Print Mode", description: "Ready to save - choose Save as PDF in print options" });
+      }
+      window.print();
+      return;
+    }
 
-  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
-    if (filtered.length === 0) {
+    const all = await customerService.getAll();
+    const rows0: any[] = Array.isArray(all) ? all : (all?.data ?? []);
+    const searchLower = debouncedSearch.toLowerCase();
+    const exportRows = rows0.filter((c: any) => {
+      const matchSearch =
+        !searchLower ||
+        (c.company || "").toLowerCase().includes(searchLower) ||
+        getCustomerBranchName(c).toLowerCase().includes(searchLower);
+      const matchStatus =
+        statusFilter === "all" || (c.active ? "Active" : "Inactive") === statusFilter;
+      const matchBranch = branchFilter === "all" || getCustomerBranchId(c) === branchFilter;
+      return matchSearch && matchStatus && matchBranch;
+    });
+
+    if (exportRows.length === 0) {
       toast({ title: "Error", description: "No data to export", variant: "destructive" });
       return;
     }
 
-    if (type === "csv" || type === "xlsx") {
-      const headers = [
-        "Company Name",
-        "Customer Reference",
-        "Connect Person",
-        "Phone Number",
-        "Address with State",
-        "Email",
-        "Pan Number",
-        "GST Number",
-        "Account details",
-        "Sales Person",
-        "Branch Name",
-        "Active",
-        "Groups",
-        "Date Created",
-      ];
-      const rows = filtered.map((c: any) => [
-        c.company || "",
-        c.customer_reference || "",
-        c.contact_person || "",
-        c.phonenumber || "-",
-        [c.address, c.city, c.state].filter(Boolean).join(", ") || "-",
-        c.email || "-",
-        c.pan_number || "",
-        c.gst_number || "",
-        c.account_details || "",
-        c.sales_person ? `${c.sales_person.firstname || ""} ${c.sales_person.lastname || ""}`.trim() : "",
-        branches.find((b: any) => b._id === c.branch || b._id === c.branch?._id)?.name || c.branch?.name || (typeof c.branch === "string" ? c.branch : ""),
-        c.active ? "Yes" : "No",
-        c.groups ? c.groups.map((g: any) => g.name || g).join(", ") : "",
-        c.datecreated ? formatDate(c.datecreated) : "-"
-      ]);
+    const headers = [
+      "Company Name",
+      "Customer Reference",
+      "Connect Person",
+      "Phone Number",
+      "Address with State",
+      "Email",
+      "Pan Number",
+      "GST Number",
+      "Account details",
+      "Sales Person",
+      "Branch Name",
+      "Active",
+      "Groups",
+      "Date Created",
+    ];
+    const rows = exportRows.map((c: any) => [
+      c.company || "",
+      c.customer_reference || "",
+      c.contact_person || "",
+      c.phonenumber || "-",
+      [c.address, c.city, c.state].filter(Boolean).join(", ") || "-",
+      c.email || "-",
+      c.pan_number || "",
+      c.gst_number || "",
+      c.account_details || "",
+      c.sales_person ? `${c.sales_person.firstname || ""} ${c.sales_person.lastname || ""}`.trim() : "",
+      branches.find((b: any) => b._id === c.branch || b._id === c.branch?._id)?.name || c.branch?.name || (typeof c.branch === "string" ? c.branch : ""),
+      c.active ? "Yes" : "No",
+      c.groups ? c.groups.map((g: any) => g.name || g).join(", ") : "",
+      c.datecreated ? formatDate(c.datecreated) : "-"
+    ]);
 
-      const filenameBase = `customers_export_${new Date().toISOString().split('T')[0]}`;
+    const filenameBase = `customers_export_${new Date().toISOString().split('T')[0]}`;
 
-      if (type === "xlsx") {
-        const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Customers");
-        XLSX.writeFile(wb, `${filenameBase}.xlsx`);
-      } else {
-        const csvData = [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
-        const blob = new Blob(["\uFEFF" + csvData], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.setAttribute("href", url);
-        link.setAttribute("download", `${filenameBase}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }
-      toast({ title: "Success", description: `Exported successfully as ${type.toUpperCase()}` });
-    } else if (type === "print") {
-      window.print();
-    } else if (type === "pdf") {
-      toast({ title: "Print Mode", description: "Ready to save - choose Save as PDF in print options" });
-      window.print();
+    if (type === "xlsx") {
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Customers");
+      XLSX.writeFile(wb, `${filenameBase}.xlsx`);
+    } else {
+      const csvData = [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+      const blob = new Blob(["\uFEFF" + csvData], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${filenameBase}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     }
+    toast({ title: "Success", description: `Exported successfully as ${type.toUpperCase()}` });
   };
 
-  const itemsPerPageNum = itemsPerPage === "all" ? Math.max(filtered.length, 1) : itemsPerPage;
-  const totalPages = Math.ceil(filtered.length / itemsPerPageNum);
-  const paginatedCustomers = filtered.slice(
-    (currentPage - 1) * itemsPerPageNum,
-    currentPage * itemsPerPageNum,
-  );
-
-  const totalCustomers = customers.length;
-  const activeCustomers = customers.filter((c) => c.active).length;
-  const inactiveCustomers = customers.filter((c) => !c.active).length;
+  const paginatedCustomers = customersResult?.rows ?? [];
+  const totalCustomers = customersResult?.total ?? 0;
+  const activeCustomers = customersResult?.activeCount ?? 0;
+  const inactiveCustomers = customersResult?.inactiveCount ?? 0;
+  const totalPages = customersResult?.pages ?? 1;
+  const itemsPerPageNum = itemsPerPage === "all" ? Math.max(totalCustomers, 1) : itemsPerPage;
   const activeContacts = 0;
   const inactiveContacts = 0;
   const createMutation = useMutation({
@@ -491,11 +559,6 @@ const Customers = () => {
     company: "",
     active: true,
   });
-
-  const branchesForSelectedCity = useMemo(
-    () => branches.filter((b) => b.city === newCustomer.city),
-    [branches, newCustomer.city]
-  );
 
   const resetCustomerForm = () => {
     setNewCustomer({ company: "", active: true });
@@ -808,14 +871,42 @@ const Customers = () => {
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
+                          <Label>Branch</Label>
+                          <Select
+                            value={newCustomer.branch || ""}
+                            onValueChange={(val) => {
+                              const selected = branches.find((b) => (b._id || b.id) === val);
+                              setNewCustomer({
+                                ...newCustomer,
+                                branch: val,
+                                city: selected?.city || newCustomer.city,
+                                state: selected?.state || newCustomer.state,
+                              });
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select branch" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {branches.map((b) => (
+                                <SelectItem key={b._id || b.id} value={(b._id || b.id) as string}>
+                                  {b.name}{b.city ? ` (${b.city})` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
                           <Label>City</Label>
                           <SearchableSelect
                             options={branchCities.map(c => ({ label: c, value: c }))}
                             placeholder="Select city"
                             value={newCustomer.city || ""}
-                            onValueChange={(val) => setNewCustomer({ ...newCustomer, city: val, branch: "" })}
+                            onValueChange={(val) => setNewCustomer({ ...newCustomer, city: val })}
                           />
                         </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label>State</Label>
                           <Input
@@ -823,28 +914,6 @@ const Customers = () => {
                             value={newCustomer.state || ""}
                             onChange={(e) => setNewCustomer({ ...newCustomer, state: e.target.value })}
                           />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Branch</Label>
-                          <Select
-                            value={newCustomer.branch || ""}
-                            onValueChange={(val) => setNewCustomer({ ...newCustomer, branch: val })}
-                            disabled={!newCustomer.city}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder={newCustomer.city ? "Select branch" : "Select a city first"} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {branchesForSelectedCity.map((b) => (
-                                <SelectItem key={b._id || b.id} value={(b._id || b.id) as string}>{b.name}</SelectItem>
-                              ))}
-                              {newCustomer.city && branchesForSelectedCity.length === 0 && (
-                                <div className="p-2 text-sm text-muted-foreground text-center">No branches in this city</div>
-                              )}
-                            </SelectContent>
-                          </Select>
                         </div>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1336,7 +1405,7 @@ const Customers = () => {
                           />
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
-                          {(currentPage - 1) * itemsPerPage + i + 1}
+                          {(currentPage - 1) * itemsPerPageNum + i + 1}
                         </td>
                         <td className="p-3">
                           <span className="text-sm font-medium">
@@ -1348,10 +1417,10 @@ const Customers = () => {
                             <Link to="/admin/contacts" className="text-primary hover:underline">
                               {c.primaryContact.firstname} {c.primaryContact.lastname}
                             </Link>
-                          ) : "-"}
+                          ) : (c.contact_person || "-")}
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
-                          {c.primaryContact?.email || "-"}
+                          {c.primaryContact?.email || c.email || "-"}
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
                           {c.phonenumber}
@@ -1418,11 +1487,37 @@ const Customers = () => {
               </table>
             </div>
 
-            <div className="flex items-center justify-between p-3 border-t text-sm text-muted-foreground">
-              <span>
-                Showing 1 to {Math.min(itemsPerPage, filtered.length)} of{" "}
-                {filtered.length} entries
-              </span>
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 py-4 border-t">
+              <p className="text-xs font-bold text-muted-foreground italic">
+                Showing {totalCustomers === 0 ? 0 : (currentPage - 1) * itemsPerPageNum + 1} to{" "}
+                {Math.min(currentPage * itemsPerPageNum, totalCustomers)} of {totalCustomers} entries
+              </p>
+              {itemsPerPage !== "all" && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-4 rounded-lg font-bold text-xs"
+                    disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                  >
+                    Previous
+                  </Button>
+                  <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
+                    {currentPage}
+                  </div>
+                  <span className="text-xs text-muted-foreground px-1">of {totalPages}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-4 rounded-lg font-bold text-xs"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                  >
+                    Next
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

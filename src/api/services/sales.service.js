@@ -21,7 +21,7 @@ export const salesService = {
   // ─────────────────────────────────────────────
   // Payments
   // ─────────────────────────────────────────────
-  getPayments: () => apiClient.get("/payments"),
+  getPayments: (params) => apiClient.get("/payments", params ? { params } : undefined),
   getPaymentsByCustomer: (clientId) => apiClient.get(`/payments/customer/${clientId}`),
   getPaymentsByInvoice: (invoiceId) => apiClient.get(`/payments/invoice/${invoiceId}`),
   createPayment: (data) => apiClient.post("/payments", data),

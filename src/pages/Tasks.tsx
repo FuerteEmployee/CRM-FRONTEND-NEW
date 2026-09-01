@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,7 +48,7 @@ import {
 } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { projectService } from "@/api/services/project.service";
 import { utilityService } from "@/api/services/utility.service";
 import { taskService } from "@/api/services/task.service";
@@ -123,10 +123,18 @@ const Tasks = () => {
   };
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [activeStatus, setActiveStatus] = useState<number | "all">("all");
   const [activeCategory, setActiveCategory] = useState<string>("all");
-  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(25);
   const [currentPage, setCurrentPage] = useState(1);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, activeStatus, activeCategory]);
   const [editorFont, setEditorFont] = useState("System Font");
   const [editorFontSize, setEditorFontSize] = useState("11");
   const [showAttachment, setShowAttachment] = useState(false);
@@ -163,15 +171,89 @@ const Tasks = () => {
   const branches: { _id: string; name: string }[] = branchesRaw;
   const navigate = useNavigate();
 
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery<any[]>({
-    queryKey: ["tasks"],
-    queryFn: projectService.getTasks,
-  });
-
+  // Todos are a small, personal-scale list (not a growing tenant-wide
+  // collection like Tasks) — kept as a full fetch, filtered client-side.
   const { data: todos = [], isLoading: todosLoading } = useQuery<any[]>({
     queryKey: ["todos"],
     queryFn: utilityService.getTodos,
   });
+
+  const normalizedTodos = useMemo(
+    () =>
+      todos.map((todo: any) => ({
+        ...todo,
+        name: todo.description,
+        displayStatus: todo.finished ? 5 : 1,
+        displayPriority: 2,
+        isTodo: true,
+      })),
+    [todos]
+  );
+
+  const filteredTodos = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
+    return normalizedTodos.filter((t: any) => {
+      const matchesSearch = !q || (t.name || "").toLowerCase().includes(q);
+      const matchesStatus = activeStatus === "all" || t.displayStatus === activeStatus;
+      // Todos have no `category` — they only ever count as "To-Do".
+      const matchesCategory = activeCategory === "all" || activeCategory === "To-Do";
+      return matchesSearch && matchesStatus && matchesCategory;
+    });
+  }, [normalizedTodos, debouncedSearch, activeStatus, activeCategory]);
+
+  // Tasks appear before Todos in the combined list (matching the order this
+  // page has always used). Fetching exactly `itemsPerPage` tasks starting at
+  // `pageStart` naturally comes back short once the page runs past the end
+  // of the (filtered) task collection — that shortfall is how many Todos
+  // need to fill the rest of the page, no separate lookup required.
+  const pageStart = itemsPerPage === "all" ? 0 : (currentPage - 1) * itemsPerPage;
+
+  const taskMatchesFilters = (t: any, q: string) => {
+    const matchesSearch = !q || (t.name || "").toLowerCase().includes(q);
+    const displayStatus = t.status || 1;
+    const matchesStatus = activeStatus === "all" || displayStatus === activeStatus;
+    const matchesCategory = activeCategory === "all" || (t.category || "To-Do") === activeCategory;
+    return matchesSearch && matchesStatus && matchesCategory;
+  };
+
+  interface TasksPage { rows: any[]; total: number; statusCounts: Record<number, number> }
+  const { data: tasksResult, isLoading: tasksLoading } = useQuery<TasksPage>({
+    queryKey: ["tasks", itemsPerPage, currentPage, debouncedSearch, activeStatus, activeCategory],
+    queryFn: async () => {
+      if (itemsPerPage === "all") {
+        // "All" keeps the legacy full fetch, filtered client-side exactly
+        // as this page always has — the paginated endpoint's 500-row cap
+        // wouldn't be a true "everything" view for a large tenant.
+        const response: any = await projectService.getTasks();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        const q = debouncedSearch.toLowerCase();
+        const rowsFiltered = rows.filter((t: any) => taskMatchesFilters(t, q));
+        const statusCounts: Record<number, number> = {};
+        rows.forEach((t: any) => {
+          const s = t.status || 1;
+          statusCounts[s] = (statusCounts[s] || 0) + 1;
+        });
+        return { rows: rowsFiltered, total: rowsFiltered.length, statusCounts };
+      }
+
+      const res: any = await projectService.getTasks({
+        skip: pageStart,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+        status: activeStatus !== "all" ? activeStatus : undefined,
+        category: activeCategory !== "all" ? activeCategory : undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, statusCounts: {} };
+      const statusCounts: Record<number, number> = {};
+      (res?.statusCounts ?? []).forEach((s: any) => {
+        statusCounts[s.status] = s.count;
+      });
+      return { rows: res?.data ?? [], total: res?.total ?? 0, statusCounts };
+    },
+    placeholderData: keepPreviousData,
+  });
+  const totalTasks = tasksResult?.total ?? 0;
+  const tasksOnPage: any[] = tasksResult?.rows ?? [];
 
   const { data: staffMembers = [] } = useQuery<any[]>({
     queryKey: ["staff", "assignable"],
@@ -217,56 +299,59 @@ const Tasks = () => {
 
   const isLoading = tasksLoading || todosLoading;
 
-  // Normalize all tasks
-  const allTasks = useMemo(() => {
-    let rawTasks = tasks;
-    if (isStaff && !isAdmin && user?._id) {
-      const currentUserId = String(user._id);
-      rawTasks = tasks.filter((t: any) => {
-        const isAssigned = Array.isArray(t.assignees) && t.assignees.some((a: any) =>
-          String(typeof a === 'object' ? a?._id || a?.value : a) === currentUserId
-        );
-        const isFollower = Array.isArray(t.followers) && t.followers.some((f: any) =>
-          String(typeof f === 'object' ? f?._id || f?.value : f) === currentUserId
-        );
-        const isCreator = String(typeof t.created_by === 'object' ? t.created_by?._id : t.created_by) === currentUserId;
-        return isAssigned || isFollower || isCreator;
-      });
-    }
+  // The staff-only-sees-own-tasks restriction is still applied client-side,
+  // same as before pagination — it now narrows a page at a time rather than
+  // the whole tenant fetch, so a restricted user's page can render fewer
+  // than `itemsPerPage` rows (a pre-existing limitation, not a regression).
+  const scopedTasksOnPage = useMemo(() => {
+    if (!(isStaff && !isAdmin && user?._id)) return tasksOnPage;
+    const currentUserId = String(user._id);
+    return tasksOnPage.filter((t: any) => {
+      const isAssigned = Array.isArray(t.assignees) && t.assignees.some((a: any) =>
+        String(typeof a === 'object' ? a?._id || a?.value : a) === currentUserId
+      );
+      const isFollower = Array.isArray(t.followers) && t.followers.some((f: any) =>
+        String(typeof f === 'object' ? f?._id || f?.value : f) === currentUserId
+      );
+      const isCreator = String(typeof t.created_by === 'object' ? t.created_by?._id : t.created_by) === currentUserId;
+      return isAssigned || isFollower || isCreator;
+    });
+  }, [tasksOnPage, isStaff, isAdmin, user?._id]);
 
-    return [
-      ...rawTasks.map((t: any) => ({
+  const normalizedTasksOnPage = useMemo(
+    () =>
+      scopedTasksOnPage.map((t: any) => ({
         ...t,
         displayStatus: t.status || 1,
         displayPriority: t.priority || 2,
         isTodo: false,
       })),
-      ...todos.map((todo: any) => ({
-        ...todo,
-        _id: todo._id,
-        name: todo.description,
-        displayStatus: todo.finished ? 5 : 1,
-        displayPriority: 2,
-        isTodo: true,
-      })),
-    ];
-  }, [tasks, todos, isStaff, isAdmin, user?._id]);
+    [scopedTasksOnPage]
+  );
 
-  const filteredTasks = useMemo(() => {
-    return allTasks.filter((t: any) => {
-      const matchesSearch = (t.name || "").toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = activeStatus === "all" || t.displayStatus === activeStatus;
-      const matchesCategory = activeCategory === "all" || (t.category || "To-Do") === activeCategory;
-      return matchesSearch && matchesStatus && matchesCategory;
-    });
-  }, [allTasks, search, activeStatus, activeCategory]);
+  // How many Todos fill the rest of this page: the task fetch above already
+  // returns fewer than `itemsPerPage` rows once it runs past the end of the
+  // (filtered) task collection, so that shortfall is exactly the Todo count
+  // needed, starting from wherever the previous page(s) left off. "All"
+  // mode already has every task loaded, so every todo joins them too.
+  const todosNeeded = itemsPerPage === "all" ? filteredTodos.length : Math.max(0, itemsPerPage - tasksOnPage.length);
+  const todoStart = itemsPerPage === "all" ? 0 : Math.max(0, pageStart - totalTasks);
+  const todoSlice = filteredTodos.slice(todoStart, todoStart + todosNeeded);
 
+  const filteredTasks = [...normalizedTasksOnPage, ...todoSlice];
+
+  // Independent of the currently active search/status/category filters —
+  // matches prior behavior (computed from the full, unfiltered list).
   const stats = useMemo(() => {
+    const todoCounts: Record<number, number> = {};
+    normalizedTodos.forEach((t: any) => {
+      todoCounts[t.displayStatus] = (todoCounts[t.displayStatus] || 0) + 1;
+    });
     return taskStatusConfig.map((status) => ({
       ...status,
-      count: allTasks.filter((t) => t.displayStatus === status.id).length,
+      count: (tasksResult?.statusCounts?.[status.id] || 0) + (todoCounts[status.id] || 0),
     }));
-  }, [allTasks]);
+  }, [tasksResult, normalizedTodos]);
 
   const deleteMutation = useMutation({
     mutationFn: ({ id, isTodo }: { id: string; isTodo: boolean }) =>
@@ -374,10 +459,14 @@ const Tasks = () => {
     setIsBulkLoading(true);
 
     try {
+      // Todos are always fully loaded client-side (a small, personal-scale
+      // list), so membership there reliably tells a todo apart from a task
+      // even for a selected id that's no longer on the current task page.
+      const isTodoId = (id: string) => normalizedTodos.some((t: any) => t._id === id);
+
       if (bulkState.massDelete) {
         await Promise.all(selectedTasks.map(id => {
-          const t = allTasks.find(t => t._id === id);
-          return t?.isTodo ? utilityService.deleteTodo(id) : taskService.delete(id);
+          return isTodoId(id) ? utilityService.deleteTodo(id) : taskService.delete(id);
         }));
         toast({ title: "Success", description: `Deleted ${selectedTasks.length} tasks.` });
       } else {
@@ -389,8 +478,7 @@ const Tasks = () => {
 
         if (Object.keys(updates).length > 0) {
           await Promise.all(selectedTasks.map(id => {
-            const t = allTasks.find(t => t._id === id);
-            if (t?.isTodo) {
+            if (isTodoId(id)) {
               const todoUpdates: any = {};
               if (bulkState.status === "5") todoUpdates.finished = true;
               else if (bulkState.status) todoUpdates.finished = false;
@@ -524,13 +612,45 @@ const Tasks = () => {
     }
   };
 
-  // Pagination logic
-  const totalItems = filteredTasks.length;
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-  const paginatedTasks = filteredTasks.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  // Pagination logic — `filteredTasks` (server task page + todo slice) is
+  // already exactly this page's rows, no further slicing needed.
+  const totalItems = totalTasks + filteredTodos.length;
+  const itemsPerPageNum = itemsPerPage === "all" ? Math.max(totalItems, 1) : itemsPerPage;
+  const totalPages = itemsPerPage === "all" ? 1 : Math.max(1, Math.ceil(totalItems / itemsPerPage));
+  const paginatedTasks = filteredTasks;
+
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand (the plain, unpaginated endpoint) only when the user actually
+  // exports, with the same search/status/category/staff-scope filtering
+  // this page has always applied.
+  const loadAllFilteredTasks = async () => {
+    const res: any = await projectService.getTasks();
+    const rawTasks: any[] = Array.isArray(res) ? res : res?.data ?? [];
+    let scoped = rawTasks;
+    if (isStaff && !isAdmin && user?._id) {
+      const currentUserId = String(user._id);
+      scoped = rawTasks.filter((t: any) => {
+        const isAssigned = Array.isArray(t.assignees) && t.assignees.some((a: any) =>
+          String(typeof a === 'object' ? a?._id || a?.value : a) === currentUserId
+        );
+        const isFollower = Array.isArray(t.followers) && t.followers.some((f: any) =>
+          String(typeof f === 'object' ? f?._id || f?.value : f) === currentUserId
+        );
+        const isCreator = String(typeof t.created_by === 'object' ? t.created_by?._id : t.created_by) === currentUserId;
+        return isAssigned || isFollower || isCreator;
+      });
+    }
+    const q = debouncedSearch.toLowerCase();
+    const normalized = scoped
+      .map((t: any) => ({ ...t, displayStatus: t.status || 1, displayPriority: t.priority || 2, isTodo: false }))
+      .filter((t: any) => {
+        const matchesSearch = !q || (t.name || "").toLowerCase().includes(q);
+        const matchesStatus = activeStatus === "all" || t.displayStatus === activeStatus;
+        const matchesCategory = activeCategory === "all" || (t.category || "To-Do") === activeCategory;
+        return matchesSearch && matchesStatus && matchesCategory;
+      });
+    return [...normalized, ...filteredTodos];
+  };
 
   return (
     <DashboardLayout>
@@ -538,7 +658,7 @@ const Tasks = () => {
         <TaskViewModal
           isOpen={isViewModalOpen}
           onClose={() => setIsViewModalOpen(false)}
-          task={(selectedViewTask && allTasks.find((t: any) => t._id === selectedViewTask._id)) || selectedViewTask}
+          task={(selectedViewTask && paginatedTasks.find((t: any) => t._id === selectedViewTask._id)) || selectedViewTask}
           staffOptions={staffOptions}
         />
         <InquiryOutcomeDialog
@@ -954,7 +1074,7 @@ const Tasks = () => {
                 <Select
                   value={itemsPerPage.toString()}
                   onValueChange={(val) => {
-                    setItemsPerPage(val === "All" ? 999999 : Number(val));
+                    setItemsPerPage(val === "All" ? "all" : Number(val));
                     setCurrentPage(1);
                   }}
                 >
@@ -992,7 +1112,7 @@ const Tasks = () => {
                 </Select>
 
                 <ExportButton
-                  data={filteredTasks}
+                  data={loadAllFilteredTasks}
                   filename="tasks"
                   columns={[
                     { header: "Task Name", key: "name" },
@@ -1188,7 +1308,7 @@ const Tasks = () => {
                             />
                           </td>
                           <td className="p-4 text-xs font-medium text-slate-500">
-                            {(currentPage - 1) * itemsPerPage + index + 1}
+                            {(currentPage - 1) * itemsPerPageNum + index + 1}
                           </td>
                           <td className="p-4">
                             <div className="flex flex-col">
@@ -1321,7 +1441,7 @@ const Tasks = () => {
             {!isLoading && filteredTasks.length > 0 && (
               <div className="flex items-center justify-between p-4 border-t bg-slate-50/50">
                 <div className="text-xs font-medium text-slate-500">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
+                  Showing {(currentPage - 1) * itemsPerPageNum + 1} to {Math.min(currentPage * itemsPerPageNum, totalItems)} of {totalItems} entries
                 </div>
                 <div className="flex items-center gap-1">
                   <Button

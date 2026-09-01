@@ -1,7 +1,7 @@
 import { apiClient } from '../client';
 
 export const itemService = {
-  getAll: () => apiClient.get('/items'),
+  getAll: (params) => apiClient.get('/items', params ? { params } : undefined),
   create: (data) => apiClient.post('/items', data),
   update: (id, data) => apiClient.put(`/items/${id}`, data),
   delete: (id) => apiClient.delete(`/items/${id}`),

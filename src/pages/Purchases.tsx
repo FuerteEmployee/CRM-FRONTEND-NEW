@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Search, Pencil, Trash2, ShoppingCart } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { purchaseService } from "@/api/services/purchase.service";
 import { staffService } from "@/api/services/staff.service";
 import { formatDate } from "@/lib/dateFormat";
@@ -142,12 +142,12 @@ const Purchases = () => {
 
   const { data: vendors = [] } = useQuery<VendorRecord[]>({
     queryKey: ["vendors"],
-    queryFn: vendorService.getAll,
+    queryFn: () => vendorService.getAll(),
   });
 
   const { data: staff = [] } = useQuery<any[]>({
     queryKey: ["staff"],
-    queryFn: staffService.getAll,
+    queryFn: () => staffService.getAll(),
   });
 
   const { data: branchesRaw = [] } = useQuery<any[]>({
@@ -159,6 +159,11 @@ const Purchases = () => {
   const branches: { _id: string; name: string }[] = branchesRaw;
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState<any>(null);
   const [formData, setFormData] = useState<any>(emptyForm);
@@ -188,10 +193,43 @@ const Purchases = () => {
 
   useOpenCreateModal(() => { setEditingPurchase(null); setFormData(getNewPurchaseForm()); setFreightTouched(false); setIsModalOpen(true); });
 
-  const { data: purchases = [], isLoading } = useQuery({
-    queryKey: ["purchases"],
-    queryFn: purchaseService.getAll,
+  // Paginated server-side once a finite page size is chosen; "all" keeps
+  // the legacy full fetch, filtered client-side exactly as this page always
+  // has (needed for the vendor-name/GSTIN fuzzy fallback matching).
+  type PurchaseTotals = { amount: number; cgst: number; sgst: number; igst: number; total: number };
+  const ZERO_TOTALS: PurchaseTotals = { amount: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
+  interface PurchasesPage { rows: any[]; total: number; pages: number; totals: PurchaseTotals }
+  const { data: purchasesResult, isLoading } = useQuery<PurchasesPage>({
+    queryKey: ["purchases", itemsPerPage, currentPage, debouncedSearch, branchFilter, vendorFilter],
+    queryFn: async () => {
+      if (itemsPerPage === "all") {
+        const response = await purchaseService.getAll();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        return { rows, total: rows.length, pages: 1, totals: ZERO_TOTALS };
+      }
+
+      const res: any = await purchaseService.getAll({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+        branch: branchFilter !== "all" ? branchFilter : undefined,
+        vendor: vendorFilter.length ? vendorFilter.join(",") : undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, totals: ZERO_TOTALS };
+      return {
+        rows: res?.data ?? [],
+        total: res?.total ?? 0,
+        pages: res?.pages ?? 1,
+        totals: res?.totals ?? ZERO_TOTALS,
+      };
+    },
+    placeholderData: keepPreviousData,
   });
+  // In "all" mode the vendor filter's fuzzy name/GSTIN fallback still runs
+  // client-side over the full fetch (see filteredPurchases below); in
+  // paginated mode the server already applied it, so purchases is just the
+  // current page and filteredPurchases becomes a light pass-through.
+  const purchases: any[] = purchasesResult?.rows ?? [];
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["purchases"] });
 
@@ -610,16 +648,17 @@ const Purchases = () => {
     };
   }, [formData.amount, formData.freight_charge, formData.gst_rate, formData.supplier_state, formData.supplier_gstin]);
 
-  const filteredPurchases = useMemo(() => {
-    const q = search.toLowerCase();
-
-    // Prepare selected vendor IDs, company names, and normalized names for resilient dual matching
+  // Only needed in "all" mode: the server already applies this exact
+  // search/vendor/branch filtering when paginated, so `purchases` there is
+  // already the correct (current-page) result and this becomes a pass-through.
+  const filterPurchasesClientSide = (rows: any[], q: string) => {
     const selectedIds = Array.isArray(vendorFilter) ? vendorFilter : (vendorFilter ? [vendorFilter] : []);
     const selectedVendors = vendors.filter((v) => selectedIds.includes(v._id));
     const selectedNames = selectedVendors.map((v) => (v.company_name || "").toLowerCase().trim()).filter(Boolean);
     const selectedNorms = selectedNames.map((name) => name.replace(/[^a-z0-9]/g, ""));
+    const selectedGstins = selectedVendors.map((v) => (v.gst_number || "").toLowerCase().trim()).filter(Boolean);
 
-    return (purchases as any[]).filter((p) => {
+    return rows.filter((p) => {
       const matchesSearch = !q ||
         p.bill_no?.toLowerCase().includes(q) ||
         p.supplier_name?.toLowerCase().includes(q) ||
@@ -635,9 +674,11 @@ const Purchases = () => {
         const pVendorId = typeof p.vendor_id === "object" ? p.vendor_id?._id : p.vendor_id;
         const pSupplierName = (p.supplier_name || "").toLowerCase().trim();
         const pSupplierNorm = pSupplierName.replace(/[^a-z0-9]/g, "");
+        const pSupplierGstin = (p.supplier_gstin || "").toLowerCase().trim();
 
         matchesVendor = Boolean(
           (pVendorId && selectedIds.includes(String(pVendorId))) ||
+          (pSupplierGstin && selectedGstins.includes(pSupplierGstin)) ||
           (pSupplierName && selectedNames.includes(pSupplierName)) ||
           (pSupplierNorm && selectedNorms.some((norm) => pSupplierNorm.includes(norm) || norm.includes(pSupplierNorm)))
         );
@@ -646,11 +687,17 @@ const Purchases = () => {
       const matchesBranch = branchFilter === "all" || p.branch === branchFilter;
       return matchesSearch && matchesVendor && matchesBranch;
     });
-  }, [purchases, search, vendorFilter, branchFilter, vendors]);
+  };
 
-  const totals = useMemo(() => {
+  const filteredPurchases = useMemo(() => {
+    if (itemsPerPage !== "all") return purchases;
+    return filterPurchasesClientSide(purchases as any[], debouncedSearch.toLowerCase());
+  }, [purchases, debouncedSearch, vendorFilter, branchFilter, vendors, itemsPerPage]);
+
+  const totals: PurchaseTotals = useMemo(() => {
+    if (itemsPerPage !== "all") return purchasesResult?.totals ?? ZERO_TOTALS;
     return filteredPurchases.reduce(
-      (acc: any, p: any) => {
+      (acc: PurchaseTotals, p: any) => {
         acc.amount += p.amount || 0;
         acc.cgst += p.cgst || 0;
         acc.sgst += p.sgst || 0;
@@ -660,7 +707,7 @@ const Purchases = () => {
       },
       { amount: 0, cgst: 0, sgst: 0, igst: 0, total: 0 }
     );
-  }, [filteredPurchases]);
+  }, [filteredPurchases, itemsPerPage, purchasesResult]);
 
   const money = (n: number | null | undefined, showZeroAsDash = true) => {
     if (n == null || isNaN(Number(n))) return "-";
@@ -669,15 +716,21 @@ const Purchases = () => {
     return `${symbol}${val.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
-  // Pagination
-  const totalItems = filteredPurchases.length;
+  // Pagination — in "all" mode `purchasesResult.total` is the raw unfiltered
+  // fetch count, so the true total is however many survive client filtering.
+  const totalItems = itemsPerPage === "all" ? filteredPurchases.length : (purchasesResult?.total ?? 0);
   const pageSize = itemsPerPage === "all" ? (totalItems || 1) : itemsPerPage;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const totalPages = itemsPerPage === "all" ? 1 : (purchasesResult?.pages ?? 1);
   const safePage = Math.min(currentPage, totalPages);
-  const paginatedPurchases =
-    itemsPerPage === "all"
-      ? filteredPurchases
-      : filteredPurchases.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const paginatedPurchases = filteredPurchases;
+
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredPurchases = async () => {
+    const response = await purchaseService.getAll();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    return filterPurchasesClientSide(rows, debouncedSearch.toLowerCase());
+  };
 
   // Selection (page-scoped select-all)
   const pageIds = paginatedPurchases.map((p: any) => p._id);
@@ -779,7 +832,7 @@ const Purchases = () => {
                 mappingNote="Your Excel columns (Bill Date, Particulars, Voucher No., Quantity, Rate, Amount, Total, CGST, SGST, Branch) will be automatically detected and mapped to purchases."
               />
             )}
-            <ExportButton data={filteredPurchases} filename="purchases" columns={exportColumns} />
+            <ExportButton data={loadAllFilteredPurchases} filename="purchases" columns={exportColumns} />
             {can("Purchases", "Create") && (
               <Button
                 onClick={() => { setEditingPurchase(null); setFormData(getNewPurchaseForm()); setIsModalOpen(true); }}

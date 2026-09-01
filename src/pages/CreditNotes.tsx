@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,7 +50,7 @@ import {
   Link as LinkIcon,
   Image as ImageIcon,
 } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { creditNoteService } from "@/api/services/credit_note.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
@@ -71,6 +71,11 @@ const statusMap: Record<number, { label: string; color: string }> = {
 
 const CreditNotes = () => {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [itemsPerPage, setItemsPerPage] = useState("10");
   const [currentPage, setCurrentPage] = useState(1);
   const [viewItem, setViewItem] = useState<any>(null);
@@ -80,14 +85,47 @@ const CreditNotes = () => {
   const { can } = usePermissions();
   const { symbol, formatAmount } = useCurrency();
 
-  const { data: creditNotes = [], isLoading, isError, error } = useQuery<any[]>({
-    queryKey: ["creditNotes"],
+  // Paginated server-side once a finite page size is chosen; "All" keeps
+  // the legacy full fetch, filtered client-side exactly as this page always has.
+  interface CreditNotesPage { rows: any[]; total: number; pages: number; creditsAvailable: number }
+  const { data: creditNotesResult, isLoading, isError, error } = useQuery<CreditNotesPage>({
+    queryKey: ["creditNotes", itemsPerPage, currentPage, debouncedSearch],
     queryFn: async () => {
-      const response = await creditNoteService.getAll();
-      return Array.isArray(response) ? response : response?.data || [];
+      const matchesSearch = (cn: any, q: string) =>
+        !q ||
+        (cn.number || "").toLowerCase().includes(q) ||
+        (cn.client?.company || "").toLowerCase().includes(q) ||
+        (cn._id || "").toLowerCase().includes(q) ||
+        (cn.reference || "").toLowerCase().includes(q);
+
+      if (itemsPerPage === "All") {
+        const response = await creditNoteService.getAll();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        const creditsAvailable = rows
+          .filter((cn: any) => cn.status === 1)
+          .reduce((acc: number, cn: any) => acc + (cn.remaining_amount ?? cn.total ?? 0), 0);
+        const q = debouncedSearch.toLowerCase();
+        const rowsFiltered = rows.filter((cn: any) => matchesSearch(cn, q));
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1, creditsAvailable };
+      }
+
+      const res: any = await creditNoteService.getAll({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, creditsAvailable: 0 };
+      return {
+        rows: res?.data ?? [],
+        total: res?.total ?? 0,
+        pages: res?.pages ?? 1,
+        creditsAvailable: res?.creditsAvailable ?? 0,
+      };
     },
+    placeholderData: keepPreviousData,
     retry: false,
   });
+  const creditNotes: any[] = creditNotesResult?.rows ?? [];
 
   const { data: currencies = [] } = useQuery<any[]>({
     queryKey: ["currencies"],
@@ -144,65 +182,29 @@ const CreditNotes = () => {
     },
   });
 
-  const filtered = useMemo(() => {
-    return creditNotes.filter((cn: any) => {
-      const matchSearch =
-        (cn.number || "").toLowerCase().includes(search.toLowerCase()) ||
-        (cn.client?.company || "").toLowerCase().includes(search.toLowerCase()) ||
-        (cn._id || "").toLowerCase().includes(search.toLowerCase()) ||
-        (cn.reference || "").toLowerCase().includes(search.toLowerCase());
-      
-      return matchSearch;
-    });
-  }, [creditNotes, search]);
-
-  const cnPageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
-  const totalCnPages = Math.max(1, Math.ceil(filtered.length / cnPageSize));
+  const totalCreditNotes = creditNotesResult?.total ?? 0;
+  const cnPageSize = itemsPerPage === "All" ? (totalCreditNotes || 1) : parseInt(itemsPerPage);
+  const totalCnPages = creditNotesResult?.pages ?? 1;
   const safeCnPage = Math.min(currentPage, totalCnPages);
-  const paginatedCreditNotes = itemsPerPage === "All" ? filtered : filtered.slice((safeCnPage - 1) * cnPageSize, safeCnPage * cnPageSize);
+  const paginatedCreditNotes = creditNotes;
 
-  const totalCreditsAvailable = useMemo(() => {
-    return creditNotes
-      .filter((cn: any) => cn.status === 1)
-      .reduce((acc: number, cn: any) => acc + (cn.remaining_amount ?? cn.total), 0);
-  }, [creditNotes]);
+  // Always the whole tenant's total, independent of the active search —
+  // computed server-side since only the current page is kept in memory.
+  const totalCreditsAvailable = creditNotesResult?.creditsAvailable ?? 0;
 
-  const handleExport = (type: "pdf" | "csv" | "print") => {
-    if (filtered.length === 0) {
-      toast({
-        title: "No data",
-        description: "There are no credit notes to export.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (type === "csv") {
-      const headers = ["Credit Note #", "Customer", "Date", "Status", "Reference", "Amount", "Remaining Amount"];
-      const rows = filtered.map((cn: any) => [
-        cn.number || `CN-${cn._id?.substring(0, 6)}`,
-        cn.client?.company || "N/A",
-        cn.date ? formatDate(cn.date) : "-",
-        statusMap[cn.status]?.label || "Open",
-        cn.reference || "-",
-        formatRowAmount(cn, cn.total || 0),
-        formatRowAmount(cn, cn.remaining_amount ?? cn.total ?? 0),
-      ]);
-
-      const csvContent =
-        "data:text/csv;charset=utf-8," +
-        [headers.join(","), ...rows.map((e) => e.map((val) => `"${val}"`).join(","))].join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `credit_notes_export_${new Date().toISOString().split("T")[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast({ title: "Exported", description: "CSV exported successfully." });
-    } else {
-      window.print();
-    }
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredCreditNotes = async () => {
+    const response = await creditNoteService.getAll();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    const q = debouncedSearch.toLowerCase();
+    return rows.filter((cn: any) =>
+      !q ||
+      (cn.number || "").toLowerCase().includes(q) ||
+      (cn.client?.company || "").toLowerCase().includes(q) ||
+      (cn._id || "").toLowerCase().includes(q) ||
+      (cn.reference || "").toLowerCase().includes(q)
+    );
   };
 
   return (
@@ -273,7 +275,7 @@ const CreditNotes = () => {
               Bulk Actions
             </Button>
             <ExportButton
-              data={filtered}
+              data={loadAllFilteredCreditNotes}
               filename="credit_notes"
               columns={[
                 { header: "Credit Note #", key: (cn) => cn.number || `CN-${cn._id?.substring(0, 6)}` },
@@ -328,7 +330,7 @@ const CreditNotes = () => {
                       </td>
                     </tr>
                   ))
-              ) : filtered.length === 0 ? (
+              ) : paginatedCreditNotes.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
                     No credit notes found.
@@ -384,7 +386,7 @@ const CreditNotes = () => {
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {filtered.length === 0 ? 0 : (safeCnPage - 1) * cnPageSize + 1} to {Math.min(safeCnPage * cnPageSize, filtered.length)} of {filtered.length} entries
+            Showing {totalCreditNotes === 0 ? 0 : (safeCnPage - 1) * cnPageSize + 1} to {Math.min(safeCnPage * cnPageSize, totalCreditNotes)} of {totalCreditNotes} entries
           </p>
           <div className="flex items-center gap-2">
             <Button

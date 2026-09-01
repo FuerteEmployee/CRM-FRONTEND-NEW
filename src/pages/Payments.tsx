@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -50,7 +50,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useQuery, useQueryClient, useMutation, keepPreviousData } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { financeService } from "@/api/services/finance.service";
 import { formatDate } from "@/lib/dateFormat";
@@ -65,6 +65,11 @@ import { cn } from "@/lib/utils";
 
 const Payments = () => {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [itemsPerPage, setItemsPerPage] = useState("10");
   const [currentPage, setCurrentPage] = useState(1);
   const [viewItem, setViewItem] = useState<any>(null);
@@ -111,13 +116,42 @@ const Payments = () => {
     }
   };
 
-  const { data: payments = [], isLoading } = useQuery<any[]>({
-    queryKey: ["payments"],
+  // Paginated server-side once a finite page size is chosen; "All" keeps
+  // the legacy full fetch, filtered client-side exactly as this page always has.
+  interface PaymentsPage { rows: any[]; total: number; pages: number; totalAmount: number }
+  const { data: paymentsResult, isLoading } = useQuery<PaymentsPage>({
+    queryKey: ["payments", itemsPerPage, currentPage, debouncedSearch],
     queryFn: async () => {
-      const response = await salesService.getPayments();
-      return Array.isArray(response) ? response : response?.data || [];
+      const matchesSearch = (p: any, q: string) =>
+        !q ||
+        (p._id || "").toLowerCase().includes(q) ||
+        (p.invoice?.number || "").toLowerCase().includes(q) ||
+        (p.invoice?.client?.company || "").toLowerCase().includes(q) ||
+        (p.transactionid || "").toLowerCase().includes(q) ||
+        (p.paymentmode || "").toLowerCase().includes(q);
+
+      if (itemsPerPage === "All") {
+        const response = await salesService.getPayments();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        // "Total Received" always reflects the whole tenant, before the
+        // search filter — matches the paginated path's server-side sum.
+        const totalAmount = rows.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+        const q = debouncedSearch.toLowerCase();
+        const rowsFiltered = rows.filter((p: any) => matchesSearch(p, q));
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1, totalAmount };
+      }
+
+      const res: any = await salesService.getPayments({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, totalAmount: 0 };
+      return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1, totalAmount: res?.totalAmount ?? 0 };
     },
+    placeholderData: keepPreviousData,
   });
+  const payments: any[] = paymentsResult?.rows ?? [];
 
   const { data: paymentModes = [] } = useQuery<any[]>({
     queryKey: ["payment-modes"],
@@ -207,64 +241,30 @@ const Payments = () => {
     importMutation.mutate(valid as any);
   };
 
-  const filtered = useMemo(() => {
-    return payments.filter((p: any) => {
-      const matchSearch =
-        (p._id || "").toLowerCase().includes(search.toLowerCase()) ||
-        (p.invoice?.number || "").toLowerCase().includes(search.toLowerCase()) ||
-        (p.invoice?.client?.company || "").toLowerCase().includes(search.toLowerCase()) ||
-        (p.transactionid || "").toLowerCase().includes(search.toLowerCase()) ||
-        (p.paymentmode || "").toLowerCase().includes(search.toLowerCase());
-
-      return matchSearch;
-    });
-  }, [payments, search]);
-
-  const paymentPageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
-  const totalPaymentPages = Math.max(1, Math.ceil(filtered.length / paymentPageSize));
+  const totalPayments = paymentsResult?.total ?? 0;
+  const paymentPageSize = itemsPerPage === "All" ? (totalPayments || 1) : parseInt(itemsPerPage);
+  const totalPaymentPages = paymentsResult?.pages ?? 1;
   const safePaymentPage = Math.min(currentPage, totalPaymentPages);
-  const paginatedPayments = itemsPerPage === "All" ? filtered : filtered.slice((safePaymentPage - 1) * paymentPageSize, safePaymentPage * paymentPageSize);
+  const paginatedPayments = payments;
 
-  const totalReceived = useMemo(() => {
-    return payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-  }, [payments]);
+  // Always the whole tenant's total, independent of the active search —
+  // computed server-side since only the current page is kept in memory.
+  const totalReceived = paymentsResult?.totalAmount ?? 0;
 
-  const handleExport = (type: "pdf" | "csv" | "print") => {
-    if (filtered.length === 0) {
-      toast({
-        title: "No data",
-        description: "There are no payments to export.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (type === "csv") {
-      const headers = ["Company Name", "Voucher Number", "Bill Date", "Payment Mode", "Journal", "Amount", "Transaction ID"];
-      const rows = filtered.map((p: any) => [
-        p.companyName || p.invoice?.client?.company || "-",
-        p.voucherNumber || "-",
-        p.billDate ? formatDate(p.billDate) : "-",
-        p.paymentmode || "Bank Transfer",
-        p.journal || "-",
-        `${symbol}${p.amount || 0}`,
-        p.transactionid || "-",
-      ]);
-
-      const csvContent =
-        "data:text/csv;charset=utf-8," +
-        [headers.join(","), ...rows.map((e) => e.map((val) => `"${val}"`).join(","))].join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `payments_export_${new Date().toISOString().split("T")[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast({ title: "Exported", description: "CSV exported successfully." });
-    } else {
-      window.print();
-    }
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredPayments = async () => {
+    const response = await salesService.getPayments();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    const q = debouncedSearch.toLowerCase();
+    return rows.filter((p: any) =>
+      !q ||
+      (p._id || "").toLowerCase().includes(q) ||
+      (p.invoice?.number || "").toLowerCase().includes(q) ||
+      (p.invoice?.client?.company || "").toLowerCase().includes(q) ||
+      (p.transactionid || "").toLowerCase().includes(q) ||
+      (p.paymentmode || "").toLowerCase().includes(q)
+    );
   };
 
   return (
@@ -369,7 +369,7 @@ const Payments = () => {
               </DialogContent>
             </Dialog>
             <ExportButton
-              data={filtered}
+              data={loadAllFilteredPayments}
               filename="payments"
               columns={[
                 { header: "Company Name", key: (p) => p.companyName || p.invoice?.client?.company || "-" },
@@ -423,7 +423,7 @@ const Payments = () => {
                       </td>
                     </tr>
                   ))
-              ) : filtered.length === 0 ? (
+              ) : paginatedPayments.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground italic">
                     No payments found.
@@ -478,7 +478,7 @@ const Payments = () => {
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {filtered.length === 0 ? 0 : (safePaymentPage - 1) * paymentPageSize + 1} to {Math.min(safePaymentPage * paymentPageSize, filtered.length)} of {filtered.length} entries
+            Showing {totalPayments === 0 ? 0 : (safePaymentPage - 1) * paymentPageSize + 1} to {Math.min(safePaymentPage * paymentPageSize, totalPayments)} of {totalPayments} entries
           </p>
           <div className="flex items-center gap-2">
             <Button

@@ -7,10 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Search, FileText, Plus, Zap, Mail, Eye, Maximize2, Pencil, ChevronDown } from "lucide-react";
 import { formatDate } from "@/lib/dateFormat";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
@@ -342,7 +342,7 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
                               </td>
                               <td className="px-3 py-2.5 text-muted-foreground align-top">{item.qty || item.quantity || 1}</td>
                               <td className="px-3 py-2.5 text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{(item.tax || item.gstPercentage) ? `${item.tax || item.gstPercentage}%` : "0%"}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</td>
                               <td className="px-3 py-2.5 font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</td>
                             </tr>
                           ))}
@@ -501,6 +501,11 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
 
 const Proposals = () => {
   const [proposalSearch, setProposalSearch] = useState("");
+  const [debouncedProposalSearch, setDebouncedProposalSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedProposalSearch(proposalSearch.trim()), 350);
+    return () => clearTimeout(t);
+  }, [proposalSearch]);
   const [proposalItemsPerPage, setProposalItemsPerPage] = useState("10");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedProposal, setSelectedProposal] = useState<any>(null);
@@ -545,10 +550,36 @@ const Proposals = () => {
   const [bulkState, setBulkState] = useState({ massDelete: false, status: "" });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
 
-  const { data: proposals = [], isLoading: isLoadingProposals } = useQuery({
-    queryKey: ["proposals"],
-    queryFn: () => salesService.getProposals().then((res: any) => res.data || res),
+  const getProposalBranchName = (p: any) => (typeof p.branch === "object" ? (p.branch?.name || "") : (p.branch || ""));
+
+  interface ProposalsPage { rows: any[]; total: number; pages: number }
+  const { data: proposalsResult, isLoading: isLoadingProposals } = useQuery<ProposalsPage>({
+    queryKey: ["proposals", proposalItemsPerPage, currentPage, debouncedProposalSearch, branchFilter],
+    queryFn: async () => {
+      if (proposalItemsPerPage === "All") {
+        const response = await salesService.getProposals();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        const q = debouncedProposalSearch.toLowerCase();
+        const rowsFiltered = rows.filter((p: any) => {
+          const matchesSearch = !q || (p.subject || p.title || "").toLowerCase().includes(q) || getProposalBranchName(p).toLowerCase().includes(q);
+          const matchesBranch = branchFilter === "all" || getProposalBranchName(p) === branchFilter;
+          return matchesSearch && matchesBranch;
+        });
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1 };
+      }
+
+      const res: any = await salesService.getProposals({
+        page: currentPage,
+        limit: proposalItemsPerPage,
+        search: debouncedProposalSearch || undefined,
+        branch: branchFilter !== "all" ? branchFilter : undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1 };
+      return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1 };
+    },
+    placeholderData: keepPreviousData,
   });
+  const proposals: any[] = proposalsResult?.rows ?? [];
 
   const importMutation = useMutation({
     mutationFn: (rows: any[]) => salesService.importProposals(rows),
@@ -604,22 +635,26 @@ const Proposals = () => {
     }
   };
 
-  const getProposalBranchName = (p: any) => (typeof p.branch === "object" ? (p.branch?.name || "") : (p.branch || ""));
-
-  const filtered = (Array.isArray(proposals) ? proposals : []).filter((p: any) => {
-    const q = proposalSearch.toLowerCase();
-    const matchesSearch = (p.subject || p.title || "").toLowerCase().includes(q) || getProposalBranchName(p).toLowerCase().includes(q);
-    const matchesBranch = branchFilter === "all" || getProposalBranchName(p) === branchFilter;
-    return matchesSearch && matchesBranch;
-  });
-
-  const totalRows = filtered.length;
+  const totalRows = proposalsResult?.total ?? 0;
   const pageSize = proposalItemsPerPage === "All" ? (totalRows || 1) : parseInt(proposalItemsPerPage);
-  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const totalPages = proposalsResult?.pages ?? 1;
   const safePage = Math.min(currentPage, totalPages);
-  const paginatedProposals = proposalItemsPerPage === "All" ? filtered : filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const paginatedProposals = proposals;
   const pageIds = paginatedProposals.map((p: any) => p._id || p.id);
   const allPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selectedProposals.includes(id));
+
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredProposals = async () => {
+    const response = await salesService.getProposals();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    const q = debouncedProposalSearch.toLowerCase();
+    return rows.filter((p: any) => {
+      const matchesSearch = !q || (p.subject || p.title || "").toLowerCase().includes(q) || getProposalBranchName(p).toLowerCase().includes(q);
+      const matchesBranch = branchFilter === "all" || getProposalBranchName(p) === branchFilter;
+      return matchesSearch && matchesBranch;
+    });
+  };
 
   const handleSelectAll = () => {
     setSelectedProposals(prev =>
@@ -722,7 +757,7 @@ const Proposals = () => {
               </DialogContent>
             </Dialog>
             <ExportButton
-              data={filtered}
+              data={loadAllFilteredProposals}
               filename="proposals"
               columns={[
                 { header: "Proposal #", key: (p) => p.number || p._id },
@@ -796,7 +831,7 @@ const Proposals = () => {
                 Array(3).fill(0).map((_, i) => (
                   <tr key={i}><td colSpan={11 + (canUseBranch ? 1 : 0)} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
                 ))
-              ) : filtered.length === 0 ? (
+              ) : paginatedProposals.length === 0 ? (
                 <tr>
                   <td colSpan={11 + (canUseBranch ? 1 : 0)} className="px-6 py-12 text-center text-muted-foreground italic">
                     No proposals found.

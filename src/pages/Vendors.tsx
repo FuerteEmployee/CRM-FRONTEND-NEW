@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search, Pencil, Trash2, Truck, Eye } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { vendorService } from "@/api/services/vendor.service";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -81,6 +81,11 @@ const Vendors = () => {
   const branches: { _id: string; name: string }[] = branchesRaw;
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [branchFilter, setBranchFilter] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<any>(null);
@@ -93,10 +98,44 @@ const Vendors = () => {
   const [bulkState, setBulkState] = useState({ massDelete: false, sales_person: "" });
   useOpenCreateModal(() => { setEditingVendor(null); setFormData(emptyForm); setIsModalOpen(true); });
 
-  const { data: vendors = [], isLoading } = useQuery({
-    queryKey: ["vendors"],
-    queryFn: vendorService.getAll,
+  // Paginated server-side once a finite page size is chosen; "all" keeps
+  // the legacy full fetch, filtered client-side exactly as this page always has.
+  interface VendorsPage { rows: any[]; total: number; pages: number }
+  const { data: vendorsResult, isLoading } = useQuery<VendorsPage>({
+    queryKey: ["vendors", itemsPerPage, currentPage, debouncedSearch, branchFilter],
+    queryFn: async () => {
+      const matchesSearch = (v: any, q: string) =>
+        !q ||
+        v.company_name?.toLowerCase().includes(q) ||
+        v.vendor_reference?.toLowerCase().includes(q) ||
+        v.connect_person?.toLowerCase().includes(q) ||
+        v.phone_number?.toLowerCase().includes(q) ||
+        v.email?.toLowerCase().includes(q) ||
+        v.gst_number?.toLowerCase().includes(q) ||
+        v.pan_number?.toLowerCase().includes(q) ||
+        v.sales_person?.toLowerCase().includes(q) ||
+        v.branch?.toLowerCase().includes(q);
+
+      if (itemsPerPage === "all") {
+        const response = await vendorService.getAll();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        const q = debouncedSearch.toLowerCase();
+        const rowsFiltered = rows.filter((v: any) => matchesSearch(v, q) && (branchFilter === "all" || v.branch === branchFilter));
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1 };
+      }
+
+      const res: any = await vendorService.getAll({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+        branch: branchFilter !== "all" ? branchFilter : undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1 };
+      return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1 };
+    },
+    placeholderData: keepPreviousData,
   });
+  const vendors: any[] = vendorsResult?.rows ?? [];
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["vendors"] });
 
@@ -230,9 +269,13 @@ const Vendors = () => {
     }
   };
 
-  const filteredVendors = useMemo(() => {
-    const q = search.toLowerCase();
-    return (vendors as any[]).filter((v) => {
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredVendors = async () => {
+    const response = await vendorService.getAll();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    const q = debouncedSearch.toLowerCase();
+    return rows.filter((v: any) => {
       const matchesSearch = !q ||
         v.company_name?.toLowerCase().includes(q) ||
         v.vendor_reference?.toLowerCase().includes(q) ||
@@ -246,17 +289,14 @@ const Vendors = () => {
       const matchesBranch = branchFilter === "all" || v.branch === branchFilter;
       return matchesSearch && matchesBranch;
     });
-  }, [vendors, search, branchFilter]);
+  };
 
   // Pagination
-  const totalItems = filteredVendors.length;
+  const totalItems = vendorsResult?.total ?? 0;
   const pageSize = itemsPerPage === "all" ? (totalItems || 1) : itemsPerPage;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const totalPages = vendorsResult?.pages ?? 1;
   const safePage = Math.min(currentPage, totalPages);
-  const paginatedVendors =
-    itemsPerPage === "all"
-      ? filteredVendors
-      : filteredVendors.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const paginatedVendors = vendors;
 
   // Selection (page-scoped select-all)
   const pageIds = paginatedVendors.map((v: any) => v._id);
@@ -339,7 +379,7 @@ const Vendors = () => {
                 mappingNote="Your Excel columns (Company Name, Connect Person, Phone Number, Email, PAN Number, GST Number, Address with State, Sales Person, Branch) will be automatically detected and mapped to vendors."
               />
             )}
-            <ExportButton data={filteredVendors} filename="vendors" columns={exportColumns} />
+            <ExportButton data={loadAllFilteredVendors} filename="vendors" columns={exportColumns} />
             {can("Vendors", "Create") && (
               <Button
                 onClick={() => { setEditingVendor(null); setFormData(emptyForm); setIsModalOpen(true); }}

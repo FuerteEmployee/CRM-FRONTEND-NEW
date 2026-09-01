@@ -144,7 +144,7 @@ export default function ProposalCreate() {
 
   const { data: leads = [] } = useQuery({
     queryKey: ["leads"],
-    queryFn: leadService.getAll
+    queryFn: () => leadService.getAll()
   });
 
   const filteredCustomers = useMemo(() => {

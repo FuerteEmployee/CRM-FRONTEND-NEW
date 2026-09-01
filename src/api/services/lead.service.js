@@ -2,7 +2,7 @@
 import { apiClient } from '../client';
 
 export const leadService = {
-  getAll: () => apiClient.get('/leads'),
+  getAll: (params) => apiClient.get('/leads', params ? { params } : undefined),
   
   getById: (id) => apiClient.get(`/leads/${id}`),
   

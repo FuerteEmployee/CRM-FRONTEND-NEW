@@ -7,7 +7,7 @@ import { Plus, Search, ChevronDown, MoreHorizontal, Filter, Phone, Mail, User, B
 import { cn } from "@/lib/utils";
 import { LANGUAGE_NAMES } from "@/lib/languages";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { leadService } from "@/api/services/lead.service";
 import { formatDate } from "@/lib/dateFormat";
@@ -76,13 +76,21 @@ const Leads = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const view = searchParams.get("view") === "kanban" ? "kanban" : "list";
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [metaFormFilter, setMetaFormFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [customDateFrom, setCustomDateFrom] = useState("");
   const [customDateTo, setCustomDateTo] = useState("");
-  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(25);
   const [currentPage, setCurrentPage] = useState(1);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, metaFormFilter, dateFilter, customDateFrom, customDateTo]);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [viewItem, setViewItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
@@ -130,10 +138,86 @@ const Leads = () => {
     zip: "", default_language: "English", description: "", is_public: false, contacted_today: false
   });
 
-  const { data: leads = [], isLoading } = useQuery<any[]>({
-    queryKey: ["leads"],
-    queryFn: leadService.getAll,
+  // Resolves the symbolic date-range filter into explicit boundaries using
+  // the BROWSER's local "now" (matching what this filter always compared
+  // against), so the server just does a plain range query instead of
+  // re-deriving "today" in its own timezone.
+  const resolveDateRange = (): { from?: Date; to?: Date } => {
+    if (dateFilter === "all") return {};
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    switch (dateFilter) {
+      case "today":
+        return { from: startOfToday };
+      case "yesterday": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - 1);
+        return { from: start, to: new Date(startOfToday.getTime() - 1) };
+      }
+      case "this_week": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - start.getDay());
+        return { from: start };
+      }
+      case "this_month":
+        return { from: new Date(now.getFullYear(), now.getMonth(), 1) };
+      case "last_7_days": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - 6);
+        return { from: start };
+      }
+      case "last_30_days": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - 29);
+        return { from: start };
+      }
+      case "custom":
+        return {
+          from: customDateFrom ? new Date(`${customDateFrom}T00:00:00`) : undefined,
+          to: customDateTo ? new Date(`${customDateTo}T23:59:59.999`) : undefined,
+        };
+      default:
+        return {};
+    }
+  };
+
+  interface LeadsPage { rows: any[]; total: number; pages: number; statusCounts: Record<string, number> }
+  const { data: leadsResult, isLoading } = useQuery<LeadsPage>({
+    queryKey: ["leads", itemsPerPage, currentPage, debouncedSearch, statusFilter, metaFormFilter, dateFilter, customDateFrom, customDateTo],
+    queryFn: async () => {
+      if (itemsPerPage === "all") {
+        const response = await leadService.getAll();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        // Status-card counts always reflect the whole tenant, before any
+        // filters — matches the paginated path's server-side aggregate.
+        const statusCounts: Record<string, number> = {};
+        rows.forEach((l: any) => {
+          const id = String(typeof l.status === "object" ? l.status?._id : l.status);
+          statusCounts[id] = (statusCounts[id] || 0) + 1;
+        });
+        return { rows, total: rows.length, pages: 1, statusCounts };
+      }
+
+      const range = resolveDateRange();
+      const res: any = await leadService.getAll({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        metaForm: metaFormFilter !== "all" ? metaFormFilter : undefined,
+        dateFrom: range.from?.toISOString(),
+        dateTo: range.to?.toISOString(),
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, statusCounts: {} };
+      const statusCounts: Record<string, number> = {};
+      (res?.statusCounts ?? []).forEach((s: any) => {
+        if (s.status) statusCounts[s.status] = s.count;
+      });
+      return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1, statusCounts };
+    },
+    placeholderData: keepPreviousData,
   });
+  const leads: any[] = leadsResult?.rows ?? [];
 
   const { data: statuses = [] } = useQuery<any[]>({
     queryKey: ["lead-statuses"],
@@ -263,14 +347,25 @@ const Leads = () => {
   };
 
   // Deep link / refresh support: if the URL already points at a lead
-  // (?leadView=<id>), reopen the view modal for it once the list has loaded.
+  // (?leadView=<id>), reopen the view modal for it — fetched directly by id
+  // rather than searched for in the loaded list, since that list is now a
+  // single page and the linked lead may not be on it.
   useEffect(() => {
     const leadViewId = searchParams.get("leadView");
-    if (!leadViewId || isNewLeadOpen || leads.length === 0) return;
-    const lead = leads.find((l: any) => l._id === leadViewId);
-    if (lead) openModal("view", lead);
+    if (!leadViewId || isNewLeadOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response: any = await leadService.getById(leadViewId);
+        const lead = response?.data ?? response;
+        if (!cancelled && lead?._id) openModal("view", lead);
+      } catch {
+        // Lead not found or inaccessible — leave the modal closed.
+      }
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, leads]);
+  }, [searchParams]);
 
   const createLeadMutation = useMutation({
     mutationFn: leadService.create,
@@ -569,31 +664,52 @@ const Leads = () => {
     }
   };
 
-  const filtered = leads
-    .filter((l) => {
-      const matchSearch =
-        (l.name || "").toLowerCase().includes(search.toLowerCase()) ||
-        (l.company || "").toLowerCase().includes(search.toLowerCase()) ||
-        (l.email || "").toLowerCase().includes(search.toLowerCase());
-      const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
-      const lStatusName = (typeof l.status === 'object' ? l.status?.name : statuses.find(s => s._id === l.status)?.name) || "";
+  // Only needed in "all" mode: the server already applies this exact
+  // search/status/metaForm/date filtering when paginated, so `leads` there
+  // is already the correct (current-page) result.
+  const filterLeadsClientSide = (rows: any[], q: string) => {
+    return rows
+      .filter((l) => {
+        const matchSearch =
+          !q ||
+          (l.name || "").toLowerCase().includes(q) ||
+          (l.company || "").toLowerCase().includes(q) ||
+          (l.email || "").toLowerCase().includes(q);
+        const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
+        const lStatusName = (typeof l.status === 'object' ? l.status?.name : statuses.find(s => s._id === l.status)?.name) || "";
 
-      const dbName = lStatusName.toLowerCase().replace(" lead", "").replace(" leads", "").trim();
-      const filterVal = statusFilter.toLowerCase();
+        const dbName = lStatusName.toLowerCase().replace(" lead", "").replace(" leads", "").trim();
+        const filterVal = statusFilter.toLowerCase();
 
-      const matchStatus = statusFilter === "all" ||
-                          lStatusId === statusFilter ||
-                          dbName === filterVal ||
-                          dbName.includes(filterVal);
-      const matchMetaForm = metaFormFilter === "all" || l.meta_form_id === metaFormFilter;
-      const matchDate = matchesDateFilter(l.createdAt);
-      return matchSearch && matchStatus && matchMetaForm && matchDate;
-    })
-    // Newest leads first by default.
-    .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        const matchStatus = statusFilter === "all" ||
+                            lStatusId === statusFilter ||
+                            dbName === filterVal ||
+                            dbName.includes(filterVal);
+        const matchMetaForm = metaFormFilter === "all" || l.meta_form_id === metaFormFilter;
+        const matchDate = matchesDateFilter(l.createdAt);
+        return matchSearch && matchStatus && matchMetaForm && matchDate;
+      })
+      // Newest leads first by default.
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  };
 
-  const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const filtered = useMemo(() => {
+    if (itemsPerPage !== "all") return leads;
+    return filterLeadsClientSide(leads, debouncedSearch.toLowerCase());
+  }, [leads, debouncedSearch, statusFilter, metaFormFilter, dateFilter, customDateFrom, customDateTo, statuses, itemsPerPage]);
+
+  const paginated = filtered;
+  const totalPages = itemsPerPage === "all" ? 1 : (leadsResult?.pages ?? 1);
+  const totalLeadsCount = itemsPerPage === "all" ? filtered.length : (leadsResult?.total ?? 0);
+  const itemsPerPageNum = itemsPerPage === "all" ? Math.max(totalLeadsCount, 1) : itemsPerPage;
+
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredLeads = async () => {
+    const response = await leadService.getAll();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    return filterLeadsClientSide(rows, debouncedSearch.toLowerCase());
+  };
 
   const statusCards = [...statuses]
     .sort((a: any, b: any) => (a.statusorder ?? 0) - (b.statusorder ?? 0))
@@ -992,10 +1108,7 @@ const Leads = () => {
         {/* Status Cards - Filters */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-11 gap-2">
           {statusCards.map((card) => {
-            const count = leads.filter(l => {
-                const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
-                return String(lStatusId) === String(card.id);
-            }).length;
+            const count = leadsResult?.statusCounts?.[String(card.id)] ?? 0;
             const isActive = statusFilter === card.id;
 
             return (
@@ -1026,7 +1139,7 @@ const Leads = () => {
             {/* Table Controls */}
             <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-slate-50/30">
               <div className="flex flex-wrap items-center gap-4">
-                <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(v === "all" ? 1000 : parseInt(v))}>
+                <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(v === "all" ? "all" : parseInt(v)); setCurrentPage(1); }}>
                   <SelectTrigger className="w-[80px] h-10 bg-white border-slate-200 rounded-xl font-bold text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -1040,7 +1153,7 @@ const Leads = () => {
                 </Select>
 
                 <ExportButton
-                  data={filtered}
+                  data={loadAllFilteredLeads}
                   filename="leads"
                   columns={[
                     { header: "Name", key: "name" },
@@ -1320,7 +1433,7 @@ const Leads = () => {
                             }} 
                           />
                         </td>
-                        <td className="p-4 text-center text-[10px] font-black text-slate-300">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                        <td className="p-4 text-center text-[10px] font-black text-slate-300">{(currentPage - 1) * itemsPerPageNum + index + 1}</td>
                         <td className="p-4">
                             <div className="flex items-center gap-2">
                                 <div className="h-8 w-8 rounded-xl bg-slate-100 flex items-center justify-center text-primary font-black text-[10px] uppercase shadow-inner">
@@ -1437,10 +1550,10 @@ const Leads = () => {
             </div>
 
             {/* Pagination */}
-            {!isLoading && filtered.length > 0 && (
+            {!isLoading && totalLeadsCount > 0 && (
               <div className="p-6 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
                 <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-                  Showing <span className="text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-slate-900">{Math.min(currentPage * itemsPerPage, filtered.length)}</span> of <span className="text-slate-900">{filtered.length}</span> entries
+                  Showing <span className="text-slate-900">{(currentPage - 1) * itemsPerPageNum + 1}</span> to <span className="text-slate-900">{Math.min(currentPage * itemsPerPageNum, totalLeadsCount)}</span> of <span className="text-slate-900">{totalLeadsCount}</span> entries
                 </p>
                 <div className="flex items-center gap-2">
                   <Button

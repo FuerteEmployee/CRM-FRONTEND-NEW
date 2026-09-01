@@ -1623,7 +1623,7 @@ export const ReportLeads = () => {
 
   const { data: leadsData = [] } = useQuery({
     queryKey: ["leads", "report"],
-    queryFn: leadService.getAll,
+    queryFn: () => leadService.getAll(),
   });
 
   const { data: sourcesListData = [] } = useQuery({

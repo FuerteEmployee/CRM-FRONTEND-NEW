@@ -69,7 +69,7 @@ const TaskOverview = () => {
 
   const { data: tasks = [], isLoading: tasksLoading } = useQuery<any[]>({
     queryKey: ["tasks-overview"],
-    queryFn: projectService.getTasks,
+    queryFn: () => projectService.getTasks(),
   });
 
   const { data: staffMembers = [] } = useQuery<any[]>({
