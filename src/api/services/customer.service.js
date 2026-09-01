@@ -2,7 +2,7 @@ import { apiClient } from "../client";
 
 export const customerService = {
   // Clients
-  getAll: () => apiClient.get("/clients"),
+  getAll: (params) => apiClient.get("/clients", params ? { params } : undefined),
 
   getById: (id) => apiClient.get(`/clients/${id}`),
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,7 +28,7 @@ import { ExportButton } from "@/components/ui/export-button";
 import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { itemService } from "@/api/services/item.service";
 import { financeService } from "@/api/services/finance.service";
 import { customFieldService } from "@/api/services/custom-field.service";
@@ -57,6 +57,11 @@ const ITEM_IMPORT_COLUMNS: ImportColumn[] = [
 const Items = () => {
   const { symbol } = useCurrency();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [branchFilter, setBranchFilter] = useState("all");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   useOpenCreateModal(() => setIsCreateOpen(true));
@@ -117,14 +122,42 @@ const Items = () => {
     custom_fields: {},
   });
 
-  // Fetch Items
-  const { data: items = [], isLoading } = useQuery<any[]>({
-    queryKey: ["items"],
+  // Fetch Items — paginated server-side once a finite page size is chosen;
+  // "All" keeps the legacy full fetch (also used by ItemSelect pickers
+  // elsewhere), filtered client-side exactly as this page always has.
+  interface ItemsPage { rows: any[]; total: number; pages: number }
+  const { data: itemsResult, isLoading } = useQuery<ItemsPage>({
+    queryKey: ["items", itemsPerPage, currentPage, debouncedSearch, branchFilter],
     queryFn: async () => {
-      const response = await itemService.getAll();
-      return Array.isArray(response) ? response : response?.data || [];
+      if (itemsPerPage === "All") {
+        const response = await itemService.getAll();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        const q = debouncedSearch.toLowerCase();
+        const rowsFiltered = rows.filter((i: any) => {
+          const matchesSearch =
+            !q ||
+            (i.name || i.description || "").toLowerCase().includes(q) ||
+            (i.long_description || "").toLowerCase().includes(q) ||
+            (i.group || "").toLowerCase().includes(q) ||
+            getItemBranchName(i).toLowerCase().includes(q);
+          const matchesBranch = branchFilter === "all" || getItemBranchName(i) === branchFilter;
+          return matchesSearch && matchesBranch;
+        });
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1 };
+      }
+
+      const res: any = await itemService.getAll({
+        page: currentPage,
+        limit: parseInt(itemsPerPage, 10),
+        search: debouncedSearch || undefined,
+        branch: branchFilter !== "all" ? branchFilter : undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1 };
+      return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1 };
     },
+    placeholderData: keepPreviousData,
   });
+  const items: any[] = itemsResult?.rows ?? [];
 
   // Fetch Taxes
   const { data: taxes = [] } = useQuery<any[]>({
@@ -275,10 +308,23 @@ const Items = () => {
 
   const getItemBranchName = (i: any) => (typeof i.branch === "object" ? (i.branch?.name || "") : (i.branch || ""));
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return items.filter((i: any) => {
+  const totalItemRows = itemsResult?.total ?? 0;
+  const itemPageSize = itemsPerPage === "All" ? (totalItemRows || 1) : parseInt(itemsPerPage);
+  const totalItemPages = itemsResult?.pages ?? 1;
+  const safeItemPage = Math.min(currentPage, totalItemPages);
+  const paginatedItems = items;
+  const itemPageIds = paginatedItems.map((item: any) => item._id).filter(Boolean);
+  const allItemPageSelected = itemPageIds.length > 0 && itemPageIds.every((id: string) => selectedItems.includes(id));
+
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredItems = async () => {
+    const response = await itemService.getAll();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    const q = debouncedSearch.toLowerCase();
+    return rows.filter((i: any) => {
       const matchesSearch =
+        !q ||
         (i.name || i.description || "").toLowerCase().includes(q) ||
         (i.long_description || "").toLowerCase().includes(q) ||
         (i.group || "").toLowerCase().includes(q) ||
@@ -286,15 +332,7 @@ const Items = () => {
       const matchesBranch = branchFilter === "all" || getItemBranchName(i) === branchFilter;
       return matchesSearch && matchesBranch;
     });
-  }, [items, search, branchFilter]);
-
-  const totalItemRows = filtered.length;
-  const itemPageSize = itemsPerPage === "All" ? (totalItemRows || 1) : parseInt(itemsPerPage);
-  const totalItemPages = Math.max(1, Math.ceil(totalItemRows / itemPageSize));
-  const safeItemPage = Math.min(currentPage, totalItemPages);
-  const paginatedItems = itemsPerPage === "All" ? filtered : filtered.slice((safeItemPage - 1) * itemPageSize, safeItemPage * itemPageSize);
-  const itemPageIds = paginatedItems.map((item: any) => item._id).filter(Boolean);
-  const allItemPageSelected = itemPageIds.length > 0 && itemPageIds.every((id: string) => selectedItems.includes(id));
+  };
 
   const handleSelectAll = () => {
     setSelectedItems(prev =>
@@ -792,7 +830,7 @@ const Items = () => {
               </DialogContent>
             </Dialog>
             <ExportButton
-              data={filtered}
+              data={loadAllFilteredItems}
               filename="items"
               columns={exportColumns}
             />
@@ -875,7 +913,7 @@ const Items = () => {
                           </td>
                         </tr>
                       ))
-                  ) : filtered.length === 0 ? (
+                  ) : paginatedItems.length === 0 ? (
                     <tr>
                       <td colSpan={11 + (canUseBranch ? 1 : 0) + tableCustomFields.length} className="px-6 py-12 text-center text-muted-foreground italic">
                         No database items found. Use "New Item" to populate the list.

@@ -903,11 +903,11 @@ export default function EstimateCreate() {
         </Card>
 
         {/* Bottom Actions */}
-        <div className="flex items-center justify-end gap-4 pt-4">
+        <div className="flex items-center justify-end pt-4">
           <Button
             variant="outline"
             onClick={() => navigate(-1)}
-            className="rounded-xl px-6 h-10 text-xs font-bold border-border/50 bg-background/50 backdrop-blur-sm hover:bg-background transition-all shadow-sm"
+            className="rounded-l-xl rounded-r-none border-r-0 px-6 h-10 text-xs font-bold border-border/50 bg-background/50 backdrop-blur-sm hover:bg-background transition-all shadow-sm"
           >
             Cancel
           </Button>
@@ -915,13 +915,13 @@ export default function EstimateCreate() {
           <div className="flex items-center">
             <Button
               onClick={() => handleSave("save")}
-              className="rounded-l-xl px-8 h-10 shadow-lg shadow-primary/20 font-black tracking-widest uppercase text-xs border-r border-white/10"
+              className="rounded-none px-8 h-10 shadow-lg shadow-primary/20 font-black tracking-widest uppercase text-xs border-r border-white/10"
             >
               Save
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="rounded-r-xl px-2 h-10 shadow-lg shadow-primary/20">
+                <Button className="rounded-r-xl rounded-l-none px-2 h-10 shadow-lg shadow-primary/20">
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>

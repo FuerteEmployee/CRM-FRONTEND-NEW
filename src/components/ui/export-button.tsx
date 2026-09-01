@@ -22,7 +22,10 @@ interface ExportColumn {
 }
 
 interface ExportButtonProps {
-  data: any[];
+  // A plain array works as before. Pages that only keep the current page of
+  // a paginated table in memory can instead pass a loader that fetches the
+  // full matching set on demand, only when the user actually exports.
+  data: any[] | (() => Promise<any[]>);
   filename: string;
   columns?: ExportColumn[];
 }
@@ -85,38 +88,50 @@ const downloadBlob = (blob: Blob, filename: string) => {
 export function ExportButton({ data, filename, columns }: ExportButtonProps) {
   const dated = `${filename}_${new Date().toISOString().split("T")[0]}`;
 
-  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
-    if (!data || data.length === 0) {
+  const handleExport = async (type: "xlsx" | "csv" | "pdf" | "print") => {
+    if (type === "print") {
+      window.print();
+      return;
+    }
+    if (type === "pdf") {
+      toast.info("Select 'Save as PDF' in the print dialog");
+      window.print();
+      return;
+    }
+
+    let resolved: any[];
+    try {
+      resolved = typeof data === "function" ? await data() : data;
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to load data to export");
+      return;
+    }
+
+    if (!resolved || resolved.length === 0) {
       toast.error("No data available to export");
       return;
     }
 
     try {
       if (type === "csv") {
-        const { headers, rows } = buildRows(data, columns);
+        const { headers, rows } = buildRows(resolved, columns);
         const csv = [
           headers.join(","),
           ...rows.map(r => r.map(v => `"${cellToDisplayString(v).replace(/"/g, '""')}"`).join(",")),
         ].join("\n");
         // UTF-8 BOM so Excel opens it correctly
         downloadBlob(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }), `${dated}.csv`);
-        toast.success(`Exported ${data.length} records as CSV`);
+        toast.success(`Exported ${resolved.length} records as CSV`);
 
-      } else if (type === "xlsx") {
-        const { headers, rows } = buildRows(data, columns);
+      } else {
+        const { headers, rows } = buildRows(resolved, columns);
         const wsData = [headers, ...rows];
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
         XLSX.writeFile(wb, `${dated}.xlsx`);
-        toast.success(`Exported ${data.length} records as Excel`);
-
-      } else if (type === "print") {
-        window.print();
-
-      } else if (type === "pdf") {
-        toast.info("Select 'Save as PDF' in the print dialog");
-        window.print();
+        toast.success(`Exported ${resolved.length} records as Excel`);
       }
     } catch (error) {
       console.error(error);

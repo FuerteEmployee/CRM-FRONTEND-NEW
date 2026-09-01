@@ -9,9 +9,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Search, Download, FileText, Target, Printer, Zap, Mail, Eye, Maximize2, Pencil, ChevronDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { formatDate } from "@/lib/dateFormat";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { estimateService } from "@/api/services/estimate.service";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNavigate } from "react-router-dom";
@@ -384,7 +384,7 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
                               </td>
                               <td className="px-3 py-2.5 text-muted-foreground align-top">{item.qty || item.quantity || 1}</td>
                               <td className="px-3 py-2.5 text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{(item.tax || item.gstPercentage) ? `${item.tax || item.gstPercentage}%` : "0%"}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</td>
                               <td className="px-3 py-2.5 font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</td>
                             </tr>
                           ))}
@@ -543,6 +543,11 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
 
 const Estimates = () => {
   const [estimateSearch, setEstimateSearch] = useState("");
+  const [debouncedEstimateSearch, setDebouncedEstimateSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedEstimateSearch(estimateSearch.trim()), 350);
+    return () => clearTimeout(t);
+  }, [estimateSearch]);
   const [branchFilter, setBranchFilter] = useState("all");
   const [estimateItemsPerPage, setEstimateItemsPerPage] = useState("10");
   const [currentPage, setCurrentPage] = useState(1);
@@ -625,18 +630,38 @@ const Estimates = () => {
     }
   };
 
-  const { data: allData = [], isLoading: isLoadingEstimates } = useQuery({
-    queryKey: ["estimates"],
+  // Paginated server-side (per estimate document) once a finite page size is
+  // chosen; "All" keeps the legacy full fetch, filtered client-side exactly
+  // as this page always has.
+  interface EstimatesPage { rows: any[]; total: number; pages: number }
+  const { data: estimatesResult, isLoading: isLoadingEstimates } = useQuery<EstimatesPage>({
+    queryKey: ["estimates", estimateItemsPerPage, currentPage, debouncedEstimateSearch, branchFilter],
     queryFn: async () => {
-      const response = await estimateService.getEstimates();
-      return Array.isArray(response) ? response : response?.data || [];
-    },
-  });
+      if (estimateItemsPerPage === "All") {
+        const response = await estimateService.getEstimates();
+        const rows: any[] = (Array.isArray(response) ? response : response?.data || []).filter((item: any) => !item.form);
+        const q = debouncedEstimateSearch.toLowerCase();
+        const rowsFiltered = rows.filter((e: any) => {
+          const matchesSearch = !q || (e.subject || e.number || "").toLowerCase().includes(q) || getBranchName(e).toLowerCase().includes(q);
+          const matchesBranch = branchFilter === "all" || getBranchName(e) === branchFilter;
+          return matchesSearch && matchesBranch;
+        });
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1 };
+      }
 
-  const estimates = useMemo(
-    () => allData.filter((item: any) => !item.form),
-    [allData]
-  );
+      const res: any = await estimateService.getEstimates({
+        page: currentPage,
+        limit: estimateItemsPerPage,
+        search: debouncedEstimateSearch || undefined,
+        branch: branchFilter !== "all" ? branchFilter : undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1 };
+      const rows: any[] = (res?.data ?? []).filter((item: any) => !item.form);
+      return { rows, total: res?.total ?? 0, pages: res?.pages ?? 1 };
+    },
+    placeholderData: keepPreviousData,
+  });
+  const estimates: any[] = estimatesResult?.rows ?? [];
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => estimateService.deleteEstimate(id),
@@ -675,16 +700,13 @@ const Estimates = () => {
 
   const getBranchName = (e: any) => (typeof e.branch === "object" ? (e.branch?.name || "") : (e.branch || ""));
 
-  const filtered = estimates.filter((e: any) => {
-    const q = estimateSearch.toLowerCase();
-    const matchesSearch = (e.subject || e.number || "").toLowerCase().includes(q) || getBranchName(e).toLowerCase().includes(q);
-    const matchesBranch = branchFilter === "all" || getBranchName(e) === branchFilter;
-    return matchesSearch && matchesBranch;
-  });
+  // `estimates` is already filtered by search/branch — server-side when
+  // paginated, client-side (over the full fetch) in "All" mode — so no
+  // second filter pass is needed here.
 
   // One export row per line item — an estimate with 3 items produces 3 rows,
   // each repeating the estimate-level fields and varying only Item/Qty/Rate/Amount.
-  const exportRows = useMemo(() => filtered.flatMap((e: any) => {
+  const buildEstimateExportRows = (list: any[]) => list.flatMap((e: any) => {
     const companyName = e.contact_name || e.client?.company || e.client_id?.company || e.rel_id || "N/A";
     const estimateNumber = e.number || "";
     const rowBase = {
@@ -706,12 +728,25 @@ const Estimates = () => {
       "Rate": item.rate ?? "",
       "Amount": item.amount ?? (item.qty && item.rate ? item.qty * item.rate : ""),
     }));
-  }), [filtered]);
+  });
 
-  // Same flattening as exportRows, but keeps a reference to the parent estimate
-  // so the on-screen table can render one row per line item while checkbox
-  // selection / view / edit / delete still target the parent estimate.
-  const tableRows = useMemo(() => filtered.flatMap((e: any) => {
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredEstimates = async () => {
+    const response = await estimateService.getEstimates();
+    const rows: any[] = (Array.isArray(response) ? response : response?.data || []).filter((item: any) => !item.form);
+    const q = debouncedEstimateSearch.toLowerCase();
+    return rows.filter((e: any) => {
+      const matchesSearch = !q || (e.subject || e.number || "").toLowerCase().includes(q) || getBranchName(e).toLowerCase().includes(q);
+      const matchesBranch = branchFilter === "all" || getBranchName(e) === branchFilter;
+      return matchesSearch && matchesBranch;
+    });
+  };
+
+  // Same flattening as buildEstimateExportRows, but keeps a reference to the
+  // parent estimate so the on-screen table can render one row per line item
+  // while checkbox selection / view / edit / delete still target the parent.
+  const tableRows = useMemo(() => estimates.flatMap((e: any) => {
     const companyName = e.contact_name || e.client?.company || e.client_id?.company || e.rel_id || "N/A";
     const rowBase = {
       estimate: e,
@@ -731,13 +766,16 @@ const Estimates = () => {
       rate: item.rate ?? "",
       amount: item.amount ?? (item.qty && item.rate ? item.qty * item.rate : ""),
     }));
-  }), [filtered]);
+  }), [estimates]);
 
-  const totalRows = tableRows.length;
+  // Pagination is per estimate document (matching how the server paginates),
+  // not per flattened line-item row — "10 per page" means 10 estimates,
+  // which can render as more or fewer table rows depending on item counts.
+  const totalRows = estimatesResult?.total ?? 0;
   const pageSize = estimateItemsPerPage === "All" ? (totalRows || 1) : parseInt(estimateItemsPerPage);
-  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+  const totalPages = estimatesResult?.pages ?? 1;
   const safePage = Math.min(currentPage, totalPages);
-  const paginatedRows = estimateItemsPerPage === "All" ? tableRows : tableRows.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const paginatedRows = tableRows;
   const pageEstIds = [...new Set(paginatedRows.map((r: any) => r.estimate._id || r.estimate.id))] as string[];
   const allPageSelected = pageEstIds.length > 0 && pageEstIds.every(id => selectedIds.includes(id));
 
@@ -865,7 +903,7 @@ const Estimates = () => {
               </DialogContent>
             </Dialog>
             <ExportButton
-              data={exportRows}
+              data={async () => buildEstimateExportRows(await loadAllFilteredEstimates())}
               filename="estimates"
               columns={[
                 { header: "Estimate #", key: "Estimate #" },

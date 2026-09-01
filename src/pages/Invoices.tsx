@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
@@ -46,7 +46,7 @@ import {
   ChevronDown,
   Wallet
 } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { creditNoteService } from "@/api/services/credit_note.service";
 import { formatDate } from "@/lib/dateFormat";
@@ -504,7 +504,7 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                               </td>
                               <td className="px-3 py-2.5 text-muted-foreground align-top">{item.qty || item.quantity || 1}</td>
                               <td className="px-3 py-2.5 text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{(item.tax || item.gstPercentage) ? `${item.tax || item.gstPercentage}%` : "0%"}</td>
+                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</td>
                               <td className="px-3 py-2.5 font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</td>
                             </tr>
                           ))}
@@ -753,6 +753,11 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
 
 const Invoices = () => {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [branchFilter, setBranchFilter] = useState("all");
   const [itemsPerPage, setItemsPerPage] = useState("10");
@@ -870,13 +875,74 @@ const Invoices = () => {
     }
   };
 
-  const { data: invoices = [], isLoading } = useQuery<any[]>({
-    queryKey: ["invoices"],
+  const getInvoiceBranchName = (i: any) => (i.branch?.name || i.branch || "");
+
+  interface InvoicesPage {
+    rows: any[];
+    total: number;
+    pages: number;
+    statusAgg: { status: string; count: number; total: number }[];
+  }
+
+  // Paginated server-side once a finite page size is chosen; "All" keeps
+  // the legacy full fetch (also used by dashboard/report aggregation),
+  // filtered client-side exactly as this page always has.
+  const { data: invoicesResult, isLoading } = useQuery<InvoicesPage>({
+    queryKey: ["invoices", itemsPerPage, currentPage, debouncedSearch, statusFilter, branchFilter],
     queryFn: async () => {
-      const response = await salesService.getInvoices();
-      return Array.isArray(response) ? response : response?.data || [];
+      if (itemsPerPage === "All") {
+        const response = await salesService.getInvoices();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+
+        // Status-card counts/totals always reflect the whole tenant list,
+        // independent of the currently active filters — matches the
+        // paginated path's server-side aggregate below.
+        const bucketOf = (raw: string) =>
+          raw === "sent" || raw === "sent_later" ? "unpaid" : raw === "recorded" ? "paid" : (raw || "unpaid");
+        const aggMap = new Map<string, { count: number; total: number }>();
+        rows.forEach((inv: any) => {
+          const b = bucketOf(inv.status);
+          const cur = aggMap.get(b) || { count: 0, total: 0 };
+          cur.count++;
+          cur.total += inv.total || 0;
+          aggMap.set(b, cur);
+        });
+        const statusAgg = Array.from(aggMap.entries()).map(([status, v]) => ({ status, ...v }));
+
+        const q = debouncedSearch.toLowerCase();
+        const rowsFiltered = rows.filter((i: any) => {
+          const matchSearch =
+            !q ||
+            (i.number || "").toLowerCase().includes(q) ||
+            (i.client?.company || "").toLowerCase().includes(q) ||
+            (i.salesPerson || "").toLowerCase().includes(q) ||
+            (i._id || "").toLowerCase().includes(q) ||
+            getInvoiceBranchName(i).toLowerCase().includes(q);
+          const matchStatus = statusFilter === "all" || String(i.status) === statusFilter;
+          const matchBranch = branchFilter === "all" || getInvoiceBranchName(i) === branchFilter;
+          return matchSearch && matchStatus && matchBranch;
+        });
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1, statusAgg };
+      }
+
+      const res: any = await salesService.getInvoices({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        branch: branchFilter !== "all" ? branchFilter : undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, statusAgg: [] };
+      return {
+        rows: res?.data ?? [],
+        total: res?.total ?? 0,
+        pages: res?.pages ?? 1,
+        statusAgg: res?.statusAgg ?? [],
+      };
     },
+    placeholderData: keepPreviousData,
   });
+  const invoices: any[] = invoicesResult?.rows ?? [];
 
   const importMutation = useMutation({
     mutationFn: (rows: any[]) => salesService.importInvoices(rows),
@@ -917,15 +983,14 @@ const Invoices = () => {
   const stats = useMemo(() => {
     const counts: Record<string, number> = { unpaid: 0, paid: 0, partially_paid: 0, overdue: 0, cancelled: 0 };
     const totals: Record<string, number> = { unpaid: 0, paid: 0, partially_paid: 0, overdue: 0, cancelled: 0 };
-    invoices.forEach((inv: any) => {
-      const status = inv.status === "sent" || inv.status === "sent_later" ? "unpaid" : inv.status === "recorded" ? "paid" : (inv.status || "unpaid");
-      if (counts[status] !== undefined) {
-        counts[status]++;
-        totals[status] += inv.total || 0;
+    (invoicesResult?.statusAgg ?? []).forEach((s) => {
+      if (counts[s.status] !== undefined) {
+        counts[s.status] = s.count;
+        totals[s.status] = s.total;
       }
     });
     return { counts, totals };
-  }, [invoices]);
+  }, [invoicesResult]);
 
   // Flatten invoices into one row per line item for export — invoice-level
   // fields repeat across each of that invoice's item rows.
@@ -959,33 +1024,31 @@ const Invoices = () => {
     }));
   });
 
-  const getInvoiceBranchName = (i: any) => (i.branch?.name || i.branch || "");
+  const totalInvoiceRows = invoicesResult?.total ?? 0;
+  const invoicePageSize = itemsPerPage === "All" ? (totalInvoiceRows || 1) : parseInt(itemsPerPage);
+  const totalInvoicePages = invoicesResult?.pages ?? 1;
+  const safeInvoicePage = Math.min(currentPage, totalInvoicePages);
+  const pageInvoices = invoices;
 
-  const filtered = useMemo(() => {
-    return invoices.filter((i: any) => {
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredInvoices = async () => {
+    const response = await salesService.getInvoices();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    const q = debouncedSearch.toLowerCase();
+    return rows.filter((i: any) => {
       const matchSearch =
-        (i.number || "").toLowerCase().includes(search.toLowerCase()) ||
-        (i.client?.company || "").toLowerCase().includes(search.toLowerCase()) ||
-        (i.salesPerson || "").toLowerCase().includes(search.toLowerCase()) ||
-        (i._id || "").toLowerCase().includes(search.toLowerCase()) ||
-        getInvoiceBranchName(i).toLowerCase().includes(search.toLowerCase());
-
-      const matchStatus =
-        statusFilter === "all" || String(i.status) === statusFilter;
-
-      const matchBranch =
-        branchFilter === "all" || getInvoiceBranchName(i) === branchFilter;
-
+        !q ||
+        (i.number || "").toLowerCase().includes(q) ||
+        (i.client?.company || "").toLowerCase().includes(q) ||
+        (i.salesPerson || "").toLowerCase().includes(q) ||
+        (i._id || "").toLowerCase().includes(q) ||
+        getInvoiceBranchName(i).toLowerCase().includes(q);
+      const matchStatus = statusFilter === "all" || String(i.status) === statusFilter;
+      const matchBranch = branchFilter === "all" || getInvoiceBranchName(i) === branchFilter;
       return matchSearch && matchStatus && matchBranch;
     });
-  }, [invoices, search, statusFilter, branchFilter]);
-
-  const invoicePageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
-  const totalInvoicePages = Math.max(1, Math.ceil(filtered.length / invoicePageSize));
-  const safeInvoicePage = Math.min(currentPage, totalInvoicePages);
-  const pageInvoices = useMemo(() => {
-    return itemsPerPage === "All" ? filtered : filtered.slice((safeInvoicePage - 1) * invoicePageSize, safeInvoicePage * invoicePageSize);
-  }, [filtered, itemsPerPage, safeInvoicePage, invoicePageSize]);
+  };
 
   // One row per line item for the on-screen table (mirrors buildExportRows),
   // keeping a reference to the parent invoice for checkbox/actions handling.
@@ -1121,7 +1184,7 @@ const Invoices = () => {
               </DialogContent>
             </Dialog>
             <ExportButton
-              data={buildExportRows(filtered)}
+              data={async () => buildExportRows(await loadAllFilteredInvoices())}
               filename="invoices"
               columns={exportColumns}
             />
@@ -1262,7 +1325,7 @@ const Invoices = () => {
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {filtered.length === 0 ? 0 : (safeInvoicePage - 1) * invoicePageSize + 1} to {Math.min(safeInvoicePage * invoicePageSize, filtered.length)} of {filtered.length} entries
+            Showing {totalInvoiceRows === 0 ? 0 : (safeInvoicePage - 1) * invoicePageSize + 1} to {Math.min(safeInvoicePage * invoicePageSize, totalInvoiceRows)} of {totalInvoiceRows} entries
           </p>
           <div className="flex items-center gap-2">
             <Button
