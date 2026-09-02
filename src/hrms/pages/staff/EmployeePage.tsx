@@ -309,6 +309,11 @@ const EmployeePage = () => {
   const [expenseStatusFilter, setExpenseStatusFilter] = useState("all");
   const [leaveStatusFilter, setLeaveStatusFilter] = useState("all");
 
+  // Server-side pagination for the Daily Attendance Record table
+  const [attCurrentPage, setAttCurrentPage] = useState(1);
+  const attPageSize = 25;
+  const [attTotalCount, setAttTotalCount] = useState(0);
+
   // ─── API helpers ─────────────────────────────────────────────────────────
 
   const fetchLocations = useCallback(async (manual = false) => {
@@ -501,12 +506,15 @@ const EmployeePage = () => {
   useEffect(() => {
     const fetchAttendance = async () => {
       try {
-        const data = await employeeApi.getAttendance({
+        const res = await employeeApi.getAttendancePage({
           date: format(selectedMonth, "yyyy-MM-dd"),
           storeId: selectedStore === "all" ? undefined : selectedStore,
+          page: attCurrentPage,
+          limit: attPageSize,
         });
-        setAttendance(Array.isArray(data) ? data : []);
-      } catch { setAttendance([]); }
+        setAttendance(res.data);
+        setAttTotalCount(res.total);
+      } catch { setAttendance([]); setAttTotalCount(0); }
     };
     const fetchPayroll = async () => {
       try {
@@ -520,6 +528,11 @@ const EmployeePage = () => {
     };
     fetchAttendance();
     fetchPayroll();
+  }, [selectedMonth, selectedStore, attCurrentPage]);
+
+  // Reset back to page 1 whenever the date/store filter changes.
+  useEffect(() => {
+    setAttCurrentPage(1);
   }, [selectedMonth, selectedStore]);
 
   // ─── Derived helpers ──────────────────────────────────────────────────────
@@ -776,6 +789,10 @@ const EmployeePage = () => {
                   return name.includes(searchQuery.toLowerCase());
                 })}
                 isLoading={isLoading}
+                totalItems={attTotalCount}
+                currentPage={attCurrentPage}
+                onPageChange={setAttCurrentPage}
+                pageSize={attPageSize}
                 columns={[
                   {
                     header: "Employee",

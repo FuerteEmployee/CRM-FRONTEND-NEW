@@ -49,7 +49,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/api/client";
 import { customerService } from "@/api/services/customer.service";
@@ -68,15 +68,64 @@ const Contacts = () => {
   const [itemsPerPage, setItemsPerPage] = useState("25");
   const [currentPage, setCurrentPage] = useState(1);
 
-  const { data: allContacts = [], isLoading, refetch } = useQuery<any[]>({
-    queryKey: ["all-contacts"],
-    queryFn: () => apiClient.get("/clients/contacts/all").catch(() => []),
+  // Search + sort exactly as this page always has, applied over an
+  // unbounded fetch — used for "All" page-size mode and for exporting the
+  // full filtered set (independent of whatever page is on screen).
+  const filterAndSortContacts = (rows: any[]) => {
+    const q = search.toLowerCase();
+    return rows
+      .filter((contact: any) => {
+        const fullName = `${contact.firstname || ""} ${contact.lastname || ""}`.toLowerCase();
+        const companyName = (contact.userid?.company || "").toLowerCase();
+        return (
+          fullName.includes(q) ||
+          (contact.email || "").toLowerCase().includes(q) ||
+          companyName.includes(q)
+        );
+      })
+      .sort((a: any, b: any) => {
+        const companyA = (a.userid?.company || "").toLowerCase();
+        const companyB = (b.userid?.company || "").toLowerCase();
+
+        if (companyA !== companyB) {
+          return companyA.localeCompare(companyB);
+        }
+
+        const nameA = `${a.firstname || ""} ${a.lastname || ""}`.toLowerCase();
+        const nameB = `${b.firstname || ""} ${b.lastname || ""}`.toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+  };
+
+  interface ContactsPage { rows: any[]; total: number; pages: number }
+
+  // Paginated server-side once a finite page size is chosen; "All" keeps
+  // the legacy full fetch, filtered/sorted client-side exactly as this
+  // page always has.
+  const { data: contactsResult, isLoading, refetch } = useQuery<ContactsPage>({
+    queryKey: ["contacts", itemsPerPage, currentPage, search],
+    queryFn: async () => {
+      if (itemsPerPage === "All") {
+        const response = await customerService.getContactsPaginated().catch(() => []);
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        const rowsFiltered = filterAndSortContacts(rows);
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1 };
+      }
+
+      const res: any = await customerService
+        .getContactsPaginated({ page: currentPage, limit: itemsPerPage, search: search || undefined })
+        .catch(() => null);
+      if (!res || Array.isArray(res)) return { rows: [], total: 0, pages: 1 };
+      return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1 };
+    },
+    placeholderData: keepPreviousData,
   });
+  const allContacts: any[] = contactsResult?.rows ?? [];
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiClient.delete(`/clients/contacts/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
       toast({
         title: "Deleted",
         description: "Contact has been removed successfully.",
@@ -94,7 +143,7 @@ const Contacts = () => {
   const updateMutation = useMutation({
     mutationFn: (data: any) => apiClient.put(`/clients/contacts/${data._id}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
       setEditContact(null);
       toast({
         title: "Updated",
@@ -115,8 +164,8 @@ const Contacts = () => {
   const importMutation = useMutation({
     mutationFn: (data: any) => customerService.importContacts(data),
     onSuccess: async (data: any) => {
-      await queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
-      await queryClient.refetchQueries({ queryKey: ["all-contacts"] });
+      await queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      await queryClient.refetchQueries({ queryKey: ["contacts"] });
       toast({
         title: data.count === 0 ? "No New Contacts" : "Import Successful",
         description: data.message || "Contacts imported",
@@ -231,41 +280,35 @@ const Contacts = () => {
     });
   };
 
-  const filtered = allContacts.filter((contact) => {
-    const fullName = `${contact.firstname || ""} ${contact.lastname || ""}`.toLowerCase();
-    const companyName = (contact.userid?.company || "").toLowerCase();
-    return (
-      fullName.includes(search.toLowerCase()) ||
-      (contact.email || "").toLowerCase().includes(search.toLowerCase()) ||
-      companyName.includes(search.toLowerCase())
-    );
-  }).sort((a, b) => {
-    const companyA = (a.userid?.company || "").toLowerCase();
-    const companyB = (b.userid?.company || "").toLowerCase();
-    
-    if (companyA !== companyB) {
-      return companyA.localeCompare(companyB);
-    }
-    
-    const nameA = `${a.firstname || ""} ${a.lastname || ""}`.toLowerCase();
-    const nameB = `${b.firstname || ""} ${b.lastname || ""}`.toLowerCase();
-    return nameA.localeCompare(nameB);
-  });
-
-  const contactPageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
-  const totalContactPages = Math.max(1, Math.ceil(filtered.length / contactPageSize));
+  // `allContacts` is already filtered/sorted (client-side via
+  // filterAndSortContacts in "All" mode, server-side otherwise) and —
+  // outside "All" mode — already scoped to just the current page, so no
+  // second filter/slice pass is needed here.
+  const filtered = allContacts;
+  const totalContactCount = contactsResult?.total ?? 0;
+  const contactPageSize = itemsPerPage === "All" ? (totalContactCount || 1) : parseInt(itemsPerPage);
+  const totalContactPages = contactsResult?.pages ?? 1;
   const safeContactPage = Math.min(currentPage, totalContactPages);
-  const paginatedContacts = itemsPerPage === "All" ? filtered : filtered.slice((safeContactPage - 1) * contactPageSize, safeContactPage * contactPageSize);
+  const paginatedContacts = filtered;
 
-  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
-    if (filtered.length === 0) {
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredContacts = async () => {
+    const response = await customerService.getContactsPaginated().catch(() => []);
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    return filterAndSortContacts(rows);
+  };
+
+  const handleExport = async (type: "xlsx" | "csv" | "pdf" | "print") => {
+    const exportRows = itemsPerPage === "All" ? filtered : await loadAllFilteredContacts();
+    if (exportRows.length === 0) {
       toast({ title: "Error", description: "No data to export", variant: "destructive" });
       return;
     }
 
     if (type === "csv" || type === "xlsx") {
       const headers = ["Full Name", "Customer/Company", "Email", "Position", "Phone", "Active", "Last Login"];
-      const rows = filtered.map((contact: any) => [
+      const rows = exportRows.map((contact: any) => [
         `${contact.firstname || ""} ${contact.lastname || ""}`.trim(),
         contact.userid?.company || "-",
         contact.email || "",
@@ -314,16 +357,6 @@ const Contacts = () => {
           <CardContent className="p-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
               <div className="flex flex-wrap items-center gap-2">
-                <Select defaultValue="25">
-                  <SelectTrigger className="w-[70px] h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
                 {/* Import contacts from Excel / CSV */}
                 <input ref={importFileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
                 <Button
@@ -468,8 +501,8 @@ const Contacts = () => {
 
             <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3 border-t text-sm text-muted-foreground">
               <span>
-                Showing {filtered.length === 0 ? 0 : (safeContactPage - 1) * contactPageSize + 1} to {Math.min(safeContactPage * contactPageSize, filtered.length)} of{" "}
-                {filtered.length} entries
+                Showing {totalContactCount === 0 ? 0 : (safeContactPage - 1) * contactPageSize + 1} to {Math.min(safeContactPage * contactPageSize, totalContactCount)} of{" "}
+                {totalContactCount} entries
               </span>
               <div className="flex items-center gap-2">
                 <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>

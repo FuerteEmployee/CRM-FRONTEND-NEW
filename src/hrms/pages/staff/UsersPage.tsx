@@ -108,11 +108,27 @@ export default function UsersPage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
 
+  // Server-side pagination for the Staff Directory table. `role` and
+  // `isActive` are real backend filters (see getUsers) so they're sent
+  // through; free-text search and the Branch filter aren't supported
+  // server-side, so they keep filtering client-side over whatever page is
+  // currently loaded (see filteredUsers below).
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(25);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   const fetchAllData = async () => {
     setIsLoading(true);
     try {
-      const [usersData, branchesData, rolesData, deptsData, desigsData, shiftsData] = await Promise.all([
-        staffService.getAll(),
+      const [usersRes, branchesData, rolesData, deptsData, desigsData, shiftsData] = await Promise.all([
+        staffService.getPage({
+          page: currentPage,
+          limit: itemsPerPage,
+          search: searchQuery || undefined,
+          role: roleFilter === "all" ? undefined : roleFilter,
+          isActive: statusFilter === "all" ? undefined : statusFilter === "active",
+        }),
         hrmsbranchService.getAll(),
         roleService.getAll(),
         departmentService.getAll(),
@@ -120,7 +136,9 @@ export default function UsersPage() {
         shiftService.getAll()
       ]);
 
-      setUsers(usersData);
+      setUsers(usersRes.data);
+      setTotalUsers(usersRes.total);
+      setTotalPages(usersRes.totalPages);
       setBranches(branchesData.data || []);
 
       const mappedRoles: RoleDefinition[] = rolesData.map((r: any) => ({
@@ -147,8 +165,16 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchAllData();
-  }, []);
+  }, [currentPage, roleFilter, statusFilter]);
 
+  // Reset back to page 1 whenever role/status filters change, since they're
+  // now server params and a stale page could point past the new result set.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [roleFilter, statusFilter]);
+
+  // role/status are already filtered server-side (see fetchAllData); search
+  // and branch still filter client-side, scoped to the currently loaded page.
   const filteredUsers = useMemo(() => {
     let result = users.filter((u) => {
       const roleStr = typeof u.role === "string" ? u.role : u.role?.role || "";
@@ -157,12 +183,9 @@ export default function UsersPage() {
         u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
         roleStr.replace("_", " ").toLowerCase().includes(searchQuery.toLowerCase());
 
-      const roleId = (u.role && typeof u.role === "object") ? u.role.id : (u.role as string || "");
-      const matchesRole = roleFilter === "all" || roleId === roleFilter;
       const matchesStore = branchFilter === "all" || (u as any).hrmsBranchId === branchFilter;
-      const matchesStatus = statusFilter === "all" || u.status === statusFilter;
 
-      return matchesSearch && matchesRole && matchesStore && matchesStatus;
+      return matchesSearch && matchesStore;
     });
 
     if (sortConfig) {
@@ -189,11 +212,10 @@ export default function UsersPage() {
   const toggleUserStatus = (user: User) => {
     const newStatus = user.status === "active" ? "inactive" : "active";
     staffService.update(user.id, { isActive: newStatus === "active" }).then(() => {
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === user.id ? { ...u, status: newStatus } : u,
-        ),
-      );
+      // Re-fetch rather than splice locally: with server-side pagination +
+      // an active status filter, a locally-toggled row can now fall outside
+      // the filter (e.g. "Active Only") and needs to actually leave the page.
+      fetchAllData();
       toast({
         title: "Status Updated",
         description: `${user.name}'s account is now ${newStatus}.`,
@@ -205,7 +227,10 @@ export default function UsersPage() {
     const ok = await confirm({ title: "Remove Staff Member", description: "This employee record will be permanently deleted. This action cannot be undone.", variant: "danger" });
     if (!ok) return;
     staffService.delete(id).then(() => {
-      setUsers(users.filter((u) => u.id !== id));
+      // Re-fetch rather than splice locally: with server-side pagination the
+      // next page's row needs to slide up to fill the gap left behind, and
+      // totalUsers/totalPages need to reflect the real remaining count.
+      fetchAllData();
       toast({
         title: "Staff Removed",
         description: "The employee record has been deleted.",
@@ -216,8 +241,34 @@ export default function UsersPage() {
 
 
 
-  const exportToExcel = () => {
-    const dataToExport = filteredUsers.map((u) => {
+  // `users`/`filteredUsers` now only hold the current (paginated) page, but
+  // Export has always meant "export the full filtered staff list" — so this
+  // pulls the complete unpaginated list via getAll() and re-applies the same
+  // search/role/branch/status criteria as filteredUsers, instead of silently
+  // truncating the export to whatever page happens to be on screen.
+  const exportToExcel = async () => {
+    let sourceUsers: User[] = users;
+    try {
+      const all = await staffService.getAll();
+      if (Array.isArray(all)) sourceUsers = all;
+    } catch {
+      // fall back to the currently loaded page if the full-list fetch fails
+    }
+
+    const exportFiltered = sourceUsers.filter((u) => {
+      const roleStr = typeof u.role === "string" ? u.role : u.role?.role || "";
+      const matchesSearch =
+        u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        roleStr.replace("_", " ").toLowerCase().includes(searchQuery.toLowerCase());
+      const roleId = (u.role && typeof u.role === "object") ? u.role.id : (u.role as string || "");
+      const matchesRole = roleFilter === "all" || roleId === roleFilter;
+      const matchesStore = branchFilter === "all" || (u as any).hrmsBranchId === branchFilter;
+      const matchesStatus = statusFilter === "all" || u.status === statusFilter;
+      return matchesSearch && matchesRole && matchesStore && matchesStatus;
+    });
+
+    const dataToExport = exportFiltered.map((u) => {
       const role = (u.role && typeof u.role === "object") ? u.role.label : (u.role || "");
       const branchId = (u as any).hrmsBranchId?._id || (u as any).hrmsBranchId;
       const branch = branches.find(s => (s._id || s.id) === branchId)?.name || "Unassigned";
@@ -359,7 +410,7 @@ export default function UsersPage() {
             </div>
             <div>
               <h2 className="text-base font-semibold text-slate-800 tracking-tight">Active Staff Directory</h2>
-              <p className="text-[11px] font-medium text-slate-500 tracking-wide">{filteredUsers.length} Employees Registered</p>
+              <p className="text-[11px] font-medium text-slate-500 tracking-wide">{totalUsers} Employees Registered</p>
             </div>
           </div>
 
@@ -418,6 +469,10 @@ export default function UsersPage() {
             data={filteredUsers}
             isLoading={isLoading}
             emptyMessage="No staff members matching your criteria"
+            totalItems={totalUsers}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            pageSize={itemsPerPage}
             columns={[
               {
                 header: (
