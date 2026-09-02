@@ -63,7 +63,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -84,12 +84,14 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
   useSortable,
+  arrayMove,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { computeReorderPayload } from "@/lib/sidebarReorder";
 import { toast } from "sonner";
 import { mainSidebarService } from "@/api/services/mainsidebar.service";
 import { quotationTypeService } from "@/api/services/quotationType.service";
+import { settingsService } from "@/api/services/settings.service";
 import * as Icons from "lucide-react";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
@@ -234,6 +236,50 @@ const DragHandle = ({ attributes, listeners }: { attributes: any; listeners: any
   </button>
 );
 
+// Same footprint as DragHandle, with nothing in it — reserved for rows that
+// don't get a grip handle (nothing to drag, or no _id yet) so their icon
+// still starts at the same x-position as every draggable row above it,
+// instead of sitting flush left and breaking the vertical alignment.
+const HandleGutter = () => <span className="h-6 w-4 shrink-0 mr-0.5" aria-hidden="true" />;
+
+// Same drag-to-reorder pattern as SortableNavItem, but for a whole collapsible
+// section (Sales / Quotation Maker / HRMS / Utilities / Reports) so the
+// sections themselves can be moved relative to each other, not just the
+// items inside one of them.
+const SortableSection = ({
+  id,
+  children,
+}: {
+  id: string;
+  children: (handle: { attributes: any; listeners: any }) => React.ReactNode;
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 };
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ attributes, listeners })}
+    </div>
+  );
+};
+
+// The two independently-reorderable clusters of collapsible sections on the
+// main sidebar. Kept as two clusters (rather than one flat list spanning the
+// whole sidebar) so "Management" stays anchored between them exactly where
+// it always has — dragging can reshuffle Sales/Quotation Maker relative to
+// each other, and HRMS/Utilities/Reports relative to each other, without
+// letting a section jump across that boundary.
+const SALES_GROUP_KEYS = ["sales", "quotationMaker"] as const;
+const WORKSPACE_GROUP_KEYS = ["hrms", "utilities", "reports"] as const;
+
+// Drops unknown keys (renamed/removed sections) and appends any canonical
+// key missing from a stored order (a newly added section) so a stale saved
+// order never hides or loses a section.
+const sanitizeSectionOrder = (stored: any, canonical: readonly string[]): string[] => {
+  const kept = Array.isArray(stored) ? stored.filter((k: string) => canonical.includes(k)) : [];
+  const missing = canonical.filter((k) => !kept.includes(k));
+  return [...kept, ...missing];
+};
+
 export function AppSidebar() {
   const { state, setOpenMobile, isMobile } = useSidebar();
   const collapsed = state === "collapsed";
@@ -262,7 +308,7 @@ export function AppSidebar() {
     if (url.startsWith("/admin")) return url.replace("/admin", basePath);
     return url;
   };
-  const { getSetting } = useSettings();
+  const { getSetting, settings, refreshSettings } = useSettings();
   const { chatUnreadCount } = useNotificationContext();
 
   const companyName = getSetting("companyName", "Trinetra TechnoWorld");
@@ -324,6 +370,11 @@ export function AppSidebar() {
   // gated by the same permission the backend reorder endpoint requires.
   const queryClient = useQueryClient();
   const canReorderSidebar = can("Settings", "Edit");
+  // Whether ANY row in the sidebar can show a grip handle right now. When
+  // true, every row (draggable or not) reserves the same gutter width so
+  // icons line up in one straight column instead of the non-draggable rows
+  // (Setup, Subscription Details, …) sitting flush left of the rest.
+  const alignHandleGutter = canReorderSidebar && !collapsed;
   const dndSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
@@ -333,6 +384,31 @@ export function AppSidebar() {
   // DragOverlay instead, which portals to <body> so it floats above the
   // scroll container instead of being cut off by it.
   const [activeDragItem, setActiveDragItem] = useState<any>(null);
+
+  // Order of the collapsible sections themselves (Sales/Quotation
+  // Maker/HRMS/Utilities/Reports), persisted as a plain Setting rather than
+  // a new backend model — reordering here just rewrites this array, no
+  // schema change needed. Kept in local state (rather than read straight
+  // from `settings` on every render) so a drag can update the UI instantly;
+  // `settings` is the source of truth this resyncs from on load and after
+  // a failed save.
+  const [salesGroupOrder, setSalesGroupOrder] = useState<string[]>(() =>
+    sanitizeSectionOrder(getSetting("sidebarSalesGroupOrder"), SALES_GROUP_KEYS),
+  );
+  const [workspaceGroupOrder, setWorkspaceGroupOrder] = useState<string[]>(() =>
+    sanitizeSectionOrder(getSetting("sidebarWorkspaceGroupOrder"), WORKSPACE_GROUP_KEYS),
+  );
+  useEffect(() => {
+    setSalesGroupOrder(sanitizeSectionOrder(settings.sidebarSalesGroupOrder, SALES_GROUP_KEYS));
+    setWorkspaceGroupOrder(sanitizeSectionOrder(settings.sidebarWorkspaceGroupOrder, WORKSPACE_GROUP_KEYS));
+  }, [settings.sidebarSalesGroupOrder, settings.sidebarWorkspaceGroupOrder]);
+
+  const persistSectionOrder = (settingName: string, value: string[]) => {
+    settingsService.updateSettings({ settings: [{ name: settingName, value }] }).catch((err: any) => {
+      toast.error(err?.message || "Failed to save menu order");
+      refreshSettings();
+    });
+  };
 
   const reorderMutation = useMutation({
     mutationFn: (items: { id: string; order: number }[]) => mainSidebarService.reorderSidebarItems(items),
@@ -678,7 +754,11 @@ export function AppSidebar() {
 
         const row = (handle?: { attributes: any; listeners: any }) => (
           <div className="flex items-center w-full">
-            {showHandle && handle && <DragHandle attributes={handle.attributes} listeners={handle.listeners} />}
+            {alignHandleGutter && (
+              showHandle && handle
+                ? <DragHandle attributes={handle.attributes} listeners={handle.listeners} />
+                : <HandleGutter />
+            )}
             <div className="flex-1 min-w-0">{button}</div>
           </div>
         );
@@ -703,6 +783,7 @@ export function AppSidebar() {
     icon: React.ElementType,
     items: any[],
     dragCtx?: { mutation: any; queryKey: string[] },
+    sectionHandle?: { attributes: any; listeners: any },
   ) => {
     const visibleItems = items.filter(
       (item: any) => !item.permission || canView(item.permission),
@@ -718,29 +799,42 @@ export function AppSidebar() {
     return (
       <Collapsible open={open} onOpenChange={() => toggleSection(label)}>
         <SidebarMenuItem>
-          <CollapsibleTrigger asChild>
-            <SidebarMenuButton className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative">
-              {isAnyChildActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
-              )}
-              <Icon
-                className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isAnyChildActive ? "text-primary" : ""}`}
-              />
-              {!collapsed && (
-                <>
-                  <span className="flex-1 text-left text-[13px] font-medium truncate">
-                    {label}
-                  </span>
-                  <Icons.ChevronRight
-                    className={cn(
-                      "h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 transition-transform duration-200 group-hover:text-sidebar-foreground",
-                      open && "rotate-90 text-sidebar-foreground",
-                    )}
+          {/* The grip handle is a sibling of the trigger button, not nested inside
+              it — same reason as the per-item DragHandle: nesting it inside the
+              button would put it inside CollapsibleTrigger's click target, so a
+              drag attempt would also toggle the section open/closed. */}
+          <div className="flex items-center w-full">
+            {alignHandleGutter && (
+              sectionHandle
+                ? <DragHandle attributes={sectionHandle.attributes} listeners={sectionHandle.listeners} />
+                : <HandleGutter />
+            )}
+            <div className="flex-1 min-w-0">
+              <CollapsibleTrigger asChild>
+                <SidebarMenuButton className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative">
+                  {isAnyChildActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
+                  )}
+                  <Icon
+                    className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isAnyChildActive ? "text-primary" : ""}`}
                   />
-                </>
-              )}
-            </SidebarMenuButton>
-          </CollapsibleTrigger>
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 text-left text-[13px] font-medium truncate">
+                        {label}
+                      </span>
+                      <Icons.ChevronRight
+                        className={cn(
+                          "h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 transition-transform duration-200 group-hover:text-sidebar-foreground",
+                          open && "rotate-90 text-sidebar-foreground",
+                        )}
+                      />
+                    </>
+                  )}
+                </SidebarMenuButton>
+              </CollapsibleTrigger>
+            </div>
+          </div>
           <CollapsibleContent className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
             <SidebarGroupContent className="pl-2.5 border-l border-sidebar-border/60 ml-[14px] mt-0.5 space-y-0">
               <SidebarMenu className="gap-0.5">
@@ -770,6 +864,73 @@ export function AppSidebar() {
       );
     }
     return renderItems(items);
+  };
+
+  // Backing data for each reorderable section key, looked up by
+  // renderSectionGroup below. Quotation Maker included here even though it
+  // isn't part of `dynamicNav` (MainSidebar) — it's its own collection.
+  const SECTION_DEFS: Record<string, { label: string; icon: React.ElementType; items: any[]; dragCtx: { mutation: any; queryKey: string[] }; enabled: boolean }> = {
+    sales: { label: "Sales", icon: Icons.Zap, items: dynamicNav.salesNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("sales") },
+    quotationMaker: { label: "Quotation Maker", icon: Icons.FileBarChart, items: quotationMakerNav, dragCtx: quotationDragCtx, enabled: isModuleEnabled("sales") },
+    hrms: { label: "HRMS", icon: Icons.Users, items: dynamicNav.hrmsNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("hrms") },
+    utilities: { label: "Utilities", icon: Icons.CircleDot, items: dynamicNav.utilitiesNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("utility") },
+    reports: { label: "Reports", icon: Icons.TrendingUp, items: dynamicNav.reportsNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("reports") },
+  };
+  const sectionHasContent = (key: string) => {
+    const def = SECTION_DEFS[key];
+    return !!def?.enabled && def.items.some((item: any) => !item.permission || canView(item.permission));
+  };
+
+  // Renders one cluster (Sales+Quotation Maker, or HRMS+Utilities+Reports)
+  // of collapsible sections as its own drag-and-drop-reorderable group, so
+  // the sections can be moved relative to each other the same way items
+  // inside a section already can. Falls back to plain (non-draggable)
+  // rendering when there's nothing to reorder against, or the viewer can't
+  // reorder — no point paying for DnD wiring for a list of one.
+  const renderSectionGroup = (
+    order: string[],
+    settingName: string,
+    setOrder: (next: string[]) => void,
+  ) => {
+    const visibleKeys = order.filter(sectionHasContent);
+    if (visibleKeys.length === 0) return null;
+
+    const renderSection = (key: string, handle?: { attributes: any; listeners: any }) => {
+      const def = SECTION_DEFS[key];
+      return renderCollapsibleItem(def.label, def.icon, def.items, def.dragCtx, handle);
+    };
+
+    if (collapsed || !canReorderSidebar || visibleKeys.length < 2) {
+      return <>{visibleKeys.map((key) => <React.Fragment key={key}>{renderSection(key)}</React.Fragment>)}</>;
+    }
+
+    const handleDragEnd = (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      const oldIndex = order.indexOf(active.id as string);
+      const newIndex = order.indexOf(over.id as string);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const next = arrayMove(order, oldIndex, newIndex);
+      setOrder(next);
+      persistSectionOrder(settingName, next);
+    };
+
+    return (
+      <DndContext
+        sensors={dndSensors}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={visibleKeys} strategy={verticalListSortingStrategy}>
+          {visibleKeys.map((key) => (
+            <SortableSection key={key} id={key}>
+              {(handle) => renderSection(key, handle)}
+            </SortableSection>
+          ))}
+        </SortableContext>
+      </DndContext>
+    );
   };
 
   return (
@@ -830,21 +991,25 @@ export function AppSidebar() {
                 {!isHrmsOnly ? (
                   <>
                     {renderDraggableSection(dynamicNav.customersNav, mainSidebarDragCtx)}
-                    {isModuleEnabled("sales") && renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav, mainSidebarDragCtx)}
-                    {isModuleEnabled("sales") && renderCollapsibleItem("Quotation Maker", Icons.FileBarChart, quotationMakerNav, quotationDragCtx)}
+                    {renderSectionGroup(salesGroupOrder, "sidebarSalesGroupOrder", setSalesGroupOrder)}
                     {renderDraggableSection(dynamicNav.managementNav, mainSidebarDragCtx)}
                   </>
                 ) : (
                   /* HRMS-only staff can still be assigned tasks — always show Tasks link */
                   isStaff && renderItems(dynamicNav.managementNav.filter((i: any) => i.title === "Tasks"))
                 )}
-                {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav, mainSidebarDragCtx)}
+                {/* HRMS-only staff always see HRMS on its own, fixed — reordering
+                    it against Utilities/Reports only makes sense once all three
+                    are actually on screen together, i.e. for full-access users. */}
+                {isHrmsOnly && isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav, mainSidebarDragCtx)}
                 {!isHrmsOnly && (
                   <>
-                    {isModuleEnabled("utility") && renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav, mainSidebarDragCtx)}
-                    {isModuleEnabled("reports") && renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav, mainSidebarDragCtx)}
+                    {renderSectionGroup(workspaceGroupOrder, "sidebarWorkspaceGroupOrder", setWorkspaceGroupOrder)}
                     {hasSetupAccess && (
                       <SidebarMenuItem>
+                        <div className="flex items-center w-full">
+                          {alignHandleGutter && <HandleGutter />}
+                          <div className="flex-1 min-w-0">
                         <SidebarMenuButton
                           id="tour-setup"
                           onClick={() => {
@@ -862,6 +1027,8 @@ export function AppSidebar() {
                             </>
                           )}
                         </SidebarMenuButton>
+                          </div>
+                        </div>
                       </SidebarMenuItem>
                     )}
                     {renderItems([
