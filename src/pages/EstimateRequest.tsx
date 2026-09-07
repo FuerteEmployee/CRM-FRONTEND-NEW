@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
@@ -30,32 +31,17 @@ import { toast } from "sonner";
 interface EstimateRequestRecord {
   _id: string;
   email: string;
-  status: string;
+  // Backend stores this as an ObjectId ref to the tenant's customizable
+  // EstimateStatus list (Setup > Estimate Request > Statuses) and populates
+  // it as {_id, name, color} — never a plain string like "pending".
+  status: { _id: string; name: string; color: string } | null;
   createdAt: string;
   form_name?: string;
   form_data?: any; // Can be Array or Object record
 }
 
-const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
-  pending: {
-    color: "bg-amber-50 text-amber-600 border-amber-200",
-    label: "Pending",
-  },
-  processing: {
-    color: "bg-blue-50 text-blue-600 border-blue-200",
-    label: "Processing",
-  },
-  converted: {
-    color: "bg-emerald-50 text-emerald-600 border-emerald-200",
-    label: "Converted",
-  },
-  rejected: {
-    color: "bg-red-50 text-red-600 border-red-200",
-    label: "Rejected",
-  },
-};
-
 export default function EstimateRequest() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedRequest, setSelectedRequest] =
     useState<any | null>(null);
@@ -80,13 +66,28 @@ export default function EstimateRequest() {
     },
   });
 
-  // Status Mutation
-  const updateStatusMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      estimateService.updateRequestStatus(id, status),
+  // Reject Mutation — statuses are a tenant-customizable list (Setup >
+  // Estimate Request > Statuses), not a fixed enum, so there's no guaranteed
+  // "Rejected" status id to send. Look one up by name, and only if this
+  // tenant genuinely has none yet, create it once so future rejects reuse it.
+  const rejectMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const statusesRes = await estimateService.getEstimateStatuses();
+      const statuses = Array.isArray(statusesRes) ? statusesRes : statusesRes?.data || [];
+      let rejected = statuses.find((s: any) => s.name?.toLowerCase() === "rejected");
+      if (!rejected) {
+        const created = await estimateService.createEstimateStatus({ name: "Rejected", color: "#ef4444" });
+        rejected = created?.data || created;
+      }
+      return estimateService.updateRequestStatus(id, rejected._id);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["estimate-requests"] });
-      toast.success("Status updated successfully");
+      toast.success("Request rejected");
+      setIsDetailOpen(false);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || "Failed to reject request");
     },
   });
 
@@ -109,11 +110,6 @@ export default function EstimateRequest() {
     setEditingConnectPerson(parentReq.connectPerson || `${parentReq.firstname || ""} ${parentReq.lastname || ""}`.trim() || "");
     setEditingSalesPerson(parentReq.salesPerson || "");
     setIsDetailOpen(true);
-
-    // Mark as processing if pending
-    if (parentReq.status === "pending" || !parentReq.status) {
-      updateStatusMutation.mutate({ id: parentReq._id, status: "processing" });
-    }
   };
 
   const handleBulkDelete = async (items: any[]) => {
@@ -174,18 +170,20 @@ export default function EstimateRequest() {
       key: "status",
       label: "Status",
       className: "w-[120px]",
-      render: (row) => {
-        const config =
-          STATUS_CONFIG[row.status?.toLowerCase()] || STATUS_CONFIG.processing;
-        return (
+      render: (row) =>
+        row.status ? (
           <Badge
-            variant="outline"
-            className="bg-blue-50 text-blue-500 border-blue-200 px-3 py-1 rounded-md text-[11px] font-bold shadow-sm"
+            className="border-none px-3 py-1 rounded-md text-[11px] font-bold shadow-sm"
+            style={{
+              backgroundColor: `${row.status.color || "#757575"}1a`,
+              color: row.status.color || "#757575",
+            }}
           >
-            {config.label}
+            {row.status.name}
           </Badge>
-        );
-      },
+        ) : (
+          <span className="text-slate-400">—</span>
+        ),
     },
     {
       key: "createdAt",
@@ -304,7 +302,7 @@ export default function EstimateRequest() {
               }
               const baseData: any = {
                 Email: req.email,
-                Status: req.status || "Pending",
+                Status: req.status?.name || "Pending",
                 CreatedAt: req.createdAt ? new Date(req.createdAt).toLocaleString() : "",
               };
 
@@ -595,10 +593,30 @@ export default function EstimateRequest() {
                 variant="destructive"
                 size="sm"
                 className="hidden md:flex"
+                disabled={rejectMutation.isPending}
+                onClick={() => selectedRequest && rejectMutation.mutate(selectedRequest._id)}
               >
-                Reject
+                {rejectMutation.isPending ? "Rejecting..." : "Reject"}
               </Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 font-bold h-9">
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-700 font-bold h-9"
+                onClick={() => {
+                  if (!selectedRequest) return;
+                  navigate("/admin/estimates/create", {
+                    state: {
+                      estimateRequestId: selectedRequest._id,
+                      connectPerson:
+                        editingConnectPerson ||
+                        selectedRequest.connectPerson ||
+                        `${selectedRequest.firstname || ""} ${selectedRequest.lastname || ""}`.trim(),
+                      phone: selectedRequest.phone,
+                      email: selectedRequest.email,
+                      salesPerson: editingSalesPerson || selectedRequest.salesPerson,
+                      seedItems: editingItems,
+                    },
+                  });
+                }}
+              >
                 Convert to Estimate
               </Button>
             </div>

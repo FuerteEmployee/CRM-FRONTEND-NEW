@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,7 @@ export default function EstimateCreate() {
   const { clientId, id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { formatAmount, symbol } = useCurrency();
 
@@ -116,6 +117,48 @@ export default function EstimateCreate() {
   const [discountValue, setDiscountValue] = useState(0);
   const [discountType, setDiscountType] = useState("percent");
   const [adjustmentValue, setAdjustmentValue] = useState(0);
+
+  // Set by EstimateRequest.tsx's "Convert to Estimate" button (navigate state),
+  // so the resulting Estimate can be linked back to it on save.
+  const [seededFromRequestId, setSeededFromRequestId] = useState<string | undefined>(undefined);
+
+  // Seed the form from an Estimate Request's "Convert to Estimate" action
+  // (navigate state), once on mount.
+  useEffect(() => {
+    if (isEdit) return;
+    const state = location.state as {
+      estimateRequestId?: string;
+      connectPerson?: string;
+      phone?: string;
+      email?: string;
+      salesPerson?: string;
+      seedItems?: any[];
+    } | null;
+    if (!state?.estimateRequestId) return;
+    setSeededFromRequestId(state.estimateRequestId);
+    setFormData(p => ({
+      ...p,
+      connectPerson: state.connectPerson || p.connectPerson,
+      phone: state.phone || p.phone,
+      mailId: state.email || p.mailId,
+      salesPerson: state.salesPerson || p.salesPerson,
+    }));
+    if (state.seedItems?.length) {
+      setItems(state.seedItems.map((it: any) => ({
+        description: it.description || "",
+        qty: it.qty || 1,
+        rate: it.rate || 0,
+        amount: it.amount || 0,
+        amountOverridden: false,
+        tax: "",
+        tax2: "",
+        unit: "",
+        item_group: "",
+        id: Math.random().toString(36).substr(2, 9),
+      })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
@@ -277,11 +320,22 @@ export default function EstimateCreate() {
 
   const mutation = useMutation({
     mutationFn: (payload: any) => isEdit ? estimateService.updateEstimate(id!, payload) : estimateService.createEstimate(payload),
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       toast({
         title: isEdit ? "Estimate Updated Successfully!" : "Estimate Created Successfully!",
         className: "bg-green-600 text-white font-bold rounded-2xl shadow-2xl border-none",
       });
+      if (seededFromRequestId) {
+        const newEstimateId = res?._id || res?.id || res?.data?._id;
+        if (newEstimateId) {
+          estimateService.updateRequest(seededFromRequestId, {
+            is_converted: true,
+            converted_to_estimate: newEstimateId,
+          }).catch(() => {
+            // Best-effort link-back — the estimate itself already saved fine.
+          });
+        }
+      }
       navigate(formData.client ? `/admin/customers/${formData.client}?tab=estimates` : "/admin/estimates");
     },
     onError: (error: any) => {

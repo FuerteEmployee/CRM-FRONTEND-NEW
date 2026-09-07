@@ -56,19 +56,24 @@ export function TopNavbar() {
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
 
-  const { user, logout, isStaff } = usePermissionContext();
+  const { user, logout, isStaff, canView, isModuleEnabled } = usePermissionContext();
   const { refreshSettings } = useSettings();
   const base = isStaff ? "/staff" : "/admin";
+  // permission/moduleKey mirror AppSidebar's dynamic-nav gating for these same
+  // modules (mainsidebar_controller.js defaults + AppSidebar's URL_MODULE_MAP)
+  // so Quick Create never offers a module the user can't see or the tenant's
+  // plan doesn't include. Customer has no moduleKey — it's a core module the
+  // sidebar never plan-gates either.
   const quickCreateItems = [
-    { label: "Estimate", icon: ClipboardList, path: `${base}/estimates/create`, color: "text-violet-500 bg-violet-50 dark:bg-violet-500/10" },
-    { label: "Proposal", icon: FileText, path: `${base}/proposals/create`, color: "text-blue-500 bg-blue-50 dark:bg-blue-500/10" },
-    { label: "Customer", icon: Users, path: `${base}/customers`, color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10" },
-    { label: "Task", icon: CheckSquare, path: `${base}/tasks`, color: "text-amber-500 bg-amber-50 dark:bg-amber-500/10" },
-    { label: "Expense", icon: Receipt, path: `${base}/expenses/create`, color: "text-rose-500 bg-rose-50 dark:bg-rose-500/10" },
-    { label: "Goal", icon: Target, path: `${base}/goals/new`, color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10" },
-    { label: "Ticket", icon: Headphones, path: `${base}/support/create`, color: "text-pink-500 bg-pink-50 dark:bg-pink-500/10" },
-    { label: "Event", icon: CalendarPlus, path: `${base}/calendar`, color: "text-teal-500 bg-teal-50 dark:bg-teal-500/10" },
-  ];
+    { label: "Estimate", icon: ClipboardList, path: `${base}/estimates/create`, color: "text-violet-500 bg-violet-50 dark:bg-violet-500/10", permission: "Estimates", moduleKey: "estimates" },
+    { label: "Proposal", icon: FileText, path: `${base}/proposals/create`, color: "text-blue-500 bg-blue-50 dark:bg-blue-500/10", permission: "Proposals", moduleKey: "proposals" },
+    { label: "Customer", icon: Users, path: `${base}/customers`, color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10", permission: "Customers" },
+    { label: "Task", icon: CheckSquare, path: `${base}/tasks`, color: "text-amber-500 bg-amber-50 dark:bg-amber-500/10", permission: "Tasks", moduleKey: "tasks" },
+    { label: "Expense", icon: Receipt, path: `${base}/expenses/create`, color: "text-rose-500 bg-rose-50 dark:bg-rose-500/10", permission: "Expenses", moduleKey: "expenses" },
+    { label: "Goal", icon: Target, path: `${base}/goals/new`, color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10", permission: "Goals", moduleKey: "goals" },
+    { label: "Ticket", icon: Headphones, path: `${base}/support/create`, color: "text-pink-500 bg-pink-50 dark:bg-pink-500/10", permission: "Support", moduleKey: "support" },
+    { label: "Event", icon: CalendarPlus, path: `${base}/calendar`, color: "text-teal-500 bg-teal-50 dark:bg-teal-500/10", permission: "Calendar", moduleKey: "calendar" },
+  ].filter((item) => canView(item.permission) && (!item.moduleKey || isModuleEnabled(item.moduleKey)));
   const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotificationContext();
   const { toast } = useToast();
 
