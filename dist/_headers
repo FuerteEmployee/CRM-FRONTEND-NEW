@@ -1,0 +1,17 @@
+# Never cache the SPA shell — it references content-hashed asset filenames
+# that change every deploy. A cached index.html can outlive the assets it
+# points to: the browser then requests a filename from the OLD deploy,
+# Netlify's SPA fallback (netlify.toml) can't find it and 200s back this
+# same index.html instead, and the browser rejects it with
+# "Expected a JavaScript-or-Wasm module script but the server responded
+# with a MIME type of text/html" — React never mounts.
+/index.html
+  Cache-Control: no-cache, must-revalidate
+
+/
+  Cache-Control: no-cache, must-revalidate
+
+# Hashed build output is safe to cache forever — a new deploy always emits
+# new filenames for changed content, never reuses an old one.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
