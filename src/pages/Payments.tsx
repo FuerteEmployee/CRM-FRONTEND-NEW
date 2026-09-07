@@ -56,7 +56,7 @@ import { financeService } from "@/api/services/finance.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCurrency } from "@/context/CurrencyContext";
 import { ExportButton } from "@/components/ui/export-button";
@@ -102,7 +102,7 @@ const Payments = () => {
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedIds.map(id => salesService.deletePayment(id)));
+        await salesService.bulkDeletePayments(selectedIds);
         toast({ title: "Success", description: `Deleted ${selectedIds.length} items.` });
       }
       queryClient.invalidateQueries({ queryKey: ["payments"] });
@@ -414,15 +414,7 @@ const Payments = () => {
             </thead>
             <tbody className="divide-y divide-border/50">
               {isLoading ? (
-                Array(3)
-                  .fill(0)
-                  .map((_, i) => (
-                    <tr key={i}>
-                      <td colSpan={9} className="p-4">
-                        <Skeleton className="h-10 w-full" />
-                      </td>
-                    </tr>
-                  ))
+                <SkeletonTableRows rows={6} colSpan={9} />
               ) : paginatedPayments.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground italic">

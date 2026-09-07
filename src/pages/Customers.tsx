@@ -60,6 +60,7 @@ import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { usePermissions } from "@/hooks/usePermissions";
 
 const COUNTRIES = [
@@ -282,7 +283,7 @@ const Customers = () => {
 
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedCustomers.map(id => customerService.delete(id)));
+        await customerService.bulkDelete(selectedCustomers);
         toast({ title: "Success", description: `Deleted ${selectedCustomers.length} customers.` });
       } else {
         const updates: any = {};
@@ -1371,13 +1372,7 @@ const Customers = () => {
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="border-b">
-                        <td colSpan={12} className="p-8">
-                          <Skeleton className="h-8 w-full" />
-                        </td>
-                      </tr>
-                    ))
+                    <SkeletonTableRows rows={6} colSpan={12} />
                   ) : paginatedCustomers.length === 0 ? (
                     <tr>
                       <td

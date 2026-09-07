@@ -25,13 +25,15 @@ import { Plus, Search, Zap } from "lucide-react";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { usePermissions } from "@/hooks/usePermissions";
 import { contractService } from "@/api/services/contract.service";
 import { customerService } from "@/api/services/customer.service";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { useCurrency } from "@/context/CurrencyContext";
 
 const statusColors: Record<string, string> = {
@@ -44,13 +46,16 @@ const statusColors: Record<string, string> = {
 };
 
 const Contracts = () => {
-  const [contracts, setContracts] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [editItem, setEditItem] = useState<any | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
   useOpenCreateModal(() => setIsAddOpen(true));
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [itemsPerPage, setItemsPerPage] = useState("10");
   const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
@@ -61,18 +66,59 @@ const Contracts = () => {
   const [bulkState, setBulkState] = useState({ massDelete: false });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const queryClient = useQueryClient();
 
-  const filtered = useMemo(() => {
-    return contracts.filter((c: any) =>
-      (c.subject || "").toLowerCase().includes(search.toLowerCase()) ||
-      (c.client?.company || "").toLowerCase().includes(search.toLowerCase())
+  // Server-paginated once a finite page size is chosen; "All" keeps the
+  // legacy full fetch, filtered client-side exactly as this page always has
+  // — same split used on Invoices/Leads/Projects.
+  const { data: contractsResult, isLoading: loading } = useQuery({
+    queryKey: ["contracts", itemsPerPage, currentPage, debouncedSearch],
+    queryFn: async () => {
+      if (itemsPerPage === "All") {
+        const response = await contractService.getContracts();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        const q = debouncedSearch.toLowerCase();
+        const rowsFiltered = rows.filter((c: any) =>
+          (c.subject || "").toLowerCase().includes(q) ||
+          (c.client?.company || "").toLowerCase().includes(q)
+        );
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1 };
+      }
+
+      const res: any = await contractService.getContracts({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1 };
+      return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1 };
+    },
+  });
+  const contracts: any[] = contractsResult?.rows ?? [];
+
+  useEffect(() => {
+    customerService.getAll().then((data: any) => setClients(data || [])).catch(() => {});
+  }, []);
+
+  // Export is a one-off action, not the on-screen table — it fetches the
+  // full filtered set on demand rather than paginating.
+  const loadAllFilteredContracts = async () => {
+    const response = await contractService.getContracts();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    const q = debouncedSearch.toLowerCase();
+    return rows.filter((c: any) =>
+      (c.subject || "").toLowerCase().includes(q) ||
+      (c.client?.company || "").toLowerCase().includes(q)
     );
-  }, [contracts, search]);
+  };
 
-  const contractPageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
-  const totalContractPages = Math.max(1, Math.ceil(filtered.length / contractPageSize));
+  // The table already shows exactly one server-paginated page — no further
+  // client-side slicing needed.
+  const paginatedContracts = contracts;
+  const filteredTotal = contractsResult?.total ?? 0;
+  const totalContractPages = contractsResult?.pages ?? 1;
   const safeContractPage = Math.min(currentPage, totalContractPages);
-  const paginatedContracts = itemsPerPage === "All" ? filtered : filtered.slice((safeContractPage - 1) * contractPageSize, safeContractPage * contractPageSize);
+  const contractPageSize = itemsPerPage === "All" ? (paginatedContracts.length || 1) : parseInt(itemsPerPage);
   const allContractPageSelected = paginatedContracts.length > 0 && paginatedContracts.every((item: any) => selectedContracts.includes(item._id));
 
   const handleSelectAll = (checked: boolean) => {
@@ -89,9 +135,9 @@ const Contracts = () => {
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedContracts.map(id => contractService.deleteContract(id)));
+        await contractService.bulkDeleteContracts(selectedContracts);
         toast({ title: "Success", description: `Deleted ${selectedContracts.length} items.` });
-        setContracts(prev => prev.filter(c => !selectedContracts.includes(c._id)));
+        queryClient.invalidateQueries({ queryKey: ["contracts"] });
       }
       setSelectedContracts([]);
       setBulkActionOpen(false);
@@ -114,27 +160,6 @@ const Contracts = () => {
     description: "",
   });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [contractsData, clientsData] = await Promise.all([
-        contractService.getContracts(),
-        customerService.getAll(),
-      ]);
-      setContracts(contractsData || []);
-      setClients(clientsData || []);
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
-      toast({ title: "Error", description: "Failed to load contracts.", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleImportData = async (rows: Record<string, any>[]) => {
     setIsImporting(true);
     try {
@@ -146,7 +171,7 @@ const Contracts = () => {
         description: count === 0 ? "No rows matched an existing client and subject." : `Imported ${count} contract(s)${skipped ? `, skipped ${skipped} invalid row(s)` : ""}.`,
         variant: count === 0 ? "destructive" : "default",
       });
-      fetchData();
+      queryClient.invalidateQueries({ queryKey: ["contracts"] });
     } catch (error: any) {
       toast({ title: "Import Failed", description: error?.response?.data?.message || error.message, variant: "destructive" });
     } finally {
@@ -157,7 +182,7 @@ const Contracts = () => {
   const handleDelete = async (id: string) => {
     try {
       await contractService.deleteContract(id);
-      setContracts((prev) => prev.filter((c) => c._id !== id));
+      queryClient.invalidateQueries({ queryKey: ["contracts"] });
       toast({ title: "Deleted", description: "Contract deleted." });
     } catch (error) {
       toast({ title: "Error", description: "Failed to delete.", variant: "destructive" });
@@ -174,9 +199,8 @@ const Contracts = () => {
         ...formData,
         contract_value: Number(formData.contract_value) || 0
       };
-      const newContract = await contractService.createContract(dataToSubmit);
-      // refetch or append
-      setContracts((prev) => [...prev, newContract]);
+      await contractService.createContract(dataToSubmit);
+      queryClient.invalidateQueries({ queryKey: ["contracts"] });
       toast({ title: "Created", description: "Contract created successfully." });
       setIsAddOpen(false);
       setFormData({
@@ -188,7 +212,6 @@ const Contracts = () => {
         dateend: "",
         description: "",
       });
-      fetchData(); // Refresh to get populated client
     } catch (error) {
       console.error("Create error:", error);
       toast({ title: "Error", description: "Failed to create contract.", variant: "destructive" });
@@ -205,11 +228,10 @@ const Contracts = () => {
         dateend: editItem.dateend,
         description: editItem.description,
       };
-      const updated = await contractService.updateContract(editItem._id, dataToSubmit);
-      setContracts((prev) => prev.map((c) => c._id === updated._id ? updated : c));
+      await contractService.updateContract(editItem._id, dataToSubmit);
+      queryClient.invalidateQueries({ queryKey: ["contracts"] });
       toast({ title: "Updated", description: "Contract updated successfully." });
       setEditItem(null);
-      fetchData(); // Refresh
     } catch (error) {
       console.error("Update error:", error);
       toast({ title: "Error", description: "Failed to update contract.", variant: "destructive" });
@@ -355,7 +377,7 @@ const Contracts = () => {
               </DialogContent>
             </Dialog>
             <ExportButton 
-              data={filtered} 
+              data={loadAllFilteredContracts}
               filename="contracts" 
               columns={[
                 { header: "Title", key: "subject" },
@@ -403,8 +425,8 @@ const Contracts = () => {
                 </thead>
                 <tbody>
                   {loading ? (
-                    <tr><td colSpan={8} className="text-center p-4">Loading...</td></tr>
-                  ) : filtered.length === 0 ? (
+                    <SkeletonTableRows rows={6} colSpan={8} />
+                  ) : paginatedContracts.length === 0 ? (
                     <tr><td colSpan={8} className="text-center p-4">No contracts found.</td></tr>
                   ) : paginatedContracts.map((c) => (
                     <tr
@@ -462,7 +484,7 @@ const Contracts = () => {
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {filtered.length === 0 ? 0 : (safeContractPage - 1) * contractPageSize + 1} to {Math.min(safeContractPage * contractPageSize, filtered.length)} of {filtered.length} entries
+            Showing {filteredTotal === 0 ? 0 : (safeContractPage - 1) * contractPageSize + 1} to {Math.min(safeContractPage * contractPageSize, filteredTotal)} of {filteredTotal} entries
           </p>
           <div className="flex items-center gap-2">
             <Button

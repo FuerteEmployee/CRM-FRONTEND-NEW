@@ -30,6 +30,7 @@ import { staffService } from "@/api/services/staff.service";
 import { formatDate } from "@/lib/dateFormat";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
@@ -156,7 +157,25 @@ const Purchases = () => {
     enabled: canUseBranch,
     staleTime: 5 * 60 * 1000,
   });
-  const branches: { _id: string; name: string }[] = branchesRaw;
+  // Branch names that arrived via Excel import are free text, not HRMS branch
+  // records — without this they'd show correctly in the table but could never
+  // be picked from the filter dropdown (which only listed the HRMS master).
+  const { data: importedBranches = [] } = useQuery<string[]>({
+    queryKey: ["purchase-branches-list"],
+    queryFn: () => purchaseService.getBranches().then((r: any) => r.data || r || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: { _id: string; name: string }[] = [];
+    [...branchesRaw.map((b: any) => b.name), ...importedBranches].forEach((name) => {
+      if (!name || seen.has(name)) return;
+      seen.add(name);
+      merged.push({ _id: name, name });
+    });
+    return merged;
+  }, [branchesRaw, importedBranches]);
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -327,6 +346,7 @@ const Purchases = () => {
         bill_no: String(getField(row, "voucher no.", "voucher no", "voucher number", "bill reference", "bill ref", "bill no", "billno", "bill number", "invoice no", "invoice number", "invoice reference", "ref no", "bill ref no")),
         voucher_type: String(getField(row, "voucher type")),
         branch: String(getField(row, "branch name", "branch")),
+        sales_person: String(getField(row, "sales person", "salesperson")),
         product: String(getField(row, "item description", "product", "item", "description", "particulars 2")),
         quantity,
         rate,
@@ -394,6 +414,7 @@ const Purchases = () => {
     let currentBillDate: any = "";
     let currentVoucherType = "";
     let currentBranch = "";
+    let currentSalesPerson = "";
     let currentGstRate = 0;
     // supplier_state drives the backend's CGST+SGST vs IGST split (it has no
     // GSTIN column to read here) — set to home state when the rollup row's
@@ -423,6 +444,7 @@ const Purchases = () => {
         currentBillDate = getField(row, "bill date", "date");
         currentVoucherType = String(getField(row, "voucher type")).trim();
         currentBranch = String(getField(row, "branch name", "branch")).trim();
+        currentSalesPerson = String(getField(row, "sales person", "salesperson")).trim();
 
         // "PURCHASE IGST" duplicates the taxable Amount (a ledger-split
         // column, same trick as "PURCHASE GST") — NOT the tax value. The
@@ -462,6 +484,7 @@ const Purchases = () => {
         bill_date: currentBillDate,
         voucher_type: currentVoucherType,
         branch: currentBranch,
+        sales_person: currentSalesPerson,
         product: particulars,
         quantity: qty,
         rate,
@@ -1037,11 +1060,7 @@ const Purchases = () => {
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                      <tr key={i} className="border-b">
-                        <td colSpan={tableColSpan} className="p-4"><Skeleton className="h-6 w-full" /></td>
-                      </tr>
-                    ))
+                    <SkeletonTableRows rows={6} colSpan={tableColSpan} />
                   ) : paginatedPurchases.length === 0 ? (
                     <tr>
                       <td colSpan={tableColSpan} className="p-10 text-center text-slate-400 font-medium">

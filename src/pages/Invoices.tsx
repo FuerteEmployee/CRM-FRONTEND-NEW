@@ -53,6 +53,7 @@ import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/ui/export-button";
@@ -781,7 +782,25 @@ const Invoices = () => {
     enabled: canUseBranch,
     staleTime: 5 * 60 * 1000,
   });
-  const branches: { _id: string; name: string }[] = branchesRaw;
+  // Branch names that arrived via Excel import are free text, not HRMS branch
+  // records — without this they'd show correctly in the table but could never
+  // be picked from the filter dropdown (which only listed the HRMS master).
+  const { data: importedBranches = [] } = useQuery<string[]>({
+    queryKey: ["invoice-branches-list"],
+    queryFn: () => salesService.getInvoiceBranches().then((r: any) => r.data || r || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: { _id: string; name: string }[] = [];
+    [...branchesRaw.map((b: any) => b.name), ...importedBranches].forEach((name) => {
+      if (!name || seen.has(name)) return;
+      seen.add(name);
+      merged.push({ _id: name, name });
+    });
+    return merged;
+  }, [branchesRaw, importedBranches]);
   const { symbol } = useCurrency();
   const { data: currencies = [] } = useQuery({
     queryKey: ["currencies"],
@@ -858,7 +877,7 @@ const Invoices = () => {
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedIds.map(id => salesService.deleteInvoice(id)));
+        await salesService.bulkDeleteInvoices(selectedIds);
         toast({ title: "Success", description: `Deleted ${selectedIds.length} items.` });
       } else if (bulkState.status) {
         await Promise.all(selectedIds.map(id => salesService.updateInvoice(id, { status: bulkState.status })));
@@ -1245,15 +1264,7 @@ const Invoices = () => {
             </thead>
             <tbody className="divide-y divide-border/50">
               {isLoading ? (
-                Array(3)
-                  .fill(0)
-                  .map((_, i) => (
-                    <tr key={i}>
-                      <td colSpan={TABLE_COLUMN_COUNT} className="p-4">
-                        <Skeleton className="h-10 w-full" />
-                      </td>
-                    </tr>
-                  ))
+                <SkeletonTableRows rows={6} colSpan={TABLE_COLUMN_COUNT} />
               ) : flatRows.length === 0 ? (
                 <tr>
                   <td colSpan={TABLE_COLUMN_COUNT} className="px-6 py-12 text-center text-muted-foreground italic">

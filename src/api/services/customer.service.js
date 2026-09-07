@@ -12,6 +12,8 @@ export const customerService = {
 
   delete: (id) => apiClient.delete(`/clients/${id}`),
 
+  bulkDelete: (ids) => apiClient.post("/clients/bulk-delete", { ids }),
+
   importClients: (data, branchId) =>
     apiClient.post("/clients/import", branchId ? { clients: data, branchId } : data),
 

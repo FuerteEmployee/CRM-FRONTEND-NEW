@@ -27,7 +27,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { vendorService } from "@/api/services/vendor.service";
 import { useToast } from "@/hooks/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
@@ -318,7 +318,7 @@ const Vendors = () => {
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedIds.map((id) => vendorService.delete(id)));
+        await vendorService.bulkDelete(selectedIds);
         toast({ title: "Success", description: `Deleted ${selectedIds.length} vendors.` });
       } else {
         if (!bulkState.sales_person) {
@@ -523,11 +523,7 @@ const Vendors = () => {
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    Array.from({ length: 4 }).map((_, i) => (
-                      <tr key={i} className="border-b">
-                        <td colSpan={12 + (canUseBranch ? 1 : 0)} className="p-4"><Skeleton className="h-6 w-full" /></td>
-                      </tr>
-                    ))
+                    <SkeletonTableRows rows={6} colSpan={12 + (canUseBranch ? 1 : 0)} />
                   ) : paginatedVendors.length === 0 ? (
                     <tr>
                       <td colSpan={12 + (canUseBranch ? 1 : 0)} className="p-10 text-center text-slate-400 font-medium">

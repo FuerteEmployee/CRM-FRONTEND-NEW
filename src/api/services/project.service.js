@@ -12,6 +12,8 @@ export const projectService = {
   
   delete: (id) => apiClient.delete(`/projects/${id}`),
 
+  bulkDelete: (ids) => apiClient.post('/projects/bulk-delete', { ids }),
+
   // Tasks
   getTasks: (params) => apiClient.get('/tasks', params ? { params } : undefined),
   

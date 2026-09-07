@@ -559,7 +559,7 @@ const Leads = () => {
 
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedLeads.map(id => leadService.delete(id)));
+        await leadService.bulkDelete(selectedLeads);
         toast({ title: "Success", description: `Deleted ${selectedLeads.length} leads.` });
       } else {
         const updates: any = {};

@@ -34,6 +34,7 @@ import { financeService } from "@/api/services/finance.service";
 import { customFieldService } from "@/api/services/custom-field.service";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { useCurrency } from "@/context/CurrencyContext";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
@@ -904,15 +905,7 @@ const Items = () => {
                 </thead>
                 <tbody className="divide-y divide-border/50">
                   {isLoading ? (
-                    Array(4)
-                      .fill(0)
-                      .map((_, i) => (
-                        <tr key={i}>
-                          <td colSpan={11 + (canUseBranch ? 1 : 0) + tableCustomFields.length} className="p-4">
-                            <Skeleton className="h-10 w-full" />
-                          </td>
-                        </tr>
-                      ))
+                    <SkeletonTableRows rows={6} colSpan={11 + (canUseBranch ? 1 : 0) + tableCustomFields.length} />
                   ) : paginatedItems.length === 0 ? (
                     <tr>
                       <td colSpan={11 + (canUseBranch ? 1 : 0) + tableCustomFields.length} className="px-6 py-12 text-center text-muted-foreground italic">
