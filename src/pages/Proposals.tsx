@@ -13,6 +13,7 @@ import { formatDate } from "@/lib/dateFormat";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -618,7 +619,7 @@ const Proposals = () => {
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedProposals.map(id => salesService.deleteProposal(id)));
+        await salesService.bulkDeleteProposals(selectedProposals);
         toast({ title: "Success", description: `Deleted ${selectedProposals.length} items.` });
       } else if (bulkState.status) {
         await Promise.all(selectedProposals.map(id => salesService.updateProposal(id, { status: bulkState.status })));
@@ -828,9 +829,7 @@ const Proposals = () => {
             </thead>
             <tbody className="divide-y divide-border/50">
               {isLoadingProposals ? (
-                Array(3).fill(0).map((_, i) => (
-                  <tr key={i}><td colSpan={11 + (canUseBranch ? 1 : 0)} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
-                ))
+                <SkeletonTableRows rows={6} colSpan={11 + (canUseBranch ? 1 : 0)} />
               ) : paginatedProposals.length === 0 ? (
                 <tr>
                   <td colSpan={11 + (canUseBranch ? 1 : 0)} className="px-6 py-12 text-center text-muted-foreground italic">

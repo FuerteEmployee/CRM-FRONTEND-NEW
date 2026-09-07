@@ -6,6 +6,7 @@ export const contractService = {
   createContract: (data) => apiClient.post('/contracts', data),
   updateContract: (id, data) => apiClient.patch(`/contracts/${id}`, data),
   deleteContract: (id) => apiClient.delete(`/contracts/${id}`),
+  bulkDeleteContracts: (ids) => apiClient.post('/contracts/bulk-delete', { ids }),
   importContracts: (rows) => apiClient.post('/contracts/import', rows),
   signContract: (id, data) => apiClient.post(`/contracts/${id}/sign`, data),
 };

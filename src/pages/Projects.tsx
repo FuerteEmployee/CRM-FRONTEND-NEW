@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +49,7 @@ import { projectService } from "@/api/services/project.service";
 import { useNavigate } from "react-router-dom";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
@@ -64,6 +64,11 @@ const statusConfig = [
 
 const Projects = () => {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [activeStatus, setActiveStatus] = useState<number | "all">("all");
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,10 +84,48 @@ const Projects = () => {
   const canUseBranch = isPilot && isModuleEnabled("hrms");
   const navigate = useNavigate();
 
-  const { data: projects = [], isLoading } = useQuery<any[]>({
-    queryKey: ["projects"],
-    queryFn: projectService.getAll,
+  // Server-paginated once a finite page size is chosen; "All" (itemsPerPage
+  // >= 999999) keeps the legacy full fetch, filtered client-side exactly as
+  // this page always has — same split used on Invoices/Leads/Items.
+  const { data: projectsResult, isLoading } = useQuery({
+    queryKey: ["projects", itemsPerPage, currentPage, debouncedSearch, activeStatus],
+    queryFn: async () => {
+      if (itemsPerPage >= 999999) {
+        const response = await projectService.getAll();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        const q = debouncedSearch.toLowerCase();
+        const rowsFiltered = rows.filter((p: any) => {
+          const matchesSearch =
+            !q ||
+            (p.name || "").toLowerCase().includes(q) ||
+            (p.clientid?.company || "").toLowerCase().includes(q);
+          const matchesStatus = activeStatus === "all" || p.status === activeStatus;
+          return matchesSearch && matchesStatus;
+        });
+        const aggMap = new Map<number, number>();
+        rows.forEach((p: any) => aggMap.set(p.status, (aggMap.get(p.status) || 0) + 1));
+        const statusAgg = Array.from(aggMap.entries()).map(([status, count]) => ({ status, count }));
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1, statusAgg };
+      }
+
+      const res: any = await projectService.getAll({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+        status: activeStatus !== "all" ? activeStatus : undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, statusAgg: [] };
+      return {
+        rows: res?.data ?? [],
+        total: res?.total ?? 0,
+        pages: res?.pages ?? 1,
+        statusAgg: res?.statusAgg ?? [],
+      };
+    },
   });
+  const projects: any[] = projectsResult?.rows ?? [];
+  const statusAgg: { status: number; count: number }[] = projectsResult?.statusAgg ?? [];
+  const totalProjectsOverall = statusAgg.reduce((sum, s) => sum + s.count, 0);
 
   const deleteMutation = useMutation({
     mutationFn: projectService.delete,
@@ -95,20 +138,29 @@ const Projects = () => {
     },
   });
 
-  const filteredProjects = useMemo(() => {
-    return projects.filter((p: any) => {
-      const matchesSearch = 
-        (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
-        (p.clientid?.company || "").toLowerCase().includes(search.toLowerCase());
+  // Export is a one-off action, not the on-screen table — it fetches the
+  // full filtered set on demand rather than paginating.
+  const loadAllFilteredProjects = async () => {
+    const response = await projectService.getAll();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    const q = debouncedSearch.toLowerCase();
+    return rows.filter((p: any) => {
+      const matchesSearch =
+        !q ||
+        (p.name || "").toLowerCase().includes(q) ||
+        (p.clientid?.company || "").toLowerCase().includes(q);
       const matchesStatus = activeStatus === "all" || p.status === activeStatus;
       return matchesSearch && matchesStatus;
     });
-  }, [projects, search, activeStatus]);
+  };
 
-  const projectPageSize = itemsPerPage >= 999999 ? (filteredProjects.length || 1) : itemsPerPage;
-  const totalProjectPages = Math.max(1, Math.ceil(filteredProjects.length / projectPageSize));
+  // The table already shows exactly one server-paginated page — no further
+  // client-side slicing needed.
+  const paginatedProjects = projects;
+  const totalProjectPages = projectsResult?.pages ?? 1;
   const safeProjectPage = Math.min(currentPage, totalProjectPages);
-  const paginatedProjects = itemsPerPage >= 999999 ? filteredProjects : filteredProjects.slice((safeProjectPage - 1) * projectPageSize, safeProjectPage * projectPageSize);
+  const projectPageSize = itemsPerPage >= 999999 ? (paginatedProjects.length || 1) : itemsPerPage;
+  const filteredProjectsCount = projectsResult?.total ?? 0;
   const projectPageIds = paginatedProjects.map((p: any) => p._id);
   const allProjectPageSelected = projectPageIds.length > 0 && projectPageIds.every((id: string) => selectedProjects.includes(id));
 
@@ -120,7 +172,7 @@ const Projects = () => {
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedProjects.map(id => projectService.delete(id)));
+        await projectService.bulkDelete(selectedProjects);
         toast.success(`Deleted ${selectedProjects.length} projects.`);
       } else if (bulkState.status) {
         const status = parseInt(bulkState.status);
@@ -138,15 +190,16 @@ const Projects = () => {
     }
   };
 
-  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
-    if (filteredProjects.length === 0) {
+  const handleExport = async (type: "xlsx" | "csv" | "pdf" | "print") => {
+    const exportRows = await loadAllFilteredProjects();
+    if (exportRows.length === 0) {
       toast.error("No data to export");
       return;
     }
 
     if (type === "csv" || type === "xlsx") {
       const headers = ["Project Name", "Customer", "Tags", "Start Date", "Deadline", "Status"];
-      const rows = filteredProjects.map((p: any) => [
+      const rows = exportRows.map((p: any) => [
         p.name || "",
         p.clientid?.company || "Unknown",
         p.tags ? p.tags.join(", ") : "",
@@ -177,9 +230,9 @@ const Projects = () => {
   const stats = useMemo(() => {
     return statusConfig.map(status => ({
       ...status,
-      count: projects.filter(p => p.status === status.id).length
+      count: statusAgg.find(s => s.status === status.id)?.count || 0
     }));
-  }, [projects]);
+  }, [statusAgg]);
 
   return (
     <DashboardLayout>
@@ -203,7 +256,7 @@ const Projects = () => {
             className="h-8 text-xs font-medium"
           >
             All
-            <span className="ml-1.5 opacity-60">({projects.length})</span>
+            <span className="ml-1.5 opacity-60">({totalProjectsOverall})</span>
           </Button>
           {stats.map((status) => (
             <Button
@@ -358,14 +411,8 @@ const Projects = () => {
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="border-b">
-                        <td colSpan={10 + (canUseBranch ? 1 : 0)} className="p-8">
-                          <Skeleton className="h-8 w-full" />
-                        </td>
-                      </tr>
-                    ))
-                  ) : filteredProjects.length === 0 ? (
+                    <SkeletonTableRows rows={6} colSpan={10 + (canUseBranch ? 1 : 0)} />
+                  ) : paginatedProjects.length === 0 ? (
                     <tr>
                       <td colSpan={10} className="p-10 text-center text-muted-foreground text-sm">
                         No projects found.
@@ -466,7 +513,7 @@ const Projects = () => {
             {/* Pagination Footer */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 py-4">
               <p className="text-xs font-bold text-muted-foreground italic">
-                Showing {filteredProjects.length === 0 ? 0 : (safeProjectPage - 1) * projectPageSize + 1} to {Math.min(safeProjectPage * projectPageSize, filteredProjects.length)} of {filteredProjects.length} entries
+                Showing {filteredProjectsCount === 0 ? 0 : (safeProjectPage - 1) * projectPageSize + 1} to {Math.min(safeProjectPage * projectPageSize, filteredProjectsCount)} of {filteredProjectsCount} entries
               </p>
               <div className="flex items-center gap-2">
                 <Button

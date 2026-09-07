@@ -8,15 +8,18 @@ export const salesService = {
   // Invoices
   // ─────────────────────────────────────────────
   getInvoices: (params) => apiClient.get("/invoices", { params }),
+  getInvoiceBranches: () => apiClient.get("/invoices/branches"),
   getProposals: (params) => apiClient.get("/proposals", { params }),
   getProposalById: (id) => apiClient.get(`/proposals/${id}`),
   getInvoiceById: (id) => apiClient.get(`/invoices/${id}`),
   createInvoice: (data) => apiClient.post("/invoices", data),
   updateInvoice: (id, data) => apiClient.put(`/invoices/${id}`, data),
   deleteInvoice: (id) => apiClient.delete(`/invoices/${id}`),
+  bulkDeleteInvoices: (ids) => apiClient.post("/invoices/bulk-delete", { ids }),
   createProposal: (data) => apiClient.post("/proposals", data),
   updateProposal: (id, data) => apiClient.put(`/proposals/${id}`, data),
   deleteProposal: (id) => apiClient.delete(`/proposals/${id}`),
+  bulkDeleteProposals: (ids) => apiClient.post("/proposals/bulk-delete", { ids }),
 
   // ─────────────────────────────────────────────
   // Payments
@@ -27,6 +30,7 @@ export const salesService = {
   createPayment: (data) => apiClient.post("/payments", data),
   updatePayment: (id, data) => apiClient.put(`/payments/${id}`, data),
   deletePayment: (id) => apiClient.delete(`/payments/${id}`),
+  bulkDeletePayments: (ids) => apiClient.post("/payments/bulk-delete", { ids }),
 
   // ─────────────────────────────────────────────
   // Expenses

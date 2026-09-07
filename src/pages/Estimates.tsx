@@ -14,6 +14,7 @@ import { formatDate } from "@/lib/dateFormat";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { estimateService } from "@/api/services/estimate.service";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -613,7 +614,7 @@ const Estimates = () => {
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedIds.map(id => estimateService.deleteEstimate(id)));
+        await estimateService.bulkDeleteEstimates(selectedIds);
         toast({ title: "Success", description: `Deleted ${selectedIds.length} items.` });
       } else if (bulkState.status) {
         await Promise.all(selectedIds.map(id => estimateService.updateEstimate(id, { status: bulkState.status })));
@@ -975,9 +976,7 @@ const Estimates = () => {
             </thead>
             <tbody className="divide-y divide-border/50">
               {isLoadingEstimates ? (
-                Array(3).fill(0).map((_, i) => (
-                  <tr key={i}><td colSpan={12 + (canUseBranch ? 1 : 0)} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
-                ))
+                <SkeletonTableRows rows={6} colSpan={12 + (canUseBranch ? 1 : 0)} />
               ) : tableRows.length === 0 ? (
                 <tr>
                   <td colSpan={12 + (canUseBranch ? 1 : 0)} className="px-6 py-12 text-center text-muted-foreground italic">

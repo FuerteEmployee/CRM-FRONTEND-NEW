@@ -16,6 +16,7 @@ export const estimateService = {
   createEstimate: (data) => apiClient.post("/estimates", data),
   updateEstimate: (id, data) => apiClient.put(`/estimates/${id}`, data),
   deleteEstimate: (id) => apiClient.delete(`/estimates/${id}`),
+  bulkDeleteEstimates: (ids) => apiClient.post("/estimates/bulk-delete", { ids }),
   getFormSubmissions: () => apiClient.get("/estimates"),
 
   // ─────────────────────────────────────────────

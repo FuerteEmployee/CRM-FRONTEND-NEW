@@ -11,5 +11,7 @@ export const vendorService = {
 
   delete: (id) => apiClient.delete(`/vendors/${id}`),
 
+  bulkDelete: (ids) => apiClient.post("/vendors/bulk-delete", { ids }),
+
   importVendors: (data) => apiClient.post("/vendors/import", data)
 };

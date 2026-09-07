@@ -3,6 +3,8 @@ import { apiClient } from "../client";
 export const purchaseService = {
   getAll: (params = {}) => apiClient.get("/purchases", { params }),
 
+  getBranches: () => apiClient.get("/purchases/branches"),
+
   getById: (id) => apiClient.get(`/purchases/${id}`),
 
   create: (data) => apiClient.post("/purchases", data),

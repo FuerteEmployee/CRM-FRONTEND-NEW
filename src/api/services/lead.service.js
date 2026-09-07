@@ -14,6 +14,8 @@ export const leadService = {
 
   delete: (id) => apiClient.delete(`/leads/${id}`),
 
+  bulkDelete: (ids) => apiClient.post('/leads/bulk-delete', { ids }),
+
   convertToCustomer: (id) => apiClient.post(`/leads/${id}/convert`),
 
   markAsLost: (id) => apiClient.patch(`/leads/${id}/lost`),

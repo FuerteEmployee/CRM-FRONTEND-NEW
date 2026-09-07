@@ -37,7 +37,7 @@ import { supportService } from "@/api/services/support.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { usePermissions } from "@/hooks/usePermissions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 
@@ -90,7 +90,7 @@ const Support = () => {
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedTickets.map(id => supportService.deleteTicket(id)));
+        await supportService.bulkDeleteTickets(selectedTickets);
         toast({ title: "Success", description: `Deleted ${selectedTickets.length} tickets.` });
       } else {
         const updates: any = {};
@@ -377,13 +377,7 @@ const Support = () => {
                 </thead>
                 <tbody className="text-sm">
                   {isLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="border-b">
-                        <td colSpan={11} className="p-4">
-                          <Skeleton className="h-10 w-full" />
-                        </td>
-                      </tr>
-                    ))
+                    <SkeletonTableRows rows={6} colSpan={11} />
                   ) : paginated.length === 0 ? (
                     <tr>
                       <td colSpan={11} className="p-10 text-center text-slate-500 font-medium">
