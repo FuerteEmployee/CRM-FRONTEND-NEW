@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/context/SettingsContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -307,18 +308,43 @@ export default function QuotationModule() {
     enabled: activeTab === "dashboard",
   });
 
-  const { data: allQuotations = [], isLoading: isLoadingAll } = useQuery<Quotation[]>({
-    queryKey: ["quotations-all", currentType?._id],
+  // ─── List tab: server-side paginated (per page-size selection); "All" falls
+  // back to the old unbounded fetch, exactly as this tab always did before. ──
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState("25");
+
+  interface QuotationsListPage { rows: Quotation[]; total: number; pages: number }
+  const { data: quotationsListResult, isLoading: isLoadingList } = useQuery<QuotationsListPage>({
+    queryKey: ["quotations-list", currentType?._id, currentPage, itemsPerPage],
     queryFn: async () => {
+      if (itemsPerPage === "All") {
+        try {
+          const result = await quotationService.getQuotations(undefined, currentType?._id);
+          const rows = Array.isArray(result) ? result : [];
+          return { rows, total: rows.length, pages: 1 };
+        } catch {
+          return { rows: [], total: 0, pages: 1 };
+        }
+      }
       try {
-        const result = await quotationService.getQuotations(undefined, currentType?._id);
-        return Array.isArray(result) ? result : [];
+        const res: any = await quotationService.getQuotationsList({
+          page: currentPage,
+          limit: itemsPerPage,
+          quotation_type: currentType?._id,
+        });
+        if (Array.isArray(res)) return { rows: [], total: 0, pages: 1 };
+        return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1 };
       } catch {
-        return [];
+        return { rows: [], total: 0, pages: 1 };
       }
     },
     enabled: activeTab === "list",
   });
+  const quotationsList = quotationsListResult?.rows ?? [];
+  const totalQuotations = quotationsListResult?.total ?? 0;
+  const quotationsPageSize = itemsPerPage === "All" ? (totalQuotations || 1) : parseInt(itemsPerPage);
+  const totalQuotationPages = quotationsListResult?.pages ?? 1;
+  const safeQuotationsPage = Math.min(currentPage, totalQuotationPages);
 
   const totalThisMonth = stats?.totalThisMonth ?? 0;
   const acceptedThisMonth = stats?.acceptedThisMonth ?? 0;
@@ -688,7 +714,7 @@ export default function QuotationModule() {
       persistBrandingDefaults();
       queryClient.invalidateQueries({ queryKey: ["quotation-stats"] });
       queryClient.invalidateQueries({ queryKey: ["quotations-recent"] });
-      queryClient.invalidateQueries({ queryKey: ["quotations-all"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations-list"] });
       toast({ title: "Quotation saved", description: "Your quotation has been saved successfully." });
       resetForm();
       setActiveTab("dashboard");
@@ -708,7 +734,7 @@ export default function QuotationModule() {
       persistBrandingDefaults();
       queryClient.invalidateQueries({ queryKey: ["quotation-stats"] });
       queryClient.invalidateQueries({ queryKey: ["quotations-recent"] });
-      queryClient.invalidateQueries({ queryKey: ["quotations-all"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations-list"] });
       toast({ title: "Quotation updated", description: "Your quotation has been updated successfully." });
       resetForm();
       setActiveTab("list");
@@ -727,7 +753,7 @@ export default function QuotationModule() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quotation-stats"] });
       queryClient.invalidateQueries({ queryKey: ["quotations-recent"] });
-      queryClient.invalidateQueries({ queryKey: ["quotations-all"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations-list"] });
       toast({ title: "Deleted", description: "Quotation deleted successfully." });
     },
   });
@@ -838,7 +864,7 @@ export default function QuotationModule() {
 
   const handleSaveAndDownload = () => {
     if (!validate(false)) return;
-    const currentStatus = editingId ? (allQuotations.find((q) => q._id === editingId)?.status || "sent") : "sent";
+    const currentStatus = editingId ? (quotationsList.find((q) => q._id === editingId)?.status || "sent") : "sent";
     const payload = buildPayload(currentStatus);
     const mut = editingId ? updateMutation : createMutation;
     mut.mutate(currentStatus, {
@@ -846,7 +872,7 @@ export default function QuotationModule() {
         const fullData = saved || payload;
         handleDownloadPDF({
           ...fullData,
-          number: fullData.number || (editingId ? allQuotations.find((q) => q._id === editingId)?.number : undefined),
+          number: fullData.number || (editingId ? quotationsList.find((q) => q._id === editingId)?.number : undefined),
           contact_number: contactNumber,
           client_address: address,
           client: { company: selectedClientLabel, phonenumber: contactNumber, address },
@@ -2347,9 +2373,9 @@ export default function QuotationModule() {
                   </Button>
                 </div>
                 <CardContent className="p-0">
-                  {isLoadingAll ? (
+                  {isLoadingList ? (
                     <p className="text-sm text-muted-foreground italic text-center py-12">Loading all quotations...</p>
-                  ) : allQuotations.length === 0 ? (
+                  ) : quotationsList.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-2">
                       <FileBarChart className="h-8 w-8 text-muted-foreground/40" />
                       <p className="text-sm text-muted-foreground italic">No quotations found.</p>
@@ -2371,7 +2397,7 @@ export default function QuotationModule() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/30">
-                          {allQuotations.map((q) => (
+                          {quotationsList.map((q) => (
                             <tr key={q._id} className="hover:bg-muted/20 transition-colors">
                               <td className="px-6 py-3 font-medium text-slate-700">{q.number || "—"}</td>
                               <td className="px-6 py-3 font-medium">{q.client?.company || "—"}</td>
@@ -2412,6 +2438,48 @@ export default function QuotationModule() {
                       </table>
                     </div>
                   )}
+
+                  {/* Pagination Footer */}
+                  <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-6 py-4 border-t border-border/50">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-xs font-bold text-muted-foreground">Rows per page</span>
+                      <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
+                        <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["10", "25", "50", "100", "All"].map((v) => (
+                            <SelectItem key={v} value={v}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs font-bold text-muted-foreground italic">
+                        Showing {totalQuotations === 0 ? 0 : (safeQuotationsPage - 1) * quotationsPageSize + 1} to {Math.min(safeQuotationsPage * quotationsPageSize, totalQuotations)} of {totalQuotations} entries
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-4 rounded-lg font-bold text-xs"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={safeQuotationsPage <= 1}
+                      >
+                        Previous
+                      </Button>
+                      <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">{safeQuotationsPage}</div>
+                      <span className="text-xs text-muted-foreground px-1">of {totalQuotationPages}</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-4 rounded-lg font-bold text-xs"
+                        onClick={() => setCurrentPage((p) => Math.min(totalQuotationPages, p + 1))}
+                        disabled={safeQuotationsPage >= totalQuotationPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             )}

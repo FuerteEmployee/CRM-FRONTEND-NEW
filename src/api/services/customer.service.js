@@ -25,6 +25,23 @@ export const customerService = {
 
   getAllContacts: () => apiClient.get("/clients/contacts/all"),
 
+  /**
+   * Paginated/searchable contacts across all clients. Pass { page, limit,
+   * search } as needed. Named distinctly from getContacts(clientId) above
+   * (that one fetches a single client's contacts) to avoid colliding with
+   * it in this object literal.
+   */
+  getContactsPaginated: (params = {}) => {
+    // Drop undefined/null/"" so callers can pass optional filters without them
+    // literally becoming the string "undefined" in the query (URLSearchParams
+    // stringifies every value it's given, undefined included).
+    const cleaned = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "")
+    );
+    const query = new URLSearchParams(cleaned).toString();
+    return apiClient.get(`/clients/contacts/all${query ? `?${query}` : ""}`);
+  },
+
   createContact: (clientId, data) =>
     apiClient.post(`/clients/${clientId}/contacts`, data),
 

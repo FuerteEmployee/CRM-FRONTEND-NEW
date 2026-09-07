@@ -11,6 +11,20 @@ export const staffService = {
     return Array.isArray(usersData) ? usersData.map(mapUser) : [];
   },
 
+  // Server-paginated variant of getAll — for a genuine staff-directory TABLE
+  // view, not for the dropdown/lookup call sites that need the full list
+  // (those keep using getAll() unchanged).
+  getPage: async (params?: { page?: number; limit?: number; search?: string; role?: string; isActive?: boolean }): Promise<{ data: User[]; total: number; page: number; totalPages: number }> => {
+    // apiClient returns the raw JSON body directly: { success, data: [...], total, page, totalPages }
+    const res = await apiClient.get("/users", { params });
+    return {
+      data: Array.isArray(res.data) ? res.data.map(mapUser) : [],
+      total: typeof res.total === "number" ? res.total : 0,
+      page: typeof res.page === "number" ? res.page : 1,
+      totalPages: typeof res.totalPages === "number" ? res.totalPages : 1,
+    };
+  },
+
   getById: async (id: string): Promise<User | undefined> => {
     try {
       const res = await apiClient.get(`/users/${id}`);

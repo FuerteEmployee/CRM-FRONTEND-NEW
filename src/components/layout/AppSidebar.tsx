@@ -752,33 +752,15 @@ export function AppSidebar() {
           </SidebarMenuButton>
         );
 
-        const quickCreateButton = !collapsed && item.title === "Tasks" && (isAdmin || isStaff || can("Tasks", "Create")) && (
-          <button
-            title="New Task"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (isMobile) setOpenMobile(false);
-              navigate(`${basePath}/tasks?new=1`);
-            }}
-            style={{ zIndex: 10 }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors duration-150 shrink-0"
-          >
-            <Icons.Plus className="h-3.5 w-3.5" />
-          </button>
-        );
-
         const row = (handle?: { attributes: any; listeners: any }) => (
-          <>
-            <div className="flex items-center w-full">
-              {alignHandleGutter && (
-                showHandle && handle
-                  ? <DragHandle attributes={handle.attributes} listeners={handle.listeners} />
-                  : <HandleGutter />
-              )}
-              <div className="flex-1 min-w-0">{button}</div>
-            </div>
-            {quickCreateButton}
-          </>
+          <div className="flex items-center w-full">
+            {alignHandleGutter && (
+              showHandle && handle
+                ? <DragHandle attributes={handle.attributes} listeners={handle.listeners} />
+                : <HandleGutter />
+            )}
+            <div className="flex-1 min-w-0">{button}</div>
+          </div>
         );
 
         if (showHandle) {

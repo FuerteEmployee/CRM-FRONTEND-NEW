@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Building2, Plus, Search, Activity, Trash2,
   Package, CheckCircle2, XCircle, Settings, Clock,
@@ -55,12 +55,22 @@ const DEFAULT_MANAGE = { company_name: "", email: "", password: "", plan_id: "",
 const parseDomains = (value: string) =>
   value.split(",").map((d) => d.trim().toLowerCase()).filter(Boolean);
 
+const DEFAULT_COUNTS = { active: 0, inactive: 0, trial: 0, expired: 0 };
+
 export default function SuperAdminCompanies() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [plans, setPlans] = useState<SaasPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // Server-side pagination — mirrors the pattern used in Estimates.tsx.
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(25);
+  const [total, setTotal] = useState(0);
+  const [pages, setPages] = useState(1);
+  const [counts, setCounts] = useState<typeof DEFAULT_COUNTS>(DEFAULT_COUNTS);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isManageOpen, setIsManageOpen] = useState(false);
@@ -69,23 +79,63 @@ export default function SuperAdminCompanies() {
   const [manageForm, setManageForm] = useState(DEFAULT_MANAGE);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Debounce the search box the same way Estimates.tsx does (350ms) so we
+  // don't fire a request on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Jump back to page 1 whenever the search or status filter changes so we
+  // never end up requesting a page that no longer exists for the new filter.
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, statusFilter]);
+
+  // Only show the full-page skeleton on the very first load — page/search/
+  // status changes (and post-CRUD refreshes) should swap the table rows in
+  // place instead of blanking the whole page every time.
+  const isFirstLoad = useRef(true);
+
   const fetchData = async () => {
     try {
-      setLoading(true);
-      const [tenantsRes, plansRes] = await Promise.all([
-        api.get("/super-admin/tenants"),
-        api.get("/super-admin/plans"),
-      ]);
-      setTenants(tenantsRes);
-      setPlans(plansRes);
+      if (isFirstLoad.current) setLoading(true);
+      const res = await api.get("/super-admin/tenants", {
+        params: {
+          page: currentPage,
+          limit: itemsPerPage,
+          search: debouncedSearch || undefined,
+          status: statusFilter !== "all" ? statusFilter : undefined,
+        },
+      });
+      if (Array.isArray(res)) {
+        // Defensive fallback (e.g. the api client swallowed an error into
+        // `[]`) — still render something rather than crash.
+        setTenants(res);
+        setTotal(res.length);
+        setPages(1);
+        setCounts(DEFAULT_COUNTS);
+      } else {
+        setTenants(res?.data || []);
+        setTotal(res?.total || 0);
+        setPages(res?.pages || 1);
+        setCounts(res?.counts || DEFAULT_COUNTS);
+      }
     } catch (error: any) {
       toast.error(error.message || "Failed to load data");
     } finally {
-      setLoading(false);
+      if (isFirstLoad.current) {
+        setLoading(false);
+        isFirstLoad.current = false;
+      }
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [currentPage, itemsPerPage, debouncedSearch, statusFilter]);
+
+  // The plans list is unrelated to tenant pagination — fetch it once on
+  // mount instead of on every page/search/status change.
+  useEffect(() => {
+    api.get("/super-admin/plans").then(setPlans).catch(() => {});
+  }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,21 +193,9 @@ export default function SuperAdminCompanies() {
     setIsManageOpen(true);
   };
 
-  const filtered = tenants.filter((t) => {
-    const q = search.toLowerCase();
-    const matchSearch =
-      t.company_name.toLowerCase().includes(q) ||
-      (t.owner_id?.email || "").toLowerCase().includes(q);
-    const matchStatus = statusFilter === "all" || t.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
-
-  const counts = {
-    active:   tenants.filter((t) => t.status === "active").length,
-    inactive: tenants.filter((t) => t.status === "inactive").length,
-    trial:    tenants.filter((t) => t.status === "trial").length,
-    expired:  tenants.filter((t) => t.status === "expired").length,
-  };
+  // `tenants` is already the server-paginated, search/status-filtered page
+  // of rows, and `counts`/`total` come straight from the backend — no
+  // client-side filtering pass needed here anymore.
 
   const StatusBadge = ({ status }: { status: Tenant["status"] }) => {
     const cfg = STATUS_CONFIG[status];
@@ -233,10 +271,10 @@ export default function SuperAdminCompanies() {
               {STATUS_CONFIG[statusFilter as Tenant["status"]]?.label} <X className="h-3 w-3" />
             </button>
           )}
-          <span className="text-xs text-gray-400 ml-auto">{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
+          <span className="text-xs text-gray-400 ml-auto">{total} result{total !== 1 ? "s" : ""}</span>
         </div>
 
-        {filtered.length === 0 ? (
+        {tenants.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="p-4 bg-blue-50 rounded-full mb-4">
               <Building2 className="h-8 w-8 text-blue-400" />
@@ -247,6 +285,7 @@ export default function SuperAdminCompanies() {
             </p>
           </div>
         ) : (
+          <>
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-gray-50 border-b border-gray-200">
@@ -261,7 +300,7 @@ export default function SuperAdminCompanies() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((tenant) => (
+                {tenants.map((tenant) => (
                   <tr key={tenant._id} className="hover:bg-gray-50 transition-colors group">
                     {/* Company */}
                     <td className="px-6 py-4">
@@ -438,6 +477,35 @@ export default function SuperAdminCompanies() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Footer */}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 px-6 py-4 border-t border-gray-200">
+            <p className="text-xs text-gray-500">
+              Showing {total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, total)} of {total} result{total !== 1 ? "s" : ""}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-4 text-xs font-medium"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+              >
+                Previous
+              </Button>
+              <span className="text-xs text-gray-500 px-1">Page {currentPage} of {pages}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-4 text-xs font-medium"
+                onClick={() => setCurrentPage((p) => Math.min(pages, p + 1))}
+                disabled={currentPage >= pages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+          </>
         )}
       </div>
     </div>

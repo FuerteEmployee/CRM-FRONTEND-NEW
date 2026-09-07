@@ -26,6 +26,24 @@ export const employeeService = {
     }
   },
 
+  // Server-paginated variant of getAttendance — preserves the full envelope
+  // (total/page/pages) instead of stripping it down to a bare array. Used by
+  // consumers that need real pagination (e.g. AttendanceDashboardPage).
+  getAttendancePage: async (params?: any): Promise<{ data: any[]; total: number; page: number; pages: number }> => {
+    try {
+      // apiClient returns the raw JSON body directly: { success, data: [...], total, page, pages, limit }
+      const res = await apiClient.get("/attendance", { params });
+      return {
+        data: Array.isArray(res.data) ? res.data : [],
+        total: typeof res.total === "number" ? res.total : 0,
+        page: typeof res.page === "number" ? res.page : 1,
+        pages: typeof res.pages === "number" ? res.pages : 1,
+      };
+    } catch {
+      return { data: [], total: 0, page: 1, pages: 1 };
+    }
+  },
+
   getAttendanceById: async (id: string): Promise<any> => {
     const res = await apiClient.get(`/attendance/${id}`);
     return res.data?.data || res.data;
@@ -53,6 +71,18 @@ export const employeeService = {
   getLeaves: async (params?: any): Promise<any[]> => {
     const res = await apiClient.get("/leaves/requests", { params });
     return res.data?.data || res.data || [];
+  },
+
+  // Server-paginated variant of getLeaves — preserves total/page/pages
+  // instead of stripping the envelope down to a bare array.
+  getLeavesPage: async (params?: any): Promise<{ data: any[]; total: number; page: number; pages: number }> => {
+    const res = await apiClient.get("/leaves/requests", { params });
+    return {
+      data: Array.isArray(res.data) ? res.data : [],
+      total: typeof res.total === "number" ? res.total : (Array.isArray(res.data) ? res.data.length : 0),
+      page: typeof res.page === "number" ? res.page : 1,
+      pages: typeof res.pages === "number" ? res.pages : 1,
+    };
   },
 
   getLeaveBalances: async (): Promise<any[]> => {

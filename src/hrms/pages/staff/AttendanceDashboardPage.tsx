@@ -99,6 +99,12 @@ const AttendanceDashboardPage: React.FC = () => {
   const [shiftFilter, setShiftFilter] = useState<string>("all");
   const selectedDateStr = useMemo(() => format(selectedMonth, "yyyy-MM-dd"), [selectedMonth]);
 
+  // Server-side pagination for the Records table (attendance list only —
+  // the Absent chip still uses the separate, unbounded getAbsentEmployees call).
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
+  const [attendanceTotal, setAttendanceTotal] = useState(0);
+
   // Admin punch correction dialog state
   const [overrideTarget, setOverrideTarget] = useState<{ userId: string; name: string; date: string } | null>(null);
   const [overridePunchIn, setOverridePunchIn] = useState("");
@@ -181,40 +187,61 @@ const AttendanceDashboardPage: React.FC = () => {
       const branchParam = selectedBranch === "all" ? undefined : selectedBranch;
       const shiftParam = shiftFilter === "all" ? undefined : shiftFilter;
 
-      // Always pull the full unfiltered set for the selected date — this
-      // drives the "Present" stat tile and the absent list, independent of
-      // whichever status chip is currently selected.
+      // Always pull the (paginated) unfiltered set for the selected date —
+      // its `total` drives the "Present" stat tile independent of whichever
+      // status chip is currently selected. When the "all" chip is active this
+      // same call also serves as the paginated table data, so it fetches the
+      // current page in that case; otherwise it only needs the total count.
+      const wantsAllAsDisplay = statusFilter === "all";
       const [allForDate, absentData] = await Promise.all([
-        employeeApi.getAttendance({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
+        employeeApi.getAttendancePage({
+          date: dateStr,
+          hrmsBranchId: branchParam,
+          shiftId: shiftParam,
+          page: wantsAllAsDisplay ? currentPage : 1,
+          limit: wantsAllAsDisplay ? pageSize : 1,
+        }),
         employeeApi.getAbsentEmployees({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
       ]);
-      setDatePresentCount(allForDate.length);
+      setDatePresentCount(allForDate.total);
       setDateAbsentees(absentData);
 
       if (statusFilter === "Absent") {
         setAbsentList(absentData);
         setAttendance([]);
+        setAttendanceTotal(absentData.length);
       } else if (statusFilter === "all") {
-        setAttendance(allForDate);
+        setAttendance(allForDate.data);
         setAbsentList([]);
+        setAttendanceTotal(allForDate.total);
       } else {
-        const filtered = await employeeApi.getAttendance({
+        const filtered = await employeeApi.getAttendancePage({
           date: dateStr,
           hrmsBranchId: branchParam,
           shiftId: shiftParam,
           statusFilter,
+          page: currentPage,
+          limit: pageSize,
         });
-        setAttendance(filtered);
+        setAttendance(filtered.data);
         setAbsentList([]);
+        setAttendanceTotal(filtered.total);
       }
     } catch {
       toast({ title: "Failed to load attendance", variant: "destructive" });
     } finally {
       setAttLoading(false);
     }
-  }, [selectedMonth, selectedBranch, shiftFilter, statusFilter]);
+  }, [selectedMonth, selectedBranch, shiftFilter, statusFilter, currentPage, pageSize]);
 
   useEffect(() => { fetchAtt(); }, [fetchAtt]);
+
+  // Reset back to page 1 whenever the date/branch/shift/status filter changes
+  // (a stale currentPage from a previous, larger result set could otherwise
+  // point past the end of a smaller filtered set).
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedMonth, selectedBranch, shiftFilter, statusFilter]);
 
   // Live-refresh when anyone punches in/out today — without this, the stat
   // tiles and Records table only ever update on a manual reload or filter
@@ -292,26 +319,7 @@ const AttendanceDashboardPage: React.FC = () => {
       });
       toast({ title: "Attendance Corrected", description: `${overrideTarget.name} — ${overrideStatus || correctionCalc?.label || "updated"}.` });
       setOverrideTarget(null);
-      const branchParam = selectedBranch === "all" ? undefined : selectedBranch;
-      const shiftParam = shiftFilter === "all" ? undefined : shiftFilter;
-      const dateStr = format(selectedMonth, "yyyy-MM-dd");
-      const [allForDate, absentData] = await Promise.all([
-        employeeApi.getAttendance({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
-        employeeApi.getAbsentEmployees({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
-      ]);
-      setDatePresentCount(allForDate.length);
-      setDateAbsentees(absentData);
-      if (statusFilter === "Absent") {
-        setAbsentList(absentData);
-        setAttendance([]);
-      } else if (statusFilter === "all") {
-        setAttendance(allForDate);
-        setAbsentList([]);
-      } else {
-        const filtered = await employeeApi.getAttendance({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam, statusFilter });
-        setAttendance(filtered);
-        setAbsentList([]);
-      }
+      await fetchAtt();
     } catch {
       toast({ title: "Error", description: "Failed to correct attendance", variant: "destructive" });
     } finally {
@@ -531,6 +539,9 @@ const AttendanceDashboardPage: React.FC = () => {
         ) : (
           <DataTable
             data={displayData}
+            {...(statusFilter === "Absent"
+              ? {}
+              : { totalItems: attendanceTotal, currentPage, onPageChange: setCurrentPage, pageSize })}
             columns={statusFilter === "Absent" ? [
               {
                 header: "Staff",
