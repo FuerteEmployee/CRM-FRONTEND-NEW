@@ -53,6 +53,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useQuery, useQueryClient, useMutation, keepPreviousData } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { financeService } from "@/api/services/finance.service";
+import { customerService } from "@/api/services/customer.service";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
@@ -61,6 +63,9 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useCurrency } from "@/context/CurrencyContext";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const Payments = () => {
@@ -77,9 +82,126 @@ const Payments = () => {
   const [paymentForm, setPaymentForm] = useState({ amount: "", date: "", paymentmode: "", paymentmethod: "", transactionid: "", note: "", companyName: "", voucherNumber: "", billDate: "", journal: "" });
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { toast } = useToast();
-  const { can } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
   const { symbol } = useCurrency();
   const queryClient = useQueryClient();
+
+  // "New Payment" (a standalone, non-invoice payment entry with a Branch
+  // field) is a Trinetra-pilot-only feature, same gating as Branch on
+  // Invoices/Purchases/Projects — not available for other tenants.
+  const isPilot = isTrinetraPilotUser(user?.email);
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+
+  // Branch list (HRMS branch master) — the first field in New Payment, so
+  // the customer dropdown below it can be server-filtered down to just that
+  // branch's customers instead of showing the whole tenant's list.
+  const { data: hrmsBranches = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r: any) => r.data || []),
+    enabled: isPilot,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const [isNewPaymentOpen, setIsNewPaymentOpen] = useState(false);
+  const emptyNewPaymentForm = {
+    branchId: "", branch: "", client: "", companyName: "", invoice: "", voucherNumber: "", amount: "", date: "",
+    billDate: "", paymentmode: "", journal: "", paymentmethod: "", transactionid: "", note: "",
+  };
+  const [newPaymentForm, setNewPaymentForm] = useState(emptyNewPaymentForm);
+
+  // Customers for the selected branch only — a real server-side filter
+  // (GET /clients?branch=<id>), not a client-side filter over every
+  // customer, so this stays fast as the customer list grows.
+  const { data: branchClients = [] } = useQuery<any[]>({
+    queryKey: ["customers-by-branch", newPaymentForm.branchId],
+    queryFn: () =>
+      customerService
+        .getAll({ branch: newPaymentForm.branchId, limit: 500 })
+        .then((r: any) => (Array.isArray(r) ? r : r?.data || [])),
+    enabled: isPilot && !!newPaymentForm.branchId,
+  });
+
+  // That customer's invoices — also a real server fetch (GET /invoices?client=<id>),
+  // so the payment can be tied to a real invoice instead of only a free-text
+  // voucher. Linking an invoice here is what makes the invoice's paid/
+  // partially-paid/unpaid status recompute automatically once the payment
+  // is saved (handled server-side in InvoiceService.updateStatus).
+  const { data: clientInvoices = [] } = useQuery<any[]>({
+    queryKey: ["invoices-by-client", newPaymentForm.client],
+    queryFn: () =>
+      salesService.getInvoices({ client: newPaymentForm.client }).then((r: any) => (Array.isArray(r) ? r : r?.data || [])),
+    enabled: isPilot && !!newPaymentForm.client,
+  });
+
+  const handleSelectBranch = (branchId: string) => {
+    const branch = hrmsBranches.find((b: any) => b._id === branchId);
+    setNewPaymentForm(() => ({
+      ...emptyNewPaymentForm,
+      branchId,
+      branch: branch?.name || "",
+    }));
+  };
+
+  const handleSelectPaymentClient = (clientId: string) => {
+    const client = branchClients.find((c: any) => c._id === clientId);
+    setNewPaymentForm((p) => ({
+      ...p,
+      client: clientId,
+      companyName: client?.company || p.companyName,
+      invoice: "",
+      voucherNumber: "",
+    }));
+  };
+
+  const handleSelectPaymentInvoice = (invoiceId: string) => {
+    const invoice = clientInvoices.find((i: any) => i._id === invoiceId);
+    setNewPaymentForm((p) => ({
+      ...p,
+      invoice: invoiceId,
+      voucherNumber: invoice?.number || p.voucherNumber,
+    }));
+  };
+
+  const createMutation = useMutation({
+    mutationFn: (data: any) => salesService.createPayment(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payments"] });
+      if (newPaymentForm.invoice) queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast({
+        title: "Payment Recorded",
+        description: newPaymentForm.invoice
+          ? "Payment added — the invoice's paid status has been recalculated."
+          : "New payment has been added.",
+        className: "bg-green-600 text-white font-bold rounded-2xl",
+      });
+      setIsNewPaymentOpen(false);
+      setNewPaymentForm(emptyNewPaymentForm);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.response?.data?.message || err.message || "Failed to record payment.", variant: "destructive" }),
+  });
+
+  const handleCreatePayment = () => {
+    const amount = Number(newPaymentForm.amount);
+    if (!amount || amount <= 0) {
+      toast({ title: "Validation Error", description: "Enter a valid amount received.", variant: "destructive" });
+      return;
+    }
+    createMutation.mutate({
+      client: newPaymentForm.client || undefined,
+      invoice: newPaymentForm.invoice || undefined,
+      companyName: newPaymentForm.companyName,
+      branch: newPaymentForm.branch,
+      voucherNumber: newPaymentForm.voucherNumber,
+      amount,
+      date: newPaymentForm.date,
+      billDate: newPaymentForm.billDate,
+      paymentmode: newPaymentForm.paymentmode,
+      journal: newPaymentForm.journal,
+      paymentmethod: newPaymentForm.paymentmethod,
+      transactionid: newPaymentForm.transactionid,
+      note: newPaymentForm.note,
+    });
+  };
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
   const [bulkState, setBulkState] = useState({ massDelete: false });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
@@ -382,6 +504,16 @@ const Payments = () => {
               ]}
             />
             <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            {isPilot && can("Payments", "create") && (
+              <Button
+                size="sm"
+                className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest"
+                onClick={() => setIsNewPaymentOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New Payment
+              </Button>
+            )}
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -784,6 +916,171 @@ const Payments = () => {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isNewPaymentOpen} onOpenChange={(open) => { setIsNewPaymentOpen(open); if (!open) setNewPaymentForm(emptyNewPaymentForm); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">New Payment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            {canUseBranch && (
+              <div>
+                <Label className="text-sm font-medium block mb-1.5">Branch</Label>
+                <SearchableSelect
+                  options={hrmsBranches.map((b: any) => ({ label: b.name, value: b._id }))}
+                  value={newPaymentForm.branchId}
+                  onValueChange={handleSelectBranch}
+                  placeholder="Select a branch first..."
+                />
+              </div>
+            )}
+            <div>
+              <Label className="text-sm font-medium block mb-1.5">Customer</Label>
+              <SearchableSelect
+                options={branchClients.map((c: any) => ({ label: c.company || c.firstname || "Unnamed", value: c._id }))}
+                value={newPaymentForm.client}
+                onValueChange={handleSelectPaymentClient}
+                disabled={canUseBranch && !newPaymentForm.branchId}
+                placeholder={canUseBranch && !newPaymentForm.branchId ? "Select a branch first" : "Select a customer..."}
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium block mb-1.5">Invoice (optional)</Label>
+              <SearchableSelect
+                options={clientInvoices.map((i: any) => ({
+                  label: `${i.number} — ₹${(i.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })} (${i.status})`,
+                  value: i._id,
+                }))}
+                value={newPaymentForm.invoice}
+                onValueChange={handleSelectPaymentInvoice}
+                disabled={!newPaymentForm.client}
+                placeholder={!newPaymentForm.client ? "Select a customer first" : "Link to an invoice, or leave blank for a standalone voucher"}
+              />
+              {newPaymentForm.invoice && (
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Saving this payment will recalculate that invoice's paid status automatically.
+                </p>
+              )}
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium block mb-1.5">Company Name</Label>
+                <Input
+                  value={newPaymentForm.companyName}
+                  onChange={(e) => setNewPaymentForm(p => ({ ...p, companyName: e.target.value }))}
+                  className="rounded-lg border-border/60"
+                  placeholder="Company name"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium block mb-1.5">Voucher Number</Label>
+                <Input
+                  value={newPaymentForm.voucherNumber}
+                  onChange={(e) => setNewPaymentForm(p => ({ ...p, voucherNumber: e.target.value }))}
+                  className="rounded-lg border-border/60"
+                  placeholder="Voucher number"
+                />
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm font-medium block mb-1.5">Amount Received</Label>
+              <Input
+                type="number"
+                value={newPaymentForm.amount}
+                onChange={(e) => setNewPaymentForm(p => ({ ...p, amount: e.target.value }))}
+                className="rounded-lg border-border/60"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium block mb-1.5">Payment Date</Label>
+                <Input
+                  type="date"
+                  value={newPaymentForm.date}
+                  onChange={(e) => setNewPaymentForm(p => ({ ...p, date: e.target.value }))}
+                  className="rounded-lg border-border/60"
+                />
+              </div>
+              <div>
+                <Label className="text-sm font-medium block mb-1.5">Bill Date</Label>
+                <Input
+                  type="date"
+                  value={newPaymentForm.billDate}
+                  onChange={(e) => setNewPaymentForm(p => ({ ...p, billDate: e.target.value }))}
+                  className="rounded-lg border-border/60"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium block mb-1.5">Payment Mode</Label>
+                <Select value={newPaymentForm.paymentmode} onValueChange={(v) => setNewPaymentForm(p => ({ ...p, paymentmode: v }))}>
+                  <SelectTrigger className="rounded-lg border-border/60">
+                    <SelectValue placeholder="Select mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentModes.length > 0 ? (
+                      paymentModes.map((m: any) => (
+                        <SelectItem key={m._id} value={m.name}>{m.name}</SelectItem>
+                      ))
+                    ) : (
+                      <>
+                        <SelectItem value="bank">Bank</SelectItem>
+                        <SelectItem value="cash">Cash</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium block mb-1.5">Journal</Label>
+                <Select value={newPaymentForm.journal} onValueChange={(v) => setNewPaymentForm(p => ({ ...p, journal: v }))}>
+                  <SelectTrigger className="rounded-lg border-border/60">
+                    <SelectValue placeholder="Select journal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sales">Sales</SelectItem>
+                    <SelectItem value="purchase">Purchase</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label className="text-sm font-medium block mb-1.5">Payment Method</Label>
+              <Input
+                value={newPaymentForm.paymentmethod}
+                onChange={(e) => setNewPaymentForm(p => ({ ...p, paymentmethod: e.target.value }))}
+                className="rounded-lg border-border/60"
+                placeholder="e.g. Bank Transfer"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium block mb-1.5">Transaction ID</Label>
+              <Input
+                value={newPaymentForm.transactionid}
+                onChange={(e) => setNewPaymentForm(p => ({ ...p, transactionid: e.target.value }))}
+                className="rounded-lg border-border/60"
+                placeholder="Optional"
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium block mb-1.5">Note</Label>
+              <Textarea
+                value={newPaymentForm.note}
+                onChange={(e) => setNewPaymentForm(p => ({ ...p, note: e.target.value }))}
+                className="rounded-lg border-border/60 min-h-[80px] resize-none"
+                placeholder="Optional note..."
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="ghost" onClick={() => setIsNewPaymentOpen(false)}>Cancel</Button>
+              <Button className="rounded-lg" onClick={handleCreatePayment} disabled={createMutation.isPending}>
+                {createMutation.isPending ? "Saving..." : "Save Payment"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </DashboardLayout>
