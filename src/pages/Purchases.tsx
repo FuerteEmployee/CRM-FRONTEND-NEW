@@ -187,6 +187,11 @@ const Purchases = () => {
   const [editingPurchase, setEditingPurchase] = useState<any>(null);
   const [formData, setFormData] = useState<any>(emptyForm);
   const [freightTouched, setFreightTouched] = useState(false);
+  // Products already added to the bill being created/edited — the "Product &
+  // Amount" fields below are the draft row for the *next* item, mirroring
+  // Invoice Create's items table. Left empty means "just this one product",
+  // which keeps today's single-line behavior exactly as it was.
+  const [lineItems, setLineItems] = useState<any[]>([]);
   const [itemsPerPage, setItemsPerPage] = useState<number | "all">(25);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -210,7 +215,7 @@ const Purchases = () => {
     }
   }, [isPilot, formData.amount, freightTouched, isModalOpen]);
 
-  useOpenCreateModal(() => { setEditingPurchase(null); setFormData(getNewPurchaseForm()); setFreightTouched(false); setIsModalOpen(true); });
+  useOpenCreateModal(() => { setEditingPurchase(null); setFormData(getNewPurchaseForm()); setFreightTouched(false); setLineItems([]); setIsModalOpen(true); });
 
   // Paginated server-side once a finite page size is chosen; "all" keeps
   // the legacy full fetch, filtered client-side exactly as this page always
@@ -519,13 +524,31 @@ const Purchases = () => {
     setIsModalOpen(false);
     setEditingPurchase(null);
     setFormData(emptyForm);
+    setLineItems([]);
   };
 
   const handleEdit = (p: any) => {
     setEditingPurchase(p);
+    // A bill saved with multiple products carries its own `items` array — load
+    // those into the table and leave the draft row empty for adding more.
+    // A legacy/imported single-line bill has no items array; keep loading it
+    // straight into the draft row exactly as this always has, so editing an
+    // old purchase still looks and behaves the same as before.
+    const hasMultipleItems = Array.isArray(p.items) && p.items.length > 0;
+    setLineItems(hasMultipleItems ? p.items.map((it: any) => ({
+      id: Math.random().toString(36).substring(2, 9),
+      item_id: it.item_id?._id || it.item_id || "",
+      product: it.product || "",
+      hsn_code: it.hsn_code || "",
+      quantity: it.quantity ?? 1,
+      rate: it.rate ?? 0,
+      amount: it.amount ?? 0,
+      freight_charge: it.freight_charge ?? 0,
+      gst_rate: it.gst_rate ?? 0,
+    })) : []);
     setFormData({
       vendor_id: p.vendor_id?._id || p.vendor_id || "",
-      item_id: p.item_id?._id || p.item_id || "",
+      item_id: hasMultipleItems ? "" : (p.item_id?._id || p.item_id || ""),
       supplier_name: p.supplier_name || "",
       supplier_address: p.supplier_address || "",
       // Blank supplier_state with tax_type "IGST" means this bill was correctly
@@ -540,13 +563,13 @@ const Purchases = () => {
       due_date: toDateInput(p.due_date),
       voucher_type: p.voucher_type || "",
       branch: p.branch || "",
-      product: p.product || "",
-      hsn_code: p.hsn_code || "",
-      quantity: (p.quantity ?? 1).toString(),
-      rate: (p.rate ?? 0) ? p.rate.toString() : "",
-      amount: p.amount?.toString() || "",
-      freight_charge: (p.freight_charge ?? 0) ? p.freight_charge.toString() : "",
-      gst_rate: (p.gst_rate ?? 18).toString(),
+      product: hasMultipleItems ? "" : (p.product || ""),
+      hsn_code: hasMultipleItems ? "" : (p.hsn_code || ""),
+      quantity: hasMultipleItems ? "1" : (p.quantity ?? 1).toString(),
+      rate: hasMultipleItems ? "" : ((p.rate ?? 0) ? p.rate.toString() : ""),
+      amount: hasMultipleItems ? "" : (p.amount?.toString() || ""),
+      freight_charge: hasMultipleItems ? "" : ((p.freight_charge ?? 0) ? p.freight_charge.toString() : ""),
+      gst_rate: hasMultipleItems ? (simplifiedRegister ? "0" : "18") : (p.gst_rate ?? 18).toString(),
       payment_status: p.payment_status || "Unpaid",
       payment_date: toDateInput(p.payment_date),
       paymentmode: p.paymentmode || "",
@@ -555,7 +578,7 @@ const Purchases = () => {
       sales_person: p.sales_person || "",
       note: p.note || "",
     });
-    setFreightTouched(!!p.freight_charge);
+    setFreightTouched(hasMultipleItems ? false : !!p.freight_charge);
     setIsModalOpen(true);
   };
 
@@ -620,29 +643,109 @@ const Purchases = () => {
     });
   };
 
+  // Pushes the current draft row (Product & Amount fields) onto the bill's
+  // item list, then clears the draft so another product can be entered —
+  // same "add row, keep going" flow as Invoice Create's items table.
+  const addLineItem = () => {
+    const amt = parseFloat(formData.amount) || 0;
+    if (!(amt > 0)) {
+      toast({ title: "Error", description: "Enter a price (or Qty × Rate) before adding the item", variant: "destructive" });
+      return;
+    }
+    setLineItems((items) => [...items, {
+      id: Math.random().toString(36).substring(2, 9),
+      item_id: formData.item_id || "",
+      product: formData.product || "",
+      hsn_code: formData.hsn_code || "",
+      quantity: parseFloat(formData.quantity) || 0,
+      rate: parseFloat(formData.rate) || 0,
+      amount: amt,
+      freight_charge: parseFloat(formData.freight_charge) || 0,
+      gst_rate: parseFloat(formData.gst_rate) || 0,
+    }]);
+    toast({ title: "Item added", description: formData.product ? `"${formData.product}" added to the bill.` : "Item added to the bill." });
+    setFormData((f: any) => ({
+      ...f,
+      item_id: "",
+      product: "",
+      hsn_code: "",
+      quantity: "1",
+      rate: "",
+      amount: "",
+      freight_charge: "",
+      gst_rate: simplifiedRegister ? "0" : "18",
+    }));
+    setFreightTouched(false);
+  };
+
+  const removeLineItem = (id: string) => setLineItems((items) => items.filter((it) => it.id !== id));
+
   const handleSave = () => {
     if (canUseBranch && !formData.branch) {
       toast({ title: "Error", description: "Branch is required", variant: "destructive" });
       return;
     }
-    if (!formData.bill_no || !formData.supplier_name || !(parseFloat(formData.amount) > 0)) {
-      toast({ title: "Error", description: "Bill Reference, Company Name and Price are required", variant: "destructive" });
+    if (!formData.bill_no || !formData.supplier_name) {
+      toast({ title: "Error", description: "Bill Reference and Company Name are required", variant: "destructive" });
       return;
     }
     if (vendorLinkageEnabled && !formData.vendor_id) {
       toast({ title: "Error", description: "Please select a vendor", variant: "destructive" });
       return;
     }
-    const payload = {
+
+    const payload: any = {
       ...formData,
-      quantity: parseFloat(formData.quantity) || 0,
-      rate: parseFloat(formData.rate) || 0,
-      amount: parseFloat(formData.amount) || 0,
-      freight_charge: parseFloat(formData.freight_charge) || 0,
-      gst_rate: parseFloat(formData.gst_rate) || 0,
       due_date: formData.due_date || null,
       payment_date: formData.payment_date || null,
     };
+
+    if (simplifiedRegister) {
+      // Unchanged legacy single-amount flow — always one flat line, no items table.
+      if (!(parseFloat(formData.amount) > 0)) {
+        toast({ title: "Error", description: "Amount is required", variant: "destructive" });
+        return;
+      }
+      payload.quantity = parseFloat(formData.quantity) || 0;
+      payload.rate = parseFloat(formData.rate) || 0;
+      payload.amount = parseFloat(formData.amount) || 0;
+      payload.freight_charge = parseFloat(formData.freight_charge) || 0;
+      payload.gst_rate = parseFloat(formData.gst_rate) || 0;
+    } else {
+      // Whatever's still sitting in the draft row counts as one more item —
+      // so filling the fields once and hitting Save (without ever clicking
+      // "Add Item") still creates a normal single-product bill, exactly like
+      // it always has.
+      const draftAmt = parseFloat(formData.amount) || 0;
+      const items = draftAmt > 0
+        ? [...lineItems, {
+            item_id: formData.item_id || undefined,
+            product: formData.product || "",
+            hsn_code: formData.hsn_code || "",
+            quantity: parseFloat(formData.quantity) || 0,
+            rate: parseFloat(formData.rate) || 0,
+            amount: draftAmt,
+            freight_charge: parseFloat(formData.freight_charge) || 0,
+            gst_rate: parseFloat(formData.gst_rate) || 0,
+          }]
+        : lineItems;
+
+      if (items.length === 0) {
+        toast({ title: "Error", description: "Add at least one product with a price", variant: "destructive" });
+        return;
+      }
+
+      payload.items = items;
+      delete payload.product;
+      delete payload.hsn_code;
+      delete payload.quantity;
+      delete payload.rate;
+      delete payload.amount;
+      delete payload.freight_charge;
+      delete payload.gst_rate;
+      delete payload.item_id; // per-item item_id now lives inside payload.items[]
+    }
+
     if (editingPurchase) {
       updateMutation.mutate({ id: editingPurchase._id, data: payload });
     } else {
@@ -650,26 +753,42 @@ const Purchases = () => {
     }
   };
 
-  // Live preview — mirrors the backend: taxable = price + freight, tax by state,
-  // grand total rounded to the rupee with round-off shown.
+  // Live preview — mirrors the backend: each item's taxable value is its own
+  // price + freight, taxed at its own GST rate, then summed for the bill.
+  // Includes whatever's currently in the draft row (not yet "added") so the
+  // preview stays live while typing, same as the single-item flow always was.
   const taxPreview = useMemo(() => {
-    const amount = parseFloat(formData.amount) || 0;
-    const freight = parseFloat(formData.freight_charge) || 0;
-    const rate = parseFloat(formData.gst_rate) || 0;
-    const taxable = amount + freight;
-    const tax = (taxable * rate) / 100;
+    const draftAmt = parseFloat(formData.amount) || 0;
+    const effectiveItems = draftAmt > 0
+      ? [...lineItems, { amount: draftAmt, freight_charge: formData.freight_charge, gst_rate: formData.gst_rate }]
+      : lineItems;
+
+    let subtotal = 0;
+    let freightTotal = 0;
+    let taxTotal = 0;
+    effectiveItems.forEach((it: any) => {
+      const amt = Number(it.amount) || 0;
+      const fr = Number(it.freight_charge) || 0;
+      const gr = Number(it.gst_rate) || 0;
+      subtotal += amt;
+      freightTotal += fr;
+      taxTotal += (amt + fr) * (gr / 100);
+    });
+
     const intra = isIntraState(formData.supplier_state, formData.supplier_gstin);
-    const rawTotal = Math.round((taxable + tax) * 100) / 100;
+    const rawTotal = Math.round((subtotal + freightTotal + taxTotal) * 100) / 100;
     const total = Math.round(rawTotal);
     return {
       intra,
-      cgst: intra ? tax / 2 : 0,
-      sgst: intra ? tax / 2 : 0,
-      igst: intra ? 0 : tax,
+      subtotal,
+      freightTotal,
+      cgst: intra ? taxTotal / 2 : 0,
+      sgst: intra ? taxTotal / 2 : 0,
+      igst: intra ? 0 : taxTotal,
       roundOff: Math.round((total - rawTotal) * 100) / 100,
       total,
     };
-  }, [formData.amount, formData.freight_charge, formData.gst_rate, formData.supplier_state, formData.supplier_gstin]);
+  }, [lineItems, formData.amount, formData.freight_charge, formData.gst_rate, formData.supplier_state, formData.supplier_gstin]);
 
   // Only needed in "all" mode: the server already applies this exact
   // search/vendor/branch filtering when paginated, so `purchases` there is
@@ -1307,45 +1426,33 @@ const Purchases = () => {
                     />
                   </div>
                 )}
+                {/* Fields read left-to-right, top-to-bottom in the order you'd fill
+                    a bill by hand: what the item is, how much of it, what it costs,
+                    what's added on top, then how it's taxed. */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-1.5 col-span-2">
-                    <Label className={labelCls}>{simplifiedRegister ? "Particulars (Item)" : "Product"}</Label>
+                    <Label className={labelCls}>{simplifiedRegister ? "Particulars (Item)" : "1. Product"}</Label>
                     <Input value={formData.product} onChange={(e) => setField("product", e.target.value)} placeholder="Product / goods description" className={inputCls} />
                   </div>
                   {!simplifiedRegister && (
-                    <>
-                      <div className="space-y-1.5">
-                        <Label className={labelCls}>HSN/SAC Code</Label>
-                        <Input value={formData.hsn_code} onChange={(e) => setField("hsn_code", e.target.value)} placeholder="e.g. 8471" className={inputCls} />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className={labelCls}>GST Rate %</Label>
-                        <Select value={formData.gst_rate} onValueChange={(v) => setField("gst_rate", v)}>
-                          <SelectTrigger className={`${inputCls} bg-white font-medium`}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {GST_RATES.map((r) => (
-                              <SelectItem key={r} value={r}>{r}%</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </>
+                    <div className="space-y-1.5">
+                      <Label className={labelCls}>HSN/SAC Code</Label>
+                      <Input value={formData.hsn_code} onChange={(e) => setField("hsn_code", e.target.value)} placeholder="e.g. 8471" className={inputCls} />
+                    </div>
                   )}
                   <div className="space-y-1.5">
-                    <Label className={labelCls}>Quantity</Label>
+                    <Label className={labelCls}>2. Quantity</Label>
                     <Input type="number" value={formData.quantity} onChange={(e) => setQtyRate("quantity", e.target.value)} placeholder="1" className={inputCls} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className={labelCls}>Rate</Label>
+                    <Label className={labelCls}>3. Rate</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
                       <Input type="number" value={formData.rate} onChange={(e) => setQtyRate("rate", e.target.value)} placeholder="0.00" className={`${inputCls} pl-7`} />
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className={labelCls}>{simplifiedRegister ? "* Amount" : "* Price (Qty × Rate)"}</Label>
+                    <Label className={labelCls}>{simplifiedRegister ? "* Amount" : "4. Price (Qty × Rate)"}</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
                       <Input type="number" value={formData.amount} onChange={(e) => setField("amount", e.target.value)} placeholder="0.00" className={`${inputCls} pl-7`} />
@@ -1353,14 +1460,87 @@ const Purchases = () => {
                   </div>
                   {!simplifiedRegister && isPilot && (
                     <div className="space-y-1.5">
-                      <Label className={labelCls}>Freight Charge</Label>
+                      <Label className={labelCls}>5. Freight Charge</Label>
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
                         <Input type="number" value={formData.freight_charge} onChange={(e) => { setFreightTouched(true); setField("freight_charge", e.target.value); }} placeholder="0.00" className={`${inputCls} pl-7`} />
                       </div>
                     </div>
                   )}
+                  {!simplifiedRegister && (
+                    <div className="space-y-1.5">
+                      <Label className={labelCls}>6. GST Rate % → CGST/SGST</Label>
+                      <Select value={formData.gst_rate} onValueChange={(v) => setField("gst_rate", v)}>
+                        <SelectTrigger className={`${inputCls} bg-white font-medium`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {GST_RATES.map((r) => (
+                            <SelectItem key={r} value={r}>{r}%</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
+
+                {!simplifiedRegister && (
+                  <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-3">
+                    <p className="text-[11px] text-slate-500">
+                      {lineItems.length === 0
+                        ? "Only one product on this bill? Just fill the fields above and hit Save Purchase below — no need to click Add."
+                        : `${lineItems.length} item${lineItems.length > 1 ? "s" : ""} added so far. Fill the fields above for another product, or Save Purchase to finish.`}
+                    </p>
+                    <Button type="button" onClick={addLineItem} className="gap-2 font-bold shrink-0">
+                      <Plus className="h-4 w-4" /> Add Another Product
+                    </Button>
+                  </div>
+                )}
+
+                {!simplifiedRegister && lineItems.length > 0 && (
+                  <div className="mt-4 rounded-xl border border-slate-200 overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-slate-50 text-slate-500 font-black uppercase tracking-widest text-[10px]">
+                        <tr>
+                          <th className="p-3 text-left">Product</th>
+                          <th className="p-3 text-left">HSN</th>
+                          <th className="p-3 text-left">Qty</th>
+                          <th className="p-3 text-left">Rate</th>
+                          <th className="p-3 text-left">Sub Total</th>
+                          <th className="p-3 text-left">Freight</th>
+                          <th className="p-3 text-left">GST %</th>
+                          <th className="p-3 text-left">Tax Amount</th>
+                          <th className="p-3 text-left">Amount</th>
+                          <th className="p-3" />
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {lineItems.map((it) => {
+                          const taxable = (Number(it.amount) || 0) + (Number(it.freight_charge) || 0);
+                          const taxAmt = taxable * ((Number(it.gst_rate) || 0) / 100);
+                          return (
+                            <tr key={it.id}>
+                              <td className="p-3 font-semibold text-slate-700">{it.product || "-"}</td>
+                              <td className="p-3 text-slate-500">{it.hsn_code || "-"}</td>
+                              <td className="p-3 text-slate-500">{it.quantity}</td>
+                              <td className="p-3 text-slate-500">{money(it.rate)}</td>
+                              <td className="p-3 font-semibold text-slate-700">{money(it.amount)}</td>
+                              <td className="p-3 text-slate-500">{money(it.freight_charge)}</td>
+                              <td className="p-3 text-slate-500">{it.gst_rate}%</td>
+                              <td className="p-3 text-slate-500">{money(taxAmt)}</td>
+                              <td className="p-3 font-bold text-slate-900">{money(taxable + taxAmt)}</td>
+                              <td className="p-3 text-right">
+                                <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-rose-500 hover:bg-rose-50" onClick={() => removeLineItem(it.id)}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
 
               {/* Auto tax preview */}
@@ -1374,6 +1554,12 @@ const Purchases = () => {
               <div className="space-y-1.5">
                 <Label className={labelCls}>GST / IGST (Automatic)</Label>
                 <div className={`rounded-xl border p-4 text-sm font-bold flex flex-wrap items-center gap-x-6 gap-y-1 ${taxPreview.intra ? "bg-blue-50/50 border-blue-200 text-blue-800" : "bg-violet-50/50 border-violet-200 text-violet-800"}`}>
+                  {(lineItems.length > 0 || taxPreview.freightTotal > 0) && (
+                    <>
+                      <span>Sub Total: {money(taxPreview.subtotal)}</span>
+                      {taxPreview.freightTotal > 0 && <span>Freight: {money(taxPreview.freightTotal)}</span>}
+                    </>
+                  )}
                   {taxPreview.intra ? (
                     <>
                       <span>Within Gujarat → GST</span>

@@ -150,6 +150,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
 
   const items = data.items || [];
   const subtotal = data.subtotal || 0;
+  const totalFreight = data.total_freight || 0;
   const discountPercent = data.discount_percent || 0;
   const totalTax = data.total_tax || 0;
   const adjustment = data.adjustment || 0;
@@ -347,7 +348,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                           <td className="px-4 py-3.5 text-muted-foreground text-xs">{currencySymbol}{Number(item.rate || item.price || 0).toFixed(2)}</td>
                           <td className="px-4 py-3.5 text-muted-foreground text-xs">{(item.tax || item.gstPercentage) ? `${item.tax || item.gstPercentage}%` : "0%"}</td>
                           <td className="px-4 py-3.5 font-bold text-foreground text-xs">
-                            {currencySymbol}{Number((item.qty || 1) * (item.rate || item.price || 0)).toFixed(2)}
+                            {currencySymbol}{Number((item.qty || 1) * (item.rate || item.price || 0) + (Number(item.freight_charge) || 0)).toFixed(2)}
                           </td>
                         </tr>
                       ))
@@ -365,7 +366,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                     (() => {
                       const discountAmount = discountPercent > 0 ? subtotal * (discountPercent / 100) : 0;
                       const untaxedAmount = subtotal - discountAmount;
-                      const rawTotal = untaxedAmount + totalTax + adjustment + (Number(data.freight_charge) || 0);
+                      const rawTotal = untaxedAmount + totalFreight + totalTax + adjustment;
                       const roundedTotal = Math.round(rawTotal);
                       const rounding = roundedTotal - rawTotal;
                       const balanceDueRounded = Math.max(roundedTotal - totalPaid, 0);
@@ -376,7 +377,14 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                             <span className="text-muted-foreground font-semibold">Untaxed Amount:</span>
                             <span className="font-bold text-foreground">{currencySymbol}{Number(untaxedAmount).toFixed(2)}</span>
                           </div>
-                          
+
+                          {totalFreight > 0 && (
+                            <div className="flex justify-between w-64 text-xs">
+                              <span className="text-muted-foreground font-semibold">Freight:</span>
+                              <span className="font-bold text-foreground">{currencySymbol}{Number(totalFreight).toFixed(2)}</span>
+                            </div>
+                          )}
+
                           {data.tax_type === "GST" ? (
                             <>
                               <div className="flex justify-between w-64 text-xs">
@@ -448,6 +456,12 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                         <div className="flex justify-between w-64 text-xs">
                           <span className="text-muted-foreground font-semibold">Sub Total:</span>
                           <span className="font-bold text-foreground">{currencySymbol}{Number(subtotal).toFixed(2)}</span>
+                        </div>
+                      )}
+                      {totalFreight > 0 && (
+                        <div className="flex justify-between w-64 text-xs">
+                          <span className="text-muted-foreground font-semibold">Freight:</span>
+                          <span className="font-bold text-foreground">{currencySymbol}{Number(totalFreight).toFixed(2)}</span>
                         </div>
                       )}
                       {discountPercent > 0 && (

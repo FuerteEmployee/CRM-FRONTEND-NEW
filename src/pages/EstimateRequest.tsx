@@ -123,6 +123,19 @@ export default function EstimateRequest() {
     }
   };
 
+  // Estimate request forms can include a "Branch" field (Setup > Estimate
+  // Request Forms > Branch); submissions store it in form_data tagged with
+  // type "branch" so it can be found regardless of the field's label text.
+  const getBranchValue = (row: any) => {
+    const entries = Array.isArray(row.form_data)
+      ? row.form_data
+      : row.form_data
+        ? Object.entries(row.form_data).map(([name, value]) => ({ name, value }))
+        : [];
+    const branchEntry = entries.find((entry: any) => entry.type === "branch");
+    return branchEntry?.value || null;
+  };
+
   const tableRows = useMemo(() => {
     if (!isRudraverse) return requests;
 
@@ -153,6 +166,14 @@ export default function EstimateRequest() {
       label: "Email",
       className: "font-medium text-slate-800",
       render: (row) => <span className="text-[13px]">{row.email}</span>,
+    },
+    {
+      key: "branch",
+      label: "Branch",
+      className: "w-[150px]",
+      render: (row) => (
+        <span className="text-[13px]">{getBranchValue(row) || "—"}</span>
+      ),
     },
     {
       key: "tags",
@@ -205,6 +226,13 @@ export default function EstimateRequest() {
       label: "Company Name",
       className: "font-semibold text-slate-800",
       render: (row) => <span className="text-[13px]">{row.company}</span>,
+    },
+    {
+      key: "branch",
+      label: "Branch",
+      render: (row) => (
+        <span className="text-[13px]">{getBranchValue(row) || "—"}</span>
+      ),
     },
     {
       key: "connectPerson",

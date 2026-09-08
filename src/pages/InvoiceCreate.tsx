@@ -121,6 +121,7 @@ export default function InvoiceCreate() {
     itemHSN: "",
     itemBatch: "",
     gstPercentage: 0,
+    freight_charge: 0,
     amount: 0
   });
   const [discountValue, setDiscountValue] = useState(0);
@@ -275,6 +276,7 @@ export default function InvoiceCreate() {
         itemBatch: item.itemBatch || "",
         gstPercentage: item.gstPercentage || 0,
         unit: item.unit || "",
+        freight_charge: item.freight_charge || 0,
         amount: item.amount ?? ((item.qty * item.rate) || 0)
       })));
       
@@ -312,17 +314,21 @@ export default function InvoiceCreate() {
 
   const calculations = useMemo(() => {
     const subTotal = items.reduce((acc, item) => acc + ((Number(item.qty) || 0) * (Number(item.rate) || 0)), 0);
+    const totalFreight = items.reduce((acc, item) => acc + (Number(item.freight_charge) || 0), 0);
     const discountAmount = formData.discount_type === "no_discount" ? 0 :
       (discountType === "percent" ? (subTotal * (discountValue / 100)) : discountValue);
     // Tax is charged on the discounted amount, not the full pre-discount subtotal.
     const discountFactor = subTotal > 0 ? 1 - discountAmount / subTotal : 1;
+    // Freight is added to each line before GST — same rule as the Purchase module
+    // (taxable value = rate*qty + freight, tax computed on top of that).
     const totalTax = items.reduce((acc, item) => {
       const taxRate = (taxes.find(t => t._id === item.tax)?.taxrate ?? Number(item.gstPercentage)) || 0;
-      return acc + (((Number(item.qty) || 0) * (Number(item.rate) || 0)) * discountFactor * (taxRate / 100));
+      const itemTaxable = ((Number(item.qty) || 0) * (Number(item.rate) || 0)) + (Number(item.freight_charge) || 0);
+      return acc + (itemTaxable * discountFactor * (taxRate / 100));
     }, 0);
-    const total = subTotal - discountAmount + totalTax + Number(adjustmentValue);
+    const total = subTotal + totalFreight - discountAmount + totalTax + Number(adjustmentValue);
 
-    return { subTotal, discountAmount, totalTax, total };
+    return { subTotal, totalFreight, discountAmount, totalTax, total };
   }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, taxes]);
 
   const addItem = () => {
@@ -340,6 +346,7 @@ export default function InvoiceCreate() {
       itemHSN: "",
       itemBatch: "",
       gstPercentage: 0,
+      freight_charge: 0,
       amount: 0
     });
     setIsAddItemModalOpen(false);
@@ -461,13 +468,15 @@ export default function InvoiceCreate() {
         itemBatch: item.itemBatch || "",
         unit: item.unit || "",
         gstPercentage: Number(item.gstPercentage) || 0,
+        freight_charge: Number(item.freight_charge) || 0,
         amount: Number(item.amount) || (Number(item.qty) || 0) * (Number(item.rate) || 0)
       })),
       discount_percent: Number(discountType === "percent" ? discountValue : 0) || 0,
       adjustment: Number(adjustmentValue) || 0,
       subtotal: Number(calculations.subTotal) || 0,
+      total_freight: Number(calculations.totalFreight) || 0,
       total_tax: Number(calculations.totalTax) || 0,
-      total: Number(calculations.total) || 0 
+      total: Number(calculations.total) || 0
     };
 
     // Remove undefined fields to be clean
@@ -925,6 +934,7 @@ export default function InvoiceCreate() {
                           itemHSN: item.hsn_sac_code || "",
                           itemBatch: "",
                           gstPercentage: gstPct,
+                          freight_charge: 0,
                           amount: qty * rate
                         }
                       ]);
@@ -978,7 +988,7 @@ export default function InvoiceCreate() {
 
             {/* Items Table */}
             <div className="rounded-[2rem] border border-border/50 overflow-x-auto shadow-sm">
-              <table className="w-full min-w-[1500px]">
+              <table className="w-full min-w-[1800px]">
                 <thead>
                   <tr className="bg-red-600 text-white">
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -992,8 +1002,11 @@ export default function InvoiceCreate() {
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Qty</th>
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Unit</th>
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Rate</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Sub Total</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Freight</th>
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">GST %</th>
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Tax</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Tax Amount</th>
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Amount</th>
                     <th className="px-2 py-3 text-right">
                       <Settings className="h-4 w-4 ml-auto opacity-50" />
@@ -1076,6 +1089,19 @@ export default function InvoiceCreate() {
                         disableVoice
                       />
                     </td>
+                    <td className="px-2 py-3 align-top w-[110px] text-xs font-bold text-muted-foreground">
+                      {formatDocAmount(newItem.qty * newItem.rate)}
+                    </td>
+                    <td className="px-2 py-3 align-top w-[130px]">
+                      <Input
+                        placeholder="Freight"
+                        type="number"
+                        value={newItem.freight_charge}
+                        onChange={(e) => setNewItem(p => ({ ...p, freight_charge: Number(e.target.value) }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
+                      />
+                    </td>
                     <td className="px-2 py-3 align-top w-[100px]">
                       <Input
                         type="number"
@@ -1099,9 +1125,21 @@ export default function InvoiceCreate() {
                         </SelectContent>
                       </Select>
                     </td>
-                    <td className="px-2 py-3 align-top text-sm font-black text-foreground">
-                      {formatDocAmount(newItem.qty * newItem.rate * (1 + ((taxes.find(t => t._id === newItem.tax)?.taxrate || newItem.gstPercentage || 0)) / 100))}
-                    </td>
+                    {(() => {
+                      const taxRate = taxes.find(t => t._id === newItem.tax)?.taxrate || newItem.gstPercentage || 0;
+                      const taxable = newItem.qty * newItem.rate + (Number(newItem.freight_charge) || 0);
+                      const taxAmt = taxable * (taxRate / 100);
+                      return (
+                        <>
+                          <td className="px-2 py-3 align-top text-xs font-bold text-muted-foreground">
+                            {formatDocAmount(taxAmt)}
+                          </td>
+                          <td className="px-2 py-3 align-top text-sm font-black text-foreground">
+                            {formatDocAmount(taxable + taxAmt)}
+                          </td>
+                        </>
+                      );
+                    })()}
                     <td className="px-2 py-3 align-top text-right">
                       <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
                         <Check className="h-4 w-4" />
@@ -1110,7 +1148,12 @@ export default function InvoiceCreate() {
                   </tr>
 
                   {/* Added Items List */}
-                  {items.map((item) => (
+                  {items.map((item) => {
+                    const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || item.gstPercentage || 0;
+                    const itemFreight = Number(item.freight_charge) || 0;
+                    const taxable = item.qty * item.rate + itemFreight;
+                    const taxAmt = taxable * (taxRate / 100);
+                    return (
                     <tr key={item.id} className="border-b border-border/20 hover:bg-muted/5 transition-colors">
                       <td className="px-2 py-3 align-top font-bold text-xs">{item.description}</td>
                       <td className="px-2 py-3 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
@@ -1120,18 +1163,22 @@ export default function InvoiceCreate() {
                       <td className="px-2 py-3 align-top text-xs font-bold">{item.qty}</td>
                       <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.unit || "-"}</td>
                       <td className="px-2 py-3 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
+                      <td className="px-2 py-3 align-top text-xs font-bold text-muted-foreground">{formatDocAmount(item.qty * item.rate)}</td>
+                      <td className="px-2 py-3 align-top text-xs font-bold text-muted-foreground">{formatDocAmount(itemFreight)}</td>
                       <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.gstPercentage || 0}%</td>
                       <td className="px-2 py-3 align-top text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                         {taxes.find(t => t._id === item.tax)?.name || (item.gstPercentage ? `${item.gstPercentage}%` : "No Tax")}
                       </td>
-                      <td className="px-2 py-3 align-top text-sm font-black text-primary">{formatDocAmount(item.amount || (item.qty * item.rate * (1 + ((taxes.find(t => t._id === item.tax)?.taxrate || item.gstPercentage || 0)) / 100)))}</td>
+                      <td className="px-2 py-3 align-top text-xs font-bold text-muted-foreground">{formatDocAmount(taxAmt)}</td>
+                      <td className="px-2 py-3 align-top text-sm font-black text-primary">{formatDocAmount(taxable + taxAmt)}</td>
                       <td className="px-2 py-3 align-top text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1166,7 +1213,14 @@ export default function InvoiceCreate() {
                   <span>Sub Total :</span>
                   <span className="text-foreground">{formatDocAmount(calculations.subTotal)}</span>
                 </div>
-                
+
+                {calculations.totalFreight > 0 && (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm font-bold text-muted-foreground">Freight</span>
+                    <span className="text-sm font-bold text-foreground">{formatDocAmount(calculations.totalFreight)}</span>
+                  </div>
+                )}
+
                 <div className="flex justify-between items-center py-2">
                   <span className="text-sm font-bold text-muted-foreground">Discount</span>
                   <div className="flex items-center gap-3">
@@ -1225,22 +1279,6 @@ export default function InvoiceCreate() {
                       </div>
                     );
                   })()
-                )}
-
-                {isPilot && (
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-sm font-bold text-muted-foreground">Freight Charge (1%)</span>
-                    <div className="flex items-center gap-3">
-                      <Input
-                        type="number"
-                        className="h-9 w-32 rounded-lg border-border/50 bg-background shadow-sm text-xs font-bold text-center"
-                        value={formData.freight_charge || 0}
-                        onChange={(e) => {
-                          setFormData(p => ({ ...p, freight_charge: Number(e.target.value) || 0 }));
-                        }}
-                      />
-                    </div>
-                  </div>
                 )}
 
                 <div className="flex justify-between items-center py-2">
