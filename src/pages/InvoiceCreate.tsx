@@ -911,23 +911,22 @@ export default function InvoiceCreate() {
                       const gstPct = gstRateFromItem(item);
                       const qty = 1;
                       const rate = item.rate || 0;
-                      setItems(prev => [
-                        ...prev,
-                        {
-                          id: Math.random().toString(36).substring(2, 9),
-                          description: item.name,
-                          long_description: item.long_description || "",
-                          qty,
-                          rate,
-                          tax: taxId,
-                          unit: item.unit || "",
-                          itemGroup: item.group || "",
-                          itemHSN: item.hsn_sac_code || "",
-                          itemBatch: "",
-                          gstPercentage: gstPct,
-                          amount: qty * rate
-                        }
-                      ]);
+                      // Prefill the editable draft row instead of committing straight to
+                      // the table — the user reviews/adjusts qty, rate, etc. and confirms
+                      // with the checkmark button before it becomes a final line.
+                      setNewItem({
+                        description: item.name,
+                        long_description: item.long_description || "",
+                        qty,
+                        rate,
+                        tax: taxId,
+                        unit: item.unit || "",
+                        itemGroup: item.group || "",
+                        itemHSN: item.hsn_sac_code || "",
+                        itemBatch: "",
+                        gstPercentage: gstPct,
+                        amount: qty * rate
+                      });
                     }}
                   />
                 </div>

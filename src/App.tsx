@@ -181,8 +181,10 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 
 // Dedicated/white-labeled instances (no self-service signup) — visitors
 // should land on login, never the generic Fuerte CRM pricing/signup page.
+// "localhost"/"127.0.0.1" included so this is testable from a local dev
+// server too — remove before deploying if you need to see the signup page locally.
 const isWhiteLabelHost = () =>
-  ["rudraverse.trinetratechnoworld.com", "crm.beontimeofficial.com"].includes(
+  ["rudraverse.trinetratechnoworld.com", "crm.beontimeofficial.com", "localhost", "127.0.0.1"].includes(
     window.location.hostname
   );
 
