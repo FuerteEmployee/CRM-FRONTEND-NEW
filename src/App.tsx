@@ -179,6 +179,15 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+// Dedicated/white-labeled instances (no self-service signup) — visitors
+// should land on login, never the generic Fuerte CRM pricing/signup page.
+// "localhost"/"127.0.0.1" included so this is testable from a local dev
+// server too — remove before deploying if you need to see the signup page locally.
+const isWhiteLabelHost = () =>
+  ["rudraverse.trinetratechnoworld.com", "crm.beontimeofficial.com", "localhost", "127.0.0.1"].includes(
+    window.location.hostname
+  );
+
 // Smart root: checks who is logged in and sends them to the right place
 //  - Admin logged in  → /admin/dashboard
 //  - Client logged in → /dashboard (client dashboard)
@@ -197,10 +206,7 @@ const SmartRoot = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Rudraverse is a dedicated/white-labeled instance, not a self-service
-  // signup funnel — its visitors should land on login, never the generic
-  // Fuerte CRM pricing/signup page.
-  if (window.location.hostname === "rudraverse.trinetratechnoworld.com") {
+  if (isWhiteLabelHost()) {
     return <Navigate to="/admin/login" replace />;
   }
 
@@ -403,14 +409,10 @@ const MainApp = () => {
         <Route path="/" element={<SmartRoot />} />
 
         {/* Public landing page — pricing plans + self-service signup.
-            Not shown on Rudraverse (dedicated instance, no self-signup). */}
+            Not shown on white-labeled instances (no self-signup). */}
         <Route
           path="/welcome"
-          element={
-            window.location.hostname === "rudraverse.trinetratechnoworld.com"
-              ? <Navigate to="/admin/login" replace />
-              : <LandingPage />
-          }
+          element={isWhiteLabelHost() ? <Navigate to="/admin/login" replace /> : <LandingPage />}
         />
 
         {/* Client Side Routes */}
