@@ -42,6 +42,9 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { COUNTRIES } from "@/constants/countries";
 import { useCurrency } from "@/context/CurrencyContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
 export default function CreditNoteCreate() {
   const { clientId, id } = useParams();
@@ -50,6 +53,20 @@ export default function CreditNoteCreate() {
   const location = useLocation();
   const { toast } = useToast();
   const { symbol } = useCurrency();
+
+  const { user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show/require it when the
+  // tenant's plan actually includes HRMS, matching Invoice Create's rule.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+
+  const { data: branchesRaw = [] } = useQuery({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r: any) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw as any;
 
   const prepopulate = !isEdit ? (location.state as any)?.prepopulate : null;
 
@@ -62,6 +79,7 @@ export default function CreditNoteCreate() {
   const [formData, setFormData] = useState({
     number: `CN-${Math.floor(100000 + Math.random() * 900000)}`,
     rel_id: clientId || prepopulate?.client?._id || "",
+    branch: "",
     project: "",
     date: new Date().toISOString().split('T')[0],
     currency: prepopulate?.currency || "",
@@ -118,6 +136,28 @@ export default function CreditNoteCreate() {
     queryFn: customerService.getAll
   });
 
+  // Same branch-first, then-customer rule as Invoice Create: once a branch
+  // matters for this tenant, the customer list narrows to that branch so you
+  // can't accidentally bill/credit a customer under the wrong branch.
+  const filteredCustomers = useMemo(() => {
+    const all = customers as any[];
+    if (!canUseBranch) return all;
+    if (!formData.branch) return [];
+    const targetBranch = formData.branch.toLowerCase().trim();
+    const branchObj = branches.find((b: any) => b.name && b.name.toLowerCase().trim() === targetBranch);
+    return all.filter((c: any) => {
+      const cBranchName = typeof c.branch === "object" ? c.branch?.name : c.branch;
+      const cBranchId = typeof c.branch === "object" ? (c.branch?._id || c.branch?.id) : c.branch;
+      if (cBranchName && typeof cBranchName === "string" && cBranchName.toLowerCase().trim() === targetBranch) {
+        return true;
+      }
+      if (branchObj && cBranchId && String(cBranchId) === String(branchObj._id)) {
+        return true;
+      }
+      return false;
+    });
+  }, [customers, formData.branch, canUseBranch, branches]);
+
   const { data: currencies = [] } = useQuery({
     queryKey: ["currencies"],
     queryFn: financeService.getCurrencies,
@@ -159,6 +199,7 @@ export default function CreditNoteCreate() {
       setFormData({
         number: creditNote.number || "",
         rel_id: clientVal || creditNote.rel_id || "",
+        branch: creditNote.branch || "",
         project: creditNote.project || "",
         date: creditNote.date ? new Date(creditNote.date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         currency: creditNote.currency || "",
@@ -265,6 +306,10 @@ export default function CreditNoteCreate() {
   });
 
   const handleSave = () => {
+    if (canUseBranch && !formData.branch) {
+      toast({ title: "Required Fields", description: "Please select a branch.", variant: "destructive" });
+      return;
+    }
     if (!formData.rel_id) {
       toast({ title: "Required Fields", description: "Customer is mandatory.", variant: "destructive" });
       return;
@@ -309,19 +354,47 @@ export default function CreditNoteCreate() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-6 bg-white p-10 rounded-[2.5rem] border border-slate-200/60 shadow-sm">
           {/* Left Column */}
           <div className="space-y-6">
+            {/* Branch — pilot-only, dynamically fetched from HRMS. Selecting it
+                first narrows the Customer list below, same as Invoice Create. */}
+            {canUseBranch && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-destructive font-bold">*</span>
+                  <Label className="text-[13px] font-bold text-slate-700">Branch</Label>
+                </div>
+                <Select
+                  value={formData.branch || "none"}
+                  onValueChange={(v) => {
+                    const val = v === "none" ? "" : v;
+                    setFormData(p => ({ ...p, branch: val, rel_id: "", project: "" }));
+                  }}
+                >
+                  <SelectTrigger className="h-11 rounded-xl bg-white border-slate-200 shadow-none">
+                    <SelectValue placeholder="Select Branch" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="none">Select Branch</SelectItem>
+                    {branches.map((b) => (
+                      <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-2">
               <div className="flex items-center gap-1">
                 <span className="text-destructive font-bold">*</span>
                 <Label className="text-[13px] font-bold text-slate-700">Customer</Label>
               </div>
               <SearchableSelect
-                placeholder="Select Customer"
-                options={customers.map((c: any) => ({ value: c._id, label: c.company }))}
+                placeholder={canUseBranch && !formData.branch ? "Please select a branch first..." : "Select Customer"}
+                options={filteredCustomers.map((c: any) => ({ value: c._id, label: c.company }))}
                 value={formData.rel_id}
                 onValueChange={(val) => {
-                  const client = customers.find((c: any) => c._id === val);
-                  setFormData(p => ({ 
-                    ...p, 
+                  const client = filteredCustomers.find((c: any) => c._id === val);
+                  setFormData(p => ({
+                    ...p,
                     rel_id: val,
                     billing_street: client?.address || "",
                     billing_city: client?.city || "",

@@ -42,6 +42,7 @@ import {
   Rocket,
   Pencil,
   X,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -109,6 +110,12 @@ const FIELD_TYPES = [
     type: "radio",
     label: "Radio Group",
     icon: CircleDot,
+    category: "Choice",
+  },
+  {
+    type: "branch",
+    label: "Branch",
+    icon: Building2,
     category: "Choice",
   },
   {
@@ -663,6 +670,7 @@ export default function EstimateRequestFormBuilder() {
                                         "checkbox",
                                         "radio",
                                         "file",
+                                        "branch",
                                       ].includes(field.type) && (
                                         <>
                                           <Label className="text-sm text-muted-foreground text-right pr-6 self-center">
@@ -797,6 +805,21 @@ export default function EstimateRequestFormBuilder() {
                                               </div>
                                             </div>
                                           </div>
+                                        </>
+                                      )}
+
+                                      {field.type === "branch" && (
+                                        <>
+                                          <Label className="text-sm text-muted-foreground text-right pr-6 self-center">
+                                            Options
+                                          </Label>
+                                          <p className="text-sm text-muted-foreground italic">
+                                            Automatically populated from your{" "}
+                                            <span className="font-medium text-foreground">
+                                              Branches
+                                            </span>{" "}
+                                            list — no manual setup needed.
+                                          </p>
                                         </>
                                       )}
 
