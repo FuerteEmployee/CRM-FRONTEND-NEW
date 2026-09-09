@@ -122,6 +122,7 @@ export default function InvoiceCreate() {
     itemBatch: "",
     gstPercentage: 0,
     freight_charge: 0,
+    freight_percent: 1,
     amount: 0
   });
   const [discountValue, setDiscountValue] = useState(0);
@@ -230,7 +231,16 @@ export default function InvoiceCreate() {
   });
 
   useEffect(() => {
-    if (invoice && taxesFetched) {
+    // apiClient.get() swallows non-auth HTTP errors and resolves with `[]`
+    // instead of throwing (see api/client.js) — so a deleted/invalid invoice
+    // id 404s but still lands here as a truthy empty array, not undefined.
+    // Guard on a real invoice object (has an _id) rather than just truthiness.
+    if (isEdit && invoice && !(invoice as any)._id) {
+      toast({ title: "Invoice not found", description: "This invoice may have been deleted.", variant: "destructive" });
+      navigate("/admin/invoices");
+      return;
+    }
+    if (invoice && (invoice as any)._id && taxesFetched) {
       setFormData({
         client: (invoice.client?._id || invoice.client || "").toString(),
         project: (invoice.project?._id || invoice.project || "").toString(),
@@ -267,7 +277,7 @@ export default function InvoiceCreate() {
       const totalPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
       setAmountPaid(totalPaid || "");
 
-      setItems(invoice.items.map((item: any) => ({
+      setItems((invoice.items || []).map((item: any) => ({
         ...item,
         id: Math.random().toString(36).substr(2, 9),
         tax: taxes.find(t => t.taxrate === item.tax)?._id || "",
@@ -283,7 +293,7 @@ export default function InvoiceCreate() {
       setDiscountValue(invoice.discount_percent || 0);
       setAdjustmentValue(invoice.adjustment || 0);
     }
-  }, [invoice, taxes, payments]);
+  }, [invoice, taxes, taxesFetched, payments, isEdit, navigate, toast]);
 
   const isIntraState = () => {
     if (!customer) return true; // default/fallback
@@ -331,6 +341,16 @@ export default function InvoiceCreate() {
     return { subTotal, totalFreight, discountAmount, totalTax, total };
   }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, taxes]);
 
+  // Freight is entered as a percentage of the draft row's Sub Total (qty ×
+  // rate), defaulting to 1%, and always drives the stored rupee freight_charge
+  // that the rest of this file (calculations, saved items) already expects.
+  useEffect(() => {
+    const subTotal = (Number(newItem.qty) || 0) * (Number(newItem.rate) || 0);
+    const pct = Number(newItem.freight_percent) || 0;
+    const calcFreight = subTotal > 0 && pct > 0 ? Math.round(subTotal * (pct / 100) * 100) / 100 : 0;
+    setNewItem(p => (p.freight_charge === calcFreight ? p : { ...p, freight_charge: calcFreight }));
+  }, [newItem.qty, newItem.rate, newItem.freight_percent]);
+
   const addItem = () => {
     if (!newItem.description) return;
     const amount = newItem.amount || Number(newItem.qty) * Number(newItem.rate);
@@ -347,6 +367,7 @@ export default function InvoiceCreate() {
       itemBatch: "",
       gstPercentage: 0,
       freight_charge: 0,
+      freight_percent: 1,
       amount: 0
     });
     setIsAddItemModalOpen(false);
@@ -935,6 +956,7 @@ export default function InvoiceCreate() {
                         itemBatch: "",
                         gstPercentage: gstPct,
                         freight_charge: 0,
+                        freight_percent: 1,
                         amount: qty * rate
                       });
                     }}
@@ -1002,7 +1024,7 @@ export default function InvoiceCreate() {
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Unit</th>
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Rate</th>
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Sub Total</th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Freight</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Freight %</th>
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">GST %</th>
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Tax</th>
                     <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Tax Amount</th>
@@ -1093,13 +1115,14 @@ export default function InvoiceCreate() {
                     </td>
                     <td className="px-2 py-3 align-top w-[130px]">
                       <Input
-                        placeholder="Freight"
+                        placeholder="Freight %"
                         type="number"
-                        value={newItem.freight_charge}
-                        onChange={(e) => setNewItem(p => ({ ...p, freight_charge: Number(e.target.value) }))}
+                        value={newItem.freight_percent}
+                        onChange={(e) => setNewItem(p => ({ ...p, freight_percent: Number(e.target.value) }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                         disableVoice
                       />
+                      <p className="text-[10px] text-muted-foreground mt-1">= {formatDocAmount(newItem.freight_charge)}</p>
                     </td>
                     <td className="px-2 py-3 align-top w-[100px]">
                       <Input

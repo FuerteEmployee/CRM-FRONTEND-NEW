@@ -80,6 +80,7 @@ const INVOICE_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Item Group", sample: "Services", core: false },
   { key: "Item HSN", sample: "9983", core: false },
   { key: "GST percentage", sample: 18, core: false },
+  { key: "Freight %", sample: 1, core: false },
   { key: "Item Batch", sample: "B-01", core: false },
   { key: "Unit", sample: "Nos", core: false },
   { key: "Due Date", sample: "26-09-2026", core: false },
@@ -814,7 +815,7 @@ const Invoices = () => {
     "Party Name", "Party Address", "Party Group", "Terms of Payment", "GSTIN/UIN",
     "Item Name", "Item Group", "Item HSN", "GST percentage", "Item Batch",
     "Quantity", "Rate", "Unit",
-    "Amount",
+    "Amount", "Freight", "Total",
     ...(canUseBranch ? ["Branch"] : []),
   ], [isPilot, canUseBranch]);
 
@@ -837,6 +838,8 @@ const Invoices = () => {
     { header: "Rate", key: "rate", type: "number" as const },
     { header: "Unit", key: "unit" },
     { header: "Amount", key: "amount", type: "number" as const },
+    { header: "Freight", key: "freight", type: "number" as const },
+    { header: "Total", key: "total", type: "number" as const },
     ...(canUseBranch ? [{ header: "Branch", key: "branch" }] : []),
   ], [isPilot, canUseBranch]);
 
@@ -1034,6 +1037,11 @@ const Invoices = () => {
       rate: item.rate || 0,
       unit: item.unit || "",
       amount: item.amount ?? ((item.qty || 0) * (item.rate || 0)),
+      freight: item.freight_charge || 0,
+      // Invoice-level grand total (already includes freight + tax, same figure
+      // shown on the invoice detail/view panel) — repeats across every item
+      // row of the same invoice, same convention the Purchases register uses.
+      total: inv.total || 0,
       // branch — resolved from branchId if populated as object, else use stored name string
       branch: inv.branch?.name || inv.branch || "",
       // Extra fields (ignored by ExportButton since it only reads the
@@ -1316,6 +1324,8 @@ const Invoices = () => {
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.rate || 0)}</td>
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.unit || "-"}</td>
                       <td className="px-6 py-4 font-black text-foreground whitespace-nowrap">{formatRowAmount(inv, row.amount || 0)}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.freight || 0)}</td>
+                      <td className="px-6 py-4 font-black text-primary whitespace-nowrap">{formatRowAmount(inv, row.total || 0)}</td>
                       {canUseBranch && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.branch || "-"}</td>}
                       <td className="px-6 py-4">
                         <TableActions

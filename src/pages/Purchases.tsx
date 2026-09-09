@@ -58,6 +58,7 @@ const PURCHASE_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Round off", sample: 0, core: true },
   { key: "Branch", sample: "Chennai", core: true },
   { key: "Item Description", sample: "Office Chairs", core: false },
+  { key: "Freight Percentage", sample: 1, core: false },
 ];
 
 const HOME_STATE = "Gujarat";
@@ -186,7 +187,7 @@ const Purchases = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState<any>(null);
   const [formData, setFormData] = useState<any>(emptyForm);
-  const [freightTouched, setFreightTouched] = useState(false);
+  const [freightPercent, setFreightPercent] = useState("1");
   // Products already added to the bill being created/edited — the "Product &
   // Amount" fields below are the draft row for the *next* item, mirroring
   // Invoice Create's items table. Left empty means "just this one product",
@@ -204,18 +205,20 @@ const Purchases = () => {
     paymentmode: "",
   });
 
+  // Freight is entered as a percentage of Price (default 1%, editable) and
+  // always drives the stored rupee freight_charge — recomputed live whenever
+  // either Price or the percentage changes, for every tenant (not just the
+  // Trinetra pilot). Skipped in simplifiedRegister mode, which has no Freight
+  // field at all and must not have freight_charge silently injected.
   useEffect(() => {
-    if (!isPilot) return;
-    if (!freightTouched && isModalOpen) {
-      const amt = parseFloat(formData.amount) || 0;
-      if (amt > 0) {
-        const calcFreight = (Math.round(amt * 0.01 * 100) / 100).toString();
-        setFormData((f: any) => ({ ...f, freight_charge: calcFreight }));
-      }
-    }
-  }, [isPilot, formData.amount, freightTouched, isModalOpen]);
+    if (simplifiedRegister || !isModalOpen) return;
+    const amt = parseFloat(formData.amount) || 0;
+    const pct = parseFloat(freightPercent) || 0;
+    const calcFreight = amt > 0 && pct > 0 ? (Math.round(amt * (pct / 100) * 100) / 100).toString() : "0";
+    setFormData((f: any) => ({ ...f, freight_charge: calcFreight }));
+  }, [simplifiedRegister, formData.amount, freightPercent, isModalOpen]);
 
-  useOpenCreateModal(() => { setEditingPurchase(null); setFormData(getNewPurchaseForm()); setFreightTouched(false); setLineItems([]); setIsModalOpen(true); });
+  useOpenCreateModal(() => { setEditingPurchase(null); setFormData(getNewPurchaseForm()); setFreightPercent("1"); setLineItems([]); setIsModalOpen(true); });
 
   // Paginated server-side once a finite page size is chosen; "all" keeps
   // the legacy full fetch, filtered client-side exactly as this page always
@@ -339,11 +342,23 @@ const Purchases = () => {
       const rate = parseNum(getField(row, "rate"));
       const finalAmount = amount || (quantity * rate) || 0;
 
-      // Imports are historical bookkeeping data — a blank Freight cell means the
-      // vendor genuinely charged none, so it's left at 0 rather than synthesizing
-      // an estimate. Synthesizing it would silently inflate CGST/SGST/IGST/Total
-      // away from what the sheet actually says.
-      const freightVal = parseNum(getField(row, "freight 1%", "freight charge", "freight", "shipping"));
+      // "Freight Percentage" (the column this dialog's sample file offers) is a
+      // % of Amount, same rule the New Purchase form uses — NOT a rupee value.
+      // "FREIGHT 1%"/"Freight Charge"/"Freight"/"Shipping" stay rupee aliases
+      // (real historical Tally exports carry an already-computed currency
+      // amount under a column literally named "FREIGHT 1%"; reinterpreting
+      // those as a percentage would silently corrupt re-imports of that data).
+      // Blank in all of them defaults to 1% of Amount rather than 0.
+      const rawFreightPct = getField(row, "freight percentage", "freight percent", "freight pct");
+      const rawFreightAmt = getField(row, "freight 1%", "freight charge", "freight", "shipping");
+      let freightVal: number;
+      if (String(rawFreightPct).trim() !== "") {
+        freightVal = Math.round(finalAmount * (parseNum(rawFreightPct) / 100) * 100) / 100;
+      } else if (String(rawFreightAmt).trim() !== "") {
+        freightVal = parseNum(rawFreightAmt);
+      } else {
+        freightVal = Math.round(finalAmount * 0.01 * 100) / 100;
+      }
 
       return {
         supplier_name: String(getField(row, "particulars", "company name", "company", "supplier name", "supplier", "vendor", "vendor name", "party", "party name", "firm name")),
@@ -460,7 +475,13 @@ const Purchases = () => {
         const rollupCgst = parseNum(getField(row, "cgst 9%", "cgst"));
         const rollupSgst = parseNum(getField(row, "sgst 9%", "sgst"));
         const rollupIgst = parseNum(getField(row, "igst 18%", "igst"));
-        const rollupFreight = parseNum(getField(row, "freight 1%", "freight charge", "freight", "shipping"));
+        // "Freight Percentage" (this dialog's sample column) is a % of Amount;
+        // "FREIGHT 1%"/"Freight Charge"/"Freight"/"Shipping" stay rupee aliases
+        // for real historical Tally exports (see note below).
+        const rollupFreightPct = getField(row, "freight percentage", "freight percent", "freight pct");
+        const rollupFreight = String(rollupFreightPct).trim() !== ""
+          ? Math.round(amount * (parseNum(rollupFreightPct) / 100) * 100) / 100
+          : parseNum(getField(row, "freight 1%", "freight charge", "freight", "shipping"));
         const rollupTax = rollupCgst + rollupSgst + rollupIgst;
         const rollupTaxable = amount + rollupFreight;
         currentGstRate = rollupTax > 0 && rollupTaxable > 0 ? Math.round((rollupTax / rollupTaxable) * 100) : 0;
@@ -472,15 +493,22 @@ const Purchases = () => {
 
       if (!currentBillNo || !particulars || !(amount > 0 || (qty > 0 && rate > 0))) return;
 
-      // A blank item-line Freight cell means the bill's rollup row carries the
-      // freight instead (split proportionally below); if the rollup row has none
-      // either, the vendor genuinely charged none — left at 0 rather than
-      // synthesizing an estimate, which would inflate CGST/SGST/IGST/Total away
-      // from what the sheet actually says.
+      // Freight Percentage (% of this item's own Amount) wins if present.
+      // Otherwise, a blank item-line Freight cell means the bill's rollup row
+      // carries the freight instead (split proportionally below); if the
+      // rollup row has none either, default to 1% of this item's Amount —
+      // same default the New Purchase form applies — rather than 0.
+      const rawFreightPct = getField(row, "freight percentage", "freight percent", "freight pct");
       const rawFreight = getField(row, "freight 1%", "freight charge", "freight", "shipping");
-      let freightVal = parseNum(rawFreight);
-      if (String(rawFreight).trim() === "" && currentBillFreight > 0 && currentBillAmount > 0) {
-        freightVal = Math.round(currentBillFreight * (amount / currentBillAmount) * 100) / 100;
+      let freightVal: number;
+      if (String(rawFreightPct).trim() !== "") {
+        freightVal = Math.round(amount * (parseNum(rawFreightPct) / 100) * 100) / 100;
+      } else if (String(rawFreight).trim() !== "") {
+        freightVal = parseNum(rawFreight);
+      } else {
+        freightVal = currentBillFreight > 0 && currentBillAmount > 0
+          ? Math.round(currentBillFreight * (amount / currentBillAmount) * 100) / 100
+          : Math.round(amount * 0.01 * 100) / 100;
       }
 
       purchasesData.push({
@@ -578,7 +606,17 @@ const Purchases = () => {
       sales_person: p.sales_person || "",
       note: p.note || "",
     });
-    setFreightTouched(hasMultipleItems ? false : !!p.freight_charge);
+    // Re-derive the percentage this bill's freight actually works out to
+    // (rather than resetting to the 1% default), so editing an existing bill
+    // doesn't silently change a freight amount that was entered at some other
+    // rate — Amount changes afterward still scale freight by this same rate.
+    const existingAmt = Number(p.amount) || 0;
+    const existingFreight = Number(p.freight_charge) || 0;
+    setFreightPercent(
+      hasMultipleItems || existingAmt <= 0
+        ? "1"
+        : (Math.round((existingFreight / existingAmt) * 100 * 100) / 100).toString()
+    );
     setIsModalOpen(true);
   };
 
@@ -675,7 +713,7 @@ const Purchases = () => {
       freight_charge: "",
       gst_rate: simplifiedRegister ? "0" : "18",
     }));
-    setFreightTouched(false);
+    setFreightPercent("1");
   };
 
   const removeLineItem = (id: string) => setLineItems((items) => items.filter((it) => it.id !== id));
@@ -942,13 +980,13 @@ const Purchases = () => {
     { header: "CGST 9%", key: "cgst", type: "number" as const },
     { header: "SGST 9%", key: "sgst", type: "number" as const },
     { header: "PURCHASE IGST", key: "igst", type: "number" as const },
-    ...(isPilot ? [{ header: "FREIGHT 1%", key: "freight_charge", type: "number" as const }] : []),
+    { header: "Freight", key: "freight_charge", type: "number" as const },
     { header: "IGST 18%", key: "igst", type: "number" as const },
     { header: "Round off", key: "round_off", type: "number" as const },
     ...(canUseBranch ? [{ header: "Branch Name", key: "branch" }] : []),
   ], [isPilot, canUseBranch]);
 
-  const tableColSpan = 1 + (14 + (isPilot ? 2 : 0) + (canUseBranch ? 1 : 0)) + 1;
+  const tableColSpan = 1 + (14 + 1 + (isPilot ? 1 : 0) + (canUseBranch ? 1 : 0)) + 1;
 
   const inputCls = "h-11 rounded-xl border-slate-200";
   const labelCls = "text-[10px] font-black uppercase tracking-widest text-slate-500";
@@ -1170,7 +1208,7 @@ const Purchases = () => {
                     <th className="p-4 font-bold">CGST 9%</th>
                     <th className="p-4 font-bold">SGST 9%</th>
                     <th className="p-4 font-bold">PURCHASE IGST</th>
-                    {isPilot && <th className="p-4 font-bold">FREIGHT 1%</th>}
+                    <th className="p-4 font-bold">Freight</th>
                     <th className="p-4 font-bold">IGST 18%</th>
                     <th className="p-4 font-bold">Round off</th>
                     {canUseBranch && <th className="p-4 font-bold">Branch</th>}
@@ -1212,7 +1250,7 @@ const Purchases = () => {
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.cgst)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.sgst)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.igst)}</td>
-                        {isPilot && <td className="p-4 text-xs font-medium text-slate-600">{money(p.freight_charge)}</td>}
+                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.freight_charge)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{money(p.igst)}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{p.round_off ? money(p.round_off) : "-"}</td>
                         {canUseBranch && <td className="p-4 text-xs font-medium text-slate-600">{p.branch || "-"}</td>}
@@ -1458,13 +1496,14 @@ const Purchases = () => {
                       <Input type="number" value={formData.amount} onChange={(e) => setField("amount", e.target.value)} placeholder="0.00" className={`${inputCls} pl-7`} />
                     </div>
                   </div>
-                  {!simplifiedRegister && isPilot && (
+                  {!simplifiedRegister && (
                     <div className="space-y-1.5">
-                      <Label className={labelCls}>5. Freight Charge</Label>
+                      <Label className={labelCls}>5. Freight %</Label>
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
-                        <Input type="number" value={formData.freight_charge} onChange={(e) => { setFreightTouched(true); setField("freight_charge", e.target.value); }} placeholder="0.00" className={`${inputCls} pl-7`} />
+                        <Input type="number" value={freightPercent} onChange={(e) => setFreightPercent(e.target.value)} placeholder="1" className={`${inputCls} pr-7`} />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">%</span>
                       </div>
+                      <p className="text-[10px] text-slate-400">= {symbol}{(Number(formData.freight_charge) || 0).toFixed(2)}</p>
                     </div>
                   )}
                   {!simplifiedRegister && (
