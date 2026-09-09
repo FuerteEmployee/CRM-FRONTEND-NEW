@@ -655,6 +655,7 @@ export function AppSidebar() {
       "/admin/announcements": "announcements",
       "/admin/calendar": "calendar",
       "/admin/bookmarks": "bookmarks",
+      "/admin/whatsapp": "whatsapp",
       // Staff URL variants
       "/staff/tasks": "tasks",
       "/staff/projects": "projects",
@@ -671,6 +672,7 @@ export function AppSidebar() {
       "/staff/goals": "goals",
       "/staff/calendar": "calendar",
       "/staff/bookmarks": "bookmarks",
+      "/staff/whatsapp": "whatsapp",
       // Reports sub-routes
       "/admin/reports/expenses": "reports",
       "/admin/reports/expenses-vs-income": "reports",

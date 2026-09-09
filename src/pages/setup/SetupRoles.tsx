@@ -144,6 +144,7 @@ const FEATURES_CONFIG = [
     caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
   },
   { name: "Goals", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "WhatsApp", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "HRMS Staff Directory", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "HRMS Attendance", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "HRMS Leave Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
