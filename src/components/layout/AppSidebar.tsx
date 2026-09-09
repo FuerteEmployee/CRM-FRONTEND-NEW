@@ -42,6 +42,7 @@ import {
   HelpCircle,
   ArrowLeft,
   Bookmark,
+  Menu,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -178,6 +179,7 @@ const setupMenuItems = [
     ],
   },
   { title: "Modules", url: "/admin/setup/modules", icon: Layout },
+  { title: "Main Sidebar", url: "/admin/setup/mainsidebar", icon: Menu },
   { title: "Quotation Types", url: "/admin/setup/quotation-types", icon: FileBarChart },
   {
     title: "Email Templates",
@@ -655,6 +657,7 @@ export function AppSidebar() {
       "/admin/announcements": "announcements",
       "/admin/calendar": "calendar",
       "/admin/bookmarks": "bookmarks",
+      "/admin/website-forms": "website_forms",
       // Staff URL variants
       "/staff/tasks": "tasks",
       "/staff/projects": "projects",
@@ -671,6 +674,7 @@ export function AppSidebar() {
       "/staff/goals": "goals",
       "/staff/calendar": "calendar",
       "/staff/bookmarks": "bookmarks",
+      "/staff/website-forms": "website_forms",
       // Reports sub-routes
       "/admin/reports/expenses": "reports",
       "/admin/reports/expenses-vs-income": "reports",

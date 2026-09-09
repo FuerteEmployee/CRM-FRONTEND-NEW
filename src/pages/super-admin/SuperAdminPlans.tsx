@@ -4,7 +4,7 @@ import {
   IndianRupee, Target, HeadphonesIcon, FileSignature, FolderKanban, CheckSquare,
   MessageSquare, Video, CreditCard, Receipt, FileText, ClipboardList,
   BookOpen, BarChart3, Clock, Goal, Megaphone, CalendarDays, Bookmark, UserCog,
-  Zap, CircleDot,
+  Zap, CircleDot, FormInput,
 } from "lucide-react";
 import { apiClient as api } from "@/api/client";
 import { toast } from "sonner";
@@ -50,6 +50,7 @@ interface SaasPlan {
     hrms: boolean;
     sales: boolean;
     utility: boolean;
+    website_forms: boolean;
   };
 }
 
@@ -77,6 +78,7 @@ const MODULE_META: { key: keyof SaasPlan["module_access"]; label: string; icon: 
   { key: "hrms",             label: "HRMS",             icon: UserCog,       color: "text-indigo-600" },
   { key: "sales",            label: "Sales",            icon: Zap,           color: "text-orange-600" },
   { key: "utility",          label: "Utility",          icon: CircleDot,     color: "text-slate-600" },
+  { key: "website_forms",    label: "Website Forms",    icon: FormInput,     color: "text-cyan-600" },
 ];
 
 const BANNER_PRESETS = [
@@ -100,7 +102,7 @@ const DEFAULT_PLAN: Partial<SaasPlan> = {
     chat: true, meetings: true, subscriptions: true, expenses: true, estimates: true,
     proposals: true, estimate_request: true, knowledge_base: true, reports: true,
     time_tracking: true, goals: true, announcements: true, calendar: true, bookmarks: true,
-    hrms: true, sales: true, utility: true,
+    hrms: true, sales: true, utility: true, website_forms: true,
   },
 };
 

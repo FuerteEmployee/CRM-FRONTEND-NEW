@@ -35,6 +35,7 @@ import Calendar from "./pages/Calendar";
 import Leads from "./pages/Leads";
 import LeadView from "./pages/LeadView";
 import CallingAgent from "./pages/CallingAgent";
+import WebsiteForms from "./pages/WebsiteForms";
 import Subscriptions from "./pages/Subscriptions";
 import SubscriptionCreate from "./pages/SubscriptionCreate";
 import SubscriptionWebsite from "./pages/SubscriptionWebsite";
@@ -243,6 +244,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="leads" element={<Wrapper><Leads /></Wrapper>} />
     <Route path="leads/:id" element={<Wrapper><LeadView /></Wrapper>} />
     <Route path="calling-agent" element={<Wrapper><CallingAgent /></Wrapper>} />
+    <Route path="website-forms" element={<Wrapper><WebsiteForms /></Wrapper>} />
     <Route path="subscriptions" element={<Wrapper><Subscriptions /></Wrapper>} />
     <Route path="subscriptions/create" element={<Wrapper><SubscriptionCreate /></Wrapper>} />
     <Route path="subscriptions/create/:clientId" element={<Wrapper><SubscriptionCreate /></Wrapper>} />

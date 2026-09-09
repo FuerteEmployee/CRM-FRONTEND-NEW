@@ -570,7 +570,17 @@ export default function SetupSettings() {
       return;
     }
     if (editingExternalApiSource) {
-      updateExternalApiSourceMutation.mutate({ id: editingExternalApiSource._id, data: externalApiForm });
+      // The edit form always shows api_key/api_password blank (never the real
+      // secret) — sending "" would tell the backend to clear the stored
+      // credential (its update contract treats "" as "clear", undefined as
+      // "leave alone"), wiping it whenever the admin edits any other field
+      // without retyping the key. Omit them here unless the admin typed a
+      // new value, so the existing credential survives unrelated edits.
+      const { api_key, api_password, ...rest } = externalApiForm;
+      const data: any = { ...rest };
+      if (api_key) data.api_key = api_key;
+      if (api_password) data.api_password = api_password;
+      updateExternalApiSourceMutation.mutate({ id: editingExternalApiSource._id, data });
     } else {
       createExternalApiSourceMutation.mutate(externalApiForm);
     }
