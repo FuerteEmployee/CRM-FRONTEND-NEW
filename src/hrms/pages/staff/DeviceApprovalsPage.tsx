@@ -5,6 +5,7 @@ import { Badge } from "@/hrms/components/ui/badge";
 import { apiClient } from "@/hrms/services/apiClient";
 import { toast } from "@/hrms/hooks/use-toast";
 import { DataTable } from "@/hrms/components/common/DataTable";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import {
     Smartphone,
     CheckCircle2,
@@ -229,7 +230,7 @@ export default function DeviceApprovalsPage() {
                                     <p className="font-bold text-foreground">{r.userId?.name || "Unknown"}</p>
                                     <p className="text-xs text-muted-foreground">{r.userId?.email}</p>
                                     {r.userId?.mobile && (
-                                        <p className="text-xs text-muted-foreground">{r.userId.mobile}</p>
+                                        <WhatsAppQuickChat phone={r.userId.mobile} data={{ customer_name: r.userId?.name }} />
                                     )}
                                 </div>
                             ),

@@ -16,7 +16,6 @@ import {
   Coffee,
   Timer,
   Smartphone,
-  Phone,
   Mail,
   Building2,
   TrendingUp,
@@ -39,6 +38,7 @@ import {
   isToday,
 } from "date-fns";
 import { cn } from "@/hrms/lib/utils";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "@/hrms/components/ui/use-toast";
 
@@ -232,9 +232,7 @@ const StaffAttendanceDetail = () => {
                   </span>
                 )}
                 {selectedStaff?.mobile && (
-                  <span className="text-[10px] font-bold text-white/50 flex items-center gap-1">
-                    <Phone className="h-3 w-3" /> {selectedStaff.mobile}
-                  </span>
+                  <WhatsAppQuickChat phone={selectedStaff.mobile} data={{ customer_name: selectedStaff.name }} />
                 )}
                 {selectedStaff?.email && (
                   <span className="text-[10px] font-bold text-white/50 flex items-center gap-1 hidden sm:flex">

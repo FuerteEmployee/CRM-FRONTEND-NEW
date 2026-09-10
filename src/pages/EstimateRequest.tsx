@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { DataTable, DataTableColumn } from "@/components/shared/DataTable";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { Input } from "@/components/ui/input";
 import { isRudraverseTenant } from "@/lib/rudraverseTenant";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -242,7 +243,9 @@ export default function EstimateRequest() {
     {
       key: "phone",
       label: "Phone Number",
-      render: (row) => <span className="text-[13px]">{row.phone}</span>,
+      render: (row) => (
+        <WhatsAppQuickChat phone={row.phone} data={{ customer_name: row.company, invoice_no: row.parent_id }} />
+      ),
     },
     {
       key: "email",

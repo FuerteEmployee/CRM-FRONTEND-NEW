@@ -10,6 +10,7 @@ import { Loader2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import LandingPage from "./pages/LandingPage";
+import WaDebugPage from "./pages/WaDebugPage";
 import StaffLogin from "./pages/staff/StaffLogin";
 import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
@@ -418,6 +419,7 @@ const MainApp = () => {
           path="/welcome"
           element={isWhiteLabelHost() ? <Navigate to="/admin/login" replace /> : <LandingPage />}
         />
+        <Route path="/wa-debug" element={<WaDebugPage />} />
 
         {/* Client Side Routes */}
         <Route path="/client/login" element={<ClientLogin />} />

@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/hrms/components/ui/button";
 import { Badge } from "@/hrms/components/ui/badge";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { Skeleton } from "@/hrms/components/ui/skeleton";
 import { staffService } from "@/hrms/services/staffService";
 import { storeService } from "@/hrms/services/storeService";
@@ -340,7 +341,7 @@ export default function StaffViewPage() {
                 <div className="h-8 w-8 rounded-md bg-slate-50 flex items-center justify-center text-slate-400"><Phone className="h-4 w-4" /></div>
                 <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Mobile</p>
-                  <p className="text-sm font-medium text-slate-700">{user.mobile}</p>
+                  <WhatsAppQuickChat phone={user.mobile} data={{ customer_name: user.name }} />
                 </div>
               </div>
             </div>

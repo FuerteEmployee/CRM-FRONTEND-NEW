@@ -50,11 +50,25 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const settingsMap: Record<string, any> = {};
       settingsArray.forEach((s: any) => {
         let val = s.value;
-        // Basic type conversion
-        if (val === "true") val = true;
-        else if (val === "false") val = false;
-        else if (!isNaN(Number(val)) && val !== "" && val !== null) val = Number(val);
-        
+        // Basic type conversion — only for string-encoded values (e.g. from
+        // an <Input>). A value already stored as a real boolean/number
+        // (e.g. saved from a Checkbox-driven toggle) must pass through
+        // untouched: Number(true) === 1, so running this on an actual
+        // boolean silently turns `true`/`false` into `1`/`0`, which then
+        // fails every `=== true` check anywhere else in the app that reads
+        // this setting via getSetting().
+        if (typeof val === "string") {
+          if (val === "true") val = true;
+          else if (val === "false") val = false;
+          else if (val !== "" && !isNaN(Number(val))) val = Number(val);
+          else if ((val.startsWith("[") && val.endsWith("]")) || (val.startsWith("{") && val.endsWith("}"))) {
+            // Array/object-valued settings (e.g. a list of named message
+            // templates) are JSON-stringified before saving — parse them
+            // back so getSetting() returns real data, not a JSON string.
+            try { val = JSON.parse(val); } catch { /* not actually JSON — leave as string */ }
+          }
+        }
+
         settingsMap[s.name] = val;
       });
 

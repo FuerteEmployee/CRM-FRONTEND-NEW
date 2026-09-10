@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { Badge } from "@/hrms/components/ui/badge";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { PageHeader } from "@/hrms/components/common/PageHeader";
 import { DataTable } from "@/hrms/components/common/DataTable";
 import { Button } from "@/hrms/components/ui/button";
@@ -501,13 +502,7 @@ export default function UsersPage() {
               {
                 header: "Phone Number",
                 accessorKey: (u) => u.mobile ? (
-                  <a
-                    href={`tel:${u.mobile}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1.5 text-[12px] font-semibold text-primary hover:underline"
-                  >
-                    <Phone className="h-3.5 w-3.5" /> {u.mobile}
-                  </a>
+                  <WhatsAppQuickChat phone={u.mobile} data={{ customer_name: u.name }} />
                 ) : (
                   <div className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
                     <Phone className="h-3.5 w-3.5 text-muted-foreground/50" /> —

@@ -15,6 +15,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import {
   Select,
   SelectContent,
@@ -543,7 +544,11 @@ const Vendors = () => {
                         <td className="p-4 font-bold text-slate-800">{v.company_name}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{v.vendor_reference || "-"}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{v.connect_person || "-"}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{v.phone_number || "-"}</td>
+                        <td className="p-4 text-xs font-medium text-slate-600">
+                          {v.phone_number ? (
+                            <WhatsAppQuickChat phone={v.phone_number} data={{ customer_name: v.company_name }} />
+                          ) : "-"}
+                        </td>
                         <td className="p-4 text-xs font-medium text-slate-600 max-w-[220px] truncate">{v.address || "-"}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{v.email || "-"}</td>
                         <td className="p-4 text-xs font-medium text-slate-600">{v.pan_number || "-"}</td>

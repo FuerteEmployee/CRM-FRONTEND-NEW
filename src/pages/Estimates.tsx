@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
 import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
@@ -1005,7 +1006,14 @@ const Estimates = () => {
                         </button>
                       </td>
                       <td className="px-6 py-4 text-muted-foreground">{row.connectPerson || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{row.phone || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">
+                        {row.phone ? (
+                          <WhatsAppQuickChat
+                            phone={row.phone}
+                            data={{ customer_name: row.companyName, invoice_no: est.number || estId?.slice(-6).toUpperCase() }}
+                          />
+                        ) : "-"}
+                      </td>
                       <td className="px-6 py-4 text-muted-foreground">{row.mailId || "-"}</td>
                       <td className="px-6 py-4 font-medium text-foreground">{row.itemDescription || "-"}</td>
                       <td className="px-6 py-4 text-muted-foreground">{row.qty !== "" ? row.qty : "-"}</td>
