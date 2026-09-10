@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { LeadDetailDialog } from "@/components/leads/LeadDetailDialog";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
-import { Plus, Search, ChevronDown, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon, KanbanSquare, List } from "lucide-react";
+import { Plus, Search, ChevronDown, MoreHorizontal, Filter, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon, KanbanSquare, List } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { LANGUAGE_NAMES } from "@/lib/languages";
@@ -1454,10 +1455,7 @@ const Leads = () => {
                         </td>
                         <td className="p-4 text-slate-500 font-medium text-xs">
                             {l.phonenumber ? (
-                                <div className="flex items-center gap-1.5 group/phone cursor-pointer">
-                                    <Phone className="h-3 w-3 text-slate-300 group-hover/phone:text-primary transition-colors" />
-                                    <span className="group-hover/phone:text-primary transition-colors">{l.phonenumber}</span>
-                                </div>
+                                <WhatsAppQuickChat phone={l.phonenumber} data={{ customer_name: l.name, lead_id: l._id }} />
                             ) : "-"}
                         </td>
                         <td className="p-4 font-black text-slate-900 text-xs">{formatAmount(l.lead_value || 0)}</td>

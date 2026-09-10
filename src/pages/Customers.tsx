@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { customerService } from "@/api/services/customer.service";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { financeService } from "@/api/services/finance.service";
 import { staffService } from "@/api/services/staff.service";
 import { hrmsbranchService, type HRMSBranch } from "@/hrms/services/hrmsbranchService";
@@ -1418,7 +1419,7 @@ const Customers = () => {
                           {c.primaryContact?.email || c.email || "-"}
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
-                          {c.phonenumber}
+                          <WhatsAppQuickChat phone={c.phonenumber} data={{ customer_name: c.company }} />
                         </td>
                         <td className="p-3 text-sm text-muted-foreground">
                           {c.pan_number || "-"}

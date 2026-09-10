@@ -16,6 +16,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DataTable } from "@/components/shared/DataTable";
+import { DEFAULT_WHATSAPP_QC_TEMPLATES, type WhatsappQcTemplateEntry } from "@/lib/whatsappQuickChat";
+import { WhatsappQuickChatSettingsTab } from "./WhatsappQuickChatSettingsTab";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { settingsService } from "@/api/services/settings.service";
@@ -49,6 +52,7 @@ import {
   PenLine,
   Tag,
   MessageSquare,
+  MessageCircle,
   Clock,
   Layers,
   Info,
@@ -134,6 +138,7 @@ const settingsNavigation: SettingCategory[] = [
       { id: "int-google", label: "Google", icon: Search },
       { id: "int-pusher", label: "Pusher.com", icon: ExternalLink },
       { id: "int-external-api", label: "External APIs", icon: Plug },
+      { id: "int-whatsapp-qc", label: "WhatsApp Quick Chat", icon: MessageCircle },
     ]
   },
   {
@@ -162,6 +167,7 @@ const settingsNavigation: SettingCategory[] = [
 export default function SetupSettings() {
   const [activeTab, setActiveTab] = useState("gen-general");
   const { settings: globalSettings, refreshSettings: refreshGlobalSettings } = useSettings();
+  const { user: currentUser } = usePermissions();
 
   const { data: estimateForms = [] } = useQuery({
     queryKey: ["estimate-request-forms"],
@@ -196,6 +202,10 @@ export default function SetupSettings() {
   const [companyName, setCompanyName] = useState(() => getInit("companyName", "CRM Pro Inc."));
   const [companyDomain, setCompanyDomain] = useState(() => getInit("companyDomain", ""));
   const [allowedFileTypes, setAllowedFileTypes] = useState(() => getInit("allowedFileTypes", "pdf,doc,docx,jpg,png,zip"));
+  const [whatsappQcEnabled, setWhatsappQcEnabled] = useState(() => getInit("whatsappQcEnabled", false));
+  const [whatsappQcTemplates, setWhatsappQcTemplates] = useState<WhatsappQcTemplateEntry[]>(
+    () => getInit("whatsappQcTemplates", DEFAULT_WHATSAPP_QC_TEMPLATES)
+  );
   const [locDisableLanguages, setLocDisableLanguages] = useState(() => getInit("locDisableLanguages", false));
   const [locClientPdfLanguage, setLocClientPdfLanguage] = useState(() => getInit("locClientPdfLanguage", "English"));
   const [locDateFormat, setLocDateFormat] = useState(() => getInit("locDateFormat", "YYYY-MM-DD"));
@@ -779,6 +789,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   const stateMapping: any = {
     rtlAdmin: [rtlAdmin, setRtlAdmin],
     rtlCustomers: [rtlCustomers, setRtlCustomers],
+    whatsappQcEnabled: [whatsappQcEnabled, setWhatsappQcEnabled],
+    whatsappQcTemplates: [whatsappQcTemplates, setWhatsappQcTemplates],
     companyName: [companyName, setCompanyName],
     companyDomain: [companyDomain, setCompanyDomain],
     allowedFileTypes: [allowedFileTypes, setAllowedFileTypes],
@@ -1489,8 +1501,21 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       className="max-w-md"
                     />
                   </div>
+
                 </CardContent>
               </Card>
+            )}
+
+            {activeTab === "int-whatsapp-qc" && (
+              <WhatsappQuickChatSettingsTab
+                enabled={whatsappQcEnabled}
+                setEnabled={setWhatsappQcEnabled}
+                templates={whatsappQcTemplates}
+                setTemplates={setWhatsappQcTemplates}
+                companyName={companyName}
+                currentUser={currentUser}
+                onPersisted={refreshGlobalSettings}
+              />
             )}
 
             {activeTab === "gen-company" && (
@@ -6579,7 +6604,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
             )}
 
             {/* Placeholder for other tabs */}
-            {!["gen-general", "gen-company", "gen-localization", "gen-email", "gen-update", "gen-server", "fin-general", "fin-invoices", "fin-proposals", "fin-estimates", "fin-credit-notes", "fin-subscriptions", "fin-gateways", "feat-customers", "feat-tasks", "feat-support", "feat-leads", "int-google", "int-pusher", "int-external-api", "oth-calendar", "oth-pdf", "oth-esign", "oth-tags", "oth-sms", "misc-misc", "misc-tables", "misc-inline", "misc-cron"].includes(activeTab) && (
+            {!["gen-general", "gen-company", "gen-localization", "gen-email", "gen-update", "gen-server", "fin-general", "fin-invoices", "fin-proposals", "fin-estimates", "fin-credit-notes", "fin-subscriptions", "fin-gateways", "feat-customers", "feat-tasks", "feat-support", "feat-leads", "int-google", "int-pusher", "int-external-api", "int-whatsapp-qc", "oth-calendar", "oth-pdf", "oth-esign", "oth-tags", "oth-sms", "misc-misc", "misc-tables", "misc-inline", "misc-cron"].includes(activeTab) && (
               <Card className="border shadow-sm min-h-[400px] flex items-center justify-center bg-muted/10">
                 <div className="text-center space-y-3">
                   <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">

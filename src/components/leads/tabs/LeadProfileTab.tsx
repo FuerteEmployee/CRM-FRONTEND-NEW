@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { Edit } from "lucide-react";
 import { formatDate } from "@/lib/dateFormat";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -44,7 +45,14 @@ export function LeadProfileTab({ lead, customFieldDefs, onEditClick }: LeadProfi
         <Field label="Company" value={lead.company} />
         <Field label="Position" value={lead.position || lead.title} />
         <Field label="Email" value={lead.email} />
-        <Field label="Phone" value={lead.phonenumber} />
+        <Field
+          label="Phone"
+          value={
+            lead.phonenumber ? (
+              <WhatsAppQuickChat phone={lead.phonenumber} data={{ customer_name: lead.name, lead_id: lead._id }} />
+            ) : undefined
+          }
+        />
         <Field label="Website" value={lead.website} />
         <Field label="Source" value={lead.source?.name} />
         <Field label="Assigned To" value={assignedName} />

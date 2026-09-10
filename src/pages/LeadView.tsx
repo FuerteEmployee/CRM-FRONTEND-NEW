@@ -8,7 +8,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   ChevronLeft,
   Mail,
-  Phone,
   Building2,
   Globe,
   MapPin,
@@ -18,6 +17,7 @@ import {
 import { leadService } from "@/api/services/lead.service";
 import { formatDate } from "@/lib/dateFormat";
 import { useCurrency } from "@/context/CurrencyContext";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 
 interface LeadDetail {
   _id: string;
@@ -126,9 +126,7 @@ const LeadView = () => {
                     </div>
                   )}
                   {lead.phonenumber && (
-                    <div className="flex items-center gap-2 text-sm font-bold text-slate-600">
-                      <Phone className="h-4 w-4 text-slate-300" /> {lead.phonenumber}
-                    </div>
+                    <WhatsAppQuickChat phone={lead.phonenumber} data={{ customer_name: lead.name, lead_id: lead._id }} />
                   )}
                   {lead.website && (
                     <div className="flex items-center gap-2 text-sm font-bold text-slate-600">

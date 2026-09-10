@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -1829,7 +1830,11 @@ export default function CustomerView() {
                   {customer.active ? "Active" : "Inactive"}
                 </Badge>
                 <span>•</span>
-                <span>{customer.phonenumber || "No phone"}</span>
+                {customer.phonenumber ? (
+                  <WhatsAppQuickChat phone={customer.phonenumber} data={{ customer_name: customer.company }} />
+                ) : (
+                  <span>No phone</span>
+                )}
               </div>
             </div>
           </div>
@@ -2544,7 +2549,12 @@ export default function CustomerView() {
                                     {contact.title || "-"}
                                   </td>
                                   <td className="px-6 py-4 text-muted-foreground">
-                                    {contact.phonenumber || "-"}
+                                    {contact.phonenumber ? (
+                                      <WhatsAppQuickChat
+                                        phone={contact.phonenumber}
+                                        data={{ customer_name: `${contact.firstname || ""} ${contact.lastname || ""}`.trim() }}
+                                      />
+                                    ) : "-"}
                                   </td>
                                   <td className="px-6 py-4">
                                     <Switch

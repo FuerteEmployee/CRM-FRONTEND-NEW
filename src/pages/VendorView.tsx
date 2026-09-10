@@ -4,9 +4,10 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, Mail, Phone, MapPin, FileText } from "lucide-react";
+import { ChevronLeft, Mail, MapPin, FileText } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { vendorService } from "@/api/services/vendor.service";
 import { formatDate } from "@/lib/dateFormat";
@@ -102,9 +103,7 @@ const VendorView = () => {
                     <p className="text-sm font-bold text-slate-700">{vendor.vendor_reference || "-"}</p>
                   </div>
                   {vendor.phone_number && (
-                    <div className="flex items-center gap-2 text-sm font-bold text-slate-600">
-                      <Phone className="h-4 w-4 text-slate-300" /> {vendor.phone_number}
-                    </div>
+                    <WhatsAppQuickChat phone={vendor.phone_number} data={{ customer_name: vendor.company_name }} />
                   )}
                   {vendor.email && (
                     <div className="flex items-center gap-2 text-sm font-bold text-slate-600">

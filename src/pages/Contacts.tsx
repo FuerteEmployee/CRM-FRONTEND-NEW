@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import {
   Select,
   SelectContent,
@@ -472,7 +473,12 @@ const Contacts = () => {
                           {contact.title || "developer"}
                         </td>
                         <td className="p-4 text-sm text-[#64748b]">
-                          {contact.phonenumber || "-"}
+                          {contact.phonenumber ? (
+                            <WhatsAppQuickChat
+                              phone={contact.phonenumber}
+                              data={{ customer_name: `${contact.firstname || ""} ${contact.lastname || ""}`.trim() }}
+                            />
+                          ) : "-"}
                         </td>
                         <td className="p-4">
                           <Switch

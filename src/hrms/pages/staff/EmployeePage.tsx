@@ -7,6 +7,7 @@ import {
   CardDescription,
 } from "@/hrms/components/ui/card";
 import { Badge } from "@/hrms/components/ui/badge";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { Skeleton } from "@/hrms/components/ui/skeleton";
 import { Button } from "@/hrms/components/ui/button";
 import {
@@ -1050,7 +1051,11 @@ const EmployeePage = () => {
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-slate-700">{emp.name}</p>
-                          <p className="text-[10px] text-slate-400">{emp.mobile || "No contact"}</p>
+                          {emp.mobile ? (
+                            <WhatsAppQuickChat phone={emp.mobile} data={{ customer_name: emp.name }} />
+                          ) : (
+                            <p className="text-[10px] text-slate-400">No contact</p>
+                          )}
                         </div>
                       </div>
                       <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-lg border-slate-200 hover:bg-slate-50"

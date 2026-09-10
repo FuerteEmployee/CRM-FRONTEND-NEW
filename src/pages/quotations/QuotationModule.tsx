@@ -21,6 +21,7 @@ import { quotationTypeService } from "@/api/services/quotationType.service";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { mediaService } from "@/api/services/media.service";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import {
   LayoutDashboard,
   FilePlus,
@@ -2566,7 +2567,11 @@ function QuotationPreviewDialog({
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-widest mb-0.5">Client</p>
               <p className="font-medium">{clientLabel || "—"}</p>
-              <p className="text-muted-foreground">{contactNumber || "—"}</p>
+              {contactNumber ? (
+                <WhatsAppQuickChat phone={contactNumber} data={{ customer_name: clientLabel }} />
+              ) : (
+                <p className="text-muted-foreground">—</p>
+              )}
               <p className="text-muted-foreground">{address || "—"}</p>
             </div>
             <div className="text-right">

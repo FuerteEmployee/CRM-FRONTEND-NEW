@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
 import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
@@ -309,7 +310,13 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
                     <div className="text-right shrink-0">
                       <p className="text-xs text-muted-foreground mb-0.5">To:</p>
                       <p className="text-sm font-semibold text-primary">{d.proposal_to || d.rel_id || d.customer || "—"}</p>
-                      {d.phone && <p className="text-xs text-primary mt-2">{d.phone}</p>}
+                      {d.phone && (
+                        <WhatsAppQuickChat
+                          phone={d.phone}
+                          data={{ customer_name: d.company || d.proposal_to || d.customer, invoice_no: `PRO-${proposalNumber}` }}
+                          className="mt-2"
+                        />
+                      )}
                       {d.email && <p className="text-xs text-primary">{d.email}</p>}
                     </div>
                   </div>
