@@ -524,7 +524,13 @@ export function AppSidebar() {
   ) => {
     const oldIndex = section.findIndex((i: any) => i._id === fromId);
     if (oldIndex === -1 || oldIndex === toIndex) return;
-    const { payload } = computeReorderPayload(section, oldIndex, toIndex);
+    const { payload: rawPayload } = computeReorderPayload(section, oldIndex, toIndex);
+    // A locked item's own order can never change (no handle, excluded from
+    // the sortable context), but computeReorderPayload's arrayMove can still
+    // recompute its numeric order as a side effect of items shifting around
+    // it — drop any locked id here so its stored position is truly untouched.
+    const lockedIds = new Set(section.filter((i: any) => i.locked).map((i: any) => i._id));
+    const payload = rawPayload.filter((p: any) => !lockedIds.has(p.id));
     queryClient.setQueryData(queryKey, (old: any[] = []) =>
       old.map((item) => {
         const match = payload.find((p) => p.id === item._id);
@@ -694,7 +700,86 @@ export function AppSidebar() {
         return !moduleKey || isModuleEnabled(moduleKey);
       });
 
+    // A tenant sidebar override can mark one of its flat "Main" items as a
+    // stand-in for a whole nested section (see Tenant.sidebar_config's
+    // childGroup) — e.g. "HRMS" positioned wherever the tenant picked, but
+    // still expandable to that group's real, live sub-items instead of
+    // being a dead link. Rendered inline here so it participates in this
+    // same list's drag-to-reorder.
+    const CHILD_GROUP_NAV: Record<string, any[]> = {
+      HRMS: dynamicNav.hrmsNav,
+      Reports: dynamicNav.reportsNav,
+      Utilities: dynamicNav.utilitiesNav,
+      // Quotation Maker's items come from the separate QuotationType
+      // collection (see quotationMakerNav above), not MainSidebar.
+      QuotationMaker: quotationMakerNav,
+    };
+
     return visible.map((item: any) => {
+        if (item.childGroup) {
+          const GroupIcon = (Icons as any)[item.icon] || Icons.Users;
+          const childItems = CHILD_GROUP_NAV[item.childGroup] || [];
+          const showGroupHandle = !!dragCtx && canReorderSidebar && !collapsed && !!item._id;
+          if (showGroupHandle) {
+            return (
+              <SortableSection key={item._id} id={item._id}>
+                {(handle) => renderCollapsibleItem(item.title, GroupIcon, childItems, undefined, handle)}
+              </SortableSection>
+            );
+          }
+          return (
+            <React.Fragment key={item._id || item.title}>
+              {renderCollapsibleItem(item.title, GroupIcon, childItems, undefined)}
+            </React.Fragment>
+          );
+        }
+
+        // "Setup" isn't a normal route link — clicking it swaps the whole
+        // sidebar into its own nested menu tree (setupMenuItems) via
+        // menuMode, so a tenant override positioning it inline still needs
+        // this mode-switch button instead of a plain NavLink.
+        if (item.url === "/admin/setup") {
+          const SetupIcon = (Icons as any)[item.icon] || Icons.Settings;
+          const setupShowHandle = !!dragCtx && canReorderSidebar && !collapsed && !!item._id && !item.locked;
+          const setupButton = (
+            <SidebarMenuButton
+              id="tour-setup"
+              onClick={() => {
+                setMenuMode("setup");
+                setOpenSections({});
+                if (isMobile) setOpenMobile(false);
+              }}
+              className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative cursor-pointer"
+            >
+              <SetupIcon className="mr-2.5 h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left text-[13px] font-medium">{item.title}</span>
+                  <Icons.ChevronRight className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 group-hover:text-sidebar-foreground transition-colors" />
+                </>
+              )}
+            </SidebarMenuButton>
+          );
+          const setupRow = (handle?: { attributes: any; listeners: any }) => (
+            <div className="flex items-center w-full">
+              {alignHandleGutter && (
+                setupShowHandle && handle
+                  ? <DragHandle attributes={handle.attributes} listeners={handle.listeners} />
+                  : <HandleGutter />
+              )}
+              <div className="flex-1 min-w-0">{setupButton}</div>
+            </div>
+          );
+          if (setupShowHandle) {
+            return (
+              <SortableNavItem key={item._id} id={item._id}>
+                {(handle) => setupRow(handle)}
+              </SortableNavItem>
+            );
+          }
+          return <SidebarMenuItem key={item._id || item.title}>{setupRow()}</SidebarMenuItem>;
+        }
+
         const urlStr = getUrl(item.url) || "";
         const isActive = checkIsActive(item.url);
         const isExternal = urlStr.startsWith("http");
@@ -703,7 +788,7 @@ export function AppSidebar() {
         // Also requires a real _id — the transient fallbackNav placeholder
         // (rendered before the DB-backed items have loaded) has none, and
         // dnd-kit's sortable identity can't be undefined.
-        const showHandle = !!dragCtx && canReorderSidebar && !collapsed && !!item._id;
+        const showHandle = !!dragCtx && canReorderSidebar && !collapsed && !!item._id && !item.locked;
 
         const button = (
           <SidebarMenuButton asChild isActive={!isExternal && isActive}>
@@ -864,7 +949,10 @@ export function AppSidebar() {
   const renderDraggableSection = (items: any[], dragCtx?: { mutation: any; queryKey: string[] }) => {
     if (dragCtx && canReorderSidebar) {
       return (
-        <SortableContext items={items.map((i: any) => i._id)} strategy={verticalListSortingStrategy}>
+        // Locked items are excluded here so dnd-kit never treats them as a
+        // drop target — a drag can't land "between" a locked item and its
+        // neighbor, so it can't get nudged out of place by other reorders.
+        <SortableContext items={items.filter((i: any) => !i.locked).map((i: any) => i._id)} strategy={verticalListSortingStrategy}>
           {renderItems(items, undefined, dragCtx)}
         </SortableContext>
       );
@@ -872,15 +960,30 @@ export function AppSidebar() {
     return renderItems(items);
   };
 
+  // A tenant override can pin one of these three groups inline into the flat
+  // "Main" list instead (see renderItems' childGroup handling) — when it
+  // does, skip rendering that same group again down here in its normal
+  // fixed spot, so it doesn't appear twice.
+  const inlineRenderedGroups = new Set(
+    dynamicNav.mainNav.map((i: any) => i.childGroup).filter(Boolean),
+  );
+
+  // Same idea for the two hardcoded, non-group items below (Setup and
+  // Subscription Details) — a tenant override can reposition either one
+  // into the flat list too (Setup via renderItems' url-based special case,
+  // Subscription Details as an ordinary leaf link); when it does, the fixed
+  // copy further down must not also render, or it'd show twice.
+  const inlineRenderedUrls = new Set(dynamicNav.mainNav.map((i: any) => i.url));
+
   // Backing data for each reorderable section key, looked up by
   // renderSectionGroup below. Quotation Maker included here even though it
   // isn't part of `dynamicNav` (MainSidebar) — it's its own collection.
   const SECTION_DEFS: Record<string, { label: string; icon: React.ElementType; items: any[]; dragCtx: { mutation: any; queryKey: string[] }; enabled: boolean }> = {
     sales: { label: "Sales", icon: Icons.Zap, items: dynamicNav.salesNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("sales") },
-    quotationMaker: { label: "Quotation Maker", icon: Icons.FileBarChart, items: quotationMakerNav, dragCtx: quotationDragCtx, enabled: isModuleEnabled("sales") },
-    hrms: { label: "HRMS", icon: Icons.Users, items: dynamicNav.hrmsNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("hrms") },
-    utilities: { label: "Utilities", icon: Icons.CircleDot, items: dynamicNav.utilitiesNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("utility") },
-    reports: { label: "Reports", icon: Icons.TrendingUp, items: dynamicNav.reportsNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("reports") },
+    quotationMaker: { label: "Quotation Maker", icon: Icons.FileBarChart, items: quotationMakerNav, dragCtx: quotationDragCtx, enabled: isModuleEnabled("sales") && !inlineRenderedGroups.has("QuotationMaker") },
+    hrms: { label: "HRMS", icon: Icons.Users, items: dynamicNav.hrmsNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("hrms") && !inlineRenderedGroups.has("HRMS") },
+    utilities: { label: "Utilities", icon: Icons.CircleDot, items: dynamicNav.utilitiesNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("utility") && !inlineRenderedGroups.has("Utilities") },
+    reports: { label: "Reports", icon: Icons.TrendingUp, items: dynamicNav.reportsNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("reports") && !inlineRenderedGroups.has("Reports") },
   };
   const sectionHasContent = (key: string) => {
     const def = SECTION_DEFS[key];
@@ -1011,7 +1114,7 @@ export function AppSidebar() {
                 {!isHrmsOnly && (
                   <>
                     {renderSectionGroup(workspaceGroupOrder, "sidebarWorkspaceGroupOrder", setWorkspaceGroupOrder)}
-                    {hasSetupAccess && (
+                    {hasSetupAccess && !inlineRenderedUrls.has("/admin/setup") && (
                       <SidebarMenuItem>
                         <div className="flex items-center w-full">
                           {alignHandleGutter && <HandleGutter />}
@@ -1037,7 +1140,7 @@ export function AppSidebar() {
                         </div>
                       </SidebarMenuItem>
                     )}
-                    {renderItems([
+                    {!inlineRenderedUrls.has("/admin/pricing") && renderItems([
                       {
                         title: "Subscription Details",
                         url: "/admin/pricing",
