@@ -11,13 +11,72 @@
     -->
     <script>
       (function () {
-        function show(label, detail) {
+        function show(label, detail, watchForMount) {
           try {
             var pre = document.createElement("pre");
             pre.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#fff;color:#b91c1c;padding:16px;font:12px/1.5 monospace;white-space:pre-wrap;overflow:auto;margin:0;";
             pre.textContent = "[" + label + "]\n" + detail;
             document.documentElement.appendChild(pre);
+
+            // Only the stuck-mount report can be a false positive — it's a
+            // fixed check at 4s, so a load that's merely slow (not truly
+            // stuck) trips it too, and this overlay (position:fixed;inset:0)
+            // then permanently covers the whole page — capturing every
+            // click/tap — even once the real app finishes mounting right
+            // behind it. Watch #root and remove this the moment it actually
+            // gets content, so a false alarm can't lock out the whole page.
+            // A genuine JS error/unhandledrejection has no such "maybe it
+            // resolves itself" case, so those stay up regardless of #root —
+            // that's the whole point of showing them.
+            if (watchForMount) {
+              var root = document.getElementById("root");
+              if (root && root.childNodes.length === 0) {
+                var observer = new MutationObserver(function () {
+                  if (root.childNodes.length === 0) return;
+                  try { pre.remove(); } catch (e) {}
+                  observer.disconnect();
+                });
+                observer.observe(root, { childList: true });
+              }
+            }
           } catch (e) {}
+        }
+        // Shown first when a load is merely slow past 4s — a real crash is
+        // far rarer than a slow cold load, so a friendly spinner (which
+        // auto-removes itself the instant #root actually mounts) is far
+        // less alarming than jumping straight to a wall of red diagnostic
+        // text for what usually resolves on its own a moment later.
+        function showSpinner() {
+          var overlay = document.createElement("div");
+          overlay.id = "__boot_loading__";
+          overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font:14px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#475569;";
+          var style = document.createElement("style");
+          style.textContent = "@keyframes __boot_spin__ { to { transform: rotate(360deg); } }";
+          var spinnerEl = document.createElement("div");
+          spinnerEl.style.cssText = "width:36px;height:36px;border:3px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:__boot_spin__ 0.8s linear infinite;";
+          var text = document.createElement("div");
+          text.textContent = "Still loading…";
+          overlay.appendChild(style);
+          overlay.appendChild(spinnerEl);
+          overlay.appendChild(text);
+          document.documentElement.appendChild(overlay);
+
+          var root = document.getElementById("root");
+          var observer = null;
+          if (root) {
+            observer = new MutationObserver(function () {
+              if (root.childNodes.length === 0) return;
+              try { overlay.remove(); } catch (e) {}
+              observer.disconnect();
+            });
+            observer.observe(root, { childList: true });
+          }
+          return {
+            remove: function () {
+              try { overlay.remove(); } catch (e) {}
+              if (observer) observer.disconnect();
+            },
+          };
         }
         // Browser extensions (chrome-extension://, moz-extension://, etc.) inject
         // their own scripts that can throw independently of this page — those
@@ -40,37 +99,51 @@
           var root = document.getElementById("root");
           if (!root || root.childNodes.length !== 0) return;
 
-          var lines = ["React never rendered into #root after 4s.", "cookies: " + (document.cookie || "(none)")];
+          // Stage 1 (4s): still nothing — almost always just a slow cold
+          // load, so show a friendly spinner rather than alarming red text.
+          // It removes itself the moment #root actually mounts (see
+          // showSpinner's own observer).
+          var spinner = showSpinner();
 
-          function reportResources() {
-            try {
-              var entries = performance.getEntriesByType("resource");
-              lines.push("--- resources (" + entries.length + ") ---");
-              entries.forEach(function (e) {
-                var short = e.name.indexOf(location.origin) === 0 ? e.name.slice(location.origin.length) : e.name;
-                lines.push(short + " | dur=" + Math.round(e.duration) + "ms | size=" + e.transferSize + " | status=" + (e.responseStatus || "?"));
-              });
-            } catch (e) {
-              lines.push("resource timing failed: " + e.message);
+          // Stage 2 (+6s = 10s total): if it's STILL empty by then, this
+          // stopped looking like "just slow" — escalate to the full
+          // technical diagnostic dump.
+          setTimeout(function () {
+            if (root.childNodes.length !== 0) return;
+            spinner.remove();
+
+            var lines = ["React never rendered into #root after 10s.", "cookies: " + (document.cookie || "(none)")];
+
+            function reportResources() {
+              try {
+                var entries = performance.getEntriesByType("resource");
+                lines.push("--- resources (" + entries.length + ") ---");
+                entries.forEach(function (e) {
+                  var short = e.name.indexOf(location.origin) === 0 ? e.name.slice(location.origin.length) : e.name;
+                  lines.push(short + " | dur=" + Math.round(e.duration) + "ms | size=" + e.transferSize + " | status=" + (e.responseStatus || "?"));
+                });
+              } catch (e) {
+                lines.push("resource timing failed: " + e.message);
+              }
+              show("stuck-mount", lines.join("\n"), true);
             }
-            show("stuck-mount", lines.join("\n"));
-          }
 
-          if ("serviceWorker" in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function (rs) {
-              lines.push("serviceWorker: controller=" + !!navigator.serviceWorker.controller + ", registrations=" + rs.length);
-              rs.forEach(function (r, i) {
-                lines.push("  [" + i + "] scope=" + r.scope + " active=" + (r.active ? r.active.state : "none") + " waiting=" + (r.waiting ? r.waiting.state : "none"));
+            if ("serviceWorker" in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function (rs) {
+                lines.push("serviceWorker: controller=" + !!navigator.serviceWorker.controller + ", registrations=" + rs.length);
+                rs.forEach(function (r, i) {
+                  lines.push("  [" + i + "] scope=" + r.scope + " active=" + (r.active ? r.active.state : "none") + " waiting=" + (r.waiting ? r.waiting.state : "none"));
+                });
+                reportResources();
+              }).catch(function (e) {
+                lines.push("serviceWorker: getRegistrations failed: " + e.message);
+                reportResources();
               });
+            } else {
+              lines.push("serviceWorker: unsupported");
               reportResources();
-            }).catch(function (e) {
-              lines.push("serviceWorker: getRegistrations failed: " + e.message);
-              reportResources();
-            });
-          } else {
-            lines.push("serviceWorker: unsupported");
-            reportResources();
-          }
+            }
+          }, 6000);
         }, 4000);
       })();
     </script>
