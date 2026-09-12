@@ -2,6 +2,9 @@ import { apiClient } from '../client';
 
 export const whatsappCampaignService = {
   getTemplates: (refresh) => apiClient.get('/whatsapp/campaigns/templates', { params: refresh ? { refresh: 'true' } : {} }),
+  getAllTemplates: (refresh) =>
+    apiClient.get('/whatsapp/campaigns/templates', { params: { all: 'true', ...(refresh ? { refresh: 'true' } : {}) } }),
+  createTemplate: (data) => apiClient.post('/whatsapp/campaigns/templates', data),
   getAnalytics: () => apiClient.get('/whatsapp/campaigns/analytics'),
   getLogs: (params) => apiClient.get('/whatsapp/campaigns/logs', { params }),
   getCampaigns: () => apiClient.get('/whatsapp/campaigns'),

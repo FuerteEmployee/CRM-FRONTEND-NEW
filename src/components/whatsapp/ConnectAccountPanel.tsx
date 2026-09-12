@@ -26,6 +26,7 @@ interface Connection {
   waba_id: string;
   display_phone_number?: string;
   access_token_masked: string;
+  app_secret_configured: boolean;
   is_live: boolean;
   last_synced?: string;
 }
@@ -34,7 +35,9 @@ export function ConnectAccountPanel() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ phone_number_id: "", waba_id: "", access_token: "" });
+  const [form, setForm] = useState({ phone_number_id: "", waba_id: "", access_token: "", app_secret: "" });
+  const [tokenDialogFor, setTokenDialogFor] = useState<Connection | null>(null);
+  const [tokenForm, setTokenForm] = useState({ access_token: "", app_secret: "" });
 
   const { data, isLoading } = useQuery({
     queryKey: ["whatsapp-integrations"],
@@ -47,10 +50,25 @@ export function ConnectAccountPanel() {
     onSuccess: () => {
       toast({ title: "WhatsApp number connected" });
       setOpen(false);
-      setForm({ phone_number_id: "", waba_id: "", access_token: "" });
+      setForm({ phone_number_id: "", waba_id: "", access_token: "", app_secret: "" });
       queryClient.invalidateQueries({ queryKey: ["whatsapp-integrations"] });
     },
     onError: (err: any) => toast({ title: "Connection failed", description: err.message, variant: "destructive" }),
+  });
+
+  const updateTokenMutation = useMutation({
+    mutationFn: () =>
+      whatsappService.updateToken(tokenDialogFor!._id, {
+        ...(tokenForm.access_token ? { access_token: tokenForm.access_token } : {}),
+        ...(tokenForm.app_secret ? { app_secret: tokenForm.app_secret } : {}),
+      }),
+    onSuccess: () => {
+      toast({ title: "Credentials updated" });
+      setTokenDialogFor(null);
+      setTokenForm({ access_token: "", app_secret: "" });
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-integrations"] });
+    },
+    onError: (err: any) => toast({ title: "Update failed", description: err.message, variant: "destructive" }),
   });
 
   const liveModeMutation = useMutation({
@@ -100,9 +118,20 @@ export function ConnectAccountPanel() {
                 <Label>Access Token</Label>
                 <Input
                   type="password"
+                  autoComplete="new-password"
                   value={form.access_token}
                   onChange={(e) => setForm({ ...form, access_token: e.target.value })}
                   placeholder="Permanent system-user token"
+                />
+              </div>
+              <div>
+                <Label>App Secret (optional)</Label>
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  value={form.app_secret}
+                  onChange={(e) => setForm({ ...form, app_secret: e.target.value })}
+                  placeholder="Enables webhook signature verification"
                 />
               </div>
             </div>
@@ -136,6 +165,7 @@ export function ConnectAccountPanel() {
                   <div className="font-medium">{c.display_phone_number || c.phone_number_id}</div>
                   <div className="text-xs text-muted-foreground">
                     Token {c.access_token_masked} · WABA {c.waba_id}
+                    {c.app_secret_configured && " · App Secret set"}
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
@@ -149,6 +179,16 @@ export function ConnectAccountPanel() {
                       onCheckedChange={(checked) => liveModeMutation.mutate({ id: c._id, isLive: checked })}
                     />
                   </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setTokenForm({ access_token: "", app_secret: "" });
+                      setTokenDialogFor(c);
+                    }}
+                  >
+                    Update Token
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => disconnectMutation.mutate(c._id)}>
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -158,6 +198,50 @@ export function ConnectAccountPanel() {
           ))}
         </div>
       )}
+
+      <Dialog open={!!tokenDialogFor} onOpenChange={(o) => !o && setTokenDialogFor(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Update Credentials — {tokenDialogFor?.display_phone_number || tokenDialogFor?.phone_number_id}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Fill in only what you want to change — leave a field blank to keep its current value.
+            </p>
+            <div>
+              <Label>New Access Token</Label>
+              <Input
+                type="password"
+                autoComplete="new-password"
+                value={tokenForm.access_token}
+                onChange={(e) => setTokenForm({ ...tokenForm, access_token: e.target.value })}
+                placeholder="e.g. replacing a temporary token with a permanent one"
+              />
+            </div>
+            <div>
+              <Label>New App Secret</Label>
+              <Input
+                type="password"
+                autoComplete="new-password"
+                value={tokenForm.app_secret}
+                onChange={(e) => setTokenForm({ ...tokenForm, app_secret: e.target.value })}
+                placeholder="Enables webhook signature verification"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={() => updateTokenMutation.mutate()}
+              disabled={updateTokenMutation.isPending || (!tokenForm.access_token && !tokenForm.app_secret)}
+            >
+              {updateTokenMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Update
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
