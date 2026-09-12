@@ -3,6 +3,7 @@ import { apiClient } from '../client';
 export const whatsappService = {
   getIntegrations: () => apiClient.get('/whatsapp-integration'),
   connect: (data) => apiClient.post('/whatsapp-integration/connect', data),
+  updateToken: (id, data) => apiClient.patch(`/whatsapp-integration/${id}/token`, data),
   setLiveMode: (id, isLive) => apiClient.patch(`/whatsapp-integration/${id}/live-mode`, { is_live: isLive }),
   disconnect: (id) => apiClient.delete(`/whatsapp-integration/${id}`),
 

@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 import { ConnectAccountPanel } from "@/components/whatsapp/ConnectAccountPanel";
+import { TemplatesPanel } from "@/components/whatsapp/TemplatesPanel";
 import { CampaignForm } from "@/components/whatsapp/CampaignForm";
 import { TemplateConditionsPanel } from "@/components/whatsapp/TemplateConditionsPanel";
 import { WhatsAppChat } from "@/components/whatsapp/WhatsAppChat";
@@ -148,6 +149,7 @@ const WhatsAppMarketing = () => {
         <Tabs defaultValue="campaigns">
           <TabsList>
             <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+            <TabsTrigger value="templates">Templates</TabsTrigger>
             <TabsTrigger value="inbox">
               Inbox {unreadCount > 0 && <Badge variant="destructive" className="ml-1.5">{unreadCount}</Badge>}
             </TabsTrigger>
@@ -157,6 +159,7 @@ const WhatsAppMarketing = () => {
           </TabsList>
 
           <TabsContent value="campaigns"><CampaignsTab /></TabsContent>
+          <TabsContent value="templates"><TemplatesPanel /></TabsContent>
           <TabsContent value="inbox"><WhatsAppChat onUnreadChange={setUnreadCount} /></TabsContent>
           <TabsContent value="logs"><WhatsAppLogs /></TabsContent>
           <TabsContent value="conditions"><TemplateConditionsPanel /></TabsContent>
