@@ -136,7 +136,8 @@ const Leads = () => {
   const [leadForm, setLeadForm] = useState({
     status: "", source: "", assigned: "", salesPerson: "", branch: "", tags: "", name: "", position: "", email: "", website: "",
     phonenumber: "", lead_value: "", company: "", address: "", city: "", state: "", country: "",
-    zip: "", default_language: "English", description: "", is_public: false, contacted_today: false
+    zip: "", default_language: "English", description: "", is_public: false, contacted_today: false,
+    followup_date: ""
   });
 
   // Resolves the symbolic date-range filter into explicit boundaries using
@@ -315,13 +316,15 @@ const Leads = () => {
         default_language: lead.default_language || lead.defaultLanguage || "English",
         description: lead.description || "",
         is_public: !!(lead.is_public ?? lead.isPublic),
-        contacted_today: !!(lead.contacted_today ?? lead.contactedToday)
+        contacted_today: !!(lead.contacted_today ?? lead.contactedToday),
+        followup_date: lead.followup_date ? new Date(lead.followup_date).toISOString().split("T")[0] : ""
       });
     } else {
       setLeadForm({
         status: "", source: "", assigned: "", salesPerson: "", branch: "", tags: "", name: "", position: "", email: "", website: "",
         phonenumber: "", lead_value: "", company: "", address: "", city: "", state: "", country: "",
-        zip: "", default_language: "English", description: "", is_public: false, contacted_today: false
+        zip: "", default_language: "English", description: "", is_public: false, contacted_today: false,
+        followup_date: ""
       });
     }
     setIsNewLeadOpen(true);
@@ -981,6 +984,17 @@ const Leads = () => {
                         </div>
                       )}
 
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Follow-Up Date</Label>
+                        <Input
+                          type="date"
+                          readOnly={modalMode === "view"}
+                          value={leadForm.followup_date}
+                          onChange={(e) => setLeadForm(prev => ({ ...prev, followup_date: e.target.value }))}
+                          className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white"
+                        />
+                      </div>
+
                       <div className="flex gap-6">
                         <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-300 flex-1">
                           <Checkbox disabled={modalMode === "view"} id="is_public" checked={leadForm.is_public} onCheckedChange={(c) => setLeadForm(prev => ({ ...prev, is_public: !!c }))} />
@@ -1396,6 +1410,7 @@ const Leads = () => {
                     {canUseBranch && <th className="p-4 bg-slate-50/50">Branch</th>}
                     <th className="p-4 bg-slate-50/50">Status</th>
                     <th className="p-4 bg-slate-50/50">Source</th>
+                    <th className="p-4 bg-slate-50/50">Follow-Up</th>
                     <th className="p-4 bg-slate-50/50">Last Contact</th>
                     <th className="p-4 bg-slate-50/50">Created</th>
                     {tableCustomFields.map((cf: any) => (
@@ -1522,6 +1537,7 @@ const Leads = () => {
                             </Select>
                         </td>
                         <td className="p-4 text-[10px] font-bold text-slate-400 uppercase">{typeof l.source === 'object' ? l.source?.name : (sources.find(s => s._id === l.source)?.name || "-")}</td>
+                        <td className="p-4 text-[10px] font-bold text-slate-400">{l.followup_date ? formatDate(l.followup_date) : "-"}</td>
                         <td className="p-4 text-[10px] font-bold text-slate-400">Never</td>
                         <td className="p-4 text-[10px] font-bold text-slate-400 italic">{formatDate(l.createdAt)}</td>
                         {tableCustomFields.map((cf: any) => (
