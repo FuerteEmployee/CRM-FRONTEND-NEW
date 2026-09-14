@@ -26,8 +26,11 @@ import {
   ClipboardList,
   Loader2,
   ArrowRight,
+  ArrowUpRight,
   FileBarChart,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import {
   AreaChart,
   Area,
@@ -136,6 +139,8 @@ const PlanExpiredModal = ({ plan }: { plan: any }) => {
 const Dashboard = () => {
   const { user, isModuleEnabled, canView, isStaff, isAdmin } = usePermissionContext();
   const { symbol, formatAmount } = useCurrency();
+  const navigate = useNavigate();
+  const basePath = isStaff ? "/staff" : "/admin";
 
   const getDaysRemaining = (): number | null => {
     if (!user?.tenant) return null;
@@ -453,11 +458,35 @@ const Dashboard = () => {
   const tasksProgress = totalTasksCount > 0 ? (unfinishedTasksCount / totalTasksCount) * 100 : 0;
 
   const statCards = [
-    isModuleEnabled("finance") && canView("Invoices") && { label: "Invoices Awaiting Payment", value: `${unpaidInvoicesCount} / ${totalInvoicesCount}`, icon: FileText, progress: invoicesProgress },
-    isModuleEnabled("leads") && canView("Leads") && { label: "Converted Leads", value: `${convertedLeadsCount} / ${totalLeadsCount}`, icon: TrendingUp, progress: leadsProgress },
-    isModuleEnabled("projects") && { label: "Projects In Progress", value: `${activeProjectsCount} / ${totalProjectsCount}`, icon: FolderKanban, progress: projectsProgress },
-    isModuleEnabled("tasks") && { label: "Tasks Not Finished", value: `${unfinishedTasksCount} / ${totalTasksCount}`, icon: CheckSquare, progress: tasksProgress },
-  ].filter(Boolean) as { label: string; value: string; icon: any; progress: number }[];
+    isModuleEnabled("finance") && canView("Invoices") && {
+      label: "Invoices Awaiting Payment",
+      value: `${unpaidInvoicesCount} / ${totalInvoicesCount}`,
+      icon: FileText,
+      progress: invoicesProgress,
+      link: `${basePath}/invoices`,
+    },
+    isModuleEnabled("leads") && canView("Leads") && {
+      label: "Converted Leads",
+      value: `${convertedLeadsCount} / ${totalLeadsCount}`,
+      icon: TrendingUp,
+      progress: leadsProgress,
+      link: `${basePath}/leads`,
+    },
+    isModuleEnabled("projects") && {
+      label: "Projects In Progress",
+      value: `${activeProjectsCount} / ${totalProjectsCount}`,
+      icon: FolderKanban,
+      progress: projectsProgress,
+      link: `${basePath}/projects`,
+    },
+    isModuleEnabled("tasks") && {
+      label: "Tasks Not Finished",
+      value: `${unfinishedTasksCount} / ${totalTasksCount}`,
+      icon: CheckSquare,
+      progress: tasksProgress,
+      link: `${basePath}/tasks`,
+    },
+  ].filter(Boolean) as { label: string; value: string; icon: any; progress: number; link?: string }[];
 
   // - Invoice Overview Section Items
   const invoiceOverviewDraft = invoicesList.filter((i: any) => String(i.status || "").toLowerCase() === "draft").length;
@@ -804,7 +833,7 @@ const Dashboard = () => {
           element: '#tour-stats',
           popover: {
             title: 'Key Statistics',
-            description: 'These metric cards give you an instant read on Invoices, Leads, Projects, and Tasks progress.',
+            description: 'These metric cards give you an instant read on Invoices, Leads, Projects, and Tasks progress. Click any card to jump directly to that module.',
             side: "bottom",
             align: 'start'
           }
@@ -930,13 +959,42 @@ const Dashboard = () => {
         {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="tour-stats">
           {statCards.map((s) => (
-            <Card key={s.label}>
+            <Card
+              key={s.label}
+              role={s.link ? "button" : undefined}
+              tabIndex={s.link ? 0 : undefined}
+              onClick={() => s.link && navigate(s.link)}
+              onKeyDown={(e) => {
+                if (s.link && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  navigate(s.link);
+                }
+              }}
+              className={cn(
+                "relative overflow-hidden transition-all duration-200 border-border/70 select-none",
+                s.link && "cursor-pointer hover:shadow-md hover:border-primary/50 hover:-translate-y-0.5 active:scale-[0.99] group bg-card hover:bg-muted/20"
+              )}
+            >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-muted-foreground font-medium">{s.label}</span>
-                  <s.icon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground font-medium group-hover:text-foreground transition-colors">
+                    {s.label}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <s.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    {s.link && (
+                      <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-200" />
+                    )}
+                  </div>
                 </div>
-                <div className="text-2xl font-bold">{s.value}</div>
+                <div className="flex items-baseline justify-between">
+                  <div className="text-2xl font-bold tracking-tight">{s.value}</div>
+                  {s.link && (
+                    <span className="text-[11px] font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-0.5">
+                      View all
+                    </span>
+                  )}
+                </div>
                 <Progress value={s.progress} className="h-1.5 mt-2" />
               </CardContent>
             </Card>
