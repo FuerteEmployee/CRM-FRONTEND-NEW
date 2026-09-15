@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Building2, Plus, Search, Activity, Trash2,
   Package, CheckCircle2, XCircle, Settings, Clock,
-  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell, Globe
+  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell, Globe, RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -54,6 +54,34 @@ const DEFAULT_MANAGE = { company_name: "", email: "", password: "", plan_id: "",
 
 const parseDomains = (value: string) =>
   value.split(",").map((d) => d.trim().toLowerCase()).filter(Boolean);
+
+// Days remaining until the tenant's plan expires, or null when there's no
+// meaningful expiry (e.g. an active lifetime plan). Mirrors the "Joined"
+// column's own date math so the Renew button lines up with what's displayed.
+const getDaysLeft = (tenant: Tenant): number | null => {
+  if (tenant.plan_id?.billing_cycle === "lifetime" && tenant.status === "active") return null;
+
+  let expiryDate: Date | null = null;
+  if (tenant.status === "trial") {
+    const trialDays = tenant.plan_id?.trial_days ?? 14;
+    expiryDate = tenant.trial_ends_at
+      ? new Date(tenant.trial_ends_at)
+      : new Date(new Date(tenant.createdAt).getTime() + trialDays * 86400000);
+  } else if (tenant.status === "active") {
+    const cycle = tenant.plan_id?.billing_cycle;
+    const cycleDays = cycle === "yearly" ? 365 : 30;
+    const startDate = tenant.billing_cycle_start || tenant.createdAt;
+    expiryDate = tenant.billing_cycle_end
+      ? new Date(tenant.billing_cycle_end)
+      : new Date(new Date(startDate).getTime() + cycleDays * 86400000);
+  } else if (tenant.billing_cycle_end || tenant.trial_ends_at) {
+    expiryDate = new Date(tenant.billing_cycle_end || tenant.trial_ends_at!);
+  } else {
+    return null;
+  }
+
+  return Math.ceil((expiryDate.getTime() - Date.now()) / 86400000);
+};
 
 const DEFAULT_COUNTS = { active: 0, inactive: 0, trial: 0, expired: 0 };
 
@@ -166,6 +194,18 @@ export default function SuperAdminCompanies() {
       fetchData();
     } catch (error: any) {
       toast.error(error.message || "Failed to update");
+    }
+  };
+
+  const handleRenew = async (tenant: Tenant) => {
+    if (!window.confirm(`Renew "${tenant.company_name}"'s plan starting today?`)) return;
+    try {
+      const updated = await api.put(`/super-admin/tenants/${tenant._id}/renew`);
+      const newExpiry = updated?.billing_cycle_end ? format(new Date(updated.billing_cycle_end), "MMM d, yyyy") : "";
+      toast.success(newExpiry ? `Plan renewed. New expiry: ${newExpiry}` : "Plan renewed");
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to renew plan");
     }
   };
 
@@ -287,16 +327,16 @@ export default function SuperAdminCompanies() {
         ) : (
           <>
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full min-w-[1180px] text-left">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Company Name</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email ID</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Plan</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Banner Shows</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Joined</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Company Name</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Email ID</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Plan</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Banner Shows</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Joined</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -342,13 +382,13 @@ export default function SuperAdminCompanies() {
                           ? "bg-amber-50 text-amber-600 border-amber-200"
                           : "bg-blue-50 text-blue-600 border-blue-200";
                         return (
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${cls}`}>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${cls}`}>
                             <Bell className="h-3 w-3" />
                             {label} before expiry
                           </span>
                         );
                       })() : (
-                        <span className="text-xs text-gray-400 italic">Not set</span>
+                        <span className="text-xs text-gray-400 italic whitespace-nowrap">Not set</span>
                       )}
                     </td>
                     {/* Status */}
@@ -451,8 +491,23 @@ export default function SuperAdminCompanies() {
                       })()}
                     </td>
                     {/* Actions */}
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
+                        {(() => {
+                          const daysLeft = getDaysLeft(tenant);
+                          if (daysLeft === null || daysLeft > 30) return null;
+                          return (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRenew(tenant)}
+                              className="h-8 text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50 border-emerald-200 bg-emerald-50/50"
+                            >
+                              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                              Renew
+                            </Button>
+                          );
+                        })()}
                         <Button
                           variant="outline"
                           size="sm"
