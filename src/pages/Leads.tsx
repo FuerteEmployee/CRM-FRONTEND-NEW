@@ -292,7 +292,7 @@ const Leads = () => {
     [commonCustomFields, formSpecificCustomFields]
   );
 
-  const openModal = (mode: "create" | "edit" | "view", lead: any = null) => {
+  const openModal = (mode: "create" | "edit" | "view", lead: any = null, initialTab?: string) => {
     setModalMode(mode);
     setSelectedLead(lead);
     setIsAddingStatus(false);
@@ -338,7 +338,8 @@ const Leads = () => {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.set("leadView", lead._id);
-        if (!next.get("tab")) next.set("tab", "profile");
+        if (initialTab) next.set("tab", initialTab);
+        else if (!next.get("tab")) next.set("tab", "profile");
         return next;
       }, { replace: true });
     }
@@ -748,7 +749,17 @@ const Leads = () => {
               <span className="flex items-center gap-1.5 font-black text-slate-900 group-hover:text-primary transition-colors cursor-pointer text-xs">
                 {l.name}
                 {showLeadNoteIndicator && leadIdsWithNotesSet.has(l._id) && (
-                  <StickyNote className="h-3 w-3 text-amber-500 shrink-0" aria-label="Has notes" />
+                  <button
+                    type="button"
+                    title="View notes"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openModal("view", l, "notes");
+                    }}
+                    className="shrink-0"
+                  >
+                    <StickyNote className="h-3 w-3 text-amber-500 hover:text-amber-600" aria-label="Has notes" />
+                  </button>
                 )}
               </span>
               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">{l.position || "Lead"}</span>
