@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PhoneCall, PhoneOff, StickyNote } from "lucide-react";
+import { PhoneCall, PhoneOff, StickyNote, Trash2 } from "lucide-react";
 import { formatDateTime } from "@/lib/dateFormat";
 import { noteService } from "@/api/services/note.service";
 import { toast } from "sonner";
@@ -32,6 +32,15 @@ export function LeadNotesTab({ lead }: { lead: any }) {
       setNewNote("");
     },
     onError: (err: any) => toast.error(err.message || "Failed to add note"),
+  });
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: (id: string) => noteService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-notes", lead._id] });
+      queryClient.invalidateQueries({ queryKey: ["lead-note-indicator"] });
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to delete note"),
   });
 
   return (
@@ -98,7 +107,20 @@ export function LeadNotesTab({ lead }: { lead: any }) {
               <div key={note._id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
                 <div className="flex items-center justify-between">
                   <Badge variant="outline" className={`rounded-lg font-bold text-[10px] ${badge.className}`}>{badge.label}</Badge>
-                  <span className="text-[10px] font-bold text-slate-400">{formatDateTime(note.dateadded)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-slate-400">{formatDateTime(note.dateadded)}</span>
+                    <button
+                      type="button"
+                      title="Delete note"
+                      onClick={() => {
+                        if (window.confirm("Delete this note?")) deleteNoteMutation.mutate(note._id);
+                      }}
+                      disabled={deleteNoteMutation.isPending}
+                      className="text-slate-300 hover:text-rose-500 transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
                 <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap">{note.description}</p>
                 <p className="text-[10px] font-bold text-slate-400">by {authorName}</p>

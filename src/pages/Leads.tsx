@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { LeadDetailDialog } from "@/components/leads/LeadDetailDialog";
 import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
-import { Plus, Search, ChevronDown, MoreHorizontal, Filter, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon, KanbanSquare, List } from "lucide-react";
+import { Plus, Search, ChevronDown, MoreHorizontal, Filter, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon, KanbanSquare, List, StickyNote } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { LANGUAGE_NAMES } from "@/lib/languages";
@@ -22,10 +22,13 @@ import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { useCurrency } from "@/context/CurrencyContext";
 import { staffService } from "@/api/services/staff.service";
 import { customFieldService } from "@/api/services/custom-field.service";
+import { noteService } from "@/api/services/note.service";
+import { useSettings } from "@/context/SettingsContext";
 import { Textarea } from "@/components/ui/textarea";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
 import { MetaFormsFilterDropdown } from "@/components/leads/MetaFormsFilterDropdown";
+import { LeadColumnSettings } from "@/components/leads/LeadColumnSettings";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
@@ -99,6 +102,7 @@ const Leads = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can, user, isModuleEnabled } = usePermissions();
+  const { getSetting } = useSettings();
   const isPilot = isTrinetraPilotUser(user?.email);
   // Branch is sourced from the HRMS module — only show/fetch it when the
   // tenant's plan actually includes HRMS, even for a pilot-flagged user.
@@ -707,6 +711,269 @@ const Leads = () => {
   const totalLeadsCount = itemsPerPage === "all" ? filtered.length : (leadsResult?.total ?? 0);
   const itemsPerPageNum = itemsPerPage === "all" ? Math.max(totalLeadsCount, 1) : itemsPerPage;
 
+  // EngitechExpo-only: a small "has notes" icon next to the lead's name in
+  // the table, driven by a per-tenant Setting (name: "leadsNoteIndicator")
+  // rather than a hardcoded tenant check — off (and no extra request) for
+  // every other tenant, on for whichever tenant(s) that Setting is enabled for.
+  const showLeadNoteIndicator = !!getSetting("leadsNoteIndicator", false);
+  const paginatedLeadIds = useMemo(() => paginated.map((l: any) => l._id), [paginated]);
+  const { data: leadIdsWithNotes = [] } = useQuery<string[]>({
+    queryKey: ["lead-note-indicator", paginatedLeadIds],
+    queryFn: () => noteService.getRelIdsWithNotes(paginatedLeadIds, "lead"),
+    enabled: showLeadNoteIndicator && paginatedLeadIds.length > 0,
+    staleTime: 30 * 1000,
+  });
+  const leadIdsWithNotesSet = useMemo(() => new Set(leadIdsWithNotes), [leadIdsWithNotes]);
+
+  // Table column config: order + visibility, per-user (browser-local, keyed by account id).
+  const leadColumnDefs = useMemo(() => {
+    const cols: Array<{
+      id: string;
+      label: string;
+      thClassName?: string;
+      tdClassName?: string;
+      tdOnClick?: (e: React.MouseEvent) => void;
+      cell: (l: any) => React.ReactNode;
+    }> = [
+      {
+        id: "name",
+        label: "Name",
+        thClassName: "min-w-[200px]",
+        cell: (l) => (
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-xl bg-slate-100 flex items-center justify-center text-primary font-black text-[10px] uppercase shadow-inner">
+              {l.name?.charAt(0) || "L"}
+            </div>
+            <div className="flex flex-col">
+              <span className="flex items-center gap-1.5 font-black text-slate-900 group-hover:text-primary transition-colors cursor-pointer text-xs">
+                {l.name}
+                {showLeadNoteIndicator && leadIdsWithNotesSet.has(l._id) && (
+                  <StickyNote className="h-3 w-3 text-amber-500 shrink-0" aria-label="Has notes" />
+                )}
+              </span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">{l.position || "Lead"}</span>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "company",
+        label: "Company",
+        tdClassName: "font-bold text-slate-600 text-xs",
+        cell: (l) => l.company || "-",
+      },
+      {
+        id: "email",
+        label: "Email",
+        tdClassName: "text-slate-500 font-medium text-xs",
+        cell: (l) => (
+          <div className="flex items-center gap-1.5 group/email cursor-pointer">
+            <Mail className="h-3 w-3 text-slate-300 group-hover/email:text-primary transition-colors" />
+            <span className="group-hover/email:text-primary transition-colors">{l.email}</span>
+          </div>
+        ),
+      },
+      {
+        id: "phone",
+        label: "Phone",
+        tdClassName: "text-slate-500 font-medium text-xs",
+        cell: (l) => (l.phonenumber ? <WhatsAppQuickChat phone={l.phonenumber} data={{ customer_name: l.name, lead_id: l._id }} /> : "-"),
+      },
+      {
+        id: "value",
+        label: "Value",
+        tdClassName: "font-black text-slate-900 text-xs",
+        cell: (l) => formatAmount(l.lead_value || 0),
+      },
+      {
+        id: "tags",
+        label: "Tags",
+        cell: (l) => (
+          <div className="flex flex-wrap gap-1">
+            {l.tags ? l.tags.split(",").map((t: string) => (
+              <Badge key={t} className="bg-slate-50 text-slate-500 border-none rounded-md text-[8px] font-black uppercase px-1.5 h-4 tracking-tight">{t.trim()}</Badge>
+            )) : "-"}
+          </div>
+        ),
+      },
+      {
+        id: "assigned",
+        label: "Assigned",
+        cell: (l) => {
+          if (!l.assigned) {
+            return (
+              <div className="flex items-center gap-1.5">
+                <div className="h-5 w-5 rounded-md bg-slate-50 flex items-center justify-center"><User className="h-2.5 w-2.5 text-slate-400" /></div>
+                <span className="text-[10px] font-bold text-slate-400">Unassigned</span>
+              </div>
+            );
+          }
+          const assignedObj = typeof l.assigned === 'object' ? l.assigned : staff.find(s => s._id === l.assigned);
+          if (assignedObj) {
+            return (
+              <div className="flex items-center gap-1.5 group/assigned cursor-pointer">
+                <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center group-hover/assigned:bg-primary/20 transition-colors">
+                  <User className="h-2.5 w-2.5 text-primary" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-700 group-hover/assigned:text-primary transition-colors">
+                  {assignedObj.firstname} {assignedObj.lastname}
+                </span>
+              </div>
+            );
+          }
+          return (
+            <div className="flex items-center gap-1.5">
+              <div className="h-5 w-5 rounded-md bg-slate-50 flex items-center justify-center"><User className="h-2.5 w-2.5 text-slate-400" /></div>
+              <span className="text-[10px] font-bold text-slate-400">Unknown</span>
+            </div>
+          );
+        },
+      },
+      ...(isPilot ? [{
+        id: "salesPerson",
+        label: "Sales Person",
+        tdClassName: "text-xs font-bold text-slate-700",
+        cell: (l: any) => l.salesPerson || "-",
+      }] : []),
+      ...(canUseBranch ? [{
+        id: "branch",
+        label: "Branch",
+        tdClassName: "text-xs font-bold text-slate-700",
+        cell: (l: any) => (typeof l.branch === "object" ? (l.branch?.name || "-") : (l.branch || "-")),
+      }] : []),
+      {
+        id: "status",
+        label: "Status",
+        tdOnClick: (e) => e.stopPropagation(),
+        cell: (l) => (
+          <Select
+            value={typeof l.status === 'object' ? (l.status?._id || "") : (l.status || "")}
+            onValueChange={(value) => updateLeadStatusMutation.mutate({ id: l._id, status: value })}
+          >
+            <SelectTrigger className="h-7 w-auto min-w-[110px] rounded-lg border-none font-black text-[8px] uppercase tracking-wider px-2 bg-blue-50 text-blue-500 focus:ring-0 focus:ring-offset-0 gap-1">
+              <SelectValue placeholder="Pending" />
+            </SelectTrigger>
+            <SelectContent>
+              {statuses.map((s: any) => (
+                <SelectItem key={s._id} value={s._id} className="text-xs font-bold">{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ),
+      },
+      {
+        id: "source",
+        label: "Source",
+        tdClassName: "text-[10px] font-bold text-slate-400 uppercase",
+        cell: (l) => (typeof l.source === 'object' ? l.source?.name : (sources.find((s) => s._id === l.source)?.name || "-")),
+      },
+      {
+        id: "followup",
+        label: "Follow-Up",
+        tdClassName: "text-[10px] font-bold text-slate-400",
+        cell: (l) => (l.followup_date ? formatDate(l.followup_date) : "-"),
+      },
+      {
+        id: "lastContact",
+        label: "Last Contact",
+        tdClassName: "text-[10px] font-bold text-slate-400",
+        cell: () => "Never",
+      },
+      {
+        id: "created",
+        label: "Created",
+        tdClassName: "text-[10px] font-bold text-slate-400 italic",
+        cell: (l) => formatDate(l.createdAt),
+      },
+    ];
+    return cols;
+  }, [isPilot, canUseBranch, staff, statuses, sources, updateLeadStatusMutation, formatAmount, showLeadNoteIndicator, leadIdsWithNotesSet]);
+
+  const customFieldColumnDefs = useMemo(
+    () => tableCustomFields.map((cf: any) => ({
+      id: `cf_${cf._id}`,
+      label: cf.name,
+      tdClassName: "text-xs font-bold text-slate-600",
+      cell: (l: any) => l.custom_fields?.[cf.slug] ?? "-",
+    })),
+    [tableCustomFields]
+  );
+
+  const allLeadColumns = useMemo(
+    () => [...leadColumnDefs, ...customFieldColumnDefs],
+    [leadColumnDefs, customFieldColumnDefs]
+  );
+
+  // Custom-field columns are excluded from the "default" order on purpose — they always load
+  // asynchronously, so pinning them here would make "Reset" depend on load timing. They still
+  // show (appended at the end) via the fallback logic in orderedLeadColumns below.
+  const DEFAULT_LEAD_COLUMN_ORDER = useMemo(() => leadColumnDefs.map((c) => c.id), [leadColumnDefs]);
+  const leadColumnSettingsKey = user?._id ? `leads_columns_v1_${user._id}` : null;
+  const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_LEAD_COLUMN_ORDER);
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!leadColumnSettingsKey) return;
+    try {
+      const raw = window.localStorage.getItem(leadColumnSettingsKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.order)) setColumnOrder(parsed.order);
+        if (Array.isArray(parsed?.hidden)) setHiddenColumns(parsed.hidden);
+      }
+    } catch {
+      // ignore malformed local storage value
+    }
+  }, [leadColumnSettingsKey]);
+
+  useEffect(() => {
+    if (!leadColumnSettingsKey) return;
+    window.localStorage.setItem(leadColumnSettingsKey, JSON.stringify({ order: columnOrder, hidden: hiddenColumns }));
+  }, [leadColumnSettingsKey, columnOrder, hiddenColumns]);
+
+  // All defined columns (incl. hidden ones), in the user's chosen order — newly-added columns
+  // (e.g. a custom field just enabled for the table) are appended at the end automatically.
+  const orderedLeadColumns = useMemo(() => {
+    const byId = new Map(allLeadColumns.map((c) => [c.id, c]));
+    const seen = new Set<string>();
+    const ordered: typeof allLeadColumns = [];
+    for (const id of columnOrder) {
+      const col = byId.get(id);
+      if (col && !seen.has(id)) {
+        ordered.push(col);
+        seen.add(id);
+      }
+    }
+    for (const col of allLeadColumns) {
+      if (!seen.has(col.id)) {
+        ordered.push(col);
+        seen.add(col.id);
+      }
+    }
+    return ordered;
+  }, [allLeadColumns, columnOrder]);
+
+  const visibleLeadColumns = useMemo(
+    () => orderedLeadColumns.filter((c) => !hiddenColumns.includes(c.id)),
+    [orderedLeadColumns, hiddenColumns]
+  );
+
+  const toggleLeadColumnVisibility = (id: string) => {
+    setHiddenColumns((prev) => {
+      const isHidden = prev.includes(id);
+      if (!isHidden && visibleLeadColumns.length <= 1) {
+        toast({ title: "At least one column must stay visible", variant: "destructive" });
+        return prev;
+      }
+      return isHidden ? prev.filter((x) => x !== id) : [...prev, id];
+    });
+  };
+
+  const resetLeadColumns = () => {
+    setColumnOrder(DEFAULT_LEAD_COLUMN_ORDER);
+    setHiddenColumns([]);
+  };
+
   // Export needs the full filtered set, not just the current page — fetched
   // on demand only when the user actually exports.
   const loadAllFilteredLeads = async () => {
@@ -750,7 +1017,8 @@ const Leads = () => {
           {can("Leads", "Create") && (
             <div className="flex flex-wrap gap-2 items-center">
               <MetaAdsDialog />
-              <WebsiteFormsDialog />
+              {/* Temporarily hidden — uncomment to bring the "Website Forms" button back. */}
+              {/* <WebsiteFormsDialog /> */}
               <ImportButton onData={processLeadRows} loading={importLeadsMutation.isPending} label="Import Leads" />
               <Dialog open={isNewLeadOpen} onOpenChange={(open) => open ? setIsNewLeadOpen(true) : closeLeadModal()}>
                   <Button onClick={() => openModal("create")} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest transition-all hover:scale-105">
@@ -1193,6 +1461,13 @@ const Leads = () => {
                     ] : []),
                   ]}
                 />
+                <LeadColumnSettings
+                  columns={orderedLeadColumns.map((c) => ({ id: c.id, label: c.label }))}
+                  hiddenColumns={hiddenColumns}
+                  onReorder={setColumnOrder}
+                  onToggle={toggleLeadColumnVisibility}
+                  onReset={resetLeadColumns}
+                />
                 <MetaFormsFilterDropdown forms={adFormTabs} value={metaFormFilter} onChange={setMetaFormFilter} />
 
                 {/* Bulk Actions Modal */}
@@ -1399,22 +1674,8 @@ const Leads = () => {
                       <Checkbox className="border-slate-300 rounded-md" checked={selectedLeads.length === paginated.length && paginated.length > 0} onCheckedChange={handleSelectAll} />
                     </th>
                     <th className="p-4 w-12 text-center bg-slate-50/50">#</th>
-                    <th className="p-4 min-w-[200px] bg-slate-50/50">Name</th>
-                    <th className="p-4 bg-slate-50/50">Company</th>
-                    <th className="p-4 bg-slate-50/50">Email</th>
-                    <th className="p-4 bg-slate-50/50">Phone</th>
-                    <th className="p-4 bg-slate-50/50">Value</th>
-                    <th className="p-4 bg-slate-50/50">Tags</th>
-                    <th className="p-4 bg-slate-50/50">Assigned</th>
-                    {isPilot && <th className="p-4 bg-slate-50/50">Sales Person</th>}
-                    {canUseBranch && <th className="p-4 bg-slate-50/50">Branch</th>}
-                    <th className="p-4 bg-slate-50/50">Status</th>
-                    <th className="p-4 bg-slate-50/50">Source</th>
-                    <th className="p-4 bg-slate-50/50">Follow-Up</th>
-                    <th className="p-4 bg-slate-50/50">Last Contact</th>
-                    <th className="p-4 bg-slate-50/50">Created</th>
-                    {tableCustomFields.map((cf: any) => (
-                      <th key={cf._id} className="p-4 bg-slate-50/50">{cf.name}</th>
+                    {visibleLeadColumns.map((col) => (
+                      <th key={col.id} className={cn("p-4 bg-slate-50/50", col.thClassName)}>{col.label}</th>
                     ))}
                     <th className="p-4 text-center bg-slate-50/50">Actions</th>
                   </tr>
@@ -1423,12 +1684,12 @@ const Leads = () => {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="border-b border-slate-50">
-                        <td colSpan={14 + (isPilot ? 1 : 0) + (canUseBranch ? 1 : 0) + tableCustomFields.length} className="p-10"><Skeleton className="h-12 w-full rounded-2xl" /></td>
+                        <td colSpan={visibleLeadColumns.length + 3} className="p-10"><Skeleton className="h-12 w-full rounded-2xl" /></td>
                       </tr>
                     ))
                   ) : paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={14 + (isPilot ? 1 : 0) + (canUseBranch ? 1 : 0) + tableCustomFields.length} className="p-20 text-center"><div className="flex flex-col items-center gap-3"><Users className="h-12 w-12 text-slate-100" /><p className="text-slate-400 font-black uppercase tracking-widest text-xs">No leads found in the pipeline</p></div></td>
+                      <td colSpan={visibleLeadColumns.length + 3} className="p-20 text-center"><div className="flex flex-col items-center gap-3"><Users className="h-12 w-12 text-slate-100" /><p className="text-slate-400 font-black uppercase tracking-widest text-xs">No leads found in the pipeline</p></div></td>
                     </tr>
                   ) : (
                     paginated.map((l, index) => (
@@ -1450,99 +1711,9 @@ const Leads = () => {
                           />
                         </td>
                         <td className="p-4 text-center text-[10px] font-black text-slate-300">{(currentPage - 1) * itemsPerPageNum + index + 1}</td>
-                        <td className="p-4">
-                            <div className="flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-xl bg-slate-100 flex items-center justify-center text-primary font-black text-[10px] uppercase shadow-inner">
-                                    {l.name?.charAt(0) || "L"}
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="font-black text-slate-900 group-hover:text-primary transition-colors cursor-pointer text-xs">{l.name}</span>
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">{l.position || "Lead"}</span>
-                                </div>
-                            </div>
-                        </td>
-                        <td className="p-4 font-bold text-slate-600 text-xs">{l.company || "-"}</td>
-                        <td className="p-4 text-slate-500 font-medium text-xs">
-                            <div className="flex items-center gap-1.5 group/email cursor-pointer">
-                                <Mail className="h-3 w-3 text-slate-300 group-hover/email:text-primary transition-colors" />
-                                <span className="group-hover/email:text-primary transition-colors">{l.email}</span>
-                            </div>
-                        </td>
-                        <td className="p-4 text-slate-500 font-medium text-xs">
-                            {l.phonenumber ? (
-                                <WhatsAppQuickChat phone={l.phonenumber} data={{ customer_name: l.name, lead_id: l._id }} />
-                            ) : "-"}
-                        </td>
-                        <td className="p-4 font-black text-slate-900 text-xs">{formatAmount(l.lead_value || 0)}</td>
-                        <td className="p-4">
-                            <div className="flex flex-wrap gap-1">
-                                {l.tags ? l.tags.split(",").map((t: string) => <Badge key={t} className="bg-slate-50 text-slate-500 border-none rounded-md text-[8px] font-black uppercase px-1.5 h-4 tracking-tight">{t.trim()}</Badge>) : "-"}
-                            </div>
-                        </td>
-                        <td className="p-4">
-                            {l.assigned ? (
-                                (() => {
-                                    const assignedObj = typeof l.assigned === 'object' ? l.assigned : staff.find(s => s._id === l.assigned);
-                                    if (assignedObj) {
-                                        return (
-                                            <div className="flex items-center gap-1.5 group/assigned cursor-pointer">
-                                                <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center group-hover/assigned:bg-primary/20 transition-colors">
-                                                    <User className="h-2.5 w-2.5 text-primary" />
-                                                </div>
-                                                <span className="text-[10px] font-bold text-slate-700 group-hover/assigned:text-primary transition-colors">
-                                                    {assignedObj.firstname} {assignedObj.lastname}
-                                                </span>
-                                            </div>
-                                        );
-                                    }
-                                    return (
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="h-5 w-5 rounded-md bg-slate-50 flex items-center justify-center"><User className="h-2.5 w-2.5 text-slate-400" /></div>
-                                            <span className="text-[10px] font-bold text-slate-400">Unknown</span>
-                                        </div>
-                                    );
-                                })()
-                            ) : (
-                                <div className="flex items-center gap-1.5">
-                                    <div className="h-5 w-5 rounded-md bg-slate-50 flex items-center justify-center"><User className="h-2.5 w-2.5 text-slate-400" /></div>
-                                    <span className="text-[10px] font-bold text-slate-400">Unassigned</span>
-                                </div>
-                            )}
-                        </td>
-                        {isPilot && (
-                          <td className="p-4 text-xs font-bold text-slate-700">
-                              {l.salesPerson || "-"}
-                          </td>
-                        )}
-                        {canUseBranch && (
-                          <td className="p-4 text-xs font-bold text-slate-700">
-                              {typeof l.branch === "object" ? (l.branch?.name || "-") : (l.branch || "-")}
-                          </td>
-                        )}
-                        <td className="p-4" onClick={(e) => e.stopPropagation()}>
-                            <Select
-                              value={typeof l.status === 'object' ? (l.status?._id || "") : (l.status || "")}
-                              onValueChange={(value) => updateLeadStatusMutation.mutate({ id: l._id, status: value })}
-                            >
-                              <SelectTrigger className="h-7 w-auto min-w-[110px] rounded-lg border-none font-black text-[8px] uppercase tracking-wider px-2 bg-blue-50 text-blue-500 focus:ring-0 focus:ring-offset-0 gap-1">
-                                <SelectValue placeholder="Pending" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {statuses.map((s: any) => (
-                                  <SelectItem key={s._id} value={s._id} className="text-xs font-bold">
-                                    {s.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                        </td>
-                        <td className="p-4 text-[10px] font-bold text-slate-400 uppercase">{typeof l.source === 'object' ? l.source?.name : (sources.find(s => s._id === l.source)?.name || "-")}</td>
-                        <td className="p-4 text-[10px] font-bold text-slate-400">{l.followup_date ? formatDate(l.followup_date) : "-"}</td>
-                        <td className="p-4 text-[10px] font-bold text-slate-400">Never</td>
-                        <td className="p-4 text-[10px] font-bold text-slate-400 italic">{formatDate(l.createdAt)}</td>
-                        {tableCustomFields.map((cf: any) => (
-                          <td key={cf._id} className="p-4 text-xs font-bold text-slate-600">
-                            {l.custom_fields?.[cf.slug] ?? "-"}
+                        {visibleLeadColumns.map((col) => (
+                          <td key={col.id} className={cn("p-4", col.tdClassName)} onClick={col.tdOnClick}>
+                            {col.cell(l)}
                           </td>
                         ))}
                         <td className="p-4">
