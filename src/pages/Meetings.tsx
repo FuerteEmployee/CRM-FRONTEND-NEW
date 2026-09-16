@@ -56,6 +56,20 @@ export default function Meetings() {
   const [diagnosticInput, setDiagnosticInput] = useState("");
   const [diagnosticResult, setDiagnosticResult] = useState<any>(null);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
+
+  // Meeting audio/video recording (separate from the SpeechRecognition-based
+  // live transcript above) — captures the shared Google Meet tab itself via
+  // getDisplayMedia + MediaRecorder, so it needs its own explicit consent step
+  // and its own S3 upload, not just local state.
+  const [recordVideo, setRecordVideo] = useState(false); // audio-only by default — much smaller files
+  const [isCapturingMedia, setIsCapturingMedia] = useState(false);
+  const [isUploadingRecording, setIsUploadingRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingStartRef = useRef(0);
+  const [recordingUrls, setRecordingUrls] = useState<Record<string, string>>({});
+  const [loadingRecordingId, setLoadingRecordingId] = useState<string | null>(null);
   // finalTranscript only — NOT the combined transcript (which also includes
   // unfinalized interim results). Triggering off interim text would mean
   // reacting to half-spoken sentences, which the backend RULE 2/4 both assume
@@ -428,12 +442,118 @@ export default function Meetings() {
     }
   };
 
+  // Captures the SHARED TAB itself (audio + optionally video), not just the
+  // speech-to-text transcript above — so the organizer can play the meeting
+  // back later, not just read a summary. Requires an explicit per-meeting
+  // consent confirmation first (recorded server-side for audit), then asks
+  // the browser to share a tab/screen — this permission prompt cannot be
+  // skipped or automated, it's a browser security requirement.
+  const handleStartMediaRecording = async (meeting: any) => {
+    const confirmed = window.confirm(
+      `This will record ${recordVideo ? "audio and video" : "audio"} of the shared tab for this meeting.\n\n` +
+      `Have you informed the other participants that this meeting is being recorded?\n\n` +
+      `Click OK to confirm and start recording, or Cancel to skip recording.`
+    );
+    if (!confirmed) return;
+
+    try {
+      await meetingService.setRecordingConsent(meeting._id, true);
+    } catch (err: any) {
+      toast({ title: "Could not save consent", description: err.response?.data?.message || err.message, variant: "destructive" });
+      return;
+    }
+
+    try {
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      mediaStreamRef.current = displayStream;
+      recordedChunksRef.current = [];
+      recordingStartRef.current = Date.now();
+
+      const preferredType = recordVideo ? "video/webm;codecs=vp9,opus" : "audio/webm;codecs=opus";
+      const mimeType = MediaRecorder.isTypeSupported(preferredType) ? preferredType : "video/webm";
+      // Audio-only mode still shares video (browsers require it for tab/screen
+      // share), it's just not included in what MediaRecorder actually encodes.
+      const recordStream = recordVideo ? displayStream : new MediaStream(displayStream.getAudioTracks());
+      const recorder = new MediaRecorder(recordStream, { mimeType });
+
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
+      };
+      // Flush a chunk every 10s instead of buffering the whole meeting in one
+      // event, so memory stays bounded for long meetings.
+      recorder.start(10000);
+      mediaRecorderRef.current = recorder;
+      setIsCapturingMedia(true);
+
+      // The browser's own "Stop sharing" control ends the stream directly —
+      // catch that so we still finalize and upload instead of leaving a
+      // recorder stuck in "recording" state with no active tracks.
+      displayStream.getVideoTracks()[0]?.addEventListener("ended", () => {
+        handleStopAndUploadRecording(meeting);
+      });
+
+      toast({ title: "Recording started", description: `Capturing ${recordVideo ? "audio + video" : "audio"} from the shared tab.` });
+    } catch (err: any) {
+      toast({ title: "Recording not started", description: err.message || "Screen/tab share permission was not granted.", variant: "destructive" });
+    }
+  };
+
+  const handleStopAndUploadRecording = async (meeting: any) => {
+    const recorder = mediaRecorderRef.current;
+    if (!recorder || recorder.state === "inactive") return;
+
+    await new Promise<void>((resolve) => {
+      recorder.addEventListener("stop", () => resolve(), { once: true });
+      recorder.stop();
+    });
+    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    setIsCapturingMedia(false);
+
+    const chunks = recordedChunksRef.current;
+    recordedChunksRef.current = [];
+    if (chunks.length === 0) return;
+
+    setIsUploadingRecording(true);
+    try {
+      const blob = new Blob(chunks, { type: recorder.mimeType });
+      const durationSeconds = Math.round((Date.now() - recordingStartRef.current) / 1000);
+      const type = recorder.mimeType.startsWith("video") ? "video" : "audio";
+      const formData = new FormData();
+      formData.append("file", blob, `meeting-${meeting._id}-${Date.now()}.webm`);
+      formData.append("type", type);
+      formData.append("duration_seconds", String(durationSeconds));
+
+      const updated = await meetingService.uploadRecording(meeting._id, formData);
+      setScribeMeeting(updated);
+      queryClient.invalidateQueries({ queryKey: ["meetings"] });
+      toast({ title: "Recording saved", description: "Uploaded and stored securely — playback link is time-limited." });
+    } catch (err: any) {
+      toast({ title: "Recording upload failed", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setIsUploadingRecording(false);
+    }
+  };
+
+  const handlePlayRecording = async (meeting: any, recordingId: string) => {
+    if (recordingUrls[recordingId]) return; // already fetched this dialog session
+    setLoadingRecordingId(recordingId);
+    try {
+      const { url } = await meetingService.getRecordingUrl(meeting._id, recordingId);
+      setRecordingUrls((prev) => ({ ...prev, [recordingId]: url }));
+    } catch (err: any) {
+      toast({ title: "Could not load recording", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setLoadingRecordingId(null);
+    }
+  };
+
   const handleSummarizeScribe = async () => {
     if (!scribeMeeting) return;
     if (!scribeText.trim()) {
       toast({ title: "No Transcript", description: "Please record or type meeting notes first.", variant: "destructive" });
       return;
     }
+    if (isCapturingMedia) await handleStopAndUploadRecording(scribeMeeting);
     setIsSummarizing(true);
     try {
       await meetingService.summarizeMeeting(scribeMeeting._id, scribeText);
@@ -697,7 +817,9 @@ export default function Meetings() {
         <Dialog open={!!scribeMeeting} onOpenChange={(open) => {
           if (!open) {
             if (isScribing) SpeechRecognition.stopListening();
+            if (isCapturingMedia) handleStopAndUploadRecording(scribeMeeting);
             setIsScribing(false);
+            setRecordingUrls({});
             setScribeMeeting(null);
           }
         }}>
@@ -764,6 +886,81 @@ export default function Meetings() {
               </div>
 
               <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      Meeting Recording (Audio/Video)
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Separate from the text transcript above — records the shared tab itself. Requires your confirmation that participants were informed.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                      <Checkbox checked={recordVideo} onCheckedChange={(v) => setRecordVideo(!!v)} disabled={isCapturingMedia} />
+                      Include video
+                    </label>
+                    {isCapturingMedia ? (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="rounded-xl font-bold text-xs gap-1.5"
+                        onClick={() => handleStopAndUploadRecording(scribeMeeting)}
+                        disabled={isUploadingRecording}
+                      >
+                        <StopCircle className="h-4 w-4" />
+                        {isUploadingRecording ? "Saving…" : "Stop & Save Recording"}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl font-bold text-xs gap-1.5 text-purple-600 border-purple-200 hover:bg-purple-50"
+                        onClick={() => handleStartMediaRecording(scribeMeeting)}
+                        disabled={isUploadingRecording}
+                      >
+                        <Video className="h-4 w-4" />
+                        Start Recording
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                {isCapturingMedia && (
+                  <p className="text-[11px] text-red-600 flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" /> Recording in progress — captured from the shared tab/screen.
+                  </p>
+                )}
+                {scribeMeeting?.recordings?.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    {scribeMeeting.recordings.map((rec: any) => (
+                      <div key={rec._id} className="flex items-center justify-between gap-2 text-xs bg-white border rounded-lg px-2.5 py-1.5">
+                        <span className="text-slate-600">
+                          {rec.type === "video" ? "Video" : "Audio"} — {rec.duration_seconds ? `${Math.round(rec.duration_seconds / 60)} min` : "duration n/a"} · {rec.created_at ? new Date(rec.created_at).toLocaleString() : ""}
+                        </span>
+                        {recordingUrls[rec._id] ? (
+                          rec.type === "video" ? (
+                            <video src={recordingUrls[rec._id]} controls className="h-8 max-w-[200px]" />
+                          ) : (
+                            <audio src={recordingUrls[rec._id]} controls className="h-8 max-w-[200px]" />
+                          )
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-purple-600"
+                            onClick={() => handlePlayRecording(scribeMeeting, rec._id)}
+                            disabled={loadingRecordingId === rec._id}
+                          >
+                            {loadingRecordingId === rec._id ? "Loading…" : "Play"}
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-xl">
                 <Label className="text-xs font-bold uppercase tracking-wider text-slate-700">
                   Manual Diagnostic Test
                 </Label>
@@ -806,7 +1003,9 @@ export default function Meetings() {
                 variant="outline"
                 onClick={() => {
                   if (isScribing) SpeechRecognition.stopListening();
+                  if (isCapturingMedia) handleStopAndUploadRecording(scribeMeeting);
                   setIsScribing(false);
+                  setRecordingUrls({});
                   setScribeMeeting(null);
                 }}
               >

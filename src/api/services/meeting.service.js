@@ -12,5 +12,8 @@ export const meetingService = {
     apiClient.post(`/meetings/${id}/scribe-diagnostic`, { text, alreadyAnswered }),
   deleteMeeting: (id) => apiClient.delete(`/meetings/${id}`),
   importMeetings: (rows) => apiClient.post('/meetings/import', rows),
+  setRecordingConsent: (id, given) => apiClient.post(`/meetings/${id}/recording-consent`, { given }),
+  uploadRecording: (id, formData) => apiClient.post(`/meetings/${id}/recording`, formData),
+  getRecordingUrl: (id, recordingId) => apiClient.get(`/meetings/${id}/recording/${recordingId}/url`),
 };
 

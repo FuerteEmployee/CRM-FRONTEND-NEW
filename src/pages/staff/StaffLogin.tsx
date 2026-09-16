@@ -27,6 +27,7 @@ import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { getLandingPath } from "@/lib/landingPath";
 import { AlreadyLoggedInBanner } from "@/components/auth/AlreadyLoggedInBanner";
+import { TwoFactorCodeForm } from "@/components/auth/TwoFactorCodeForm";
 
 const features = [
   { icon: BarChart3, label: "Real-time Analytics" },
@@ -45,26 +46,58 @@ const StaffLogin = () => {
   const [password, setPassword] = useState("");
   const [logoLightError, setLogoLightError] = useState(false);
   const [logoDarkError, setLogoDarkError] = useState(false);
+  const [stage, setStage] = useState<"credentials" | "otp">("credentials");
+
+  const completeLogin = (response: any) => {
+    toast.success("Welcome back!");
+    setFromLoginResponse(response.user, response.permissions, response.plan_modules);
+    // Reload settings with the new auth token so this tenant's own
+    // branding (logo, favicon, company name) applies immediately
+    refreshSettings();
+    // Staff login always targets /staff — the route guard handles misdirected admins
+    navigate(getLandingPath(response.user, response.permissions, true));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       const response = await authService.login({ email, password });
-      if (response.requires2FA) {
-        toast.info("2FA Check Required. Please verify your identity.");
-        // In a real app, you'd navigate to a 2FA page or show a modal
+      // The backend alone decides whether 2FA is required for this staff
+      // member (based on their tenant) — the frontend only reacts to it.
+      if (response.two_factor_auth_enabled) {
+        setStage("otp");
+        toast.info(response.message || "A verification code has been sent to your email.");
       } else {
-        toast.success("Welcome back!");
-        setFromLoginResponse(response.user, response.permissions, response.plan_modules);
-        // Reload settings with the new auth token so this tenant's own
-        // branding (logo, favicon, company name) applies immediately
-        refreshSettings();
-        // Staff login always targets /staff — the route guard handles misdirected admins
-        navigate(getLandingPath(response.user, response.permissions, true));
+        completeLogin(response);
       }
     } catch (error: any) {
       toast.error(error.message || "Invalid credentials. Please try again.");
       console.error("Login error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async (code: string) => {
+    setLoading(true);
+    try {
+      const response = await authService.verify2FA({ email, code });
+      completeLogin(response);
+    } catch (error: any) {
+      toast.error(error.message || "Invalid or expired code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setLoading(true);
+    try {
+      const response = await authService.login({ email, password });
+      toast.info(response.message || "A new verification code has been sent to your email.");
+    } catch (error: any) {
+      toast.error(error.message || "Could not resend the code. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -158,109 +191,121 @@ const StaffLogin = () => {
             )}
           </div>
 
-          {/* Header */}
-          <div className="space-y-1">
-            <h2 className="text-2xl font-bold tracking-tight text-foreground">
-              Staff Portal Login
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Sign in to access your staff dashboard
-            </p>
-          </div>
-
-          <AlreadyLoggedInBanner />
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email */}
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-sm font-medium">
-                Email address
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter Your Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-10 bg-muted/40 border-border/60 focus-visible:bg-background transition-colors"
-              />
-            </div>
-
-            {/* Password */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-sm font-medium">
-                  Password
-                </Label>
-                <Link
-                  to="/staff/forgot-password"
-                  className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
-                >
-                  Forgot password?
-                </Link>
+          {stage === "otp" ? (
+            <TwoFactorCodeForm
+              email={email}
+              loading={loading}
+              onVerify={handleVerify}
+              onResend={handleResend}
+              onBack={() => setStage("credentials")}
+            />
+          ) : (
+            <>
+              {/* Header */}
+              <div className="space-y-1">
+                <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                  Staff Portal Login
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Sign in to access your staff dashboard
+                </p>
               </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  disableVoice
-                  placeholder="Enter Your Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-10 pr-10 bg-muted/40 border-border/60 focus-visible:bg-background transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+
+              <AlreadyLoggedInBanner />
+
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Email */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-sm font-medium">
+                    Email address
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Enter Your Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-10 bg-muted/40 border-border/60 focus-visible:bg-background transition-colors"
+                  />
+                </div>
+
+                {/* Password */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-sm font-medium">
+                      Password
+                    </Label>
+                    <Link
+                      to="/staff/forgot-password"
+                      className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      disableVoice
+                      placeholder="Enter Your Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="h-10 pr-10 bg-muted/40 border-border/60 focus-visible:bg-background transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Submit */}
+                <Button
+                  type="submit"
+                  className="w-full h-10 font-semibold gap-2 shadow-sm"
+                  disabled={loading}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <svg
+                        className="animate-spin h-4 w-4"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v8H4z"
+                        />
+                      </svg>
+                      Signing in...
+                    </span>
                   ) : (
-                    <Eye className="h-4 w-4" />
+                    <>
+                      Sign In
+                      <ArrowRight className="h-4 w-4" />
+                    </>
                   )}
-                </button>
-              </div>
-            </div>
-
-            {/* Submit */}
-            <Button
-              type="submit"
-              className="w-full h-10 font-semibold gap-2 shadow-sm"
-              disabled={loading}
-            >
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <svg
-                    className="animate-spin h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8H4z"
-                    />
-                  </svg>
-                  Signing in...
-                </span>
-              ) : (
-                <>
-                  Sign In
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </form>
+                </Button>
+              </form>
+            </>
+          )}
 
           {/* Footer */}
         </div>
