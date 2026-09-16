@@ -28,6 +28,7 @@ import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { getLandingPath } from "@/lib/landingPath";
 import { AlreadyLoggedInBanner } from "@/components/auth/AlreadyLoggedInBanner";
 import { TwoFactorCodeForm } from "@/components/auth/TwoFactorCodeForm";
+import { getDeviceInfo } from "@/hrms/utils/deviceId";
 
 const features = [
   { icon: BarChart3, label: "Real-time Analytics" },
@@ -62,7 +63,8 @@ const StaffLogin = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await authService.login({ email, password });
+      const deviceInfo = await getDeviceInfo();
+      const response = await authService.login({ email, password, deviceId: deviceInfo.deviceId, deviceInfo });
       // The backend alone decides whether 2FA is required for this staff
       // member (based on their tenant) — the frontend only reacts to it.
       if (response.two_factor_auth_enabled) {
@@ -72,7 +74,11 @@ const StaffLogin = () => {
         completeLogin(response);
       }
     } catch (error: any) {
-      toast.error(error.message || "Invalid credentials. Please try again.");
+      if (error.response?.data?.devicePending) {
+        toast.info(error.message);
+      } else {
+        toast.error(error.message || "Invalid credentials. Please try again.");
+      }
       console.error("Login error:", error);
     } finally {
       setLoading(false);
