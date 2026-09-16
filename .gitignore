@@ -24,8 +24,7 @@ node_modules
 backend/
 vite.config.ts.timestamp-*
 
-# Build output (regenerated per-machine, hashed filenames cause constant merge conflicts)
-dist/
+# Build output
 dist.zip
 dev-dist/
 
