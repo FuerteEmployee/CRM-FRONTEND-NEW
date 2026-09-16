@@ -55,8 +55,8 @@ const Profile = () => {
         firstname: user.firstname || "",
         lastname: user.lastname || "",
         email: user.email || "",
-        phonenumber: (user as any).phonenumber || "",
-        notification_sound: (user as any).notification_sound || "default",
+        phonenumber: user.phonenumber || "",
+        notification_sound: user.notification_sound || "default",
         password: "",
         confirmPassword: "",
       });

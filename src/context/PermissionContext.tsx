@@ -18,6 +18,8 @@ interface User {
   is_hrms_staff?: boolean;
   role?: any;
   tenant?: any;
+  phonenumber?: string;
+  notification_sound?: string;
 }
 
 interface PermissionContextType {
