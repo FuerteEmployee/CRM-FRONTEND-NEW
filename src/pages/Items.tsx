@@ -140,6 +140,8 @@ const Items = () => {
             (i.name || i.description || "").toLowerCase().includes(q) ||
             (i.long_description || "").toLowerCase().includes(q) ||
             (i.group || "").toLowerCase().includes(q) ||
+            (i.hsn_sac_code || "").toLowerCase().includes(q) ||
+            (typeof i.tax === "object" ? i.tax?.name : "")?.toLowerCase().includes(q) ||
             getItemBranchName(i).toLowerCase().includes(q);
           const matchesBranch = branchFilter === "all" || getItemBranchName(i) === branchFilter;
           return matchesSearch && matchesBranch;
@@ -329,6 +331,8 @@ const Items = () => {
         (i.name || i.description || "").toLowerCase().includes(q) ||
         (i.long_description || "").toLowerCase().includes(q) ||
         (i.group || "").toLowerCase().includes(q) ||
+        (i.hsn_sac_code || "").toLowerCase().includes(q) ||
+        (typeof i.tax === "object" ? i.tax?.name : "")?.toLowerCase().includes(q) ||
         getItemBranchName(i).toLowerCase().includes(q);
       const matchesBranch = branchFilter === "all" || getItemBranchName(i) === branchFilter;
       return matchesSearch && matchesBranch;

@@ -899,6 +899,31 @@ const Invoices = () => {
 
   const getInvoiceBranchName = (i: any) => (i.branch?.name || i.branch || "");
 
+  // Shared by both client-side fallback filters below ("All" page-size mode
+  // and the export-time refetch) so the two stay in sync — mirrors every
+  // field the backend's getInvoices search now also matches.
+  const invoiceMatchesSearch = (i: any, q: string): boolean => {
+    if (!q) return true;
+    if ((i.number || "").toLowerCase().includes(q)) return true;
+    if ((i.client?.company || "").toLowerCase().includes(q)) return true;
+    if ((i.salesPerson || "").toLowerCase().includes(q)) return true;
+    if ((i._id || "").toLowerCase().includes(q)) return true;
+    if (getInvoiceBranchName(i).toLowerCase().includes(q)) return true;
+    if ((i.voucherType || "").toLowerCase().includes(q)) return true;
+    if ((i.partyAddress || "").toLowerCase().includes(q)) return true;
+    if ((i.partyGroup || "").toLowerCase().includes(q)) return true;
+    if ((i.termsOfPayment || "").toLowerCase().includes(q)) return true;
+    if ((i.gstin || "").toLowerCase().includes(q)) return true;
+    if ((getStatus(i.status).label || "").toLowerCase().includes(q)) return true;
+    if ((i.items || []).some((item: any) =>
+      (item.description || "").toLowerCase().includes(q) ||
+      (item.itemGroup || "").toLowerCase().includes(q) ||
+      (item.itemHSN || "").toLowerCase().includes(q) ||
+      (item.itemBatch || "").toLowerCase().includes(q)
+    )) return true;
+    return false;
+  };
+
   interface InvoicesPage {
     rows: any[];
     total: number;
@@ -933,13 +958,7 @@ const Invoices = () => {
 
         const q = debouncedSearch.toLowerCase();
         const rowsFiltered = rows.filter((i: any) => {
-          const matchSearch =
-            !q ||
-            (i.number || "").toLowerCase().includes(q) ||
-            (i.client?.company || "").toLowerCase().includes(q) ||
-            (i.salesPerson || "").toLowerCase().includes(q) ||
-            (i._id || "").toLowerCase().includes(q) ||
-            getInvoiceBranchName(i).toLowerCase().includes(q);
+          const matchSearch = invoiceMatchesSearch(i, q);
           const matchStatus = statusFilter === "all" || String(i.status) === statusFilter;
           const matchBranch = branchFilter === "all" || getInvoiceBranchName(i) === branchFilter;
           return matchSearch && matchStatus && matchBranch;
@@ -1064,13 +1083,7 @@ const Invoices = () => {
     const rows: any[] = Array.isArray(response) ? response : response?.data || [];
     const q = debouncedSearch.toLowerCase();
     return rows.filter((i: any) => {
-      const matchSearch =
-        !q ||
-        (i.number || "").toLowerCase().includes(q) ||
-        (i.client?.company || "").toLowerCase().includes(q) ||
-        (i.salesPerson || "").toLowerCase().includes(q) ||
-        (i._id || "").toLowerCase().includes(q) ||
-        getInvoiceBranchName(i).toLowerCase().includes(q);
+      const matchSearch = invoiceMatchesSearch(i, q);
       const matchStatus = statusFilter === "all" || String(i.status) === statusFilter;
       const matchBranch = branchFilter === "all" || getInvoiceBranchName(i) === branchFilter;
       return matchSearch && matchStatus && matchBranch;

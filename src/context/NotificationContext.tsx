@@ -82,7 +82,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     });
     
     // Play sound based on user preference
-    const soundPref = (user as any)?.notification_sound || "default";
+    const soundPref = user?.notification_sound || "default";
     playNotificationSound(soundPref);
   };
 

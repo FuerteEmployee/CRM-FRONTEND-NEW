@@ -115,7 +115,9 @@ const Vendors = () => {
         v.gst_number?.toLowerCase().includes(q) ||
         v.pan_number?.toLowerCase().includes(q) ||
         v.sales_person?.toLowerCase().includes(q) ||
-        v.branch?.toLowerCase().includes(q);
+        v.branch?.toLowerCase().includes(q) ||
+        v.address?.toLowerCase().includes(q) ||
+        v.account_details?.toLowerCase().includes(q);
 
       if (itemsPerPage === "all") {
         const response = await vendorService.getAll();
@@ -286,7 +288,9 @@ const Vendors = () => {
         v.gst_number?.toLowerCase().includes(q) ||
         v.pan_number?.toLowerCase().includes(q) ||
         v.sales_person?.toLowerCase().includes(q) ||
-        v.branch?.toLowerCase().includes(q);
+        v.branch?.toLowerCase().includes(q) ||
+        v.address?.toLowerCase().includes(q) ||
+        v.account_details?.toLowerCase().includes(q);
       const matchesBranch = branchFilter === "all" || v.branch === branchFilter;
       return matchesSearch && matchesBranch;
     });

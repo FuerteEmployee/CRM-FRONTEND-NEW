@@ -31,9 +31,11 @@ export default function Bookmarks() {
   });
 
   const filteredBookmarks = useMemo(() => {
+    const term = search.toLowerCase();
     return bookmarks.filter((b: any) =>
-      b.title?.toLowerCase().includes(search.toLowerCase()) ||
-      b.url?.toLowerCase().includes(search.toLowerCase())
+      b.title?.toLowerCase().includes(term) ||
+      b.url?.toLowerCase().includes(term) ||
+      (b.folder || "Uncategorized").toLowerCase().includes(term)
     );
   }, [bookmarks, search]);
 

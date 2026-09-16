@@ -215,9 +215,14 @@ export default function Meetings() {
   };
 
   const filteredMeetings = useMemo(() => {
+    const q = search.toLowerCase();
     return meetings.filter((m: any) =>
-      m.topic?.toLowerCase().includes(search.toLowerCase()) ||
-      m.agenda?.toLowerCase().includes(search.toLowerCase())
+      !q ||
+      m.topic?.toLowerCase().includes(q) ||
+      m.agenda?.toLowerCase().includes(q) ||
+      m.summary?.toLowerCase().includes(q) ||
+      m.status?.toLowerCase().includes(q) ||
+      (Array.isArray(m.members) && m.members.some((member: any) => memberLabel(member)?.toLowerCase().includes(q)))
     );
   }, [meetings, search]);
 

@@ -190,6 +190,12 @@ const Customers = () => {
           const matchSearch =
             !searchLower ||
             (c.company || "").toLowerCase().includes(searchLower) ||
+            (c.contact_person || "").toLowerCase().includes(searchLower) ||
+            (c.email || "").toLowerCase().includes(searchLower) ||
+            (c.phonenumber || "").toLowerCase().includes(searchLower) ||
+            (c.pan_number || "").toLowerCase().includes(searchLower) ||
+            (c.gst_number || "").toLowerCase().includes(searchLower) ||
+            getCustomerGroupNames(c).toLowerCase().includes(searchLower) ||
             getCustomerBranchName(c).toLowerCase().includes(searchLower);
           const matchStatus =
             statusFilter === "all" || (c.active ? "Active" : "Inactive") === statusFilter;
@@ -323,6 +329,12 @@ const Customers = () => {
     (typeof c.branch === "string" ? c.branch : "") ||
     "";
 
+  // Groups are usually populated on the row already (objects with `.name`);
+  // falls back to the raw id string when they aren't, same spirit as
+  // getCustomerBranchName above.
+  const getCustomerGroupNames = (c: any) =>
+    (c.groups || []).map((g: any) => (typeof g === "string" ? g : g?.name || "")).join(" ");
+
   // Export needs the *full* filtered set, not just the current page, so it
   // fetches on demand (same legacy unpaginated endpoint the rest of the app
   // relies on) instead of keeping every row in memory just in case.
@@ -346,6 +358,12 @@ const Customers = () => {
       const matchSearch =
         !searchLower ||
         (c.company || "").toLowerCase().includes(searchLower) ||
+        (c.contact_person || "").toLowerCase().includes(searchLower) ||
+        (c.email || "").toLowerCase().includes(searchLower) ||
+        (c.phonenumber || "").toLowerCase().includes(searchLower) ||
+        (c.pan_number || "").toLowerCase().includes(searchLower) ||
+        (c.gst_number || "").toLowerCase().includes(searchLower) ||
+        getCustomerGroupNames(c).toLowerCase().includes(searchLower) ||
         getCustomerBranchName(c).toLowerCase().includes(searchLower);
       const matchStatus =
         statusFilter === "all" || (c.active ? "Active" : "Inactive") === statusFilter;

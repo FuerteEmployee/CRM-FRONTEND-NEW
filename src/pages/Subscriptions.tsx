@@ -57,7 +57,8 @@ const Subscriptions = () => {
 
   const filtered = subscriptions.filter((s: any) =>
     (s.name || "").toLowerCase().includes(search.toLowerCase()) ||
-    (s.client?.company || "").toLowerCase().includes(search.toLowerCase())
+    (s.client?.company || "").toLowerCase().includes(search.toLowerCase()) ||
+    (s.status || "").toLowerCase().includes(search.toLowerCase())
   );
 
   const subPageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);

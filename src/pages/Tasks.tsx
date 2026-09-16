@@ -209,8 +209,27 @@ const Tasks = () => {
   // need to fill the rest of the page, no separate lookup required.
   const pageStart = itemsPerPage === "all" ? 0 : (currentPage - 1) * itemsPerPage;
 
+  // `staffMembers` isn't fetched yet the first time this runs, but the
+  // query below re-filters as soon as it lands (it's a dependency wherever
+  // this is used inside a useMemo/useQuery).
+  const taskAssigneeNamesMatch = (t: any, q: string, staff: any[]) => {
+    if (!q || !Array.isArray(t.assignees) || t.assignees.length === 0) return false;
+    return t.assignees.some((a: any) => {
+      const staffId = typeof a === "object" ? a?._id : a;
+      const member = typeof a === "object" && a?.firstname ? a : staff.find((s: any) => s._id === staffId);
+      const name = member ? `${member.firstname || ""} ${member.lastname || ""}`.trim() : "";
+      return name.toLowerCase().includes(q);
+    });
+  };
+
   const taskMatchesFilters = (t: any, q: string) => {
-    const matchesSearch = !q || (t.name || "").toLowerCase().includes(q);
+    const matchesSearch =
+      !q ||
+      (t.name || "").toLowerCase().includes(q) ||
+      (t.category || "").toLowerCase().includes(q) ||
+      (Array.isArray(t.tags) ? t.tags.join(" ") : (t.tags || "")).toLowerCase().includes(q) ||
+      (typeof t.branch === "object" ? (t.branch?.name || "") : (t.branch || "")).toLowerCase().includes(q) ||
+      taskAssigneeNamesMatch(t, q, staffMembers);
     const displayStatus = t.status || 1;
     const matchesStatus = activeStatus === "all" || displayStatus === activeStatus;
     const matchesCategory = activeCategory === "all" || (t.category || "To-Do") === activeCategory;
@@ -645,7 +664,13 @@ const Tasks = () => {
     const normalized = scoped
       .map((t: any) => ({ ...t, displayStatus: t.status || 1, displayPriority: t.priority || 2, isTodo: false }))
       .filter((t: any) => {
-        const matchesSearch = !q || (t.name || "").toLowerCase().includes(q);
+        const matchesSearch =
+          !q ||
+          (t.name || "").toLowerCase().includes(q) ||
+          (t.category || "").toLowerCase().includes(q) ||
+          (Array.isArray(t.tags) ? t.tags.join(" ") : (t.tags || "")).toLowerCase().includes(q) ||
+          (typeof t.branch === "object" ? (t.branch?.name || "") : (t.branch || "")).toLowerCase().includes(q) ||
+          taskAssigneeNamesMatch(t, q, staffMembers);
         const matchesStatus = activeStatus === "all" || t.displayStatus === activeStatus;
         const matchesCategory = activeCategory === "all" || (t.category || "To-Do") === activeCategory;
         return matchesSearch && matchesStatus && matchesCategory;

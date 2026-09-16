@@ -250,7 +250,10 @@ const Payments = () => {
         (p.invoice?.number || "").toLowerCase().includes(q) ||
         (p.invoice?.client?.company || "").toLowerCase().includes(q) ||
         (p.transactionid || "").toLowerCase().includes(q) ||
-        (p.paymentmode || "").toLowerCase().includes(q);
+        (p.paymentmode || "").toLowerCase().includes(q) ||
+        (p.companyName || "").toLowerCase().includes(q) ||
+        (p.voucherNumber || "").toLowerCase().includes(q) ||
+        (p.journal || "").toLowerCase().includes(q);
 
       if (itemsPerPage === "All") {
         const response = await salesService.getPayments();
@@ -385,7 +388,10 @@ const Payments = () => {
       (p.invoice?.number || "").toLowerCase().includes(q) ||
       (p.invoice?.client?.company || "").toLowerCase().includes(q) ||
       (p.transactionid || "").toLowerCase().includes(q) ||
-      (p.paymentmode || "").toLowerCase().includes(q)
+      (p.paymentmode || "").toLowerCase().includes(q) ||
+      (p.companyName || "").toLowerCase().includes(q) ||
+      (p.voucherNumber || "").toLowerCase().includes(q) ||
+      (p.journal || "").toLowerCase().includes(q)
     );
   };
 

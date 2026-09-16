@@ -560,6 +560,22 @@ const Proposals = () => {
 
   const getProposalBranchName = (p: any) => (typeof p.branch === "object" ? (p.branch?.name || "") : (p.branch || ""));
 
+  // Shared by both client-side fallback filters below ("All" page-size mode
+  // and the export-time refetch). The backend searches `proposal_to`, but
+  // the client fallback searches what's actually shown in the "To" column
+  // (rel_id/customer) so "some pages" vs "all pages" mode stay internally
+  // consistent — see resolveProposalNames in proposal_controller.js.
+  const proposalMatchesSearch = (p: any, q: string): boolean => {
+    if (!q) return true;
+    if ((p.subject || p.title || "").toLowerCase().includes(q)) return true;
+    if (getProposalBranchName(p).toLowerCase().includes(q)) return true;
+    const toValue = p.proposal_to || p.rel_id || p.customer || "";
+    if (String(toValue).toLowerCase().includes(q)) return true;
+    if ((getStatus(p.status).label || "").toLowerCase().includes(q)) return true;
+    if (p.tags && String(p.tags).toLowerCase().includes(q)) return true;
+    return false;
+  };
+
   interface ProposalsPage { rows: any[]; total: number; pages: number }
   const { data: proposalsResult, isLoading: isLoadingProposals } = useQuery<ProposalsPage>({
     queryKey: ["proposals", proposalItemsPerPage, currentPage, debouncedProposalSearch, branchFilter],
@@ -569,7 +585,7 @@ const Proposals = () => {
         const rows: any[] = Array.isArray(response) ? response : response?.data || [];
         const q = debouncedProposalSearch.toLowerCase();
         const rowsFiltered = rows.filter((p: any) => {
-          const matchesSearch = !q || (p.subject || p.title || "").toLowerCase().includes(q) || getProposalBranchName(p).toLowerCase().includes(q);
+          const matchesSearch = proposalMatchesSearch(p, q);
           const matchesBranch = branchFilter === "all" || getProposalBranchName(p) === branchFilter;
           return matchesSearch && matchesBranch;
         });
@@ -658,7 +674,7 @@ const Proposals = () => {
     const rows: any[] = Array.isArray(response) ? response : response?.data || [];
     const q = debouncedProposalSearch.toLowerCase();
     return rows.filter((p: any) => {
-      const matchesSearch = !q || (p.subject || p.title || "").toLowerCase().includes(q) || getProposalBranchName(p).toLowerCase().includes(q);
+      const matchesSearch = proposalMatchesSearch(p, q);
       const matchesBranch = branchFilter === "all" || getProposalBranchName(p) === branchFilter;
       return matchesSearch && matchesBranch;
     });

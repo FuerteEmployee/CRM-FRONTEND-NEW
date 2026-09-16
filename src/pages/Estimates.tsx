@@ -644,7 +644,7 @@ const Estimates = () => {
         const rows: any[] = (Array.isArray(response) ? response : response?.data || []).filter((item: any) => !item.form);
         const q = debouncedEstimateSearch.toLowerCase();
         const rowsFiltered = rows.filter((e: any) => {
-          const matchesSearch = !q || (e.subject || e.number || "").toLowerCase().includes(q) || getBranchName(e).toLowerCase().includes(q);
+          const matchesSearch = estimateMatchesSearch(e, q);
           const matchesBranch = branchFilter === "all" || getBranchName(e) === branchFilter;
           return matchesSearch && matchesBranch;
         });
@@ -702,6 +702,24 @@ const Estimates = () => {
 
   const getBranchName = (e: any) => (typeof e.branch === "object" ? (e.branch?.name || "") : (e.branch || ""));
 
+  // Shared by both client-side fallback filters below ("All" page-size mode
+  // and the export-time refetch) — mirrors every field the backend's
+  // getEstimates search now also matches. `subject` isn't a real Estimate
+  // field, but is left in place (pre-existing, harmless dead check).
+  const estimateMatchesSearch = (e: any, q: string): boolean => {
+    if (!q) return true;
+    if ((e.subject || e.number || "").toLowerCase().includes(q)) return true;
+    if (getBranchName(e).toLowerCase().includes(q)) return true;
+    const companyName = e.contact_name || e.client?.company || e.client_id?.company || e.rel_id || "";
+    if (String(companyName).toLowerCase().includes(q)) return true;
+    if ((e.connectPerson || "").toLowerCase().includes(q)) return true;
+    if ((e.phone || "").toLowerCase().includes(q)) return true;
+    if ((e.mailId || "").toLowerCase().includes(q)) return true;
+    if ((e.salesPerson || "").toLowerCase().includes(q)) return true;
+    if ((e.items || []).some((item: any) => (item.description || "").toLowerCase().includes(q))) return true;
+    return false;
+  };
+
   // `estimates` is already filtered by search/branch — server-side when
   // paginated, client-side (over the full fetch) in "All" mode — so no
   // second filter pass is needed here.
@@ -739,7 +757,7 @@ const Estimates = () => {
     const rows: any[] = (Array.isArray(response) ? response : response?.data || []).filter((item: any) => !item.form);
     const q = debouncedEstimateSearch.toLowerCase();
     return rows.filter((e: any) => {
-      const matchesSearch = !q || (e.subject || e.number || "").toLowerCase().includes(q) || getBranchName(e).toLowerCase().includes(q);
+      const matchesSearch = estimateMatchesSearch(e, q);
       const matchesBranch = branchFilter === "all" || getBranchName(e) === branchFilter;
       return matchesSearch && matchesBranch;
     });

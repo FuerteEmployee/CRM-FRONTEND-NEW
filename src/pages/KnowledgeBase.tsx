@@ -95,9 +95,14 @@ const KnowledgeBase = () => {
       ),
   });
 
-  const filtered = articles.filter((a: any) =>
-    (a.title || a.subject || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = articles.filter((a: any) => {
+    const term = search.toLowerCase();
+    const groupName = a.group_name || groups.find((g: any) => g._id === a.group)?.name || "General";
+    return (
+      (a.title || a.subject || "").toLowerCase().includes(term) ||
+      groupName.toLowerCase().includes(term)
+    );
+  });
 
   const totalEntries = filtered.length;
   const pageSize = itemsPerPage === "All" ? totalEntries : parseInt(itemsPerPage);
