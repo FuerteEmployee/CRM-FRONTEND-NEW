@@ -81,7 +81,9 @@ const Contacts = () => {
         return (
           fullName.includes(q) ||
           (contact.email || "").toLowerCase().includes(q) ||
-          companyName.includes(q)
+          companyName.includes(q) ||
+          (contact.title || "").toLowerCase().includes(q) ||
+          (contact.phonenumber || "").toLowerCase().includes(q)
         );
       })
       .sort((a: any, b: any) => {

@@ -97,7 +97,8 @@ const CreditNotes = () => {
         (cn.number || "").toLowerCase().includes(q) ||
         (cn.client?.company || "").toLowerCase().includes(q) ||
         (cn._id || "").toLowerCase().includes(q) ||
-        (cn.reference || "").toLowerCase().includes(q);
+        (cn.reference || "").toLowerCase().includes(q) ||
+        (statusMap[cn.status]?.label || "").toLowerCase().includes(q);
 
       if (itemsPerPage === "All") {
         const response = await creditNoteService.getAll();
@@ -204,7 +205,8 @@ const CreditNotes = () => {
       (cn.number || "").toLowerCase().includes(q) ||
       (cn.client?.company || "").toLowerCase().includes(q) ||
       (cn._id || "").toLowerCase().includes(q) ||
-      (cn.reference || "").toLowerCase().includes(q)
+      (cn.reference || "").toLowerCase().includes(q) ||
+      (statusMap[cn.status]?.label || "").toLowerCase().includes(q)
     );
   };
 

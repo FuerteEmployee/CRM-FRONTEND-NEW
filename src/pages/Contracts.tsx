@@ -80,7 +80,8 @@ const Contracts = () => {
         const q = debouncedSearch.toLowerCase();
         const rowsFiltered = rows.filter((c: any) =>
           (c.subject || "").toLowerCase().includes(q) ||
-          (c.client?.company || "").toLowerCase().includes(q)
+          (c.client?.company || "").toLowerCase().includes(q) ||
+          String(c.contract_value ?? "").toLowerCase().includes(q)
         );
         return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1 };
       }
@@ -108,7 +109,8 @@ const Contracts = () => {
     const q = debouncedSearch.toLowerCase();
     return rows.filter((c: any) =>
       (c.subject || "").toLowerCase().includes(q) ||
-      (c.client?.company || "").toLowerCase().includes(q)
+      (c.client?.company || "").toLowerCase().includes(q) ||
+      String(c.contract_value ?? "").toLowerCase().includes(q)
     );
   };
 

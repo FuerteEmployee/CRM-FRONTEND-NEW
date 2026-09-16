@@ -679,13 +679,26 @@ const Leads = () => {
   const filterLeadsClientSide = (rows: any[], q: string) => {
     return rows
       .filter((l) => {
+        const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
+        const lStatusName = (typeof l.status === 'object' ? l.status?.name : statuses.find(s => s._id === l.status)?.name) || "";
+        const lSourceName = (typeof l.source === 'object' ? l.source?.name : sources.find((s: any) => s._id === l.source)?.name) || "";
+        const assignedObj = typeof l.assigned === 'object' ? l.assigned : staff.find((s: any) => s._id === l.assigned);
+        const lAssignedName = assignedObj ? `${assignedObj.firstname || ""} ${assignedObj.lastname || ""}` : "";
+
+        // Covers every field the table can show a lead by, not just name/company/email.
         const matchSearch =
           !q ||
           (l.name || "").toLowerCase().includes(q) ||
           (l.company || "").toLowerCase().includes(q) ||
-          (l.email || "").toLowerCase().includes(q);
-        const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
-        const lStatusName = (typeof l.status === 'object' ? l.status?.name : statuses.find(s => s._id === l.status)?.name) || "";
+          (l.email || "").toLowerCase().includes(q) ||
+          (l.phonenumber || "").toLowerCase().includes(q) ||
+          (l.tags || "").toLowerCase().includes(q) ||
+          String(l.lead_value ?? "").toLowerCase().includes(q) ||
+          (l.salesPerson || "").toLowerCase().includes(q) ||
+          (l.branch || "").toLowerCase().includes(q) ||
+          lStatusName.toLowerCase().includes(q) ||
+          lSourceName.toLowerCase().includes(q) ||
+          lAssignedName.toLowerCase().includes(q);
 
         const dbName = lStatusName.toLowerCase().replace(" lead", "").replace(" leads", "").trim();
         const filterVal = statusFilter.toLowerCase();

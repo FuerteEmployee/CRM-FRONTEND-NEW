@@ -95,10 +95,14 @@ const Projects = () => {
         const rows: any[] = Array.isArray(response) ? response : response?.data || [];
         const q = debouncedSearch.toLowerCase();
         const rowsFiltered = rows.filter((p: any) => {
+          const branchName = typeof p.branch === "object" ? (p.branch?.name || "") : (p.branch || "");
           const matchesSearch =
             !q ||
             (p.name || "").toLowerCase().includes(q) ||
-            (p.clientid?.company || "").toLowerCase().includes(q);
+            (p.description || "").toLowerCase().includes(q) ||
+            (p.clientid?.company || "").toLowerCase().includes(q) ||
+            (Array.isArray(p.tags) ? p.tags.join(" ") : (p.tags || "")).toLowerCase().includes(q) ||
+            branchName.toLowerCase().includes(q);
           const matchesStatus = activeStatus === "all" || p.status === activeStatus;
           return matchesSearch && matchesStatus;
         });
@@ -145,10 +149,14 @@ const Projects = () => {
     const rows: any[] = Array.isArray(response) ? response : response?.data || [];
     const q = debouncedSearch.toLowerCase();
     return rows.filter((p: any) => {
+      const branchName = typeof p.branch === "object" ? (p.branch?.name || "") : (p.branch || "");
       const matchesSearch =
         !q ||
         (p.name || "").toLowerCase().includes(q) ||
-        (p.clientid?.company || "").toLowerCase().includes(q);
+        (p.description || "").toLowerCase().includes(q) ||
+        (p.clientid?.company || "").toLowerCase().includes(q) ||
+        (Array.isArray(p.tags) ? p.tags.join(" ") : (p.tags || "")).toLowerCase().includes(q) ||
+        branchName.toLowerCase().includes(q);
       const matchesStatus = activeStatus === "all" || p.status === activeStatus;
       return matchesSearch && matchesStatus;
     });

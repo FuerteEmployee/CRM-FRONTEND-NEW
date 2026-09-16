@@ -847,7 +847,8 @@ const Purchases = () => {
         p.product?.toLowerCase().includes(q) ||
         p.hsn_code?.toLowerCase().includes(q) ||
         p.sales_person?.toLowerCase().includes(q) ||
-        p.branch?.toLowerCase().includes(q);
+        p.branch?.toLowerCase().includes(q) ||
+        p.voucher_type?.toLowerCase().includes(q);
 
       let matchesVendor = selectedIds.length === 0;
       if (!matchesVendor) {

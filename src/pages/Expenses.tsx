@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,11 @@ import { useCurrency } from "@/context/CurrencyContext";
 
 const Expenses = () => {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [itemsPerPage, setItemsPerPage] = useState("10");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedExpenses, setSelectedExpenses] = useState<string[]>([]);
@@ -61,16 +66,21 @@ const Expenses = () => {
   const { formatAmount } = useCurrency();
 
   const { data: expenses = [], isLoading } = useQuery<any[]>({
-    queryKey: ["expenses"],
-    queryFn: salesService.getExpenses,
+    queryKey: ["expenses", debouncedSearch],
+    queryFn: () => salesService.getExpenses({ search: debouncedSearch || undefined }),
   });
 
+  // Kept as a redundant client-side layer (same pattern as every other
+  // module) even though the backend now also filters by `search`.
   const filtered = expenses.filter((e: any) => {
     const searchStr = search.toLowerCase();
     return (
       (e.expense_name || "").toLowerCase().includes(searchStr) ||
       (e.category || "").toLowerCase().includes(searchStr) ||
-      (e.reference_no || "").toLowerCase().includes(searchStr)
+      (e.reference_no || "").toLowerCase().includes(searchStr) ||
+      (e.paymentmode || "").toLowerCase().includes(searchStr) ||
+      (e.project?.name || e.project || "").toLowerCase().includes(searchStr) ||
+      (e.invoiceid?.number || "").toLowerCase().includes(searchStr)
     );
   });
 

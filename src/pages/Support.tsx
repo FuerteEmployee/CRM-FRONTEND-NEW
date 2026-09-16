@@ -124,11 +124,24 @@ const Support = () => {
     }
   };
 
-  const filtered = tickets.filter(
-    (t: any) =>
-      (t.subject || "").toLowerCase().includes(search.toLowerCase()) ||
-      (t.client?.company || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = tickets.filter((t: any) => {
+    const q = search.toLowerCase();
+    const departmentName = (typeof t.department === "object" ? t.department?.name : t.department) || "";
+    const statusName = (typeof t.status === "object" ? t.status?.name : t.status) || "";
+    const priorityName = (typeof t.priority === "object" ? t.priority?.name : t.priority) || "";
+    const contactName = t.contact_name || t.name || "";
+    const tagsMatch = Array.isArray(t.tags) && t.tags.some((tag: any) => (tag || "").toLowerCase().includes(q));
+    return (
+      (t.subject || "").toLowerCase().includes(q) ||
+      (t.client?.company || "").toLowerCase().includes(q) ||
+      tagsMatch ||
+      departmentName.toLowerCase().includes(q) ||
+      (t.service || "").toLowerCase().includes(q) ||
+      contactName.toLowerCase().includes(q) ||
+      statusName.toLowerCase().includes(q) ||
+      priorityName.toLowerCase().includes(q)
+    );
+  });
 
   const handleExport = (type: "xlsx" | "csv" | "pdf" | "print" | "json") => {
     if (filtered.length === 0) {
