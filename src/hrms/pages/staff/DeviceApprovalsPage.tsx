@@ -281,6 +281,7 @@ export default function DeviceApprovalsPage() {
                             header: "Status",
                             accessorKey: (r) => (
                                 <Badge
+                                    variant="outline"
                                     className={
                                         r.status === "pending"
                                             ? "bg-amber-50 text-amber-700 border-amber-200"

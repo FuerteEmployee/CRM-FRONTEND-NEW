@@ -226,6 +226,10 @@ export default function StaffFormPage() {
   const [managersList, setManagersList] = useState<any[]>([]);
   const [managingCompanies, setManagingCompanies] = useState<ManagingCompany[]>([]);
   const [companiesDialogOpen, setCompaniesDialogOpen] = useState(false);
+  // Read-only CRM (Setup > Staff) fields for the linked person — Admin rights
+  // and Permissions stay editable only from Setup > Staff itself; shown here
+  // purely so this screen displays the same full picture of the person.
+  const [crmInfo, setCrmInfo] = useState<{ admin: boolean; permissions: Record<string, any>; skype: string; facebook: string; linkedin: string } | null>(null);
 
   const [panFile, setPanFile] = useState<File | null>(null);
   const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
@@ -370,7 +374,8 @@ export default function StaffFormPage() {
           // Sanitize ID in case it comes with a colon prefix (e.g. from some legacy links)
           const cleanId = (id as string).startsWith(":") ? (id as string).substring(1) : id;
           const user = await staffService.getById(cleanId as string);
-          
+          setCrmInfo((user as any)?.crmInfo || null);
+
           let salespersonProfile: any = null;
           try {
             salespersonProfile = await salespersonService.getByUserId(cleanId as string);
@@ -660,6 +665,9 @@ export default function StaffFormPage() {
               <TabsTrigger value="documents" className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap">Legal Documents</TabsTrigger>
               {form.watch("isSalesperson") && (
                 <TabsTrigger value="salesperson" className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap">Salesperson Profile</TabsTrigger>
+              )}
+              {crmInfo && (
+                <TabsTrigger value="crmInfo" className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap">CRM Info</TabsTrigger>
               )}
             </TabsList>
 
@@ -1405,6 +1413,46 @@ export default function StaffFormPage() {
                       )} />
                     </div>
                   </TabsContent>
+
+                  {crmInfo && (
+                    <TabsContent value="crmInfo" className="m-0 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                        Read-only — these fields come from Setup &gt; Staff. Change them there, not here.
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                          <Label className={labelClass}>Admin Rights</Label>
+                          <Input readOnly disabled className={inputClass} value={crmInfo.admin ? "Yes" : "No"} />
+                        </div>
+                        <div>
+                          <Label className={labelClass}>Skype</Label>
+                          <Input readOnly disabled className={inputClass} value={crmInfo.skype || "—"} />
+                        </div>
+                        <div>
+                          <Label className={labelClass}>Facebook</Label>
+                          <Input readOnly disabled className={inputClass} value={crmInfo.facebook || "—"} />
+                        </div>
+                        <div>
+                          <Label className={labelClass}>LinkedIn</Label>
+                          <Input readOnly disabled className={inputClass} value={crmInfo.linkedin || "—"} />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className={labelClass}>Module Permissions</Label>
+                        {Object.keys(crmInfo.permissions || {}).length === 0 ? (
+                          <p className="text-sm text-slate-500">No permissions assigned.</p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {Object.keys(crmInfo.permissions).map((mod) => (
+                              <span key={mod} className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
+                                {mod}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </TabsContent>
+                  )}
                 </div>
               </ScrollArea>
             </div>
