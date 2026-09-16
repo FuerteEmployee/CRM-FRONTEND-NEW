@@ -39,13 +39,17 @@ export function LeadAttachmentsTab({ lead }: { lead: any }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-files", lead._id] });
       queryClient.invalidateQueries({ queryKey: ["lead-activity-log", lead._id] });
+      toast.success("File(s) uploaded successfully");
     },
     onError: (err: any) => toast.error(err.message || "Failed to upload file(s)"),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (fileId: string) => fileService.deleteFile(fileId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["lead-files", lead._id] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["lead-files", lead._id] });
+      toast.success("File deleted successfully");
+    },
     onError: (err: any) => toast.error(err.message || "Failed to delete file"),
   });
 

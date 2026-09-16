@@ -99,7 +99,10 @@ export function LeadRemindersTab({ lead }: { lead: any }) {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => reminderService.deleteReminder(id),
-    onSuccess: invalidate,
+    onSuccess: () => {
+      invalidate();
+      toast.success("Reminder deleted");
+    },
     onError: (err: any) => toast.error(err.message || "Failed to delete reminder"),
   });
 

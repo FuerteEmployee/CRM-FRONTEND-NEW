@@ -29,7 +29,9 @@ export function LeadNotesTab({ lead }: { lead: any }) {
       noteService.create({ rel_id: lead._id, rel_type: "lead", ...data }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-notes", lead._id] });
+      queryClient.invalidateQueries({ queryKey: ["lead-note-indicator"] });
       setNewNote("");
+      toast.success("Note added");
     },
     onError: (err: any) => toast.error(err.message || "Failed to add note"),
   });
@@ -39,6 +41,7 @@ export function LeadNotesTab({ lead }: { lead: any }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lead-notes", lead._id] });
       queryClient.invalidateQueries({ queryKey: ["lead-note-indicator"] });
+      toast.success("Note deleted");
     },
     onError: (err: any) => toast.error(err.message || "Failed to delete note"),
   });
@@ -115,7 +118,7 @@ export function LeadNotesTab({ lead }: { lead: any }) {
                       onClick={() => {
                         if (window.confirm("Delete this note?")) deleteNoteMutation.mutate(note._id);
                       }}
-                      disabled={deleteNoteMutation.isPending}
+                      disabled={deleteNoteMutation.isPending && deleteNoteMutation.variables === note._id}
                       className="text-slate-300 hover:text-rose-500 transition-colors disabled:opacity-50"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

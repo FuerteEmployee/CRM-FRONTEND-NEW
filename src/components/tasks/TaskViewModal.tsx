@@ -164,6 +164,7 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
     mutationFn: (id: string) => reminderService.deleteReminder(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["task-reminders", task._id] });
+      toast({ title: "Success", description: "Reminder deleted successfully." });
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
@@ -185,6 +186,7 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
     mutationFn: (fileId: string) => fileService.deleteFile(fileId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["task-files", task._id] });
+      toast({ title: "Success", description: "File deleted successfully." });
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
@@ -207,6 +209,7 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["todos"] });
+      toast({ title: "Saved" });
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
@@ -740,7 +743,9 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 rounded-full hover:bg-red-50 hover:text-red-500"
-                            onClick={() => deleteReminderMutation.mutate(r._id)}
+                            onClick={() => {
+                              if (window.confirm("Delete this reminder?")) deleteReminderMutation.mutate(r._id);
+                            }}
                           >
                             <X className="h-3 w-3" />
                           </Button>
@@ -879,7 +884,9 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 rounded-full shrink-0 hover:bg-red-50 hover:text-red-500"
-                          onClick={() => deleteFileMutation.mutate(f._id)}
+                          onClick={() => {
+                            if (window.confirm("Delete this file?")) deleteFileMutation.mutate(f._id);
+                          }}
                         >
                           <X className="h-3 w-3" />
                         </Button>
