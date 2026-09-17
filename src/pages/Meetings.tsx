@@ -30,6 +30,9 @@ import { Badge } from "@/components/ui/badge";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
 const memberLabel = (m: any) =>
   typeof m === "string" ? m : [m?.firstname, m?.lastname].filter(Boolean).join(" ") || m?.email || m?._id;
@@ -42,6 +45,16 @@ export default function Meetings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+  const { data: branchesRaw = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
 
   const [scribeMeeting, setScribeMeeting] = useState<any>(null);
   const [scribeText, setScribeText] = useState("");
@@ -177,6 +190,7 @@ export default function Meetings() {
   const [formData, setFormData] = useState({
     topic: "",
     agenda: "",
+    branch: "",
     date: "",
     time: "",
     status: "Scheduled",
@@ -220,6 +234,7 @@ export default function Meetings() {
       !q ||
       m.topic?.toLowerCase().includes(q) ||
       m.agenda?.toLowerCase().includes(q) ||
+      m.branch?.toLowerCase().includes(q) ||
       m.summary?.toLowerCase().includes(q) ||
       m.status?.toLowerCase().includes(q) ||
       (Array.isArray(m.members) && m.members.some((member: any) => memberLabel(member)?.toLowerCase().includes(q)))
@@ -297,6 +312,7 @@ export default function Meetings() {
     setFormData({
       topic: "",
       agenda: "",
+      branch: "",
       date: "",
       time: "",
       status: "Scheduled",
@@ -312,6 +328,7 @@ export default function Meetings() {
     setFormData({
       topic: meeting.topic || "",
       agenda: meeting.agenda || "",
+      branch: meeting.branch || "",
       date: meeting.date ? new Date(meeting.date).toISOString().split('T')[0] : "",
       time: meeting.time || "",
       status: meeting.status || "Scheduled",
@@ -624,6 +641,22 @@ export default function Meetings() {
                     <Input id="time" type="time" value={formData.time} onChange={handleInputChange} />
                   </div>
                 </div>
+                {canUseBranch && (
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold uppercase tracking-wider">Branch</Label>
+                    <Select value={formData.branch || "none"} onValueChange={(v) => handleSelectChange('branch', v === "none" ? "" : v)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select Branch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select Branch</SelectItem>
+                        {branches.map((b) => (
+                          <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label className="text-xs font-bold uppercase tracking-wider">Members</Label>
                   <div className="max-h-40 overflow-y-auto border rounded-lg divide-y">
@@ -744,7 +777,14 @@ export default function Meetings() {
                     filteredMeetings.map((meeting: any) => (
                       <tr key={meeting._id} className="border-b hover:bg-slate-50/50 transition-colors">
                         <td className="px-6 py-4 font-medium text-slate-900">
-                          <div className="font-bold">{meeting.topic}</div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold">{meeting.topic}</span>
+                            {canUseBranch && meeting.branch && (
+                              <Badge variant="outline" className="text-[10px] font-semibold text-slate-600 border-slate-300">
+                                {meeting.branch}
+                              </Badge>
+                            )}
+                          </div>
                           <div className="text-xs text-muted-foreground line-clamp-1">{meeting.agenda}</div>
                         </td>
                         <td className="px-6 py-4">
