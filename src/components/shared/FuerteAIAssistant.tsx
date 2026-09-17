@@ -521,7 +521,11 @@ return (
   <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
 
     {/* ── Tooltip panel ── */}
-    {tooltip && listening && (
+    {/* Gated on aiState (not the raw `listening` mic-engine flag) so the panel
+        tracks the same state that colors the FAB button — `listening` updates
+        asynchronously after startListening() and lags behind aiState turning
+        "awake", which used to leave the button green with no popup showing. */}
+    {tooltip && aiState !== "sleeping" && (
       <div className="bg-white border border-gray-200 rounded-2xl shadow-xl p-4 w-72 animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between mb-2">
