@@ -29,7 +29,7 @@ import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { getLandingPath } from "@/lib/landingPath";
 import { AlreadyLoggedInBanner } from "@/components/auth/AlreadyLoggedInBanner";
 import { TwoFactorCodeForm } from "@/components/auth/TwoFactorCodeForm";
-import { getDeviceInfo } from "@/hrms/utils/deviceId";
+import { getDeviceInfo, getLoginLocation } from "@/hrms/utils/deviceId";
 
 const features = [
   { icon: BarChart3, label: "Real-time Analytics" },
@@ -70,7 +70,8 @@ const Login = () => {
     setLoading(true);
     try {
       const deviceInfo = await getDeviceInfo();
-      const response = await authService.login({ email, password, deviceId: deviceInfo.deviceId, deviceInfo });
+      const location = await getLoginLocation();
+      const response = await authService.login({ email, password, deviceId: deviceInfo.deviceId, deviceInfo, ...(location ? { location } : {}) });
       // The backend alone decides whether 2FA is required for this account
       // (based on its tenant) — the frontend only reacts to it.
       if (response.two_factor_auth_enabled) {
