@@ -43,6 +43,7 @@ export const mapCrmToHrms = (permissionsMap: any): string[] => {
   if (getCap("HRMS Staff Directory", "View(Global)")) {
     hrmsPerms.push("manage_users");
     hrmsPerms.push("view_staff");
+    hrmsPerms.push("manage_staff"); // gates the "Device Approvals" sidebar item
   }
   if (getCap("HRMS Staff Directory", "Create")) hrmsPerms.push("create_staff");
   if (getCap("HRMS Staff Directory", "Edit")) hrmsPerms.push("edit_staff");

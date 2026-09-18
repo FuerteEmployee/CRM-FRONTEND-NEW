@@ -621,12 +621,14 @@ const AttendancePage = () => {
         }
       };
 
-      // Absolute safety timeout so getLocation never hangs indefinitely
+      // Absolute safety timeout so getLocation never hangs indefinitely —
+      // must exceed both fresh-fix attempts below (9s + 8s) plus the final
+      // cached-fix fallback attempt.
       const safetyTimer = setTimeout(() => {
         finish(() => reject(new Error("Location Timeout: Could not detect device location. Please check browser location permissions.")));
-      }, 12000);
+      }, 22000);
 
-      const tryGetPos = (highAcc: boolean, timeoutMs: number, onFail: (err: any) => void) => {
+      const tryGetPos = (highAcc: boolean, timeoutMs: number, maxAge: number, onFail: (err: any) => void) => {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
             clearTimeout(safetyTimer);
@@ -643,13 +645,15 @@ const AttendancePage = () => {
           {
             timeout: timeoutMs,
             enableHighAccuracy: highAcc,
-            maximumAge: 0,
+            maximumAge: maxAge,
           },
         );
       };
 
-      // Try high accuracy first (GPS on mobile), then fall back to standard accuracy (WiFi/IP on laptop/desktop)
-      tryGetPos(true, 5000, (error) => {
+      // Try high accuracy first (GPS on mobile), then fall back to standard
+      // accuracy (WiFi/IP on laptop/desktop). Both need a fresh fix
+      // (maximumAge: 0) since they're the "real" attempts.
+      tryGetPos(true, 9000, 0, (error) => {
         if (error.code === error.PERMISSION_DENIED) {
           clearTimeout(safetyTimer);
           finish(() =>
@@ -660,17 +664,35 @@ const AttendancePage = () => {
             )
           );
         } else {
-          tryGetPos(false, 5000, (err2) => {
-            clearTimeout(safetyTimer);
-            let msg = "Failed to get location.";
+          tryGetPos(false, 8000, 0, (err2) => {
             if (err2.code === err2.PERMISSION_DENIED) {
-              msg = "Location Permission Denied: Please allow location access in your browser or Windows privacy settings.";
-            } else if (err2.code === err2.POSITION_UNAVAILABLE) {
-              msg = "Location Unavailable: Please ensure Location Services are enabled on your device.";
-            } else if (err2.code === err2.TIMEOUT) {
-              msg = "Location Timeout: Could not detect location. Please check your network/location settings.";
+              clearTimeout(safetyTimer);
+              finish(() =>
+                reject(
+                  new Error(
+                    "Location Permission Denied: Please allow location access in your browser or Windows privacy settings."
+                  )
+                )
+              );
+              return;
             }
-            finish(() => reject(new Error(msg)));
+            // Last resort: accept a recent cached fix (up to 60s old) instead of
+            // failing outright on a transient GPS/WiFi-positioning hiccup. The
+            // server still rejects anything worse than 150m accuracy, so this
+            // never bypasses the geofence check — it just avoids blocking punch-in
+            // when a fresh fix twice failed to arrive in time.
+            tryGetPos(false, 3000, 60000, (err3) => {
+              clearTimeout(safetyTimer);
+              let msg = "Failed to get location.";
+              if (err3.code === err3.PERMISSION_DENIED) {
+                msg = "Location Permission Denied: Please allow location access in your browser or Windows privacy settings.";
+              } else if (err3.code === err3.POSITION_UNAVAILABLE) {
+                msg = "Location Unavailable: Please ensure Location Services are enabled on your device.";
+              } else if (err3.code === err3.TIMEOUT) {
+                msg = "Location Timeout: Could not detect location. Please check your network/location settings.";
+              }
+              finish(() => reject(new Error(msg)));
+            });
           });
         }
       });

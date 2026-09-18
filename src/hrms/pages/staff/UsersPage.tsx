@@ -104,7 +104,7 @@ export default function UsersPage() {
   // Filters state
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [branchFilter, setBranchFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("active");
 
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
