@@ -152,13 +152,21 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       withCredentials: true,
     });
 
-    socket.emit("join", user._id);
-    // A calling-agent update with no single assigned staff member (an
-    // unrecognized-caller or ambiguous-match row) is broadcast to this
-    // room instead — see Backend's src/utils/callingAgentSocket.js. Same
-    // generic "join" mechanism, just a different room name.
     const tenantId = (user as any)?.tenant?._id;
-    if (tenantId) socket.emit("join", `tenant-${tenantId}`);
+    const joinRooms = () => {
+      socket.emit("join", user._id);
+      // A calling-agent update with no single assigned staff member (an
+      // unrecognized-caller or ambiguous-match row) is broadcast to this
+      // room instead — see Backend's src/utils/callingAgentSocket.js. Same
+      // generic "join" mechanism, just a different room name.
+      if (tenantId) socket.emit("join", `tenant-${tenantId}`);
+    };
+    // Re-join on every connect, not just the first one — socket.io
+    // reconnects silently after a network blip, sleep/wake, or backend
+    // restart, and the server has no memory of which room a new connection
+    // belongs to until it's told again. Without this, a reconnect leaves
+    // the socket "live" but deaf to anything room-targeted (e.g. reminderDue).
+    socket.on("connect", joinRooms);
 
     setSocket(socket);
 

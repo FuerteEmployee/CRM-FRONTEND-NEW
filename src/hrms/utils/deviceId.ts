@@ -52,6 +52,22 @@ export async function getDeviceName(): Promise<string> {
   return name;
 }
 
+/**
+ * Best-effort GPS fix for a login's Session Log entry. A single short-timeout
+ * attempt — never blocks or delays login. Resolves null on denial/timeout/
+ * unsupported browser, same non-fatal philosophy as the rest of this file.
+ */
+export async function getLoginLocation(): Promise<{ lat: number; lng: number } | null> {
+  if (!navigator.geolocation) return null;
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { timeout: 4000, enableHighAccuracy: false, maximumAge: 300000 },
+    );
+  });
+}
+
 /** Builds deviceInfo payload for the login request. */
 export async function getDeviceInfo() {
   const [deviceId, deviceName] = await Promise.all([getDeviceId(), getDeviceName()]);

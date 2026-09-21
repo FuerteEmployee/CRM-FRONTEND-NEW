@@ -87,6 +87,7 @@ import DepartmentPage from "./pages/staff/DepartmentPage";
 import DesignationPage from "./pages/staff/DesignationPage";
 import AttendanceDashboardPage from "./pages/staff/AttendanceDashboardPage";
 import LiveTrackingPage from "./pages/staff/LiveTrackingPage";
+import GeofenceAuditPage from "./pages/staff/GeofenceAuditPage";
 import LeaveManagementPage from "./pages/staff/LeaveManagementPage";
 import ExpenseManagementPage from "./pages/staff/ExpenseManagementPage";
 import TargetsManagementPage from "./pages/staff/TargetsManagementPage";
@@ -403,6 +404,14 @@ export function AppRoutes() {
           element={
             <PermissionGuard requiredPermission="view_live_tracking" mode="message">
               <LiveTrackingPage />
+            </PermissionGuard>
+          }
+        />
+        <Route
+          path="staff/geofence-audit"
+          element={
+            <PermissionGuard requiredPermission="view_live_tracking" mode="message">
+              <GeofenceAuditPage />
             </PermissionGuard>
           }
         />

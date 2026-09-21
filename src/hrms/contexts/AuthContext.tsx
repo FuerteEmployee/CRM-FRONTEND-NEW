@@ -36,7 +36,7 @@ const KNOWN_HRMS_PERMISSIONS = new Set([
   "view_branches", "create_branches", "edit_branches", "delete_branches",
   "view_attendance", "view_leaves", "manage_expenses",
   "view_payroll", "manage_payroll", "manage_shifts",
-  "manage_users", "view_staff", "create_staff", "edit_staff", "delete_staff",
+  "manage_users", "view_staff", "create_staff", "edit_staff", "delete_staff", "manage_staff",
   "view_departments", "manage_designations",
 ]);
 

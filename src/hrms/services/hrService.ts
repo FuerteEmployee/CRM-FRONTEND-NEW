@@ -250,4 +250,25 @@ export const employeeService = {
       return { data: [], total: 0, totalPages: 1, page: 1 };
     }
   },
+
+  getGeofenceAuditLogs: async (params?: {
+    userId?: string;
+    branchId?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: any[]; total: number; pages: number; page: number }> => {
+    try {
+      const res = await apiClient.get("/locations/geofence-audit", { params });
+      return {
+        data: res.data || [],
+        total: typeof res.total === "number" ? res.total : (res.data?.length ?? 0),
+        pages: typeof res.pages === "number" ? res.pages : 1,
+        page: typeof res.page === "number" ? res.page : 1,
+      };
+    } catch {
+      return { data: [], total: 0, pages: 1, page: 1 };
+    }
+  },
 };
