@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { LeadDetailDialog } from "@/components/leads/LeadDetailDialog";
 import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
@@ -64,6 +64,8 @@ import { LeadsKanban } from "@/pages/LeadsKanban";
 import { MetaAdsDialog } from "@/components/leads/MetaAdsDialog";
 import { metaIntegrationService } from "@/api/services/metaIntegration.service";
 import { WebsiteFormsDialog } from "@/components/leads/WebsiteFormsDialog";
+import { AdminTablePageSkeleton } from "@/components/ui/page-skeleton";
+import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 
 const DATE_FILTER_OPTIONS = [
   { value: "all", label: "All Time" },
@@ -247,6 +249,45 @@ const Leads = () => {
     queryKey: ["meta-integration"],
     queryFn: () => metaIntegrationService.get(),
   });
+
+  // Auto-sync Meta Lead Ads on page load, so staff never have to open the
+  // Meta Ads dialog and click Sync/Import manually — those buttons stay as
+  // a manual override, this just does the same two calls automatically.
+  // Cooldown-gated on `last_synced` (10 min) so repeated visits/refreshes to
+  // this page don't hammer Meta's Graph API and risk rate-limiting.
+  const metaAutoSyncedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const connections: any[] = metaIntegrationData?.connections || [];
+    if (connections.length === 0) return;
+
+    const COOLDOWN_MS = 10 * 60 * 1000;
+    const now = Date.now();
+
+    connections.forEach((integration: any) => {
+      const pageId = integration.page_id;
+      if (!pageId || metaAutoSyncedRef.current.has(pageId)) return;
+
+      const lastSynced = integration.last_synced ? new Date(integration.last_synced).getTime() : 0;
+      if (now - lastSynced < COOLDOWN_MS) return;
+
+      metaAutoSyncedRef.current.add(pageId);
+      (async () => {
+        try {
+          await metaIntegrationService.sync(pageId);
+          await metaIntegrationService.importLeads(pageId);
+          queryClient.invalidateQueries({ queryKey: ["meta-integration"] });
+          queryClient.invalidateQueries({ queryKey: ["leads"] });
+          queryClient.invalidateQueries({ queryKey: ["custom-fields", "leads"] });
+        } catch (error) {
+          // Silent — this runs in the background on every page load, so it
+          // must never interrupt the user. The Sync/Import buttons in the
+          // Meta Ads dialog still surface real errors when clicked manually.
+          console.warn(`[Meta auto-sync] page ${pageId} failed:`, error);
+        }
+      })();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metaIntegrationData]);
 
   const { data: customFieldsRaw = [] } = useQuery<any[]>({
     queryKey: ["custom-fields", "leads"],
@@ -1009,6 +1050,19 @@ const Leads = () => {
   const statusCards = [...statuses]
     .sort((a: any, b: any) => (a.statusorder ?? 0) - (b.statusorder ?? 0))
     .map((s: any) => ({ id: s._id, label: s.name, color: s.color || "#757575" }));
+
+  // Full-page skeleton only on the very first load — `keepPreviousData` on the
+  // leads query means `isLoading` stays false on filter/pagination changes
+  // (previous page's rows stay visible while the new page fetches), so this
+  // never flashes over the table while the user is just filtering.
+  const showPageSkeleton = useMinimumLoading(isLoading);
+  if (showPageSkeleton) {
+    return (
+      <DashboardLayout>
+        <AdminTablePageSkeleton />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
