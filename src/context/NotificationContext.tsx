@@ -14,13 +14,17 @@ export interface NotificationItem {
   message: string;
   time: string;
   read: boolean;
+  // Where clicking this notification (toast or bell-dropdown row) should
+  // navigate to — e.g. a lead reminder deep-links straight to that lead's
+  // Reminders tab. Undefined means the notification isn't clickable.
+  link?: string;
 }
 
 interface NotificationContextType {
   notifications: NotificationItem[];
   unreadCount: number;
   chatUnreadCount: number;
-  addNotification: (title: string, message: string) => void;
+  addNotification: (title: string, message: string, link?: string) => void;
   markAllAsRead: () => void;
   markAsRead: (id: string) => void;
   setChatUnreadCount: React.Dispatch<React.SetStateAction<number>>;
@@ -42,7 +46,7 @@ const NotificationContext = createContext<NotificationContextType>({
 });
 
 export const NotificationProvider = ({ children }: { children: React.ReactNode }) => {
-  const { user } = usePermissionContext();
+  const { user, isStaff } = usePermissionContext();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -65,20 +69,24 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     fetchChatCount();
   }, [user?._id]);
 
-  const addNotification = (title: string, message: string) => {
+  const addNotification = (title: string, message: string, link?: string) => {
     const newNotification: NotificationItem = {
       id: Date.now().toString(),
       title,
       message,
       time: "Just now",
       read: false,
+      link,
     };
-    
+
     setNotifications(prev => [newNotification, ...prev]);
-    
-    // Show toast
+
+    // Show toast. `window.location.href` (not useNavigate) because this
+    // context sits outside <BrowserRouter> in App.tsx — a plain navigation
+    // is the only option that works from here.
     toast.info(title, {
       description: message,
+      ...(link ? { action: { label: "View", onClick: () => { window.location.href = link; } } } : {}),
     });
     
     // Play sound based on user preference
@@ -194,7 +202,14 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     // the moment a Lead or Customer reminder's scheduled time arrives.
     socket.on("reminderDue", (payload: any) => {
       const title = payload?.relType === "customer" ? "Customer Reminder" : "Lead Reminder";
-      addNotification(title, payload?.description || "A reminder is due.");
+      // Only leads have a deep-link target today (Leads.tsx's ?leadView=
+      // param opens that lead straight on its Reminders tab) — customer
+      // reminders still notify, just without a click-through until Customers
+      // gets the same deep-link support.
+      const link = payload?.relType === "lead" && payload?.relId
+        ? `${isStaff ? "/staff" : "/admin"}/leads?leadView=${payload.relId}&tab=reminders`
+        : undefined;
+      addNotification(title, payload?.description || "A reminder is due.", link);
     });
 
     return () => {

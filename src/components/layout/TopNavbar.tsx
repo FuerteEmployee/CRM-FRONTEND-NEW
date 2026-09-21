@@ -335,7 +335,10 @@ export function TopNavbar() {
                 notifications.map((n) => (
                   <div
                     key={n.id}
-                    onClick={() => markAsRead(n.id)}
+                    onClick={() => {
+                      markAsRead(n.id);
+                      if (n.link) navigate(n.link);
+                    }}
                     className={`flex gap-3 p-3 border-b last:border-0 transition-colors cursor-pointer hover:bg-muted/50 ${!n.read ? "bg-primary/5" : ""}`}
                   >
                     <div className="flex-1 min-w-0">
