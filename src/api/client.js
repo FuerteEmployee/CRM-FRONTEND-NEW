@@ -23,7 +23,7 @@ class ApiClient {
     const response = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
       headers,
-      credentials: "include",
+      credentials: "include"
     });
 
     if (!response.ok) {

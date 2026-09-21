@@ -569,6 +569,26 @@ export default function Meetings() {
     }
   };
 
+  const handleDeleteRecording = async (meeting: any, recordingId: string) => {
+    if (!window.confirm("Delete this recording permanently? This cannot be undone.")) return;
+    setLoadingRecordingId(recordingId);
+    try {
+      const updated = await meetingService.deleteRecording(meeting._id, recordingId);
+      setScribeMeeting(updated);
+      setRecordingUrls((prev) => {
+        const next = { ...prev };
+        delete next[recordingId];
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ["meetings"] });
+      toast({ title: "Recording deleted" });
+    } catch (err: any) {
+      toast({ title: "Could not delete recording", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setLoadingRecordingId(null);
+    }
+  };
+
   const handleSummarizeScribe = async () => {
     if (!scribeMeeting) return;
     if (!scribeText.trim()) {
@@ -982,23 +1002,35 @@ export default function Meetings() {
                         <span className="text-slate-600">
                           {rec.type === "video" ? "Video" : "Audio"} — {rec.duration_seconds ? `${Math.round(rec.duration_seconds / 60)} min` : "duration n/a"} · {rec.created_at ? new Date(rec.created_at).toLocaleString() : ""}
                         </span>
-                        {recordingUrls[rec._id] ? (
-                          rec.type === "video" ? (
-                            <video src={recordingUrls[rec._id]} controls className="h-8 max-w-[200px]" />
+                        <div className="flex items-center gap-1.5">
+                          {recordingUrls[rec._id] ? (
+                            rec.type === "video" ? (
+                              <video src={recordingUrls[rec._id]} controls className="h-8 max-w-[200px]" />
+                            ) : (
+                              <audio src={recordingUrls[rec._id]} controls className="h-8 max-w-[200px]" />
+                            )
                           ) : (
-                            <audio src={recordingUrls[rec._id]} controls className="h-8 max-w-[200px]" />
-                          )
-                        ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs text-purple-600"
+                              onClick={() => handlePlayRecording(scribeMeeting, rec._id)}
+                              disabled={loadingRecordingId === rec._id}
+                            >
+                              {loadingRecordingId === rec._id ? "Loading…" : "Play"}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
-                            size="sm"
-                            className="h-7 text-xs text-purple-600"
-                            onClick={() => handlePlayRecording(scribeMeeting, rec._id)}
+                            size="icon"
+                            className="h-7 w-7 text-red-600 hover:bg-red-50 shrink-0"
+                            onClick={() => handleDeleteRecording(scribeMeeting, rec._id)}
                             disabled={loadingRecordingId === rec._id}
+                            title="Delete recording"
                           >
-                            {loadingRecordingId === rec._id ? "Loading…" : "Play"}
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
-                        )}
+                        </div>
                       </div>
                     ))}
                   </div>

@@ -15,5 +15,6 @@ export const meetingService = {
   setRecordingConsent: (id, given) => apiClient.post(`/meetings/${id}/recording-consent`, { given }),
   uploadRecording: (id, formData) => apiClient.post(`/meetings/${id}/recording`, formData),
   getRecordingUrl: (id, recordingId) => apiClient.get(`/meetings/${id}/recording/${recordingId}/url`),
+  deleteRecording: (id, recordingId) => apiClient.delete(`/meetings/${id}/recording/${recordingId}`),
 };
 
