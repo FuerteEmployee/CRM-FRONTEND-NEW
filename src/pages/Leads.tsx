@@ -274,10 +274,22 @@ const Leads = () => {
       (async () => {
         try {
           await metaIntegrationService.sync(pageId);
-          await metaIntegrationService.importLeads(pageId);
+          const data: any = await metaIntegrationService.importLeads(pageId);
           queryClient.invalidateQueries({ queryKey: ["meta-integration"] });
           queryClient.invalidateQueries({ queryKey: ["leads"] });
           queryClient.invalidateQueries({ queryKey: ["custom-fields", "leads"] });
+
+          // Same toast copy as the manual "Import" button in MetaAdsDialog —
+          // only shown when something actually happened, so a page visit
+          // that finds nothing new to import stays silent (this can fire
+          // once every 10 min per connected page, so a toast every time
+          // would get noisy fast otherwise).
+          if (data?.imported > 0) {
+            const parts = [`${data.imported} new lead${data.imported === 1 ? "" : "s"} imported`];
+            if (data.skipped_duplicates) parts.push(`${data.skipped_duplicates} already in CRM (skipped)`);
+            if (data.truncated) parts.push("form has more leads than one import can pull — run Import again to continue");
+            toast({ title: "Import Complete", description: parts.join(", ") });
+          }
         } catch (error) {
           // Silent — this runs in the background on every page load, so it
           // must never interrupt the user. The Sync/Import buttons in the
