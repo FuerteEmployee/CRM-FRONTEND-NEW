@@ -244,6 +244,18 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest" id="app-manifest" />
+    <script>
+      (function() {
+        if ("serviceWorker" in navigator) {
+          window.addEventListener("load", function () {
+            navigator.serviceWorker.register("/pwa-sw.js").catch(function (err) {
+              console.error("Safe PWA SW registration failed:", err);
+            });
+          });
+        }
+      })();
+    </script>
     <script>
       (function() {
         try {
@@ -252,7 +264,7 @@
           
           // Dynamically change the manifest file link for PWA install based on domain
           const updateManifest = () => {
-            const manifestEl = document.querySelector("link[rel='manifest']");
+            const manifestEl = document.getElementById("app-manifest");
             if (manifestEl) {
               const manifestUrl = isTrinetra ? "/manifest-trinetra.json" : "/manifest.webmanifest";
               manifestEl.setAttribute("href", manifestUrl);
@@ -304,7 +316,7 @@
     <meta name="twitter:title" content="CRMPro Dashboard" />
     <meta name="twitter:description" content="A powerful CRM, sales, and team management platform." />
     <meta name="twitter:image" content="" />
-    <script type="module" crossorigin src="/assets/index-BYgPS91J.js"></script>
+    <script type="module" crossorigin src="/assets/index-BxRILrLu.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-core-BIKDs19Y.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-socket-D6DeIe55.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-radix-DYmBEAKU.js">
@@ -320,20 +332,20 @@
     <link rel="modulepreload" crossorigin href="/assets/module-reports-Dse3e0I_.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-export-iY6IHTbk.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-maps-4nDXEzZ2.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-hrms-3m3WWLpL.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-quotations-DkUROKP1.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-hrms-zqSg9u9o.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-quotations-DwfcMuTQ.js">
     <link rel="modulepreload" crossorigin href="/assets/auth.service-BQHyx3Id.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-setup-SEn-FoRb.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-setup-h8UUZMWn.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-motion-BTh80Rg_.js">
     <link rel="modulepreload" crossorigin href="/assets/module-superadmin-AZyecZB5.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-editor-BvX_mNX4.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-emoji-CaG7PKwd.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-jitsi-CDdDy9qh.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-client-Be8soxlG.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-client-CNc9XB47.js">
     <link rel="stylesheet" crossorigin href="/assets/vendor-misc-DB0Q8XAf.css">
     <link rel="stylesheet" crossorigin href="/assets/vendor-maps-MGNviBeR.css">
     <link rel="stylesheet" crossorigin href="/assets/vendor-editor-DZrYvFpI.css">
-    <link rel="stylesheet" crossorigin href="/assets/index-C-4HcDRb.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-5_RmIeCZ.css">
   </head>
 
   <body>

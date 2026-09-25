@@ -244,6 +244,18 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest" id="app-manifest" />
+    <script>
+      (function() {
+        if ("serviceWorker" in navigator) {
+          window.addEventListener("load", function () {
+            navigator.serviceWorker.register("/pwa-sw.js").catch(function (err) {
+              console.error("Safe PWA SW registration failed:", err);
+            });
+          });
+        }
+      })();
+    </script>
     <script>
       (function() {
         try {
@@ -252,7 +264,7 @@
           
           // Dynamically change the manifest file link for PWA install based on domain
           const updateManifest = () => {
-            const manifestEl = document.querySelector("link[rel='manifest']");
+            const manifestEl = document.getElementById("app-manifest");
             if (manifestEl) {
               const manifestUrl = isTrinetra ? "/manifest-trinetra.json" : "/manifest.webmanifest";
               manifestEl.setAttribute("href", manifestUrl);
