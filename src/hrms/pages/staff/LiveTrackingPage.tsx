@@ -263,6 +263,72 @@ const LiveTrackingPage = () => {
     }
   }, [selectedDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Deep link support:
+  //   /staff/live-tracking?employeeId=..&date=YYYY-MM-DD
+  //     &exitLat=..&exitLng=..&exitTime=HH:mm:ss&exitDist=..&exitAddr=..
+  //
+  // The attendance detail page links here to explain a disputed auto punch-out.
+  // With the exit params present the map pins the exact position the server
+  // decided on, alongside the branch fence and that day's movement trail —
+  // which is the whole argument in one picture.
+  const deepLinkApplied = useRef(false);
+  const [exitMarker, setExitMarker] = useState<any>(null);
+  useEffect(() => {
+    if (deepLinkApplied.current || !employees.length) return;
+    const params = new URLSearchParams(window.location.search);
+    const empId = params.get("employeeId");
+    const date = params.get("date");
+    const exitLat = parseFloat(params.get("exitLat") || "");
+    const exitLng = parseFloat(params.get("exitLng") || "");
+    if (!empId && !date) return;
+    deepLinkApplied.current = true;
+    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) setSelectedDate(date);
+    if (Number.isFinite(exitLat) && Number.isFinite(exitLng)) {
+      const d = parseInt(params.get("exitDist") || "", 10);
+      setExitMarker({
+        lat: exitLat,
+        lng: exitLng,
+        time: params.get("exitTime") || undefined,
+        distanceM: Number.isFinite(d) ? d : undefined,
+        address: params.get("exitAddr") || undefined,
+      });
+      setShowPath(true); // the trail is the point — don't make them toggle it
+    }
+    if (empId) {
+      const emp = employees.find((e: any) => String(e._id || e.id) === empId);
+      if (emp) handleSelectPersonnel(emp, null);
+    }
+  }, [employees, handleSelectPersonnel]);
+
+  // Markers to draw. When we arrived from "Show on map — why this happened",
+  // the map is answering a question about ONE person on ONE day: every other
+  // employee's marker is noise sitting on top of the evidence, and at a shared
+  // office they pile up directly over the branch and the exit pin. So in that
+  // mode only the subject is drawn; normal live-tracking is unchanged.
+  const mapLocations = useMemo(() => {
+    if (exitMarker && activePersonnelId) {
+      const mine = locations.filter(
+        (l: any) => String(l.userId || l.employeeId || l._id) === String(activePersonnelId),
+      );
+      return mine.length ? mine : [];
+    }
+    return selectedLocation ? [selectedLocation] : locations;
+  }, [exitMarker, activePersonnelId, locations, selectedLocation]);
+
+  // Geofence of whoever is selected. Comes from the employee's own branch, so
+  // the circle always matches the fence that employee is actually judged
+  // against — not a global default.
+  const activeGeofence = useMemo(() => {
+    if (!activePersonnelId) return null;
+    const rec: any = locations.find((l: any) => String(l.userId || l._id) === String(activePersonnelId));
+    const br = rec?.branch;
+    if (!br || typeof br.latitude !== "number" || typeof br.longitude !== "number") return null;
+    const radiusM = typeof br.radius === "number" ? br.radius : 500;
+    // Mirrors exitBufferM() on the backend — keep in step if that changes.
+    const buffer = Math.max(35, Math.min(50, Math.max(20, Math.round(radiusM * 0.5))));
+    return { lat: br.latitude, lng: br.longitude, radiusM, thresholdM: radiusM + buffer, name: br.name };
+  }, [activePersonnelId, locations]);
+
   const changeDate = (delta: number) => {
     const d = new Date(selectedDate);
     d.setDate(d.getDate() + delta);
@@ -504,7 +570,7 @@ const LiveTrackingPage = () => {
 
             <div className="flex-1 relative bg-slate-100 min-h-[400px]">
               <TrackingMap
-                locations={selectedLocation ? [selectedLocation] : locations}
+                locations={mapLocations}
                 selectedLocation={selectedLocation}
                 pathPoints={pathPoints}
                 displayPath={displayPath}
@@ -512,6 +578,8 @@ const LiveTrackingPage = () => {
                 showPath={showPath}
                 isMapInteractionEnabled={isMapInteractionEnabled}
                 activePersonnelId={activePersonnelId}
+                geofence={activeGeofence}
+                exitMarker={exitMarker}
                 onMarkerClick={(loc: any) => {
                   setSelectedLocation(loc);
                   setSelectedStaff(null);

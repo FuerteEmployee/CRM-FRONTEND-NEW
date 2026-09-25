@@ -89,8 +89,10 @@ import AttendanceDashboardPage from "./pages/staff/AttendanceDashboardPage";
 import LiveTrackingPage from "./pages/staff/LiveTrackingPage";
 import GeofenceAuditPage from "./pages/staff/GeofenceAuditPage";
 import LeaveManagementPage from "./pages/staff/LeaveManagementPage";
+import HolidayCalendarPage from "./pages/staff/HolidayCalendarPage";
 import ExpenseManagementPage from "./pages/staff/ExpenseManagementPage";
 import TargetsManagementPage from "./pages/staff/TargetsManagementPage";
+import IncentiveSlabsPage from "./pages/staff/IncentiveSlabsPage";
 import PayrollManagementPage from "./pages/staff/PayrollManagementPage";
 import StaffBranchListPage from "./pages/staff/Branch/StaffBranchListPage";
 import StaffBranchFormPage from "./pages/staff/Branch/StaffBranchFormPage";
@@ -102,7 +104,6 @@ import SalarySettlementLedgerPage from "./pages/staff/SalarySettlementLedgerPage
 
 // Settings
 import ManagingCompaniesPage from "./pages/settings/ManagingCompaniesPage";
-import SettingsPage from "./pages/settings/SettingsPage";
 import ShortcutsPage from "./pages/settings/ShortcutsPage";
 import ProfilePage from "./pages/profile/ProfilePage";
 
@@ -424,6 +425,14 @@ export function AppRoutes() {
           }
         />
         <Route
+          path="staff/holidays"
+          element={
+            <PermissionGuard requiredPermission="manage_holidays" mode="message">
+              <HolidayCalendarPage />
+            </PermissionGuard>
+          }
+        />
+        <Route
           path="staff/expense-management"
           element={
             <PermissionGuard requiredPermission="manage_expenses" mode="message">
@@ -436,6 +445,14 @@ export function AppRoutes() {
           element={
             <PermissionGuard requiredPermission="view_targets" mode="message">
               <TargetsManagementPage />
+            </PermissionGuard>
+          }
+        />
+        <Route
+          path="staff/incentive-slabs"
+          element={
+            <PermissionGuard requiredPermission="view_targets" mode="message">
+              <IncentiveSlabsPage />
             </PermissionGuard>
           }
         />
@@ -746,18 +763,7 @@ export function AppRoutes() {
 
 
 
-        {/* Settings */}
-        <Route
-          path="settings"
-          element={
-            <PermissionGuard
-              requiredPermission="manage_settings"
-              mode="message"
-            >
-              <SettingsPage />
-            </PermissionGuard>
-          }
-        />
+        {/* Settings — removed; main CRM's Setup > Settings covers this now */}
         <Route
           path="settings/shortcuts"
           element={

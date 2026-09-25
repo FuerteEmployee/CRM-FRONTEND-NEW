@@ -10,7 +10,6 @@ import {
   Package,
   BarChart3,
   Truck,
-  Settings,
   Wrench,
   Keyboard,
   PackageSearch,
@@ -216,6 +215,7 @@ const hrmsNav = [
   { title: "Live Tracking", url: "/staff/live-tracking", icon: RadioTower, permission: "view_live_tracking" },
   { title: "Geofence Audit", url: "/staff/geofence-audit", icon: ShieldAlert, permission: "view_live_tracking" },
   { title: "Leave Management", url: "/staff/leave-management", icon: CalendarDays, permission: "view_leaves" },
+  { title: "Holiday Calendar", url: "/staff/holidays", icon: CalendarDays, permission: "manage_holidays" },
   { title: "Expense Management", url: "/staff/expense-management", icon: Wallet, permission: "manage_expenses" },
   // { title: "Targets", url: "/staff/targets", icon: Target, permission: "view_targets" },
   { title: "Salary Management", url: "/staff/payroll", icon: Landmark, permission: "view_payroll" },
@@ -287,7 +287,6 @@ const systemNav = [
     icon: ShieldCheck,
     permission: "view_warranty",
   },
-  { title: "Settings", url: "/settings", icon: Settings, permission: "manage_settings" },
   { title: "Keyboard Shortcuts", url: "/settings/shortcuts", icon: Keyboard, permission: "manage_settings" },
 ];
 
