@@ -50,11 +50,16 @@ import { useNavigate } from "react-router-dom";
 import { useNotificationContext } from "@/context/NotificationContext";
 import { useToast } from "@/hooks/use-toast";
 import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n/config";
+
 
 export function TopNavbar() {
   const [search, setSearch] = useState("");
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
+  const { t } = useTranslation();
+
 
   const { user, logout, isStaff, canView, isModuleEnabled } = usePermissionContext();
   const { refreshSettings } = useSettings();
@@ -110,26 +115,16 @@ export function TopNavbar() {
   };
 
   const handleLanguageChange = (langCode: string) => {
+    // i18next: instant switch — no page reload, no Google Translate cookie,
+    // no root-domain cookie, no DOM removeChild errors.
+    i18n.changeLanguage(langCode);
+    // Persist in localStorage so it survives refresh
+    localStorage.setItem("crm_language", langCode);
+    // Also set a scoped cookie (exact domain only, no leading dot)
     const hostname = window.location.hostname;
-    const expired = "expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-    // Once Google's translate widget has actually run, it can persist its
-    // own copy of this cookie under a leading-dot domain (for subdomain-wide
-    // translation), independently of the exact variant we wrote when we set
-    // it. Clearing only that one variant leaves the dot-domain copy behind,
-    // so document.cookie still contains "googtrans=" after picking English
-    // — which makes index.html's loader keep fetching Google's script and
-    // re-translating instead of reverting. Clear every variant that could
-    // exist, not just the one we happened to set.
-    document.cookie = `googtrans=; ${expired}`;
-    document.cookie = `googtrans=; domain=${hostname}; ${expired}`;
-    document.cookie = `googtrans=; domain=.${hostname}; ${expired}`;
-
-    if (langCode !== 'en') {
-      document.cookie = `googtrans=/en/${langCode}; path=/`;
-      document.cookie = `googtrans=/en/${langCode}; domain=${hostname}; path=/`;
-    }
-    window.location.reload();
+    document.cookie = `crm_lang=${langCode}; domain=${hostname}; path=/; max-age=31536000`;
   };
+
 
   const languages = [
     { code: "ar", name: "Arabic" },
