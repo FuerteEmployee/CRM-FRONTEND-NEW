@@ -15,6 +15,14 @@ export default defineConfig(({ mode }) => ({
       "/api": {
         target: "http://127.0.0.1:5001",
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on("error", (err, _req, res) => {
+            if (res && "writeHead" in res && !res.headersSent) {
+              res.writeHead(503, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ error: "Backend server is starting up or unavailable on port 5001. Please refresh in a moment." }));
+            }
+          });
+        },
       },
       "/uploads": {
         target: "http://127.0.0.1:5001",

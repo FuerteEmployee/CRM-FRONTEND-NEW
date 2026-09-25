@@ -32,10 +32,13 @@ import {
   Phone,
   MapPin,
   HeartPulse,
+  Users,
+  Search,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { staffService } from "@/api/services/staff.service";
 import { supportService } from "@/api/services/support.service";
+import { customerService } from "@/api/services/customer.service";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -262,6 +265,33 @@ export default function SetupStaffForm() {
     ...emptyHrmsProfile(),
   });
 
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
+  const [clientSearch, setClientSearch] = useState("");
+
+  const { data: clients = [], isLoading: isLoadingClients } = useQuery({
+    queryKey: ["clients-for-staff-form"],
+    queryFn: async () => {
+      const res = await customerService.getAll();
+      return Array.isArray(res) ? res : res?.data || [];
+    },
+  });
+
+  useEffect(() => {
+    if (id && id !== "new" && clients.length > 0) {
+      const assignedIds = clients
+        .filter((c: any) => {
+          const isAdmin = Array.isArray(c.admins) && c.admins.some((a: any) => {
+            const sid = a.staff?._id || a.staff;
+            return sid && sid.toString() === id;
+          });
+          const isSales = (c.sales_person?._id || c.sales_person)?.toString() === id;
+          return isAdmin || isSales;
+        })
+        .map((c: any) => c._id);
+      setSelectedClientIds(assignedIds);
+    }
+  }, [id, clients]);
+
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [panFile, setPanFile] = useState<File | null>(null);
   const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
@@ -428,10 +458,28 @@ export default function SetupStaffForm() {
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => staffService.create(data),
-    onSuccess: () => {
+    mutationFn: async (data: any) => {
+      const res = await staffService.create(data);
+      const member = res?.data || res;
+      const newId = member?._id || member?.id;
+      if (newId) {
+        await customerService.transferOrAssign({
+          toStaffId: newId,
+          clientIds: selectedClientIds,
+          assignAs: "both",
+          sync: true,
+        });
+      }
+      return res;
+    },
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
-      toast({ title: "Success", description: "Staff member created" });
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      if (res?.hrmsSyncWarning) {
+        toast({ title: "Staff created", description: res.hrmsSyncWarning, variant: "destructive" });
+      } else {
+        toast({ title: "Success", description: "Staff member created and customer assignments saved" });
+      }
       navigate(`${basePath}/setup/staff`);
     },
     onError: (error: any) => {
@@ -444,10 +492,24 @@ export default function SetupStaffForm() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => staffService.update(id!, data),
-    onSuccess: () => {
+    mutationFn: async (data: any) => {
+      const res = await staffService.update(id!, data);
+      await customerService.transferOrAssign({
+        toStaffId: id!,
+        clientIds: selectedClientIds,
+        assignAs: "both",
+        sync: true,
+      });
+      return res;
+    },
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ["staff"] });
-      toast({ title: "Success", description: "Staff member updated" });
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      if (res?.hrmsSyncWarning) {
+        toast({ title: "Staff updated", description: res.hrmsSyncWarning, variant: "destructive" });
+      } else {
+        toast({ title: "Success", description: "Staff member and customer assignments updated" });
+      }
       navigate(`${basePath}/setup/staff`);
     },
     onError: (error: any) => {
@@ -528,6 +590,23 @@ export default function SetupStaffForm() {
     }
     setFormData({ ...formData, password: retVal });
     setShowPassword(true);
+  };
+
+  const filteredClients = clients.filter((c: any) => {
+    const term = clientSearch.toLowerCase().trim();
+    if (!term) return true;
+    return (
+      c.company?.toLowerCase().includes(term) ||
+      c.contact_person?.toLowerCase().includes(term) ||
+      c.email?.toLowerCase().includes(term) ||
+      c.phonenumber?.includes(term)
+    );
+  });
+
+  const toggleClientSelection = (clientId: string) => {
+    setSelectedClientIds((prev) =>
+      prev.includes(clientId) ? prev.filter((i) => i !== clientId) : [...prev, clientId]
+    );
   };
 
   if (isLoadingStaff) {
@@ -613,6 +692,13 @@ export default function SetupStaffForm() {
               className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
             >
               Permissions
+            </TabsTrigger>
+            <TabsTrigger
+              value="assigned-customers"
+              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold flex items-center gap-1.5"
+            >
+              <Users className="h-4 w-4" />
+              Assigned Customers {selectedClientIds.length > 0 && `(${selectedClientIds.length})`}
             </TabsTrigger>
           </TabsList>
 
@@ -1439,6 +1525,112 @@ export default function SetupStaffForm() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          </TabsContent>
+
+          <TabsContent
+            value="assigned-customers"
+            className="bg-white border rounded-lg p-8 shadow-sm mt-6 space-y-6"
+          >
+            <div>
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />
+                Assign Specific Customers to this Staff Member
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                Select the customers this staff member is responsible for. If &quot;Customers &gt; View (Own)&quot; is checked on the Permissions tab, this staff member will <strong>only see these selected customers</strong> when they log in.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search customers by company or contact name..."
+                    value={clientSearch}
+                    onChange={(e) => setClientSearch(e.target.value)}
+                    className="pl-9 h-10 border-slate-200"
+                    disabled={fieldsDisabled}
+                  />
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-semibold text-slate-600">
+                    Selected: <span className="text-primary font-bold">{selectedClientIds.length}</span> / {clients.length}
+                  </span>
+                  {filteredClients.length > 0 && !fieldsDisabled && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-9"
+                      onClick={() => {
+                        const allFilteredIds = filteredClients.map((c: any) => c._id);
+                        const allSelected = allFilteredIds.every((id: string) => selectedClientIds.includes(id));
+                        if (allSelected) {
+                          setSelectedClientIds((prev) => prev.filter((id) => !allFilteredIds.includes(id)));
+                        } else {
+                          setSelectedClientIds((prev) => Array.from(new Set([...prev, ...allFilteredIds])));
+                        }
+                      }}
+                    >
+                      {filteredClients.every((c: any) => selectedClientIds.includes(c._id))
+                        ? "Deselect All Filtered"
+                        : "Select All Filtered"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
+                  {isLoadingClients ? (
+                    <div className="p-8 text-center text-sm text-muted-foreground">
+                      <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+                      Loading customers...
+                    </div>
+                  ) : filteredClients.length === 0 ? (
+                    <div className="p-8 text-center text-sm text-muted-foreground">
+                      No customers found.
+                    </div>
+                  ) : (
+                    filteredClients.map((client: any) => {
+                      const isSelected = selectedClientIds.includes(client._id);
+                      return (
+                        <label
+                          key={client._id}
+                          className={`flex items-center gap-3 p-3.5 hover:bg-slate-50 cursor-pointer transition-colors ${
+                            isSelected ? "bg-primary/5" : ""
+                          }`}
+                        >
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleClientSelection(client._id)}
+                            disabled={fieldsDisabled}
+                            className="border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                          />
+                          <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                            <div>
+                              <p className="font-semibold text-foreground text-sm">{client.company}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {client.contact_person ? client.contact_person : "No contact person"}
+                                {client.phonenumber ? ` • ${client.phonenumber}` : ""}
+                                {client.email ? ` • ${client.email}` : ""}
+                              </p>
+                            </div>
+                            {client.customer_reference && (
+                              <span className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono w-fit">
+                                {client.customer_reference}
+                              </span>
+                            )}
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </div>
           </TabsContent>
         </Tabs>

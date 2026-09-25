@@ -81,7 +81,7 @@ const attemptRefresh = (): Promise<boolean> => {
       const currentToken = getAuthToken();
       if (!currentToken) return false;
 
-      const res = await fetch(`${API_BASE_URL}/hrms/users/refresh`, {
+      const res = await fetch(`${API_BASE_URL}/users/refresh`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${currentToken}` },
       });

@@ -31,9 +31,7 @@ export default function SetupStaff() {
   const { can, isStaff } = usePermissions();
   const basePath = isStaff ? "/staff" : "/admin";
 
-  const { data: staff = [], isLoading: isLoadingStaff } = useQuery<
-    StaffMember[]
-  >({
+  const { data: staff = [], isLoading: isLoadingStaff } = useQuery<StaffMember[]>({
     queryKey: ["staff"],
     queryFn: async () => {
       const response = await staffService.getAll();
@@ -101,16 +99,19 @@ export default function SetupStaff() {
           label: "Full Name",
           render: (member: StaffMember) => (
             <div className="flex items-center gap-3">
-              <Avatar className="h-9 w-9 border border">
+              <Avatar className="h-9 w-9 border">
                 <AvatarImage src="" />
-                <AvatarFallback className="bg-muted text-muted-foreground">
-                  {member.firstname[0]}
-                  {member.lastname[0]}
+                <AvatarFallback className="bg-muted text-muted-foreground font-semibold">
+                  {member.firstname?.[0] || ""}
+                  {member.lastname?.[0] || ""}
                 </AvatarFallback>
               </Avatar>
-              <span className="font-semibold text-foreground">
-                {member.firstname} {member.lastname}
-              </span>
+              <div className="flex flex-col">
+                <span className="font-semibold text-foreground">
+                  {member.firstname} {member.lastname}
+                </span>
+                <span className="text-xs text-muted-foreground">{member.email}</span>
+              </div>
             </div>
           ),
         },
@@ -126,7 +127,7 @@ export default function SetupStaff() {
           render: (member: StaffMember) => (
             <span className="text-foreground font-medium">
               {member.role?.name ||
-                (typeof member.role === "string" ? member.role : "")}
+                (typeof member.role === "string" ? member.role : "No Role")}
             </span>
           ),
         },
