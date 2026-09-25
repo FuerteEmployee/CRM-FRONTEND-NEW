@@ -523,11 +523,35 @@ export default function SetupStaffForm() {
 
   const handleSave = () => {
     // Normalize 'none' role back to null for the backend to avoid BSON error
+    const roleId = formData.role === "none" || formData.role === "" ? null : formData.role;
     const finalData = {
       ...formData,
-      role:
-        formData.role === "none" || formData.role === "" ? null : formData.role,
+      role: roleId,
     };
+
+    // Calculate ONLY the overrides (differences) from the selected Role's permissions.
+    // staff.permissions should only contain what's explicitly different from their role,
+    // otherwise any future updates to the Role itself won't cascade to this user because
+    // they have a static copy saved directly on their profile.
+    const selectedRole = roles.find((r) => r._id === formData.role);
+    const rolePerms = selectedRole?.permissions || {};
+    const overrides: Record<string, any> = {};
+
+    Object.keys(formData.permissions || {}).forEach((feature) => {
+      const caps = formData.permissions[feature] || {};
+      Object.keys(caps).forEach((cap) => {
+        const staffVal = !!caps[cap];
+        const roleVal = !!rolePerms[feature]?.[cap];
+        
+        // If the staff member's checkbox differs from the base Role, save it as an override
+        if (staffVal !== roleVal) {
+          if (!overrides[feature]) overrides[feature] = {};
+          overrides[feature][cap] = staffVal;
+        }
+      });
+    });
+
+    finalData.permissions = overrides;
 
     if (id && id !== "new") {
       const { password, ...rest } = finalData;

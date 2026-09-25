@@ -10,6 +10,33 @@
       everything that loads after it, including the SW kill-switch below.
     -->
     <script>
+      // ── Google Translate ↔ React DOM conflict patch ──────────────────────────
+      // Google Translate wraps text nodes in <font> elements. When React later
+      // tries to removeChild/insertBefore the original text node (now a child of
+      // the injected <font>, not the original parent), the browser throws a
+      // NotFoundError. This patch swallows those specific mismatches silently
+      // so the app never crashes, while letting every other DOM operation through
+      // normally. Must run BEFORE React (and Google Translate) boots.
+      (function patchDOMForGoogleTranslate() {
+        var _removeChild = Node.prototype.removeChild;
+        Node.prototype.removeChild = function(child) {
+          if (child.parentNode !== this) {
+            // The node was moved by Google Translate — skip silently.
+            return child;
+          }
+          return _removeChild.apply(this, arguments);
+        };
+        var _insertBefore = Node.prototype.insertBefore;
+        Node.prototype.insertBefore = function(newNode, ref) {
+          if (ref && ref.parentNode !== this) {
+            // Reference node moved by Google Translate — append instead.
+            return this.appendChild(newNode);
+          }
+          return _insertBefore.apply(this, arguments);
+        };
+      })();
+    </script>
+    <script>
       (function () {
         function show(label, detail, watchForMount) {
           try {
@@ -217,6 +244,18 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest" id="app-manifest" />
+    <script>
+      (function() {
+        if ("serviceWorker" in navigator) {
+          window.addEventListener("load", function () {
+            navigator.serviceWorker.register("/pwa-sw.js").catch(function (err) {
+              console.error("Safe PWA SW registration failed:", err);
+            });
+          });
+        }
+      })();
+    </script>
     <script>
       (function() {
         try {
@@ -225,7 +264,7 @@
           
           // Dynamically change the manifest file link for PWA install based on domain
           const updateManifest = () => {
-            const manifestEl = document.querySelector("link[rel='manifest']");
+            const manifestEl = document.getElementById("app-manifest");
             if (manifestEl) {
               const manifestUrl = isTrinetra ? "/manifest-trinetra.json" : "/manifest.webmanifest";
               manifestEl.setAttribute("href", manifestUrl);
@@ -293,27 +332,25 @@
     <script type="text/javascript">
       function googleTranslateElementInit() {
         new google.translate.TranslateElement(
-          { pageLanguage: "en", autoDisplay: false },
+          {
+            pageLanguage: "en",
+            includedLanguages: "en,gu,hi,mr,bn,pa,ta,te,kn,ml,ur,ar,fr,de,es,it,ja,ko,zh-CN,zh-TW,pt,ru,id,ms,tr,fa,nl,pl,uk,vi,th",
+            autoDisplay: false,
+            multilanguagePage: false
+          },
           "google_translate_element"
         );
       }
-      // Only fetch Google's widget for visitors who have actually chosen a
-      // non-English language before (the googtrans cookie the Language menu
-      // sets) — for the default English case (nearly everyone) it has
-      // nothing to do at boot time. Loading it unconditionally meant a
-      // third-party script was always racing our own app's startup, which
-      // was the source of intermittent iOS crashes/hangs (a "Maximum call
-      // stack size exceeded" and a silent stuck-mount, on two different
-      // reloads of the same page — a real-network-timing-dependent race,
-      // not something reproducible against a local dev/preview server).
-      // Injected dynamically rather than a static <script> tag so it never
-      // sits in the document's own parse/script order at all.
-      if (document.cookie.indexOf("googtrans=") !== -1) {
+      // Load Google Translate widget after our own app JS has initialised so it
+      // never races React's startup (the earlier cookie-only guard was too strict:
+      // first-time visitors selecting a language had to reload twice). A short
+      // defer keeps it out of the critical render path without blocking translate.
+      window.addEventListener("load", function() {
         var gt = document.createElement("script");
         gt.async = true;
         gt.src = "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
         document.head.appendChild(gt);
-      }
+      });
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>

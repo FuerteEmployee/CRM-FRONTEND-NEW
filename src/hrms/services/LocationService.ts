@@ -11,6 +11,16 @@ const MOVING_INTERVAL = 15_000;          // ms — upload every 15 s while movin
 const STATIONARY_HEARTBEAT = 60_000;          // ms — heartbeat every 60 s when stationary
 const ACCURACY_THRESHOLD = 50;              // metres — reject coarse cell-tower fixes
 const WEB_POLL_INTERVAL = 30_000;          // ms — backup poll every 30 s on web
+// metres — hard sanity ceiling for ALL fixes (forced or not). Was 150, which
+// silently dropped every fix on desktop/laptop browsers using WiFi-based
+// geolocation (commonly 150-1000m accuracy indoors, no GPS chip) — those
+// users' lastKnownLocation never got written, so they never showed "Live" in
+// Online Live Tracking even after logging in and punching in. Geofence-based
+// auto-punch-out is unaffected: the backend independently re-filters fixes at
+// a stricter 50m (MAX_PATH_ACCURACY_M in location_controller.js) before using
+// them for that decision, so this only widens what counts as "online enough
+// to show a Live badge", not what counts as "precisely at the branch".
+const MAX_ACCEPTABLE_ACCURACY = 1000;
 const SW_PATH = "/location-sw.js";
 
 // ── LocationService class ──────────────────────────────────────────────────
@@ -393,10 +403,11 @@ class LocationService {
   ) {
     // "force" bypasses the normal debounce (distance/time throttle) for
     // foreground/background transitions, but it must never bypass a basic
-    // sanity check on the fix itself — a cell-tower-grade fix (100s of
-    // metres off) forced straight through as authoritative is exactly what
-    // produces false "employee left the branch" signals downstream.
-    if (accuracy > 150) return;
+    // sanity check on the fix itself — a wildly-off fix (many km, e.g. a
+    // failed/placeholder IP-geolocation lookup) forced straight through as
+    // authoritative is exactly what produces false "employee left the
+    // branch" signals downstream.
+    if (accuracy > MAX_ACCEPTABLE_ACCURACY) return;
     if (!force) {
       if (accuracy > ACCURACY_THRESHOLD) return;
       const dist = this.lastLocation
