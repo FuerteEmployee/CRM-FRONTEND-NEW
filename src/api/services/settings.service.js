@@ -71,6 +71,15 @@ class SettingsService {
   async deleteConsentPurpose(id) {
     return apiClient.delete(`/consent-purposes/${id}`);
   }
+
+  // GDPR - Settings (General / Portability / Erasure / Informed / Access / Consent toggles)
+  async getGdprSettings() {
+    return apiClient.get("/gdpr-settings");
+  }
+
+  async updateGdprSettings(data) {
+    return apiClient.put("/gdpr-settings", data);
+  }
 }
 
 export const settingsService = new SettingsService();
