@@ -75,6 +75,8 @@ export default function WebsiteForms() {
   const dataColumns = allFieldNames.map((key) => ({
     key,
     label: humanizeFieldName(key),
+    width: "220px",
+    className: "max-w-[220px]",
     render: (item: Record<string, any>) => {
       const val = item[key];
       if (isUrl(val)) {
@@ -89,7 +91,15 @@ export default function WebsiteForms() {
           </a>
         );
       }
-      return val !== undefined && val !== null && val !== "" ? String(val) : "-";
+      const text = val !== undefined && val !== null && val !== "" ? String(val) : "-";
+      // Long submitted values (addresses, messages, ...) get truncated with an
+      // ellipsis so one field can't blow up the whole table's row height/width;
+      // the full value is still readable via the native title tooltip on hover.
+      return (
+        <span className="block truncate" title={text}>
+          {text}
+        </span>
+      );
     },
   }));
 
