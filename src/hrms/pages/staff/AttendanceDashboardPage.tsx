@@ -30,6 +30,7 @@ import {
   Edit2,
   ShieldCheck,
   AlertTriangle,
+  PartyPopper,
 } from "lucide-react";
 import { format, isAfter, isSameDay } from "date-fns";
 import {
@@ -61,6 +62,7 @@ import { toast } from "@/hrms/components/ui/use-toast";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { StatCard, safeFormat, statusColor } from "@/hrms/components/staff/HRMSShared";
 import { realtimeService } from "@/hrms/services/RealtimeService";
+import { holidayService, type Holiday } from "@/hrms/services/holidayService";
 
 const fmtTime = (time?: string) => {
   if (!time) return null;
@@ -90,14 +92,26 @@ const AttendanceDashboardPage: React.FC = () => {
   const [branches, setBranches] = useState<any[]>([]);
   const [viewingAttendance, setViewingAttendance] = useState<any>(null);
   const [resolvedAddresses, setResolvedAddresses] = useState<Record<string, string>>({});
-  const [datePresentCount, setDatePresentCount] = useState(0); // count of attendance records for the currently selected date
+  // Every attendance record for the selected date, unfiltered by the status
+  // chip. The stat tiles are derived from this — "Present" used to be simply
+  // allForDate.total, which counted records the same page displayed as Absent
+  // (a punch-in with no punch-out on a past day), so Present + Absent never
+  // reconciled against headcount.
+  const [allDateRecords, setAllDateRecords] = useState<any[]>([]);
   const [dateAbsentees, setDateAbsentees] = useState<any[]>([]); // absentees for the currently selected date
   const [absentSearchQuery, setAbsentSearchQuery] = useState("");
   const [deviceApprovals, setDeviceApprovals] = useState<any[]>([]);
+  // True when the pending-approvals request failed, so an empty list is not
+  // mistaken for "nothing to approve".
+  const [deviceApprovalsFailed, setDeviceApprovalsFailed] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [shiftFilter, setShiftFilter] = useState<string>("all");
   const selectedDateStr = useMemo(() => format(selectedMonth, "yyyy-MM-dd"), [selectedMonth]);
+  // Company holiday covering the date on screen — not tracked by the reference
+  // project's own dashboard, added here so an unpunched employee reads as
+  // "on a paid holiday" instead of a plain absence for that one day.
+  const [selectedDateHoliday, setSelectedDateHoliday] = useState<Holiday | null>(null);
 
   // Server-side pagination for the Records table (attendance list only —
   // the Absent chip still uses the separate, unbounded getAbsentEmployees call).
@@ -121,7 +135,15 @@ const AttendanceDashboardPage: React.FC = () => {
         staffService.getAll(),
         employeeApi.getLeaves(),
         hrmsbranchService.getAll(),
-        apiClient.get("/users/device-approvals?status=pending").then((r: any) => r?.data || []).catch(() => []),
+        // Was `.catch(() => [])`, which rendered a failed request as "no pending
+        // requests" — device approvals are a security decision, so silently
+        // showing zero is the wrong default. Now it surfaces the failure.
+        apiClient.get("/users/device-approvals?status=pending")
+          .then((r: any) => r?.data || [])
+          .catch(() => {
+            setDeviceApprovalsFailed(true);
+            return [];
+          }),
         shiftService.getAll(),
       ]);
       setEmployees(staff);
@@ -143,31 +165,31 @@ const AttendanceDashboardPage: React.FC = () => {
     const resolveAddr = async (lat: number, lng: number) => {
       const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
       if (resolvedAddresses[cacheKey]) return;
-      // Server-side provider chain — street-precise when a geocoding API key
-      // is configured on the backend (key never reaches the browser).
+      // Server-side provider chain only — street-precise when a geocoding API
+      // key is configured on the backend (the key never reaches the browser).
+      //
+      // There used to be a browser-side fallback straight to
+      // nominatim.openstreetmap.org, which sent each employee's exact punch
+      // coordinates to a third party whenever no backend key was configured.
+      // In an employee-monitoring product that is staff location data leaving
+      // the client's infrastructure — and it also breached Nominatim's usage
+      // policy at this volume. Removed: if the backend cannot resolve an
+      // address we show the raw coordinates instead of leaking them.
+      let resolved = "";
       try {
         const res: any = await apiClient.get("/locations/reverse-geocode", {
           params: { lat, lng },
           silent: true,
         } as any);
-        const addr = res?.address ?? res?.data?.address;
-        if (addr) {
-          setResolvedAddresses(prev => ({ ...prev, [cacheKey]: addr }));
-          return;
-        }
-      } catch { /* fall through to direct OSM lookup */ }
-      try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 5000);
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
-          { headers: { "User-Agent": "ScreenTimeERP/1.0" }, signal: controller.signal },
-        );
-        clearTimeout(timer);
-        const data = await res.json();
-        const addr = data?.display_name;
-        if (addr) setResolvedAddresses(prev => ({ ...prev, [cacheKey]: addr }));
-      } catch { }
+        resolved = res?.address ?? res?.data?.address ?? "";
+      } catch {
+        // Provider unavailable or no key configured — fall through to coordinates.
+      }
+      // Always write something, so the UI stops saying "Fetching address..."
+      setResolvedAddresses(prev => ({
+        ...prev,
+        [cacheKey]: resolved || `${lat.toFixed(5)}, ${lng.toFixed(5)} — address unavailable`,
+      }));
     };
     const locations = [
       viewingAttendance.punchIn?.location,
@@ -193,7 +215,7 @@ const AttendanceDashboardPage: React.FC = () => {
       // same call also serves as the paginated table data, so it fetches the
       // current page in that case; otherwise it only needs the total count.
       const wantsAllAsDisplay = statusFilter === "all";
-      const [allForDate, absentData] = await Promise.all([
+      const [allForDate, absentData, unfilteredRecords] = await Promise.all([
         employeeApi.getAttendancePage({
           date: dateStr,
           hrmsBranchId: branchParam,
@@ -202,8 +224,11 @@ const AttendanceDashboardPage: React.FC = () => {
           limit: wantsAllAsDisplay ? pageSize : 1,
         }),
         employeeApi.getAbsentEmployees({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
+        // Unbounded (no page/limit) so the stat tiles can be derived from every
+        // record for the date, independent of the paginated table above.
+        employeeApi.getAttendance({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
       ]);
-      setDatePresentCount(allForDate.total);
+      setAllDateRecords(unfilteredRecords);
       setDateAbsentees(absentData);
 
       if (statusFilter === "Absent") {
@@ -279,6 +304,22 @@ const AttendanceDashboardPage: React.FC = () => {
     if (!hasPunchOut) return isViewingToday ? "On Duty" : "Absent";
     return att.status || "Absent";
   };
+
+  // Does this record count as the employee having turned up? Drives the stat
+  // tiles, which must not contradict the rows underneath them.
+  const countsAsPresent = (att: any) => getEffectiveStatus(att) !== "Absent";
+
+  // Tiles derived from the unfiltered record set for the date. Plain derivation
+  // rather than useMemo — this is one day of records, and memoising a predicate
+  // that is re-created every render buys nothing.
+  const presentCount = allDateRecords.filter(countsAsPresent).length;
+  // Records that exist but do not count as present, plus employees the server
+  // reports as having no record at all. Previously the first group was counted
+  // as Present, so the two tiles could never add up.
+  const unaccountedCount = allDateRecords.length - presentCount;
+  // A company holiday is a paid day off, not an absence — don't count anyone
+  // against it just for not punching in.
+  const absentTotal = selectedDateHoliday ? 0 : dateAbsentees.length + unaccountedCount;
 
   const openOverride = (userId: string, name: string, date: string) => {
     setOverrideTarget({ userId, name, date });
@@ -358,6 +399,13 @@ const AttendanceDashboardPage: React.FC = () => {
     });
   }, [leaves, selectedDateStr]);
 
+  useEffect(() => {
+    holidayService
+      .getAll({ date: selectedDateStr })
+      .then((list) => setSelectedDateHoliday(list[0] || null))
+      .catch(() => setSelectedDateHoliday(null));
+  }, [selectedDateStr]);
+
   // Exports exactly what's on screen — respects the date, branch, shift and
   // status filter currently selected (e.g. "Full Day" only exports Full Day rows).
   const handleExportExcel = () => {
@@ -416,10 +464,29 @@ const AttendanceDashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Selected date is a company holiday — absences below aren't counted */}
+      {selectedDateHoliday && (
+        <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 to-fuchsia-50/40 p-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
+              <PartyPopper className="h-5 w-5 text-purple-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-purple-800 leading-tight">
+                {selectedDateStr} is a holiday — {selectedDateHoliday.name}
+              </p>
+              <p className="text-xs text-purple-500 mt-0.5">
+                Unpunched staff below are not counted as absent today.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-        <StatCard icon={UserCheck} label="Present" value={datePresentCount} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
+        <StatCard icon={UserCheck} label="Present" value={presentCount} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
         <StatCard icon={CalendarDays} label="On Leave" value={onLeaveForDate.length} gradient="bg-gradient-to-br from-blue-500 to-indigo-600" />
-        <StatCard icon={AlertCircle} label="Absent" value={dateAbsentees.length} gradient="bg-gradient-to-br from-red-500 to-rose-600" />
+        <StatCard icon={AlertCircle} label="Absent" value={absentTotal} gradient="bg-gradient-to-br from-red-500 to-rose-600" />
       </div>
 
       <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -865,6 +932,18 @@ const AttendanceDashboardPage: React.FC = () => {
       </Card>
 
       {/* Device Approval Requests */}
+      {deviceApprovalsFailed && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-xs font-semibold text-amber-800">
+            Could not load pending device-login requests.
+          </p>
+          <p className="text-[11px] text-amber-700 mt-0.5">
+            This is not the same as having none — reload, or check that your role
+            has permission to manage device approvals.
+          </p>
+        </div>
+      )}
+
       {deviceApprovals.length > 0 && (
         <Card className="border border-amber-200 bg-amber-50/40 shadow-sm overflow-hidden">
           <CardHeader className="py-4 border-b border-amber-100">

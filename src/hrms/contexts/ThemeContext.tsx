@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { settingsApi } from "@/hrms/services/api";
 
 function hexToHSL(hex: string): string {
   hex = hex.replace("#", "");
@@ -85,44 +84,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [logo, setLogo] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
+  // HRMS's own Settings > Appearance page (and its backend API) was removed — the main
+  // CRM's Setup > Settings is now the only place branding/colors are configured (see
+  // AppSidebar.tsx's fallbackLogoUrl / useSettings). These fields stay in state, always
+  // at their hardcoded defaults above, purely so AppHeader/AppSidebar (which still read
+  // them for navbar colors and a logo fallback) keep working without every caller needing
+  // a rewrite; nothing populates them anymore.
   const fetchSettings = async () => {
-    // 5-second timeout — on iOS, a stalled request must never block the splash screen forever
-    const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), 5000));
-    try {
-      const res = await Promise.race([settingsApi.getSettings(), timeoutPromise]);
-
-      if (res && res.success && res.data) {
-        const { primaryColor: p, buttonColor: b, buttonTextColor: btc, textColor: t, logo: logoUrl,
-                sidebarBgColor: sbg, sidebarTextColor: stxt, sidebarActiveColor: sact, bodyBgColor: bbg,
-                navbarBgColor: nbg, navbarTextColor: ntxt,
-                bodyTextColor: btxt } = res.data;
-
-        if (p)   { setPrimaryHexState(p); setPrimaryColorState(p.startsWith("#") ? hexToHSL(p) : p); }
-        if (b)    setButtonColor(b);
-        if (btc)  setButtonTextColor(btc);
-        if (t)    setTextColor(t);
-        if (sbg)  setSidebarBgColor(sbg);
-        if (stxt) setSidebarInactiveColor(stxt);
-        if (sact) setSidebarActiveColor(sact);
-        if (bbg)  setBodyBgColor(bbg);
-        if (btxt) setBodyTextColor(btxt);
-        if (nbg)  setNavbarBgColor(nbg);
-        if (ntxt) setNavbarTextColor(ntxt);
-        if (logoUrl) setLogo(logoUrl);
-      }
-    } catch (error) {
-      console.error("Error loading theme settings:", error);
-    } finally {
-      setIsLoading(false);
-    }
+    setIsLoading(false);
   };
-
-  // Deliberately does not apply these colors to document.documentElement: HRMS is embedded in the
-  // main CRM and shares its layout/sidebar, which already gets its theme from the CRM's own
-  // Setup > Theme Style settings (src/context/ThemeContext.tsx + lib/themeUtils.ts). Writing here too
-  // fought over the same global CSS variables, so HRMS pages flashed a different sidebar color than
-  // the rest of the app. These values still back the Settings > Appearance form below for HRMS's own
-  // saved preferences, but no longer take over the shared page.
 
   const setPrimaryColor = (color: string) => {
     setPrimaryColorState(color);

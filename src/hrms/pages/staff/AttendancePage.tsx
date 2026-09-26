@@ -34,6 +34,7 @@ import {
   List,
   Camera,
   CameraOff,
+  PartyPopper,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
@@ -43,6 +44,7 @@ import { getTrackingReadiness } from "@/hrms/lib/trackingSetup";
 import { BackgroundTracker } from "@/hrms/plugins/backgroundTracker";
 import { realtimeService } from "@/hrms/services/RealtimeService";
 import { shiftService, configuredLunchMinutes, type Shift } from "@/hrms/services/shiftService";
+import { holidayService, type Holiday } from "@/hrms/services/holidayService";
 import { useAuth } from "@/hrms/contexts/AuthContext";
 import { toast } from "@/hrms/hooks/use-toast";
 import { ToastAction } from "@/hrms/components/ui/toast";
@@ -78,6 +80,10 @@ const ATT_CAL_CELL: Record<string, { bg: string; border: string; label: string; 
   "On Duty": { bg: "bg-blue-100", border: "border-blue-200", label: "ON DUTY", labelColor: "text-blue-500", dot: "bg-blue-400" },
   "Pending": { bg: "bg-sky-50", border: "border-sky-200", label: "TODAY", labelColor: "text-sky-500", dot: "bg-sky-400" },
   "Weekly Off": { bg: "bg-white", border: "border-slate-100", label: "OFF", labelColor: "text-slate-400", dot: "bg-slate-300" },
+  "Holiday": { bg: "bg-violet-100", border: "border-violet-200", label: "HOLIDAY", labelColor: "text-violet-600", dot: "bg-violet-400" },
+  // Punched in but never punched out, and the server never finalised a status.
+  // Distinct from Absent: the employee did turn up.
+  "No punch-out": { bg: "bg-orange-100", border: "border-orange-200", label: "NO OUT", labelColor: "text-orange-600", dot: "bg-orange-400" },
   "Upcoming": { bg: "bg-white", border: "border-slate-100", label: "–", labelColor: "text-slate-300", dot: "" },
 };
 
@@ -132,6 +138,54 @@ const AttendancePage = () => {
   const lastCheckRef = useRef(0);                    // timestamp of last checkGeoFence call
   const [geoStatus, setGeoStatus] = useState<{ enabled: boolean; inside: boolean; outsideCount: number } | null>(null);
   const [shift, setShift] = useState<Shift | null>(null);
+  const [todayHoliday, setTodayHoliday] = useState<Holiday | null>(null);
+  // Company holidays covering the month being viewed, so the history can label
+  // them instead of calling them absences.
+  const [monthHolidays, setMonthHolidays] = useState<Holiday[]>([]);
+
+  // Company holiday today? Punch-in is optional and the day is paid — tell
+  // the employee instead of letting the screen nag about the shift.
+  useEffect(() => {
+    const branchId = (user as any)?.hrmsBranchId || (user as any)?.storeId || undefined;
+    holidayService
+      .getToday(typeof branchId === "object" ? branchId?._id : branchId)
+      .then(setTodayHoliday)
+      .catch(() => { /* non-fatal — banner just stays hidden */ });
+  }, [user]);
+
+  // Holidays for the month on screen. A holiday may span days (date..endDate),
+  // so it is expanded per-day, matching how payroll credits festivalDates.
+  useEffect(() => {
+    const branchRaw = (user as any)?.hrmsBranchId || (user as any)?.storeId || undefined;
+    const branchId = typeof branchRaw === "object" ? branchRaw?._id : branchRaw;
+    holidayService
+      .getAll({
+        year: selectedMonth.getFullYear(),
+        month: selectedMonth.getMonth() + 1,
+        branchId,
+      })
+      .then(setMonthHolidays)
+      .catch(() => setMonthHolidays([]));
+  }, [user, selectedMonth]);
+
+  // date string -> holiday name, expanded across multi-day holidays.
+  const holidayByDate = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const h of monthHolidays) {
+      if (h.isActive === false || !h.date) continue;
+      const last = h.endDate && h.endDate >= h.date ? h.endDate : h.date;
+      const cursor = new Date(`${h.date}T00:00:00`);
+      const stop = new Date(`${last}T00:00:00`);
+      // Guard against a malformed range producing an unbounded loop.
+      let guard = 0;
+      while (cursor <= stop && guard < 400) {
+        map.set(format(cursor, "yyyy-MM-dd"), h.name);
+        cursor.setDate(cursor.getDate() + 1);
+        guard += 1;
+      }
+    }
+    return map;
+  }, [monthHolidays]);
 
   // The cached profile (from login) never reflects admin-side edits made
   // afterwards — e.g. a shift assigned later would still show "No shift
@@ -550,12 +604,20 @@ const AttendancePage = () => {
 
       const isPast = isBefore(date, startOfDay(new Date()));
 
+      // Days with no record at all are not automatically absences. Company
+      // holidays are PAID days in payroll, so labelling them "Absent" made an
+      // employee's own page show phantom absences and disagree with their payslip.
+      const holiday = holidayByDate.get(dateStr);
+      if (holiday) {
+        return { date: dateStr, status: "Holiday", holidayName: holiday } as any;
+      }
+
       return {
         date: dateStr,
         status: isToday ? "Pending" : (isPast ? "Absent" : "Upcoming"),
       } as any;
     }).reverse();
-  }, [selectedMonth, history, shiftDurationMins]);
+  }, [selectedMonth, history, shiftDurationMins, holidayByDate]);
 
   const stats = useMemo(() => {
     const monthHistory = fullHistory.filter(h => h.status !== "Upcoming");
@@ -850,6 +912,26 @@ const AttendancePage = () => {
           </div>
         </div>
       </div>
+
+      {/* Holiday Banner — punch-in not required today */}
+      {todayHoliday && (
+        <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 to-fuchsia-50/40 p-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
+              <PartyPopper className="h-5 w-5 text-purple-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-purple-800 leading-tight">
+                Today is a holiday — {todayHoliday.name}
+              </p>
+              <p className="text-xs text-purple-500 mt-0.5">
+                Punch-in is not required and your salary won't be deducted for today.
+                {todayHoliday.description ? ` ${todayHoliday.description}` : ""}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Shift Info Banner */}
       {shift ? (
@@ -1424,7 +1506,15 @@ const AttendancePage = () => {
                       const isTodayDay = isSameDay(date, new Date());
                       const isSunday = date.getDay() === 0;
                       const isWeeklyOff = isSunday && !record && !isUpcoming;
-                      const cellStatus = record?.status ?? (isUpcoming ? "Upcoming" : isWeeklyOff ? "Weekly Off" : "Absent");
+                      const holidayName = holidayByDate.get(dateStr);
+                      const cellStatus = record?.status
+                        ?? (isUpcoming
+                          ? "Upcoming"
+                          : holidayName
+                            ? "Holiday"
+                            : isWeeklyOff
+                              ? "Weekly Off"
+                              : "Absent");
                       const c = ATT_CAL_CELL[cellStatus] ?? ATT_CAL_CELL["Upcoming"];
                       return (
                         <div key={dateStr} className={cn(

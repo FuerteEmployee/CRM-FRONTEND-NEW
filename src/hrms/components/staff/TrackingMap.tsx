@@ -19,6 +19,25 @@ const metersBetween = (lat1: number, lng1: number, lat2: number, lng2: number) =
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
+/** Branch geofence to draw: the solid circle is the branch radius, the dashed
+ *  one is the exit threshold auto punch-out actually uses (radius + buffer). */
+export interface GeofenceOverlay {
+  lat: number;
+  lng: number;
+  radiusM: number;
+  thresholdM?: number;
+  name?: string;
+}
+
+/** Where and when an auto punch-out fired, so it can be pinned on the map. */
+export interface ExitMarker {
+  lat: number;
+  lng: number;
+  time?: string;      // HH:mm:ss IST
+  distanceM?: number; // measured distance from the branch centre
+  address?: string;
+}
+
 interface Props {
   locations: any[];
   selectedLocation: any | null;
@@ -29,6 +48,26 @@ interface Props {
   isMapInteractionEnabled: boolean;
   onMarkerClick: (loc: any) => void;
   activePersonnelId: string | null;
+  geofence?: GeofenceOverlay | null;
+  exitMarker?: ExitMarker | null;
+}
+
+// MapLibre has no circle geometry, so approximate one as a polygon. Longitude
+// degrees shrink with latitude, hence the cos() correction — without it the
+// "circle" is visibly an ellipse away from the equator.
+function circleFeature(lat: number, lng: number, radiusM: number, kind: string, steps = 96) {
+  const latR = radiusM / 111_320;
+  const lngR = radiusM / (111_320 * Math.cos((lat * Math.PI) / 180));
+  const ring: [number, number][] = [];
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * 2 * Math.PI;
+    ring.push([lng + lngR * Math.cos(t), lat + latR * Math.sin(t)]);
+  }
+  return {
+    type: 'Feature' as const,
+    properties: { kind },
+    geometry: { type: 'Polygon' as const, coordinates: [ring] },
+  };
 }
 
 // ── Map Style URLs ──────────────────────────────────────────────────────────
@@ -85,11 +124,14 @@ export const TrackingMap: React.FC<Props> = ({
   showPath,
   isMapInteractionEnabled,
   onMarkerClick,
-  activePersonnelId
+  activePersonnelId,
+  geofence = null,
+  exitMarker = null
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
+  const exitMarkerRef = useRef<maplibregl.Marker | null>(null);
   const lastActiveId = useRef<string | null>(null);
   const currentStyleRef = useRef<string>('street');
 
@@ -146,11 +188,41 @@ export const TrackingMap: React.FC<Props> = ({
   const addPathLayers = useCallback((map: maplibregl.Map) => {
     if (!map || !map.isStyleLoaded()) return;
     try {
-      ['stamp-labels', 'stamp-dots', 'route-line-stale', 'route-line', 'route-line-border'].forEach(id => {
+      ['stamp-labels', 'stamp-dots', 'route-line-stale', 'route-line', 'route-line-border',
+       'geofence-fill', 'geofence-outline'].forEach(id => {
         if (map.getLayer(id)) map.removeLayer(id);
       });
       if (map.getSource('route-path')) map.removeSource('route-path');
       if (map.getSource('time-stamps')) map.removeSource('time-stamps');
+      if (map.getSource('geofence')) map.removeSource('geofence');
+
+      // ── Branch geofence ───────────────────────────────────────────────────
+      // Added FIRST so it renders beneath the route: the point of the overlay
+      // is to show the path crossing OUT of the circle, which only reads
+      // correctly if the line sits on top of the fill.
+      map.addSource('geofence', {
+        type: 'geojson',
+        data: { type: 'FeatureCollection', features: [] }
+      });
+      map.addLayer({
+        id: 'geofence-fill',
+        type: 'fill',
+        source: 'geofence',
+        paint: { 'fill-color': '#10b981', 'fill-opacity': 0.12 },
+      });
+      map.addLayer({
+        id: 'geofence-outline',
+        type: 'line',
+        source: 'geofence',
+        // Dashed for the exit threshold (radius + buffer) so it reads as
+        // "the line you actually have to cross", distinct from the branch
+        // radius itself.
+        paint: {
+          'line-color': ['case', ['==', ['get', 'kind'], 'threshold'], '#f59e0b', '#10b981'],
+          'line-width': 2,
+          'line-dasharray': ['case', ['==', ['get', 'kind'], 'threshold'], ['literal', [2, 2]], ['literal', [1, 0]]] as any,
+        },
+      });
 
       map.addSource('route-path', {
         type: 'geojson',
@@ -395,6 +467,78 @@ export const TrackingMap: React.FC<Props> = ({
     map.on('zoom', onZoom);
     return () => { map.off('zoom', onZoom); };
   }, [mapReady]);
+
+  // ── Branch geofence overlay ─────────────────────────────────────────────
+  // Two rings: the branch radius (solid green) and the exit threshold the
+  // auto punch-out logic actually applies (dashed amber, radius + buffer).
+  // Showing both answers the question an employee always asks — "I was only
+  // just outside, why did it fire?" — because the dashed ring is the real line.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const apply = () => {
+      const src = map.getSource('geofence') as maplibregl.GeoJSONSource | undefined;
+      if (!src) return;
+      if (!geofence || typeof geofence.lat !== 'number' || typeof geofence.lng !== 'number') {
+        try { src.setData({ type: 'FeatureCollection', features: [] }); } catch (_) {}
+        return;
+      }
+      const features: any[] = [circleFeature(geofence.lat, geofence.lng, geofence.radiusM, 'radius')];
+      if (geofence.thresholdM && geofence.thresholdM > geofence.radiusM) {
+        features.push(circleFeature(geofence.lat, geofence.lng, geofence.thresholdM, 'threshold'));
+      }
+      try { src.setData({ type: 'FeatureCollection', features }); } catch (_) {}
+    };
+    if (map.isStyleLoaded()) apply();
+    else map.once('idle', apply);
+  }, [geofence]);
+
+  // ── Auto punch-out pin ──────────────────────────────────────────────────
+  // The exact position the server decided on, labelled with the time and the
+  // measured distance — the single thing you point at when explaining why a
+  // punch-out happened.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    exitMarkerRef.current?.remove();
+    exitMarkerRef.current = null;
+    if (!exitMarker || typeof exitMarker.lat !== 'number' || typeof exitMarker.lng !== 'number') return;
+
+    const el = document.createElement('div');
+    el.style.cssText = 'display:flex;flex-direction:column;align-items:center;cursor:pointer;';
+    el.innerHTML = `
+      <div style="background:#dc2626;color:#fff;font:700 10px/1.2 system-ui,sans-serif;
+                  padding:4px 7px;border-radius:6px;white-space:nowrap;
+                  box-shadow:0 2px 6px rgba(0,0,0,.35);margin-bottom:3px;">
+        Auto punch-out${exitMarker.time ? ` · ${exitMarker.time}` : ''}${
+          typeof exitMarker.distanceM === 'number' ? ` · ${exitMarker.distanceM}m out` : ''
+        }
+      </div>
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="#dc2626" stroke="#fff" stroke-width="1.5">
+        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+        <circle cx="12" cy="9" r="2.5" fill="#fff"/>
+      </svg>`;
+    if (exitMarker.address) el.title = exitMarker.address;
+
+    exitMarkerRef.current = new maplibregl.Marker({ element: el, anchor: 'bottom' })
+      .setLngLat([exitMarker.lng, exitMarker.lat])
+      .addTo(map);
+
+    // Frame the fence and the exit point together, so the relationship between
+    // them is visible without the reviewer having to pan around.
+    try {
+      const b = new maplibregl.LngLatBounds();
+      b.extend([exitMarker.lng, exitMarker.lat]);
+      if (geofence) {
+        const r = (geofence.thresholdM || geofence.radiusM) / 111_320;
+        b.extend([geofence.lng - r, geofence.lat - r]);
+        b.extend([geofence.lng + r, geofence.lat + r]);
+      }
+      map.fitBounds(b, { padding: 80, maxZoom: 17, duration: 600 });
+    } catch (_) { /* degenerate bounds */ }
+
+    return () => { exitMarkerRef.current?.remove(); exitMarkerRef.current = null; };
+  }, [exitMarker, geofence]);
 
   // ── Manage Employee Markers ─────────────────────────────────────────────
   useEffect(() => {
