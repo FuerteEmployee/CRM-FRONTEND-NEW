@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSettings } from "@/context/SettingsContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -443,6 +444,8 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
   const queryClient = useQueryClient();
   const [applyAmounts, setApplyAmounts] = useState<Record<string, string>>({});
   const [isApplying, setIsApplying] = useState(false);
+  const { getSetting } = useSettings();
+  const companyName = getSetting("companyName", "Fuerte Developers");
 
   const handleApplyCredits = async () => {
     setIsApplying(true);
@@ -561,8 +564,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
           <div class="header">
             <div>
               <div class="title">${item.number || `CN-${item._id?.substring(0, 6)}`}</div>
-              <div class="company">Fuerte Developers</div>
-              <div class="meta">405, The Spireee<br/>Rajkot Rajkot<br/>India 360007</div>
+              <div class="company">${companyName}</div>
             </div>
             <div style="text-align: right">
               <div style="margin-bottom: 15px;">
@@ -724,10 +726,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                       {item.number || `CN-${item._id?.substring(0, 6)}`}
                     </h2>
                     <div className="text-[13px] text-slate-600 space-y-1">
-                      <p className="font-bold text-slate-900 text-base">Fuerte Developers</p>
-                      <p>405, The Spireee</p>
-                      <p>Rajkot Rajkot</p>
-                      <p>India 360007</p>
+                      <p className="font-bold text-slate-900 text-base">{companyName}</p>
                     </div>
                   </div>
 
