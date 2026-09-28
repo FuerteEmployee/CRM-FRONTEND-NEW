@@ -443,7 +443,7 @@ export function AppRoutes() {
         <Route
           path="staff/targets"
           element={
-            <PermissionGuard requiredPermission="view_targets" mode="message">
+            <PermissionGuard requiredPermission="view_targets" hiddenFeatureKey="targets" mode="message">
               <TargetsManagementPage />
             </PermissionGuard>
           }
@@ -451,7 +451,7 @@ export function AppRoutes() {
         <Route
           path="staff/incentive-slabs"
           element={
-            <PermissionGuard requiredPermission="view_targets" mode="message">
+            <PermissionGuard requiredPermission="view_targets" hiddenFeatureKey="incentive_slabs" mode="message">
               <IncentiveSlabsPage />
             </PermissionGuard>
           }

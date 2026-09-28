@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/hrms/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -561,7 +562,14 @@ export default function SalarySlipViewer({ payrollId, onClose, fetchSlip = salar
     earnings: true, deductions: true, attendance: true, leaveDetails: true, bankDetails: true,
   };
 
-  return (
+  // Rendered via a portal straight into <body> — this component is mounted
+  // deep inside DashboardLayout's sidebar wrapper, which (like shadcn's
+  // Sidebar primitive generally does) applies a CSS transform for its
+  // collapse animation. A transformed ancestor becomes the containing block
+  // for any `position: fixed` descendant, so without the portal this overlay
+  // was positioning itself relative to that wrapper instead of the real
+  // viewport — showing up offset from the top instead of covering the screen.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-100/80 backdrop-blur-sm">
       {/* Top bar */}
       <div className="flex-shrink-0 flex items-center justify-between bg-white border-b border-slate-200 px-4 py-3 shadow-sm">
@@ -825,6 +833,7 @@ export default function SalarySlipViewer({ payrollId, onClose, fetchSlip = salar
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

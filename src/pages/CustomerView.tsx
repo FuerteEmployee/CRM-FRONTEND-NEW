@@ -400,7 +400,11 @@ export function VoiceInput({ value, onChange, className, placeholder, name, type
 
 export default function CustomerView() {
   const { getSetting } = useSettings();
-  const companyName = getSetting("companyName", "Fuerte CRM");
+  // Mirrors SettingsContext.tsx's own host-based default — only Trinetra
+  // domains (trinetratechnoworld.com, erp.*) get a different fallback here;
+  // every other tenant keeps seeing "Fuerte CRM" exactly as before.
+  const isTrinetraHost = window.location.hostname.includes("trinetratechnoworld") || window.location.hostname.includes("erp.");
+  const companyName = getSetting("companyName", isTrinetraHost ? "Trinetra TechnoWorld" : "Fuerte CRM");
   const { formatAmount } = useCurrency();
   const { data: currencies = [] } = useQuery<any[]>({
     queryKey: ["currencies"],

@@ -1,5 +1,6 @@
 import React from "react";
 import { usePermission } from "@/hrms/hooks/usePermission";
+import { useAuth } from "@/hrms/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { ShieldAlert } from "lucide-react";
 import { Button } from "@/hrms/components/ui/button";
@@ -11,6 +12,9 @@ interface PermissionGuardProps {
   children: React.ReactNode;
   redirectTo?: string;
   mode?: "hide" | "redirect" | "message";
+  // Per-tenant override key (see Tenant.hidden_hrms_features on the backend). When the
+  // logged-in user's tenant lists this key, the route is blocked regardless of permission.
+  hiddenFeatureKey?: string;
 }
 
 export function PermissionGuard({
@@ -20,12 +24,20 @@ export function PermissionGuard({
   children,
   redirectTo,
   mode = "hide",
+  hiddenFeatureKey,
 }: PermissionGuardProps) {
   const { hasPermission, hasAnyPermission, isAdmin } = usePermission();
+  const { user } = useAuth();
 
-  const isAuthorized = isAdmin || 
+  const isFeatureHiddenForTenant = hiddenFeatureKey
+    ? ((user as any)?.tenant?.hidden_hrms_features || []).includes(hiddenFeatureKey)
+    : false;
+
+  const isAuthorized = !isFeatureHiddenForTenant && (
+    isAdmin ||
     (requiredPermission ? hasPermission(requiredPermission) : true) &&
-    (requiredPermissions ? hasAnyPermission(requiredPermissions) : true);
+    (requiredPermissions ? hasAnyPermission(requiredPermissions) : true)
+  );
 
   if (isAuthorized) {
     return <>{children}</>;

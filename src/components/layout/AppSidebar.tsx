@@ -1016,6 +1016,21 @@ export function AppSidebar() {
     const handleDragEnd = (event: DragEndEvent) => {
       const { active, over } = event;
       if (!over || active.id === over.id) return;
+
+      // A drag on an item *inside* one of these sections (e.g. an HRMS menu
+      // item) bubbles up to this section-order DndContext too, since its
+      // SortableContext is nested inside this one — without this branch it
+      // silently no-ops (active.id is a Mongo _id, never one of the section
+      // keys below), so the grip handle looks live but dragging does nothing.
+      // Fall back to the same item-level reorder the top-level sections use.
+      if (!order.includes(active.id as string)) {
+        const section = findDragSection(active.id as string);
+        if (!section || !section.items.some((i: any) => i._id === over.id)) return;
+        const newItemIndex = section.items.findIndex((i: any) => i._id === over.id);
+        applyReorder(section.items, active.id as string, newItemIndex, section.mutation, section.queryKey);
+        return;
+      }
+
       const oldIndex = order.indexOf(active.id as string);
       const newIndex = order.indexOf(over.id as string);
       if (oldIndex === -1 || newIndex === -1) return;

@@ -620,7 +620,15 @@ const EmployeePage = () => {
     { id: "payroll", label: "Payroll", icon: Landmark, permission: "view_payroll" },
   ], []);
 
-  const allowedTabs = useMemo(() => tabs.filter((t) => hasPermission(t.permission)), [tabs, hasPermission]);
+  // Per-tenant override (set on the Tenant document, see Tenant.hidden_hrms_features) —
+  // hides the combined Targets/Incentive-Slabs tab for tenants that don't use it.
+  const hiddenHrmsFeatures: string[] = (user as any)?.tenant?.hidden_hrms_features || [];
+  const targetsTabHidden = hiddenHrmsFeatures.includes("targets") || hiddenHrmsFeatures.includes("incentive_slabs");
+
+  const allowedTabs = useMemo(
+    () => tabs.filter((t) => hasPermission(t.permission) && !(t.id === "targets" && targetsTabHidden)),
+    [tabs, hasPermission, targetsTabHidden]
+  );
 
   const activeTab = useMemo(() => {
     const p = searchParams.get("tab");
@@ -1579,7 +1587,7 @@ const EmployeePage = () => {
         {/* ════════════════════════════════════
             TARGETS TAB
         ════════════════════════════════════ */}
-        {hasPermission("view_targets") && (
+        {hasPermission("view_targets") && !targetsTabHidden && (
           <TabsContent value="targets" className="mt-6 space-y-5">
             <div className="grid lg:grid-cols-3 gap-5">
               <div className="lg:col-span-2">

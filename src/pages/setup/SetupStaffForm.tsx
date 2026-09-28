@@ -23,17 +23,17 @@ import {
   User,
   Camera,
   Briefcase,
-  Building2,
-  Landmark,
-  FileText,
-  Upload,
-  GraduationCap,
-  Droplet,
   Phone,
   MapPin,
-  HeartPulse,
   Users,
   Search,
+  CreditCard,
+  Info,
+  Zap,
+  AlertCircle,
+  Plus,
+  X,
+  File as FileIcon,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { staffService } from "@/api/services/staff.service";
@@ -665,27 +665,51 @@ export default function SetupStaffForm() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 pb-24">
-        <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate(`${basePath}/setup/staff`)}
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <h1 className="text-xl font-bold text-foreground">
-            {id && id !== "new"
-              ? "Edit Staff Member"
-              : "Add New Staff Member"}
-          </h1>
+      <div className="space-y-6 pb-20 bg-white min-h-screen">
+        <div className="flex items-center justify-between border-b-[0.8px] border-slate-200 pb-4">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(`${basePath}/setup/staff`)}
+              className="rounded-full hover:bg-slate-100 text-slate-600"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-lg font-semibold text-[#1a1a1a]">
+              {id && id !== "new"
+                ? "Edit Staff Member"
+                : "Add New Staff Member"}
+            </h1>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              onClick={() => navigate(`${basePath}/setup/staff`)}
+              className="h-9 px-5 text-slate-600 font-medium"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saveDisabled}
+              className="gradient-primary text-white border-0 rounded-md h-9 px-6 font-medium shadow-sm flex items-center gap-2"
+            >
+              {createMutation.isPending || updateMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {id && id !== "new" ? "Update Profile" : "Save Staff"}
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="profile" className="w-full">
-          <TabsList className="bg-white border-b rounded-none w-full justify-start h-12 px-0 gap-8">
+          <TabsList className="h-10 bg-transparent p-0 gap-6 border-b border-slate-300 w-full justify-start rounded-none mb-6 overflow-x-auto">
             <TabsTrigger
               value="profile"
-              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
+              className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap"
             >
               Profile
             </TabsTrigger>
@@ -693,19 +717,19 @@ export default function SetupStaffForm() {
               <>
                 <TabsTrigger
                   value="employment"
-                  className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
+                  className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap"
                 >
                   Employment Details
                 </TabsTrigger>
                 <TabsTrigger
                   value="salary"
-                  className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
+                  className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap"
                 >
                   Salary & Banking
                 </TabsTrigger>
                 <TabsTrigger
                   value="documents"
-                  className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
+                  className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap"
                 >
                   Legal Documents
                 </TabsTrigger>
@@ -713,54 +737,65 @@ export default function SetupStaffForm() {
             )}
             <TabsTrigger
               value="permissions"
-              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold"
+              className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap"
             >
               Permissions
             </TabsTrigger>
             <TabsTrigger
               value="assigned-customers"
-              className="data-[state=active]:border-b-2 data-[state=active]:border-primary data-[state=active]:text-primary rounded-none h-full bg-transparent px-2 font-semibold flex items-center gap-1.5"
+              className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap flex items-center gap-1.5"
             >
               <Users className="h-4 w-4" />
               Assigned Customers {selectedClientIds.length > 0 && `(${selectedClientIds.length})`}
             </TabsTrigger>
           </TabsList>
 
+          <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+          <div className="p-10">
           <TabsContent
             value="profile"
-            className="bg-white border rounded-lg p-8 shadow-sm mt-6 space-y-8"
+            className="m-0 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500"
           >
-            <div className="flex items-center gap-4">
-              <div className="h-16 w-16 rounded-full bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0">
-                {avatarFile ? (
-                  <img src={URL.createObjectURL(avatarFile)} alt="Avatar preview" className="w-full h-full object-cover" />
-                ) : formData.avatar ? (
-                  <img src={formData.avatar} alt="Avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <User className="h-6 w-6 text-slate-400" />
-                )}
-              </div>
-              <div className="space-y-1">
-                <label className="inline-flex items-center gap-2 text-sm font-semibold text-primary cursor-pointer">
-                  <Camera className="h-4 w-4" />
-                  Upload Photo
+            <div className="flex flex-col md:flex-row gap-10">
+              <div className="w-full md:w-1/3 flex flex-col items-center gap-6">
+                <div className="relative group">
+                  <div className="h-40 w-40 rounded-2xl border-2 border-slate-200 shadow-sm overflow-hidden bg-slate-50 flex items-center justify-center group">
+                    {avatarFile ? (
+                      <img src={URL.createObjectURL(avatarFile)} alt="Avatar preview" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                    ) : formData.avatar ? (
+                      <img src={formData.avatar} alt="Avatar" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-slate-300">
+                        <User className="h-16 w-16" />
+                        <span className="text-[10px] font-semibold uppercase tracking-widest">No Photo</span>
+                      </div>
+                    )}
+                    <div
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-all duration-300 cursor-pointer backdrop-blur-[1px]"
+                      onClick={() => !fieldsDisabled && document.getElementById("setup-staff-avatar-upload")?.click()}
+                    >
+                      <Camera className="h-6 w-6 text-white mb-1" />
+                      <span className="text-[9px] font-semibold text-white uppercase tracking-widest">Update</span>
+                    </div>
+                  </div>
                   <input
+                    id="setup-staff-avatar-upload"
                     type="file"
-                    accept="image/*"
                     className="hidden"
+                    accept="image/*"
                     disabled={fieldsDisabled}
                     onChange={(e) => setAvatarFile(e.target.files?.[0] || null)}
                   />
-                </label>
-                <p className="text-xs text-muted-foreground">JPG or PNG.</p>
+                </div>
+                <div className="text-center space-y-1">
+                  <h3 className="text-base font-semibold text-[#1a1a1a]">Profile Picture</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">JPG or PNG.</p>
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-              {/* Left Column: Basic Info */}
-              <div className="space-y-4">
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">
                     First Name <span className="text-red-500">*</span>
                   </label>
                   <Input
@@ -768,12 +803,12 @@ export default function SetupStaffForm() {
                     onChange={(e) =>
                       setFormData({ ...formData, firstname: e.target.value })
                     }
-                    className="h-10 border-slate-200"
+                    className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                     disabled={fieldsDisabled}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">
                     Last Name <span className="text-red-500">*</span>
                   </label>
                   <Input
@@ -781,12 +816,12 @@ export default function SetupStaffForm() {
                     onChange={(e) =>
                       setFormData({ ...formData, lastname: e.target.value })
                     }
-                    className="h-10 border-slate-200"
+                    className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                     disabled={fieldsDisabled}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">
                     Email <span className="text-red-500">*</span>
                   </label>
                   <Input
@@ -795,41 +830,17 @@ export default function SetupStaffForm() {
                     onChange={(e) =>
                       setFormData({ ...formData, email: e.target.value })
                     }
-                    className="h-10 border-slate-200"
+                    className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                     disabled={fieldsDisabled}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <Facebook className="h-4 w-4 text-slate-400" /> Facebook
-                  </label>
-                  <Input
-                    value={formData.facebook}
-                    onChange={(e) =>
-                      setFormData({ ...formData, facebook: e.target.value })
-                    }
-                    className="h-10 border-slate-200"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <Linkedin className="h-4 w-4 text-slate-400" /> LinkedIn
-                  </label>
-                  <Input
-                    value={formData.linkedin}
-                    onChange={(e) =>
-                      setFormData({ ...formData, linkedin: e.target.value })
-                    }
-                    className="h-10 border-slate-200"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Gender</label>
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Gender</label>
                   <Select
                     value={formData.gender || "none"}
                     onValueChange={(v) => setFormData({ ...formData, gender: v === "none" ? "" : v })}
                   >
-                    <SelectTrigger className="h-10 border-slate-200">
+                    <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
                       <SelectValue placeholder="Select gender" />
                     </SelectTrigger>
                     <SelectContent>
@@ -841,20 +852,121 @@ export default function SetupStaffForm() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Date of Birth</label>
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Date of Birth</label>
                   <Input
                     type="date"
                     value={formData.dob}
                     onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                    className="h-10 border-slate-200"
+                    className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                   />
                 </div>
               </div>
+            </div>
 
-              {/* Right Column: Social & Prefs */}
-              <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Blood Group</label>
+                <Input
+                  value={formData.bloodGroup}
+                  onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
+                  placeholder="e.g. O+"
+                  className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Education</label>
+                <Input
+                  value={formData.education}
+                  onChange={(e) => setFormData({ ...formData, education: e.target.value })}
+                  placeholder="e.g. MBA, B.Tech"
+                  className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Experience</label>
+                <Input
+                  value={formData.totalExperience}
+                  onChange={(e) => setFormData({ ...formData, totalExperience: e.target.value })}
+                  placeholder="e.g. 5 Years"
+                  className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Residential Phone</label>
+                <Input
+                  value={formData.residentialPhone}
+                  onChange={(e) => setFormData({ ...formData, residentialPhone: e.target.value })}
+                  placeholder="10 digit number"
+                  className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-[#1a1a1a] flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-orange-500" /> Emergency Contact
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Contact Name</label>
+                  <Input
+                    placeholder="Full Name"
+                    value={formData.emergencyContact.name}
+                    onChange={(e) => setFormData({ ...formData, emergencyContact: { ...formData.emergencyContact, name: e.target.value } })}
+                    className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Contact Phone</label>
+                  <Input
+                    placeholder="10 digit number"
+                    value={formData.emergencyContact.phone}
+                    onChange={(e) => setFormData({ ...formData, emergencyContact: { ...formData.emergencyContact, phone: e.target.value } })}
+                    className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Relation</label>
+                  <Input
+                    placeholder="e.g. Spouse"
+                    value={formData.emergencyContact.relation}
+                    onChange={(e) => setFormData({ ...formData, emergencyContact: { ...formData.emergencyContact, relation: e.target.value } })}
+                    className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold text-[#1a1a1a] flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-primary" /> Residential Address
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Current Address</label>
+                  <textarea
+                    value={formData.address.current}
+                    onChange={(e) => setFormData({ ...formData, address: { ...formData.address, current: e.target.value } })}
+                    className="w-full min-h-[70px] p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Permanent Address</label>
+                  <textarea
+                    value={formData.address.permanent}
+                    onChange={(e) => setFormData({ ...formData, address: { ...formData.address, permanent: e.target.value } })}
+                    className="w-full min-h-[70px] p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* CRM-only fields — no HRMS equivalent to match, kept as their own section */}
+            <div className="pt-8 border-t space-y-4">
+              <p className="text-sm font-bold text-slate-800">CRM Profile & Preferences</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+                <div className="space-y-2">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1 flex items-center gap-2">
                     <MessageSquare className="h-4 w-4 text-slate-400" /> Skype
                   </label>
                   <Input
@@ -862,11 +974,35 @@ export default function SetupStaffForm() {
                     onChange={(e) =>
                       setFormData({ ...formData, skype: e.target.value })
                     }
-                    className="h-10 border-slate-200"
+                    className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1 flex items-center gap-2">
+                    <Facebook className="h-4 w-4 text-slate-400" /> Facebook
+                  </label>
+                  <Input
+                    value={formData.facebook}
+                    onChange={(e) =>
+                      setFormData({ ...formData, facebook: e.target.value })
+                    }
+                    className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1 flex items-center gap-2">
+                    <Linkedin className="h-4 w-4 text-slate-400" /> LinkedIn
+                  </label>
+                  <Input
+                    value={formData.linkedin}
+                    onChange={(e) =>
+                      setFormData({ ...formData, linkedin: e.target.value })
+                    }
+                    className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1 flex items-center gap-2">
                     <Globe className="h-4 w-4 text-slate-400" /> Default
                     Language
                   </label>
@@ -876,7 +1012,7 @@ export default function SetupStaffForm() {
                       setFormData({ ...formData, default_language: v })
                     }
                   >
-                    <SelectTrigger className="h-10 border-slate-200">
+                    <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
                       <SelectValue placeholder="System Default" />
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
@@ -887,22 +1023,7 @@ export default function SetupStaffForm() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-slate-400" /> Email Signature
-                  </label>
-                  <textarea
-                    value={formData.email_signature}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        email_signature: e.target.value,
-                      })
-                    }
-                    className="w-full min-h-[80px] p-3 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1 flex items-center gap-2">
                     <Type className="h-4 w-4 text-slate-400" /> Direction
                   </label>
                   <Select
@@ -911,7 +1032,7 @@ export default function SetupStaffForm() {
                       setFormData({ ...formData, direction: v })
                     }
                   >
-                    <SelectTrigger className="h-10 border-slate-200">
+                    <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
                       <SelectValue placeholder="System Default" />
                     </SelectTrigger>
                     <SelectContent>
@@ -923,98 +1044,21 @@ export default function SetupStaffForm() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <Droplet className="h-4 w-4 text-slate-400" /> Blood Group
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1 flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-slate-400" /> Email Signature
                   </label>
-                  <Input
-                    value={formData.bloodGroup}
-                    onChange={(e) => setFormData({ ...formData, bloodGroup: e.target.value })}
-                    placeholder="e.g. O+"
-                    className="h-10 border-slate-200"
+                  <textarea
+                    value={formData.email_signature}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        email_signature: e.target.value,
+                      })
+                    }
+                    className="w-full min-h-[80px] p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
                   />
                 </div>
-              </div>
-            </div>
-
-            <div className="pt-8 border-t grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <GraduationCap className="h-4 w-4 text-slate-400" /> Education
-                </label>
-                <Input
-                  value={formData.education}
-                  onChange={(e) => setFormData({ ...formData, education: e.target.value })}
-                  placeholder="e.g. MBA, B.Tech"
-                  className="h-10 border-slate-200"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Experience</label>
-                <Input
-                  value={formData.totalExperience}
-                  onChange={(e) => setFormData({ ...formData, totalExperience: e.target.value })}
-                  placeholder="e.g. 5 Years"
-                  className="h-10 border-slate-200"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Phone className="h-4 w-4 text-slate-400" /> Residential Phone
-                </label>
-                <Input
-                  value={formData.residentialPhone}
-                  onChange={(e) => setFormData({ ...formData, residentialPhone: e.target.value })}
-                  placeholder="10 digit number"
-                  className="h-10 border-slate-200"
-                />
-              </div>
-              <div />
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-slate-400" /> Current Address
-                </label>
-                <textarea
-                  value={formData.address.current}
-                  onChange={(e) => setFormData({ ...formData, address: { ...formData.address, current: e.target.value } })}
-                  className="w-full min-h-[70px] p-3 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <MapPin className="h-4 w-4 text-slate-400" /> Permanent Address
-                </label>
-                <textarea
-                  value={formData.address.permanent}
-                  onChange={(e) => setFormData({ ...formData, address: { ...formData.address, permanent: e.target.value } })}
-                  className="w-full min-h-[70px] p-3 text-sm border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
-                />
-              </div>
-            </div>
-
-            <div className="pt-8 border-t space-y-4">
-              <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <HeartPulse className="h-4 w-4 text-primary" /> Emergency Contact
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input
-                  placeholder="Name"
-                  value={formData.emergencyContact.name}
-                  onChange={(e) => setFormData({ ...formData, emergencyContact: { ...formData.emergencyContact, name: e.target.value } })}
-                  className="h-10 border-slate-200"
-                />
-                <Input
-                  placeholder="Phone"
-                  value={formData.emergencyContact.phone}
-                  onChange={(e) => setFormData({ ...formData, emergencyContact: { ...formData.emergencyContact, phone: e.target.value } })}
-                  className="h-10 border-slate-200"
-                />
-                <Input
-                  placeholder="Relation"
-                  value={formData.emergencyContact.relation}
-                  onChange={(e) => setFormData({ ...formData, emergencyContact: { ...formData.emergencyContact, relation: e.target.value } })}
-                  className="h-10 border-slate-200"
-                />
               </div>
             </div>
 
@@ -1111,7 +1155,7 @@ export default function SetupStaffForm() {
 
               {/* Password Section - Matches the bottom placement in reference */}
               <div className="space-y-2 pt-4 border-t">
-                <label className="text-sm font-semibold text-slate-700">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">
                   Password <span className="text-red-500">*</span>
                 </label>
                 <div className="relative group max-w-md">
@@ -1157,18 +1201,16 @@ export default function SetupStaffForm() {
           <>
           <TabsContent
             value="employment"
-            className="bg-white border rounded-lg p-8 shadow-sm mt-6 space-y-8"
+            className="m-0 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500"
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-slate-400" /> Branch
-                </label>
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Branch</label>
                 <Select
                   value={formData.hrmsBranchId}
                   onValueChange={(v) => setFormData({ ...formData, hrmsBranchId: v })}
                 >
-                  <SelectTrigger className="h-10 border-slate-200">
+                  <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
                     <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1180,12 +1222,12 @@ export default function SetupStaffForm() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Department</label>
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Department</label>
                 <Select
                   value={formData.department}
                   onValueChange={(v) => setFormData({ ...formData, department: v })}
                 >
-                  <SelectTrigger className="h-10 border-slate-200">
+                  <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1197,14 +1239,12 @@ export default function SetupStaffForm() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                  <Briefcase className="h-4 w-4 text-slate-400" /> Designation
-                </label>
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Designation</label>
                 <Select
                   value={formData.designation}
                   onValueChange={(v) => setFormData({ ...formData, designation: v })}
                 >
-                  <SelectTrigger className="h-10 border-slate-200">
+                  <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
                     <SelectValue placeholder="Select designation" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1216,12 +1256,12 @@ export default function SetupStaffForm() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Work Shift</label>
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Work Shift</label>
                 <Select
                   value={formData.shiftId}
                   onValueChange={(v) => setFormData({ ...formData, shiftId: v })}
                 >
-                  <SelectTrigger className="h-10 border-slate-200">
+                  <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
                     <SelectValue placeholder="Select shift" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1233,187 +1273,222 @@ export default function SetupStaffForm() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Joining Date</label>
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Joining Date</label>
                 <Input
                   type="date"
                   value={formData.joiningDate}
                   onChange={(e) => setFormData({ ...formData, joiningDate: e.target.value })}
-                  className="h-10 border-slate-200"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-700">Employment Type</label>
-                <Select
-                  value={formData.employmentType || "none"}
-                  onValueChange={(v) => setFormData({ ...formData, employmentType: v === "none" ? "" : v })}
-                >
-                  <SelectTrigger className="h-10 border-slate-200">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Not specified</SelectItem>
-                    <SelectItem value="permanent">Permanent</SelectItem>
-                    <SelectItem value="contract">Contract</SelectItem>
-                    <SelectItem value="intern">Intern</SelectItem>
-                    <SelectItem value="probation">Probation</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="pt-8 border-t grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
-                <div className="space-y-1">
-                  <p className="text-sm font-bold text-slate-800">Attendance Tracking</p>
-                  <p className="text-xs text-muted-foreground">Require this staff member to punch in/out.</p>
-                </div>
-                <Switch
-                  checked={formData.attendanceRequired}
-                  onCheckedChange={(v) => setFormData({ ...formData, attendanceRequired: v })}
-                  className="data-[state=checked]:bg-primary"
-                />
-              </div>
-              <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200">
-                <div className="space-y-1">
-                  <p className="text-sm font-bold text-slate-800">Is Salesperson</p>
-                  <p className="text-xs text-muted-foreground">Include in salesperson-linked reports.</p>
-                </div>
-                <Switch
-                  checked={formData.isSalesperson}
-                  onCheckedChange={(v) => setFormData({ ...formData, isSalesperson: v })}
-                  className="data-[state=checked]:bg-primary"
+                  className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                 />
               </div>
             </div>
 
-            <div className="pt-8 border-t space-y-4">
-              <p className="text-sm font-bold text-slate-800">Weekly Holidays</p>
-              <div className="flex flex-wrap gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200 border-dashed">
-                {WEEKDAYS.map((day) => (
-                  <div key={day} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`holiday-${day}`}
-                      checked={formData.weeklyHolidays.includes(day)}
-                      onCheckedChange={() => toggleWeeklyHoliday(day)}
-                      className="border-slate-300"
-                    />
-                    <label htmlFor={`holiday-${day}`} className="text-sm font-medium text-foreground cursor-pointer">
-                      {day}
-                    </label>
+            <div className="p-6 rounded-xl bg-slate-50 border border-slate-200 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-primary text-white flex items-center justify-center shadow-sm">
+                  <Zap className="h-5 w-5" />
+                </div>
+                <h3 className="text-sm font-semibold text-[#1a1a1a]">Employment Options</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Employment Type</label>
+                  <Select
+                    value={formData.employmentType || "none"}
+                    onValueChange={(v) => setFormData({ ...formData, employmentType: v === "none" ? "" : v })}
+                  >
+                    <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not specified</SelectItem>
+                      <SelectItem value="permanent">Permanent</SelectItem>
+                      <SelectItem value="contract">Contract</SelectItem>
+                      <SelectItem value="intern">Intern</SelectItem>
+                      <SelectItem value="probation">Probation</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex flex-row items-center justify-between p-3 rounded-lg bg-white border border-slate-200 mt-5">
+                  <div className="space-y-0.5">
+                    <label className="text-[13px] font-semibold text-[#333333]">Attendance Tracking</label>
+                    <p className="text-[10px] text-slate-500">Require biometrics/check-in</p>
                   </div>
-                ))}
+                  <Checkbox
+                    checked={formData.attendanceRequired}
+                    onCheckedChange={(v) => setFormData({ ...formData, attendanceRequired: !!v })}
+                    className="h-5 w-5 rounded border-slate-300"
+                  />
+                </div>
+                <div className="flex flex-row items-center justify-between p-3 rounded-lg bg-white border border-slate-200">
+                  <div className="space-y-0.5">
+                    <label className="text-[13px] font-semibold text-[#333333]">Is Salesperson</label>
+                    <p className="text-[10px] text-slate-500">Can be assigned to sales vouchers & invoices</p>
+                  </div>
+                  <Checkbox
+                    checked={formData.isSalesperson}
+                    onCheckedChange={(v) => setFormData({ ...formData, isSalesperson: !!v })}
+                    className="h-5 w-5 rounded border-slate-300"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Weekly Holidays</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-3">
+                  {WEEKDAYS.map((day) => (
+                    <div key={day} className="flex items-center gap-2 p-2 rounded-md border border-slate-100 bg-white">
+                      <Checkbox
+                        checked={formData.weeklyHolidays.includes(day)}
+                        onCheckedChange={() => toggleWeeklyHoliday(day)}
+                      />
+                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">{day.slice(0, 3)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </TabsContent>
 
           <TabsContent
             value="salary"
-            className="bg-white border rounded-lg p-8 shadow-sm mt-6 space-y-8"
+            className="m-0 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500"
           >
-            <div className="space-y-4">
-              <p className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <Landmark className="h-4 w-4 text-primary" /> Bank Details
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input
-                  placeholder="Account Holder Name"
-                  value={formData.bankInfo.accountName}
-                  onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, accountName: e.target.value } })}
-                  className="h-10 border-slate-200"
-                />
-                <Input
-                  placeholder="Account Number"
-                  value={formData.bankInfo.accountNumber}
-                  onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, accountNumber: e.target.value } })}
-                  className="h-10 border-slate-200"
-                />
-                <Input
-                  placeholder="Bank Name"
-                  value={formData.bankInfo.bankName}
-                  onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, bankName: e.target.value } })}
-                  className="h-10 border-slate-200"
-                />
-                <Input
-                  placeholder="IFSC Code"
-                  value={formData.bankInfo.ifscCode}
-                  onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, ifscCode: e.target.value.toUpperCase() } })}
-                  className="h-10 border-slate-200"
-                />
-                <Input
-                  placeholder="Branch City"
-                  value={formData.bankInfo.branchCity}
-                  onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, branchCity: e.target.value } })}
-                  className="h-10 border-slate-200"
-                />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+              <div className="space-y-8">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-8 w-8 rounded-lg gradient-primary text-white flex items-center justify-center shadow-sm">
+                    <CreditCard className="h-5 w-5" />
+                  </div>
+                  <h3 className="text-base font-semibold text-[#1a1a1a]">Bank Account Information</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Bank Name</label>
+                    <Input
+                      placeholder="e.g. HDFC Bank"
+                      value={formData.bankInfo.bankName}
+                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, bankName: e.target.value } })}
+                      className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">IFSC Code</label>
+                    <Input
+                      placeholder="HDFC0001234"
+                      value={formData.bankInfo.ifscCode}
+                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, ifscCode: e.target.value.toUpperCase() } })}
+                      className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm uppercase"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Account Number</label>
+                    <Input
+                      placeholder="Enter full account number"
+                      value={formData.bankInfo.accountNumber}
+                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, accountNumber: e.target.value } })}
+                      className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Beneficiary Name</label>
+                    <Input
+                      placeholder="Name on account"
+                      value={formData.bankInfo.accountName}
+                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, accountName: e.target.value } })}
+                      className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div className="pt-8 border-t space-y-4">
-              <p className="text-sm font-bold text-slate-800">Salary</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Pay Type</label>
-                  <Select
-                    value={formData.payType}
-                    onValueChange={(v) => setFormData({ ...formData, payType: v })}
-                  >
-                    <SelectTrigger className="h-10 border-slate-200">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Monthly">Monthly</SelectItem>
-                      <SelectItem value="Weekly">Weekly</SelectItem>
-                      <SelectItem value="Daily">Daily</SelectItem>
-                      <SelectItem value="Hourly">Hourly</SelectItem>
-                    </SelectContent>
-                  </Select>
+              <div className="space-y-6 bg-slate-50 p-6 rounded-xl border border-slate-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-sm">
+                      <Briefcase className="h-5 w-5" />
+                    </div>
+                    <h3 className="text-base font-semibold text-[#1a1a1a]">Salary Configuration</h3>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest">Total CTC</p>
+                    <p className="text-xl font-bold text-emerald-600">₹{Number(formData.salaryAmount || 0).toLocaleString("en-IN")}</p>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Salary Amount</label>
-                  <Input
-                    type="number"
-                    value={formData.salaryAmount}
-                    onChange={(e) => setFormData({ ...formData, salaryAmount: e.target.value })}
-                    className="h-10 border-slate-200"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Basic</label>
-                  <Input
-                    type="number"
-                    value={formData.salaryConfig.basic.value}
-                    onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, basic: { value: e.target.value } } })}
-                    className="h-10 border-slate-200"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">HRA</label>
-                  <Input
-                    type="number"
-                    value={formData.salaryConfig.hra.value}
-                    onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, hra: { value: e.target.value } } })}
-                    className="h-10 border-slate-200"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">PF</label>
-                  <Input
-                    type="number"
-                    value={formData.salaryConfig.pf.value}
-                    onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, pf: { value: e.target.value } } })}
-                    className="h-10 border-slate-200"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">ESIC</label>
-                  <Input
-                    type="number"
-                    value={formData.salaryConfig.esic.value}
-                    onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, esic: { value: e.target.value } } })}
-                    className="h-10 border-slate-200"
-                  />
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Pay Cycle</label>
+                      <Select
+                        value={formData.payType}
+                        onValueChange={(v) => setFormData({ ...formData, payType: v })}
+                      >
+                        <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
+                          <SelectValue placeholder="Pay Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Monthly">Monthly</SelectItem>
+                          <SelectItem value="Weekly">Weekly</SelectItem>
+                          <SelectItem value="Daily">Daily</SelectItem>
+                          <SelectItem value="Hourly">Hourly</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Base Salary (₹)</label>
+                      <Input
+                        type="number"
+                        value={formData.salaryAmount}
+                        onChange={(e) => setFormData({ ...formData, salaryAmount: e.target.value })}
+                        className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-white border border-slate-200 space-y-6">
+                    <h4 className="text-xs font-semibold text-slate-700 flex items-center gap-2">
+                      <Info className="h-3.5 w-3.5 text-primary" /> Salary Breakdown
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">Basic Salary</label>
+                        <Input
+                          type="number"
+                          value={formData.salaryConfig.basic.value}
+                          onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, basic: { value: e.target.value } } })}
+                          className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">HRA</label>
+                        <Input
+                          type="number"
+                          value={formData.salaryConfig.hra.value}
+                          onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, hra: { value: e.target.value } } })}
+                          className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">PF (Employee)</label>
+                        <Input
+                          type="number"
+                          value={formData.salaryConfig.pf.value}
+                          onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, pf: { value: e.target.value } } })}
+                          className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[11px] font-bold text-slate-500 uppercase">ESIC</label>
+                        <Input
+                          type="number"
+                          value={formData.salaryConfig.esic.value}
+                          onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, esic: { value: e.target.value } } })}
+                          className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1421,52 +1496,160 @@ export default function SetupStaffForm() {
 
           <TabsContent
             value="documents"
-            className="bg-white border rounded-lg p-8 shadow-sm mt-6 space-y-8"
+            className="m-0 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500"
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {/* PAN Card */}
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-slate-400" /> PAN Number
-                  </label>
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">PAN Number</label>
                   <Input
+                    placeholder="ABCDE1234F"
                     value={formData.legalDocuments.panNumber}
                     onChange={(e) => setFormData({ ...formData, legalDocuments: { ...formData.legalDocuments, panNumber: e.target.value.toUpperCase() } })}
-                    className="h-10 border-slate-200"
+                    className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm uppercase"
                   />
                 </div>
-                <label className="inline-flex items-center gap-2 text-sm font-semibold text-primary cursor-pointer">
-                  <Upload className="h-4 w-4" />
-                  {panFile ? panFile.name : formData.legalDocuments.panUrl ? "Replace PAN document" : "Upload PAN document"}
-                  <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setPanFile(e.target.files?.[0] || null)} />
-                </label>
+                <div
+                  className="h-56 rounded-md border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-slate-100 transition-all cursor-pointer flex flex-col items-center justify-center gap-3 group relative overflow-hidden"
+                  onClick={() => document.getElementById("setup-staff-pan-upload")?.click()}
+                >
+                  {panFile ? (
+                    panFile.type === "application/pdf" || panFile.name.toLowerCase().endsWith(".pdf") ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <FileIcon className="h-10 w-10 text-red-500" />
+                        <span className="text-[10px] font-bold text-slate-600 px-4 text-center truncate w-full">{panFile.name}</span>
+                      </div>
+                    ) : (
+                      <img src={URL.createObjectURL(panFile)} alt="PAN" className="h-full w-full object-cover rounded-md" />
+                    )
+                  ) : formData.legalDocuments.panUrl ? (
+                    formData.legalDocuments.panUrl.toLowerCase().endsWith(".pdf") ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <FileIcon className="h-10 w-10 text-red-500" />
+                        <span className="text-[10px] font-bold text-slate-600 px-4 text-center truncate w-full">PAN Document (PDF)</span>
+                      </div>
+                    ) : (
+                      <img src={formData.legalDocuments.panUrl} alt="PAN" className="h-full w-full object-cover rounded-md" />
+                    )
+                  ) : (
+                    <>
+                      <div className="h-10 w-10 rounded-md bg-white shadow-sm flex items-center justify-center text-primary group-hover:scale-105 transition-transform"><Plus className="h-5 w-5" /></div>
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Upload PAN</span>
+                    </>
+                  )}
+                  {(panFile || formData.legalDocuments.panUrl) && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPanFile(null);
+                        setFormData({ ...formData, legalDocuments: { ...formData.legalDocuments, panUrl: "" } });
+                      }}
+                      className="absolute top-2 right-2 h-7 w-7 rounded-full bg-white/90 shadow-md flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                      aria-label="Remove PAN document"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                  <input id="setup-staff-pan-upload" type="file" className="hidden" accept="image/*,application/pdf" onChange={(e) => setPanFile(e.target.files?.[0] || null)} />
+                </div>
               </div>
 
+              {/* Aadhaar Card */}
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-slate-400" /> Aadhaar Number
-                  </label>
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Aadhaar Number</label>
                   <Input
+                    placeholder="1234 5678 9012"
                     value={formData.legalDocuments.aadhaarNumber}
                     onChange={(e) => setFormData({ ...formData, legalDocuments: { ...formData.legalDocuments, aadhaarNumber: e.target.value } })}
-                    className="h-10 border-slate-200"
+                    className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                   />
                 </div>
-                <label className="inline-flex items-center gap-2 text-sm font-semibold text-primary cursor-pointer">
-                  <Upload className="h-4 w-4" />
-                  {aadhaarFile ? aadhaarFile.name : formData.legalDocuments.aadhaarUrl ? "Replace Aadhaar document" : "Upload Aadhaar document"}
-                  <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => setAadhaarFile(e.target.files?.[0] || null)} />
-                </label>
+                <div
+                  className="h-56 rounded-md border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-slate-100 transition-all cursor-pointer flex flex-col items-center justify-center gap-3 group relative overflow-hidden"
+                  onClick={() => document.getElementById("setup-staff-aadhaar-upload")?.click()}
+                >
+                  {aadhaarFile ? (
+                    aadhaarFile.type === "application/pdf" || aadhaarFile.name.toLowerCase().endsWith(".pdf") ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <FileIcon className="h-10 w-10 text-red-500" />
+                        <span className="text-[10px] font-bold text-slate-600 px-4 text-center truncate w-full">{aadhaarFile.name}</span>
+                      </div>
+                    ) : (
+                      <img src={URL.createObjectURL(aadhaarFile)} alt="Aadhaar" className="h-full w-full object-cover rounded-md" />
+                    )
+                  ) : formData.legalDocuments.aadhaarUrl ? (
+                    formData.legalDocuments.aadhaarUrl.toLowerCase().endsWith(".pdf") ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <FileIcon className="h-10 w-10 text-red-500" />
+                        <span className="text-[10px] font-bold text-slate-600 px-4 text-center truncate w-full">Aadhaar Document (PDF)</span>
+                      </div>
+                    ) : (
+                      <img src={formData.legalDocuments.aadhaarUrl} alt="Aadhaar" className="h-full w-full object-cover rounded-md" />
+                    )
+                  ) : (
+                    <>
+                      <div className="h-10 w-10 rounded-md bg-white shadow-sm flex items-center justify-center text-emerald-500 group-hover:scale-105 transition-transform"><Plus className="h-5 w-5" /></div>
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Upload Aadhaar</span>
+                    </>
+                  )}
+                  {(aadhaarFile || formData.legalDocuments.aadhaarUrl) && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAadhaarFile(null);
+                        setFormData({ ...formData, legalDocuments: { ...formData.legalDocuments, aadhaarUrl: "" } });
+                      }}
+                      className="absolute top-2 right-2 h-7 w-7 rounded-full bg-white/90 shadow-md flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                      aria-label="Remove Aadhaar document"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                  <input id="setup-staff-aadhaar-upload" type="file" className="hidden" accept="image/*,application/pdf" onChange={(e) => setAadhaarFile(e.target.files?.[0] || null)} />
+                </div>
               </div>
 
+              {/* Passport Photo */}
               <div className="space-y-4">
-                <p className="text-sm font-semibold text-slate-700">Passport-style Photo</p>
-                <label className="inline-flex items-center gap-2 text-sm font-semibold text-primary cursor-pointer">
-                  <Upload className="h-4 w-4" />
-                  {passportPhotoFile ? passportPhotoFile.name : formData.legalDocuments.passportPhotoUrl ? "Replace photo" : "Upload photo"}
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => setPassportPhotoFile(e.target.files?.[0] || null)} />
-                </label>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Passport Photo</label>
+                  <div className="h-10 w-full" />
+                </div>
+                <div
+                  className="h-56 rounded-md border-2 border-dashed border-slate-200 bg-slate-50 hover:bg-slate-100 transition-all cursor-pointer flex flex-col items-center justify-center gap-3 group relative overflow-hidden"
+                  onClick={() => document.getElementById("setup-staff-passport-photo-upload")?.click()}
+                >
+                  {passportPhotoFile ? (
+                    <img src={URL.createObjectURL(passportPhotoFile)} alt="Photo" className="h-full w-full object-cover rounded-md" />
+                  ) : formData.legalDocuments.passportPhotoUrl ? (
+                    <img src={formData.legalDocuments.passportPhotoUrl} alt="Photo" className="h-full w-full object-cover rounded-md" />
+                  ) : (
+                    <>
+                      <div className="h-10 w-10 rounded-md bg-white shadow-sm flex items-center justify-center text-purple-500 group-hover:scale-105 transition-transform"><Plus className="h-5 w-5" /></div>
+                      <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-widest">Select Photo</span>
+                    </>
+                  )}
+                  {(passportPhotoFile || formData.legalDocuments.passportPhotoUrl) && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPassportPhotoFile(null);
+                        setFormData({ ...formData, legalDocuments: { ...formData.legalDocuments, passportPhotoUrl: "" } });
+                      }}
+                      className="absolute top-2 right-2 h-7 w-7 rounded-full bg-white/90 shadow-md flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all"
+                      aria-label="Remove passport photo"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                  <input id="setup-staff-passport-photo-upload" type="file" className="hidden" accept="image/*" onChange={(e) => setPassportPhotoFile(e.target.files?.[0] || null)} />
+                </div>
+                <p className="text-[10px] text-slate-500 italic text-center px-4">Used for official ID cards.</p>
               </div>
             </div>
           </TabsContent>
@@ -1475,7 +1658,7 @@ export default function SetupStaffForm() {
 
           <TabsContent
             value="permissions"
-            className="bg-white border rounded-lg p-8 shadow-sm mt-6 space-y-6"
+            className="m-0 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500"
           >
             <div className="space-y-2 max-w-md">
               <label className="text-sm font-semibold text-slate-700">
@@ -1554,7 +1737,7 @@ export default function SetupStaffForm() {
 
           <TabsContent
             value="assigned-customers"
-            className="bg-white border rounded-lg p-8 shadow-sm mt-6 space-y-6"
+            className="m-0 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500"
           >
             <div>
               <h3 className="text-base font-bold text-foreground flex items-center gap-2">
@@ -1657,24 +1840,9 @@ export default function SetupStaffForm() {
               </div>
             </div>
           </TabsContent>
+          </div>
+          </div>
         </Tabs>
-      </div>
-
-      {/* Always-reachable Save action, pinned bottom-right so long forms/tabs don't require scrolling back to the header */}
-      <div className="sticky bottom-6 z-40 w-fit">
-        <Button
-          onClick={handleSave}
-          size="lg"
-          className="text-white rounded-xl shadow-lg shadow-primary/30 gap-2 font-bold px-6"
-          disabled={saveDisabled}
-        >
-          {createMutation.isPending || updateMutation.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="h-4 w-4" />
-          )}
-          Save
-        </Button>
       </div>
     </DashboardLayout>
   );

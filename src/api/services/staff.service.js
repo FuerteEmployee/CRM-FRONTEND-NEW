@@ -9,6 +9,7 @@ export const staffService = {
   getAssignable: () => apiClient.get("/staff/assignable"),
   getById: (id) => apiClient.get(`/staff/${id}`),
   create: (data) => apiClient.post("/staff", data),
+  import: (rows) => apiClient.post("/staff/import", rows),
   update: (id, data) => apiClient.put(`/staff/${id}`, data),
   delete: (id) => apiClient.delete(`/staff/${id}`),
 

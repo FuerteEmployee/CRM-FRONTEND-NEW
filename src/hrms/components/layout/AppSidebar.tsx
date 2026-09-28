@@ -220,12 +220,12 @@ const hrmsNav = [
   // { title: "Targets", url: "/staff/targets", icon: Target, permission: "view_targets" },
   { title: "Salary Management", url: "/staff/payroll", icon: Landmark, permission: "view_payroll" },
   { title: "Salary Settlements", url: "/staff/salary-settlements", icon: ArrowLeftRight, permission: "manage_payroll" },
-  // { title: "Advance Salary", url: "/staff/advance-salary", icon: CreditCard, permission: "view_payroll" },
+  { title: "Advance Salary", url: "/staff/advance-salary", icon: CreditCard, permission: "view_payroll" },
   // { title: "User Roles", url: "/staff/roles", icon: Shield, permission: "manage_roles" },
   { title: "My Attendance", url: "/staff/attendance", icon: Clock },
   { title: "My Leaves", url: "/staff/leaves", icon: Briefcase },
   { title: "My Expenses", url: "/staff/expenses", icon: Wallet },
-  // { title: "My Advance Salary", url: "/staff/advance-salary", icon: CreditCard },
+  { title: "My Advance Salary", url: "/staff/advance-salary", icon: CreditCard },
   { title: "Branch Management", url: "/staff/branches", icon: Landmark, permission: "view_branches" },
 ];
 
