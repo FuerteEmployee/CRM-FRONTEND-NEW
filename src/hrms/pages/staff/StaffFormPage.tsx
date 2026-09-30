@@ -15,6 +15,15 @@ import {
   AlertCircle,
   RefreshCw,
   X,
+  Shield,
+  Globe,
+  Type,
+  MessageSquare,
+  Facebook,
+  Linkedin,
+  Mail,
+  Users,
+  Search,
 } from "lucide-react";
 import { Button } from "@/hrms/components/ui/button";
 import { Input } from "@/hrms/components/ui/input";
@@ -27,6 +36,7 @@ import {
   SelectValue,
 } from "@/hrms/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/hrms/components/ui/tabs";
+import { Switch } from "@/hrms/components/ui/switch";
 import { staffService } from "@/hrms/services/staffService";
 import { salespersonService } from "@/hrms/services/salespersonService";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
@@ -53,6 +63,146 @@ import { ScrollArea } from "@/hrms/components/ui/scroll-area";
 import { Checkbox } from "@/hrms/components/ui/checkbox";
 import { cn } from "@/hrms/lib/utils";
 import { API_BASE_URL } from "@/hrms/services/apiClient";
+import { LANGUAGES_WITH_SYSTEM_DEFAULT } from "@/lib/languages";
+// CRM (Setup > Staff) counterparts — the "CRM Info", "Permissions" and
+// "Assigned Customers" tabs edit the exact same shared staff/user document
+// that Setup > Staff edits, so they reuse Setup's own services rather than
+// re-implementing roles/departments/customer-assignment endpoints here.
+import { staffService as crmStaffService } from "@/api/services/staff.service";
+import { supportService } from "@/api/services/support.service";
+import { customerService } from "@/api/services/customer.service";
+
+// Permissions capability matrix — mirrors Setup's SetupStaffForm.tsx
+// FEATURES_CONFIG exactly (that constant isn't exported, so it's replicated
+// here rather than cross-imported from pages/setup).
+const FEATURES_CONFIG = [
+  { name: "Bulk PDF Export", caps: ["View(Global)"] },
+  { name: "Chat", caps: ["View(Global)"] },
+  { name: "Meetings", caps: ["View(Global)"] },
+  { name: "Bookmarks", caps: ["View(Global)"] },
+  { name: "Media", caps: ["View(Global)"] },
+  { name: "Calendar", caps: ["View(Global)"] },
+  { name: "FAQ", caps: ["View(Global)"] },
+  {
+    name: "Contracts",
+    caps: [
+      "View (Own)",
+      "View(Global)",
+      "Create",
+      "Edit",
+      "Delete",
+      "View All Templates",
+    ],
+  },
+  {
+    name: "Credit Notes",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  {
+    name: "Customers",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  { name: "Email Templates", caps: ["View(Global)", "Edit"] },
+  {
+    name: "Estimates",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  {
+    name: "Expenses",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  {
+    name: "Invoices",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  { name: "Items", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  {
+    name: "Knowledge Base",
+    caps: ["View(Global)", "Create", "Edit", "Delete"],
+  },
+  {
+    name: "Payments",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  {
+    name: "Projects",
+    caps: [
+      "View (Own)",
+      "View(Global)",
+      "Create",
+      "Edit",
+      "Delete",
+      "Create Timesheets",
+      "Edit Milestones",
+      "Delete Milestones",
+    ],
+  },
+  {
+    name: "Proposals",
+    caps: [
+      "View (Own)",
+      "View(Global)",
+      "Create",
+      "Edit",
+      "Delete",
+      "View All Templates",
+    ],
+  },
+  {
+    name: "Purchases",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  { name: "Reports", caps: ["View(Global)", "View Timesheets Report"] },
+  { name: "Staff Roles", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "Settings", caps: ["View(Global)", "Edit"] },
+  { name: "Staff", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "Support", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  {
+    name: "Tasks",
+    caps: [
+      "View (Own)",
+      "View(Global)",
+      "Create",
+      "Edit",
+      "Delete",
+      "Edit Timesheets (Global)",
+      "Edit Own Timesheets",
+      "Delete Timesheets (Global)",
+      "Delete own Timesheets",
+    ],
+  },
+  { name: "Task Checklist Templates", caps: ["Create", "Delete"] },
+  {
+    name: "Estimate Request",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  {
+    name: "Leads",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  {
+    name: "Vendors",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  {
+    name: "Subscriptions",
+    caps: ["View (Own)", "View(Global)", "Create", "Edit", "Delete"],
+  },
+  { name: "Goals", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "WhatsApp", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "Announcements", caps: ["View(Global)"] },
+  { name: "Activity Log", caps: ["View(Global)"] },
+  { name: "Ticket Pipe Log", caps: ["View(Global)"] },
+  { name: "HRMS Staff Directory", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Attendance", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Leave Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Expense Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Salary Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Shift Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Branch Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Departments", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "HRMS Designations", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+];
 
 const getFileUrl = (url?: string) => {
   if (!url) return "";
@@ -81,6 +231,21 @@ const staffSchema = z.object({
     current: z.string().optional(),
     permanent: z.string().optional(),
   }).optional(),
+
+  // CRM (Setup > Staff) profile & preferences — same shared staff document,
+  // now editable here instead of only via Setup > Staff.
+  skype: z.string().optional(),
+  facebook: z.string().optional(),
+  linkedin: z.string().optional(),
+  default_language: z.string().optional(),
+  direction: z.string().optional(),
+  email_signature: z.string().optional(),
+  departments: z.array(z.string()).default([]),
+  admin: z.boolean().default(false),
+  send_welcome_email: z.boolean().default(true),
+  // Feature -> capability -> granted map. Loosely typed (mirrors Setup's
+  // permissions matrix, ~35 features x per-feature capabilities).
+  permissions: z.record(z.string(), z.record(z.string(), z.boolean())).default({}),
 
   // Emergency
   emergencyContact: z.object({
@@ -226,10 +391,14 @@ export default function StaffFormPage() {
   const [managersList, setManagersList] = useState<any[]>([]);
   const [managingCompanies, setManagingCompanies] = useState<ManagingCompany[]>([]);
   const [companiesDialogOpen, setCompaniesDialogOpen] = useState(false);
-  // Read-only CRM (Setup > Staff) fields for the linked person — Admin rights
-  // and Permissions stay editable only from Setup > Staff itself; shown here
-  // purely so this screen displays the same full picture of the person.
-  const [crmInfo, setCrmInfo] = useState<{ admin: boolean; permissions: Record<string, any>; skype: string; facebook: string; linkedin: string } | null>(null);
+  // CRM (Setup > Staff) fields for the linked person — same shared staff
+  // document Setup > Staff edits; fully editable here too (see staffSchema).
+  const [crmInfo, setCrmInfo] = useState<any>(null);
+  const [crmRoles, setCrmRoles] = useState<any[]>([]);
+  const [crmDepartments, setCrmDepartments] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
+  const [clientSearch, setClientSearch] = useState("");
+  const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
 
   const [panFile, setPanFile] = useState<File | null>(null);
   const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
@@ -255,6 +424,16 @@ export default function StaffFormPage() {
       totalExperience: "",
       residentialPhone: "",
       address: { current: "", permanent: "" },
+      skype: "",
+      facebook: "",
+      linkedin: "",
+      default_language: "System Default",
+      direction: "System Default",
+      email_signature: "",
+      departments: [],
+      admin: false,
+      send_welcome_email: true,
+      permissions: {},
       emergencyContact: { name: "", phone: "", relation: "" },
       bankInfo: { accountName: "", accountNumber: "", ifscCode: "", bankName: "", branchCity: "" },
       legalDocuments: { panNumber: "", panUrl: "", aadhaarNumber: "", aadhaarUrl: "", passportPhotoUrl: "" },
@@ -355,13 +534,16 @@ export default function StaffFormPage() {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [branchesData, deptsData, desigsData, shiftsData, spList, companiesData] = await Promise.all([
+        const [branchesData, deptsData, desigsData, shiftsData, spList, companiesData, rolesRes, crmDeptsRes, clientsRes] = await Promise.all([
           hrmsbranchService.getAll(),
           departmentService.getAll(),
           designationService.getAll(),
           shiftService.getAll(),
           salespersonService.getAll().catch(() => []),
-          managingCompanyService.list()
+          managingCompanyService.list(),
+          crmStaffService.getRoles().catch(() => []),
+          supportService.getDepartments().catch(() => []),
+          customerService.getAll().catch(() => []),
         ]);
         setBranches(branchesData.data || []);
         setDepartments(deptsData);
@@ -369,6 +551,10 @@ export default function StaffFormPage() {
         setShifts(shiftsData);
         setManagersList(spList.filter(s => s.isManager));
         setManagingCompanies(companiesData);
+        setCrmRoles(Array.isArray(rolesRes) ? rolesRes : (rolesRes as any)?.data || []);
+        setCrmDepartments(Array.isArray(crmDeptsRes) ? crmDeptsRes : (crmDeptsRes as any)?.data || []);
+        const clientsList = Array.isArray(clientsRes) ? clientsRes : (clientsRes as any)?.data || [];
+        setClients(clientsList);
 
         if (isEdit) {
           // Sanitize ID in case it comes with a colon prefix (e.g. from some legacy links)
@@ -415,6 +601,21 @@ export default function StaffFormPage() {
               isSalespersonManager: !!salespersonProfile?.isManager,
               underManagerId: salespersonProfile?.underManagerId?._id || salespersonProfile?.underManagerId || "",
               salespersonRemarks: salespersonProfile?.otherInfo || "",
+
+              // CRM (Setup > Staff) fields — GET nests skype/facebook/linkedin/
+              // admin/permissions under crmInfo; the others aren't part of that
+              // read-only bundle's shape, so fall back to a flat field in case
+              // the backend already returns them there too.
+              skype: (user as any)?.crmInfo?.skype || (user as any)?.skype || "",
+              facebook: (user as any)?.crmInfo?.facebook || (user as any)?.facebook || "",
+              linkedin: (user as any)?.crmInfo?.linkedin || (user as any)?.linkedin || "",
+              admin: !!((user as any)?.crmInfo?.admin ?? (user as any)?.admin),
+              default_language: (user as any)?.default_language || "System Default",
+              direction: (user as any)?.direction || "System Default",
+              email_signature: (user as any)?.email_signature || "",
+              departments: Array.isArray((user as any)?.departments) ? (user as any).departments : [],
+              send_welcome_email: (user as any)?.send_welcome_email !== false,
+              permissions: (user as any)?.crmInfo?.permissions || {},
 
               // Ensure arrays are always arrays
               weeklyHolidays: Array.isArray(user.weeklyHolidays) ? user.weeklyHolidays : [],
@@ -474,6 +675,73 @@ export default function StaffFormPage() {
     fetchData();
   }, [id, isEdit, form]);
 
+  // Pre-select customers already assigned (as sales person or admin contact)
+  // to this staff member, the same way SetupStaffForm.tsx does — once the
+  // clients list has loaded.
+  useEffect(() => {
+    if (!isEdit || !id || clients.length === 0) return;
+    const cleanId = (id as string).startsWith(":") ? (id as string).substring(1) : id;
+    const assignedIds = clients
+      .filter((c: any) => {
+        const isAdmin = Array.isArray(c.admins) && c.admins.some((a: any) => {
+          const sid = a.staff?._id || a.staff;
+          return sid && sid.toString() === cleanId;
+        });
+        const isSales = (c.sales_person?._id || c.sales_person)?.toString() === cleanId;
+        return isAdmin || isSales;
+      })
+      .map((c: any) => c._id);
+    setSelectedClientIds(assignedIds);
+  }, [id, isEdit, clients]);
+
+  const handleRoleChange = (roleId: string) => {
+    const selectedRole = crmRoles.find((r: any) => r._id === roleId);
+    const normalizedId = roleId === "none" || roleId === "__none__" ? "" : roleId;
+    form.setValue("role", normalizedId, { shouldDirty: true });
+    form.setValue("permissions", (normalizedId ? (selectedRole?.permissions || {}) : {}) as any, { shouldDirty: true });
+    if (normalizedId && (selectedRole?.name?.toLowerCase() === "admin" || selectedRole?.name?.toLowerCase() === "super admin")) {
+      form.setValue("admin", true, { shouldDirty: true });
+    } else if (!normalizedId) {
+      form.setValue("admin", false, { shouldDirty: true });
+    }
+  };
+
+  const handleTogglePermission = (feature: string, capability: string) => {
+    const current = (form.getValues("permissions") || {}) as Record<string, Record<string, boolean>>;
+    const featurePerms = current[feature] || {};
+    form.setValue("permissions", {
+      ...current,
+      [feature]: { ...featurePerms, [capability]: !featurePerms[capability] },
+    } as any, { shouldDirty: true });
+  };
+
+  const toggleClientSelection = (clientId: string) => {
+    setSelectedClientIds((prev) =>
+      prev.includes(clientId) ? prev.filter((cid) => cid !== clientId) : [...prev, clientId]
+    );
+  };
+
+  const toggleSelectAllFilteredClients = () => {
+    const allFilteredIds = filteredClients.map((c: any) => c._id);
+    const allSelected = allFilteredIds.every((cid: string) => selectedClientIds.includes(cid));
+    if (allSelected) {
+      setSelectedClientIds((prev) => prev.filter((cid) => !allFilteredIds.includes(cid)));
+    } else {
+      setSelectedClientIds((prev) => Array.from(new Set([...prev, ...allFilteredIds])));
+    }
+  };
+
+  const filteredClients = clients.filter((c: any) => {
+    const term = clientSearch.toLowerCase().trim();
+    if (!term) return true;
+    return (
+      c.company?.toLowerCase().includes(term) ||
+      c.contact_person?.toLowerCase().includes(term) ||
+      c.email?.toLowerCase().includes(term) ||
+      c.phonenumber?.includes(term)
+    );
+  });
+
   const onFormSubmit = async (values: StaffFormValues) => {
     if (!isEdit && (!values.password || values.password.trim() === "")) {
       form.setError("password", { type: "manual", message: "Password is required for new accounts" });
@@ -482,6 +750,27 @@ export default function StaffFormPage() {
     }
     setIsSubmitting(true);
     try {
+      // Calculate ONLY the overrides (differences) from the selected Role's
+      // permissions — same as SetupStaffForm.tsx's handleSave. Saving the
+      // full merged matrix would freeze the staff member's permissions as a
+      // static copy, so future edits to the Role itself would stop
+      // cascading to them.
+      const selectedRole = crmRoles.find((r: any) => r._id === values.role);
+      const rolePerms = (selectedRole as any)?.permissions || {};
+      const permissionOverrides: Record<string, Record<string, boolean>> = {};
+      Object.keys(values.permissions || {}).forEach((feature) => {
+        const caps = (values.permissions as any)[feature] || {};
+        Object.keys(caps).forEach((cap) => {
+          const staffVal = !!caps[cap];
+          const roleVal = !!rolePerms[feature]?.[cap];
+          if (staffVal !== roleVal) {
+            if (!permissionOverrides[feature]) permissionOverrides[feature] = {};
+            permissionOverrides[feature][cap] = staffVal;
+          }
+        });
+      });
+      const submitValues = { ...values, permissions: permissionOverrides };
+
       const formData = new FormData();
       const appendToFormData = (data: any, rootKey?: string) => {
         Object.keys(data).forEach(key => {
@@ -490,6 +779,15 @@ export default function StaffFormPage() {
           const idFields = ["role", "hrmsBranchId", "department", "designation", "shiftId", "salaryTemplateId", "managingCompanyId"];
           if (idFields.includes(key) && (value === "" || value === "none" || value === "__none__" || value === null || value === undefined)) {
             formData.append(fullKey, "null");
+            return;
+          }
+          if (fullKey === "permissions" && value && typeof value === "object" && Object.keys(value).length === 0) {
+            // Empty overrides (all checkboxes match the role, or no role
+            // selected) flatten to zero keys, so nothing would be sent and
+            // the backend would leave existing permissions untouched. Send
+            // an explicit marker so it can tell "cleared" apart from
+            // "omitted" — matches SetupStaffForm.tsx's buildFormData.
+            formData.append("permissionsCleared", "true");
             return;
           }
           if (value && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date) && !(value instanceof File)) {
@@ -507,7 +805,7 @@ export default function StaffFormPage() {
           }
         });
       };
-      appendToFormData(values);
+      appendToFormData(submitValues);
       if (panFile) formData.append("pan", panFile);
       if (aadhaarFile) formData.append("aadhaar", aadhaarFile);
       if (passportPhotoFile) formData.append("passportPhoto", passportPhotoFile);
@@ -526,6 +824,19 @@ export default function StaffFormPage() {
 
       if (savedUser) {
         const userId = savedUser.id || savedUser._id;
+        // Persist the Assigned Customers selection — same endpoint/call
+        // Setup > Staff uses (customerService.transferOrAssign).
+        try {
+          await customerService.transferOrAssign({
+            toStaffId: userId,
+            clientIds: selectedClientIds,
+            assignAs: "both",
+            sync: true,
+          });
+        } catch (assignError) {
+          console.warn("Customer assignment sync failed", assignError);
+          toast({ title: "Staff Saved", description: "Staff saved, but assigned customers could not be synced.", variant: "default" });
+        }
         if (values.isSalesperson) {
           const salespersonPayload = {
             userId: userId,
@@ -669,6 +980,11 @@ export default function StaffFormPage() {
               {crmInfo && (
                 <TabsTrigger value="crmInfo" className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap">CRM Info</TabsTrigger>
               )}
+              <TabsTrigger value="permissions" className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap">Permissions</TabsTrigger>
+              <TabsTrigger value="assigned-customers" className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap flex items-center gap-1.5">
+                <Users className="h-4 w-4" />
+                Assigned Customers {selectedClientIds.length > 0 && `(${selectedClientIds.length})`}
+              </TabsTrigger>
             </TabsList>
 
             <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden min-h-[600px]">
@@ -1415,44 +1731,261 @@ export default function StaffFormPage() {
                   </TabsContent>
 
                   {crmInfo && (
-                    <TabsContent value="crmInfo" className="m-0 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                      <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-                        Read-only — these fields come from Setup &gt; Staff. Change them there, not here.
+                    <TabsContent value="crmInfo" className="m-0 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+                        <FormField control={form.control} name="skype" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className={cn(labelClass, "flex items-center gap-2")}><MessageSquare className="h-4 w-4 text-slate-400" /> Skype</FormLabel>
+                            <FormControl><Input className={inputClass} {...field} /></FormControl>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="facebook" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className={cn(labelClass, "flex items-center gap-2")}><Facebook className="h-4 w-4 text-slate-400" /> Facebook</FormLabel>
+                            <FormControl><Input className={inputClass} {...field} /></FormControl>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="linkedin" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className={cn(labelClass, "flex items-center gap-2")}><Linkedin className="h-4 w-4 text-slate-400" /> LinkedIn</FormLabel>
+                            <FormControl><Input className={inputClass} {...field} /></FormControl>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="default_language" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className={cn(labelClass, "flex items-center gap-2")}><Globe className="h-4 w-4 text-slate-400" /> Default Language</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl><SelectTrigger className={inputClass}><SelectValue placeholder="System Default" /></SelectTrigger></FormControl>
+                              <SelectContent className="max-h-[300px]">
+                                {LANGUAGES_WITH_SYSTEM_DEFAULT.map((lang) => (
+                                  <SelectItem key={lang.value} value={lang.value}>{lang.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="direction" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className={cn(labelClass, "flex items-center gap-2")}><Type className="h-4 w-4 text-slate-400" /> Direction</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl><SelectTrigger className={inputClass}><SelectValue placeholder="System Default" /></SelectTrigger></FormControl>
+                              <SelectContent>
+                                <SelectItem value="System Default">System Default</SelectItem>
+                                <SelectItem value="LTR">LTR</SelectItem>
+                                <SelectItem value="RTL">RTL</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </FormItem>
+                        )} />
+                        <FormField control={form.control} name="email_signature" render={({ field }) => (
+                          <FormItem className="md:col-span-2">
+                            <FormLabel className={cn(labelClass, "flex items-center gap-2")}><Mail className="h-4 w-4 text-slate-400" /> Email Signature</FormLabel>
+                            <FormControl>
+                              <textarea
+                                className="w-full min-h-[80px] p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                                {...field}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )} />
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div>
-                          <Label className={labelClass}>Admin Rights</Label>
-                          <Input readOnly disabled className={inputClass} value={crmInfo.admin ? "Yes" : "No"} />
-                        </div>
-                        <div>
-                          <Label className={labelClass}>Skype</Label>
-                          <Input readOnly disabled className={inputClass} value={crmInfo.skype || "—"} />
-                        </div>
-                        <div>
-                          <Label className={labelClass}>Facebook</Label>
-                          <Input readOnly disabled className={inputClass} value={crmInfo.facebook || "—"} />
-                        </div>
-                        <div>
-                          <Label className={labelClass}>LinkedIn</Label>
-                          <Input readOnly disabled className={inputClass} value={crmInfo.linkedin || "—"} />
-                        </div>
-                      </div>
-                      <div>
-                        <Label className={labelClass}>Module Permissions</Label>
-                        {Object.keys(crmInfo.permissions || {}).length === 0 ? (
-                          <p className="text-sm text-slate-500">No permissions assigned.</p>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            {Object.keys(crmInfo.permissions).map((mod) => (
-                              <span key={mod} className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">
-                                {mod}
-                              </span>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-8 border-t">
+                        <div className="space-y-4">
+                          <p className="text-sm font-bold text-slate-800">Member departments</p>
+                          <div className="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-200 border-dashed">
+                            {crmDepartments.map((dept: any) => (
+                              <FormField
+                                key={dept._id}
+                                control={form.control}
+                                name="departments"
+                                render={({ field }) => {
+                                  const current: string[] = field.value || [];
+                                  const checked = current.includes(dept._id) || current.includes(dept.name);
+                                  return (
+                                    <FormItem className="flex items-center space-x-3 space-y-0">
+                                      <FormControl>
+                                        <Checkbox
+                                          checked={checked}
+                                          onCheckedChange={(v) => {
+                                            field.onChange(
+                                              v
+                                                ? [...current, dept._id]
+                                                : current.filter((d: string) => d !== dept._id && d !== dept.name)
+                                            );
+                                          }}
+                                          className="border-slate-300"
+                                        />
+                                      </FormControl>
+                                      <FormLabel className="text-sm font-medium text-foreground cursor-pointer !mt-0">{dept.name}</FormLabel>
+                                    </FormItem>
+                                  );
+                                }}
+                              />
                             ))}
+                            {crmDepartments.length === 0 && (
+                              <p className="text-xs text-muted-foreground italic">No departments found. Create them in Setup.</p>
+                            )}
                           </div>
-                        )}
+                        </div>
+
+                        <div className="space-y-4">
+                          <FormField control={form.control} name="admin" render={({ field }) => (
+                            <FormItem className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 hover:border-primary/20 transition-colors space-y-0">
+                              <div className="space-y-1">
+                                <FormLabel className="text-sm font-bold text-slate-800 flex items-center gap-2"><Shield className="h-4 w-4 text-primary" /> Administrator</FormLabel>
+                                <FormDescription className="text-xs text-muted-foreground">Full access to all modules and settings.</FormDescription>
+                              </div>
+                              <FormControl>
+                                <Switch checked={field.value} onCheckedChange={field.onChange} className="data-[state=checked]:bg-primary" />
+                              </FormControl>
+                            </FormItem>
+                          )} />
+                          <FormField control={form.control} name="send_welcome_email" render={({ field }) => (
+                            <FormItem className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 hover:border-primary/20 transition-colors space-y-0">
+                              <div className="space-y-1">
+                                <FormLabel className="text-sm font-bold text-slate-800">Send welcome email</FormLabel>
+                                <FormDescription className="text-xs text-muted-foreground">Send login details via email.</FormDescription>
+                              </div>
+                              <FormControl>
+                                <Checkbox checked={field.value} onCheckedChange={field.onChange} className="border-slate-300" />
+                              </FormControl>
+                            </FormItem>
+                          )} />
+                        </div>
                       </div>
                     </TabsContent>
                   )}
+
+                  {/* Permissions */}
+                  <TabsContent value="permissions" className="m-0 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div className="space-y-2 max-w-md">
+                      <Label className={labelClass}>Role</Label>
+                      <Select value={form.watch("role") || "none"} onValueChange={handleRoleChange}>
+                        <SelectTrigger className={inputClass}><SelectValue placeholder="Nothing selected" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nothing selected</SelectItem>
+                          {crmRoles.map((role: any) => (
+                            <SelectItem key={role._id} value={role._id}>{role.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="border border-slate-200 rounded-lg overflow-hidden mt-8">
+                      <table className="w-full text-sm text-left">
+                        <thead className="bg-slate-50 border-b border-slate-200">
+                          <tr>
+                            <th className="px-6 py-4 font-bold text-foreground w-1/3 border-r border-slate-200">Features</th>
+                            <th className="px-6 py-4 font-bold text-foreground">Capabilities</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {FEATURES_CONFIG.map((feature) => (
+                            <tr key={feature.name} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="px-6 py-4 text-slate-700 font-bold border-r border-slate-200 bg-slate-50/30">{feature.name}</td>
+                              <td className="px-6 py-4">
+                                <div className="grid grid-cols-1 gap-2">
+                                  {feature.caps.map((cap) => (
+                                    <div key={cap} className="flex items-center space-x-3 group">
+                                      <Checkbox
+                                        id={`${feature.name}-${cap}`}
+                                        checked={!!(form.watch("permissions") as any)?.[feature.name]?.[cap]}
+                                        onCheckedChange={() => handleTogglePermission(feature.name, cap)}
+                                        className="border-slate-300 transition-all data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                      />
+                                      <label htmlFor={`${feature.name}-${cap}`} className="text-[13px] text-foreground font-medium cursor-pointer group-hover:text-primary transition-colors">
+                                        {cap}
+                                      </label>
+                                    </div>
+                                  ))}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </TabsContent>
+
+                  {/* Assigned Customers */}
+                  <TabsContent value="assigned-customers" className="m-0 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <div>
+                      <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                        <Users className="h-5 w-5 text-primary" />
+                        Assign Specific Customers to this Staff Member
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Select the customers this staff member is responsible for. If &quot;Customers &gt; View (Own)&quot; is checked on the Permissions tab, this staff member will <strong>only see these selected customers</strong> when they log in.
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="relative flex-1 max-w-md">
+                          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search customers by company or contact name..."
+                            value={clientSearch}
+                            onChange={(e) => setClientSearch(e.target.value)}
+                            className={cn(inputClass, "pl-9")}
+                          />
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-semibold text-slate-600">
+                            Selected: <span className="text-primary font-bold">{selectedClientIds.length}</span> / {clients.length}
+                          </span>
+                          {filteredClients.length > 0 && (
+                            <Button type="button" variant="outline" size="sm" className="text-xs h-9" onClick={toggleSelectAllFilteredClients}>
+                              {filteredClients.every((c: any) => selectedClientIds.includes(c._id)) ? "Deselect All Filtered" : "Select All Filtered"}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="border border-slate-200 rounded-lg overflow-hidden">
+                        <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
+                          {filteredClients.length === 0 ? (
+                            <div className="p-8 text-center text-sm text-muted-foreground">No customers found.</div>
+                          ) : (
+                            filteredClients.map((client: any) => {
+                              const isSelected = selectedClientIds.includes(client._id);
+                              return (
+                                <label
+                                  key={client._id}
+                                  className={cn(
+                                    "flex items-center gap-3 p-3.5 hover:bg-slate-50 cursor-pointer transition-colors",
+                                    isSelected ? "bg-primary/5" : ""
+                                  )}
+                                >
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggleClientSelection(client._id)}
+                                    className="border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                                  />
+                                  <div className="flex-1 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                                    <div>
+                                      <p className="font-semibold text-foreground text-sm">{client.company}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {client.contact_person ? client.contact_person : "No contact person"}
+                                        {client.phonenumber ? ` • ${client.phonenumber}` : ""}
+                                        {client.email ? ` • ${client.email}` : ""}
+                                      </p>
+                                    </div>
+                                    {client.customer_reference && (
+                                      <span className="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono w-fit">
+                                        {client.customer_reference}
+                                      </span>
+                                    )}
+                                  </div>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </TabsContent>
                 </div>
               </ScrollArea>
             </div>

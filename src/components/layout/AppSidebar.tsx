@@ -475,6 +475,12 @@ export function AppSidebar() {
       // "Quotations" used to live here as a flat entry — it now has its own
       // "Quotation Maker" group below, built from dynamic quotation types.
       salesNav: items.filter((i: any) => i.group === "Sales" && i.url !== "/admin/quotations"),
+      // WhatsApp Marketing (and any future marketing items) get their own
+      // group, gated on the "whatsapp" plan module rather than "sales" — a
+      // tenant can have WhatsApp without Sales (or vice versa), and grouping
+      // it under Sales used to hide it whenever a plan had sales:false even
+      // with whatsapp:true.
+      marketingNav: items.filter((i: any) => i.group === "Marketing"),
       managementNav: items.filter((i: any) => i.group === "Management" && (!i.url || !i.url.includes("/hrms"))),
       utilitiesNav: items.filter((i: any) => i.group === "Utilities"),
       reportsNav: items.filter((i: any) => i.group === "Reports"),
@@ -505,6 +511,7 @@ export function AppSidebar() {
     { items: dynamicNav.mainNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
     { items: dynamicNav.customersNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
     { items: dynamicNav.salesNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.marketingNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
     { items: dynamicNav.managementNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
     { items: dynamicNav.utilitiesNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
     { items: dynamicNav.reportsNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
@@ -1115,6 +1122,10 @@ export function AppSidebar() {
                 {!isHrmsOnly ? (
                   <>
                     {renderDraggableSection(dynamicNav.customersNav, mainSidebarDragCtx)}
+                    {/* Direct top-level link, not a collapsible section — its own
+                        module gate ("whatsapp") is applied per-item inside
+                        renderItems via URL_MODULE_MAP, independent of Sales. */}
+                    {renderDraggableSection(dynamicNav.marketingNav, mainSidebarDragCtx)}
                     {renderSectionGroup(salesGroupOrder, "sidebarSalesGroupOrder", setSalesGroupOrder)}
                     {renderDraggableSection(dynamicNav.managementNav, mainSidebarDragCtx)}
                   </>

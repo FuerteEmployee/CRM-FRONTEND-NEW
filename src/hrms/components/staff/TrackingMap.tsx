@@ -189,7 +189,7 @@ export const TrackingMap: React.FC<Props> = ({
     if (!map || !map.isStyleLoaded()) return;
     try {
       ['stamp-labels', 'stamp-dots', 'route-line-stale', 'route-line', 'route-line-border',
-       'geofence-fill', 'geofence-outline'].forEach(id => {
+       'geofence-fill', 'geofence-outline-radius', 'geofence-outline-threshold'].forEach(id => {
         if (map.getLayer(id)) map.removeLayer(id);
       });
       if (map.getSource('route-path')) map.removeSource('route-path');
@@ -210,17 +210,34 @@ export const TrackingMap: React.FC<Props> = ({
         source: 'geofence',
         paint: { 'fill-color': '#10b981', 'fill-opacity': 0.12 },
       });
+      // line-dasharray only accepts a constant (or zoom expression) in
+      // MapLibre — it can't be a per-feature data expression like line-color
+      // can — so the dashed "threshold" ring and the solid "radius" ring have
+      // to be two separate layers, each filtered to its own `kind`, rather
+      // than one layer with a ['case', ...] dasharray.
       map.addLayer({
-        id: 'geofence-outline',
+        id: 'geofence-outline-radius',
+        type: 'line',
+        source: 'geofence',
+        filter: ['!=', ['get', 'kind'], 'threshold'],
+        paint: {
+          'line-color': '#10b981',
+          'line-width': 2,
+          'line-dasharray': [1, 0],
+        },
+      });
+      map.addLayer({
+        id: 'geofence-outline-threshold',
         type: 'line',
         source: 'geofence',
         // Dashed for the exit threshold (radius + buffer) so it reads as
         // "the line you actually have to cross", distinct from the branch
         // radius itself.
+        filter: ['==', ['get', 'kind'], 'threshold'],
         paint: {
-          'line-color': ['case', ['==', ['get', 'kind'], 'threshold'], '#f59e0b', '#10b981'],
+          'line-color': '#f59e0b',
           'line-width': 2,
-          'line-dasharray': ['case', ['==', ['get', 'kind'], 'threshold'], ['literal', [2, 2]], ['literal', [1, 0]]] as any,
+          'line-dasharray': [2, 2],
         },
       });
 

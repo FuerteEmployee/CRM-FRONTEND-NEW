@@ -66,9 +66,13 @@ class ApiClient {
       }
       return result;
     } catch (error) {
-      // Re-throw auth errors so route guards can redirect to login.
       const status = error?.response?.status;
+      // Re-throw auth errors so route guards can redirect to login.
       if (status === 401 || status === 403) throw error;
+      // Re-throw server errors (e.g. the backend's transient 503 "database not
+      // connected yet" during cold start) so React Query sees a real failure and
+      // retries once the DB is up, instead of caching an empty [] forever.
+      if (status >= 500) throw error;
       return [];
     }
   }

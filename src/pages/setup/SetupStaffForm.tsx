@@ -57,6 +57,10 @@ import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { departmentService as hrmsDepartmentService } from "@/hrms/services/departmentService";
 import { designationService as hrmsDesignationService } from "@/hrms/services/designationService";
 import { shiftService as hrmsShiftService } from "@/hrms/services/shiftService";
+import { salespersonService } from "@/hrms/services/salespersonService";
+import { managingCompanyService, type ManagingCompany } from "@/hrms/services/managingCompanyService";
+import { ManageCompaniesDialog } from "@/hrms/components/staff/ManageCompaniesDialog";
+import { ConfirmProvider } from "@/hrms/contexts/ConfirmContext";
 
 interface Role {
   _id: string;
@@ -198,7 +202,7 @@ const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 // Foreign-key selects that must be sent as the literal string "null" (not "" or
 // omitted) so the backend's expandDotNotation casts them to a real null instead
 // of leaving a stale/invalid ObjectId string in place.
-const ID_FIELDS = ["role", "hrmsBranchId", "department", "designation", "shiftId"];
+const ID_FIELDS = ["role", "hrmsBranchId", "department", "designation", "shiftId", "managingCompanyId"];
 
 const emptyHrmsProfile = () => ({
   gender: "",
@@ -229,6 +233,20 @@ const emptyHrmsProfile = () => ({
   },
   legalDocuments: { panNumber: "", aadhaarNumber: "" },
   avatar: "",
+  // Managing company (matches HRMS's StaffFormPage.tsx staffSchema)
+  salaryManagedBy: "screen_time" as "screen_time" | "branch",
+  managingCompanyId: "",
+  // Salesperson Profile (matches HRMS's StaffFormPage.tsx staffSchema)
+  salespersonCode: "",
+  salespersonSince: "",
+  accountGroup: "Sales Ledger",
+  category: "SALES EXECUTIVE",
+  incentiveAccount: "",
+  incentiveSharingPercent: 0,
+  primaryIncentivePercent: 0,
+  isSalespersonManager: false,
+  underManagerId: "",
+  salespersonRemarks: "",
 });
 
 export default function SetupStaffForm() {
@@ -342,6 +360,25 @@ export default function SetupStaffForm() {
     enabled: hrmsEnabled,
   });
 
+  // Direct Reporting Manager options for the Salesperson Profile section —
+  // same source HRMS's StaffFormPage.tsx uses (only real salespersons marked
+  // as managers can be selected as someone's manager).
+  const { data: salespersonManagers = [] } = useQuery({
+    queryKey: ["salesperson-managers-picker"],
+    queryFn: async () => {
+      const list = await salespersonService.getAll();
+      return list.filter((s: any) => s.isManager);
+    },
+    enabled: hrmsEnabled,
+  });
+
+  const [companiesDialogOpen, setCompaniesDialogOpen] = useState(false);
+  const { data: managingCompanies = [], refetch: refetchManagingCompanies } = useQuery<ManagingCompany[]>({
+    queryKey: ["managing-companies-picker"],
+    queryFn: () => managingCompanyService.list(),
+    enabled: hrmsEnabled,
+  });
+
   const { isLoading: isLoadingStaff } = useQuery({
     queryKey: ["staff", id],
     queryFn: async () => {
@@ -389,6 +426,22 @@ export default function SetupStaffForm() {
           employmentType: member.employmentType || defaults.employmentType,
           attendanceRequired: member.attendanceRequired !== false,
           isSalesperson: !!member.isSalesperson,
+          salaryManagedBy: member.salaryManagedBy || defaults.salaryManagedBy,
+          managingCompanyId: (member.managingCompanyId && typeof member.managingCompanyId === "object")
+            ? (member.managingCompanyId._id || member.managingCompanyId.id || "")
+            : (member.managingCompanyId || defaults.managingCompanyId),
+          salespersonCode: member.salespersonCode || defaults.salespersonCode,
+          salespersonSince: member.salespersonSince ? String(member.salespersonSince).substring(0, 10) : defaults.salespersonSince,
+          accountGroup: member.accountGroup || defaults.accountGroup,
+          category: member.category || defaults.category,
+          incentiveAccount: member.incentiveAccount || defaults.incentiveAccount,
+          incentiveSharingPercent: member.incentiveSharingPercent ?? defaults.incentiveSharingPercent,
+          primaryIncentivePercent: member.primaryIncentivePercent ?? defaults.primaryIncentivePercent,
+          isSalespersonManager: !!member.isSalespersonManager,
+          underManagerId: (member.underManagerId && typeof member.underManagerId === "object")
+            ? (member.underManagerId._id || member.underManagerId.id || "")
+            : (member.underManagerId || defaults.underManagerId),
+          salespersonRemarks: member.salespersonRemarks || defaults.salespersonRemarks,
           weeklyHolidays: member.weeklyHolidays || defaults.weeklyHolidays,
           bankInfo: { ...defaults.bankInfo, ...(member.bankInfo || {}) },
           payType: member.payType || defaults.payType,
@@ -521,7 +574,48 @@ export default function SetupStaffForm() {
     },
   });
 
+  // Mirrors HRMS's StaffFormPage.tsx `staffSchema` (zod) required-field rules,
+  // since this file uses plain useState rather than react-hook-form/zod.
+  const validateForm = (): string[] => {
+    const errors: string[] = [];
+    const isCreate = !id || id === "new";
+    const tenDigits = /^\d{10}$/;
+
+    if (!formData.firstname.trim()) errors.push("First name is required");
+    if (!formData.lastname.trim()) errors.push("Last name is required");
+    if (!/^\S+@\S+\.\S+$/.test(formData.email.trim())) errors.push("A valid email address is required");
+    if (!tenDigits.test(formData.phonenumber)) errors.push("Mobile number must be exactly 10 digits");
+
+    if (isCreate && !formData.password.trim()) {
+      errors.push("Password is required for new accounts");
+    } else if (formData.password && formData.password.length < 8) {
+      errors.push("Password must be at least 8 characters");
+    }
+
+    if (formData.residentialPhone && !tenDigits.test(formData.residentialPhone)) {
+      errors.push("Residential phone must be exactly 10 digits");
+    }
+    if (formData.emergencyContact.phone && !tenDigits.test(formData.emergencyContact.phone)) {
+      errors.push("Emergency contact phone must be exactly 10 digits");
+    }
+    if (formData.salaryManagedBy === "branch" && !formData.managingCompanyId) {
+      errors.push("Managing company is required for branch-managed employees");
+    }
+
+    return errors;
+  };
+
   const handleSave = () => {
+    const errors = validateForm();
+    if (errors.length > 0) {
+      toast({
+        title: "Please fix the following before saving",
+        description: errors.join(" • "),
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Normalize 'none' role back to null for the backend to avoid BSON error
     const roleId = formData.role === "none" || formData.role === "" ? null : formData.role;
     const finalData = {
@@ -711,7 +805,7 @@ export default function SetupStaffForm() {
               value="profile"
               className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap"
             >
-              Profile
+              Identity & Personal
             </TabsTrigger>
             {hrmsEnabled && (
               <>
@@ -733,6 +827,14 @@ export default function SetupStaffForm() {
                 >
                   Legal Documents
                 </TabsTrigger>
+                {formData.isSalesperson && (
+                  <TabsTrigger
+                    value="salesperson"
+                    className="h-10 rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary font-semibold text-xs tracking-wider px-1 transition-all whitespace-nowrap"
+                  >
+                    Salesperson Profile
+                  </TabsTrigger>
+                )}
               </>
             )}
             <TabsTrigger
@@ -830,6 +932,22 @@ export default function SetupStaffForm() {
                     onChange={(e) =>
                       setFormData({ ...formData, email: e.target.value })
                     }
+                    className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                    disabled={fieldsDisabled}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">
+                    Mobile Number <span className="text-red-500">*</span>
+                  </label>
+                  <Input
+                    value={formData.phonenumber}
+                    onChange={(e) =>
+                      setFormData({ ...formData, phonenumber: e.target.value.replace(/\D/g, "").slice(0, 10) })
+                    }
+                    placeholder="9876543210"
+                    inputMode="numeric"
+                    maxLength={10}
                     className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                     disabled={fieldsDisabled}
                   />
@@ -1446,6 +1564,61 @@ export default function SetupStaffForm() {
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Salary Managed By</label>
+                      <Select
+                        value={formData.salaryManagedBy}
+                        onValueChange={(v) =>
+                          setFormData({
+                            ...formData,
+                            salaryManagedBy: v,
+                            managingCompanyId: v === "screen_time" ? "" : formData.managingCompanyId,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="screen_time">Screen Time (Internal)</SelectItem>
+                          <SelectItem value="branch">Branch / External Company</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {formData.salaryManagedBy === "branch" && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Managing Company</label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2 text-[11px]"
+                            onClick={() => setCompaniesDialogOpen(true)}
+                            disabled={fieldsDisabled}
+                          >
+                            Manage
+                          </Button>
+                        </div>
+                        <Select
+                          value={formData.managingCompanyId || "none"}
+                          onValueChange={(v) => setFormData({ ...formData, managingCompanyId: v === "none" ? "" : v })}
+                        >
+                          <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
+                            <SelectValue placeholder="Select company" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">*None</SelectItem>
+                            {managingCompanies.map((c) => (
+                              <SelectItem key={c._id || c.id} value={c._id || c.id || ""}>{c.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="p-4 rounded-lg bg-white border border-slate-200 space-y-6">
                     <h4 className="text-xs font-semibold text-slate-700 flex items-center gap-2">
                       <Info className="h-3.5 w-3.5 text-primary" /> Salary Breakdown
@@ -1653,6 +1826,140 @@ export default function SetupStaffForm() {
               </div>
             </div>
           </TabsContent>
+
+          {/* Salesperson Profile — shown only when Is Salesperson is checked, mirrors
+              HRMS's StaffFormPage.tsx "Salesperson Profile" tab field-for-field. */}
+          <TabsContent
+            value="salesperson"
+            className="m-0 space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Salesperson Unique Code</label>
+                <Input
+                  placeholder="e.g. SP-001"
+                  value={formData.salespersonCode}
+                  onChange={(e) => setFormData({ ...formData, salespersonCode: e.target.value })}
+                  className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                  disabled={fieldsDisabled}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Salesperson Since</label>
+                <Input
+                  type="date"
+                  value={formData.salespersonSince}
+                  onChange={(e) => setFormData({ ...formData, salespersonSince: e.target.value })}
+                  className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                  disabled={fieldsDisabled}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Salesperson Category</label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(v) => setFormData({ ...formData, category: v })}
+                >
+                  <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="SALES EXECUTIVE">SALES EXECUTIVE</SelectItem>
+                    <SelectItem value="MANAGER">MANAGER</SelectItem>
+                    <SelectItem value="SENIOR EXECUTIVE">SENIOR EXECUTIVE</SelectItem>
+                    <SelectItem value="AREA MANAGER">AREA MANAGER</SelectItem>
+                    <SelectItem value="DIRECTOR">DIRECTOR</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Account Ledger Group</label>
+                <Input
+                  placeholder="e.g. Sales Ledger"
+                  value={formData.accountGroup}
+                  onChange={(e) => setFormData({ ...formData, accountGroup: e.target.value })}
+                  className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                  disabled={fieldsDisabled}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Incentive Ledger Account</label>
+                <Input
+                  placeholder="e.g. Sales Commission Expense"
+                  value={formData.incentiveAccount}
+                  onChange={(e) => setFormData({ ...formData, incentiveAccount: e.target.value })}
+                  className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                  disabled={fieldsDisabled}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Incentive Sharing %</label>
+                <Input
+                  type="number"
+                  placeholder="Commission splitting share"
+                  value={formData.incentiveSharingPercent}
+                  onChange={(e) => setFormData({ ...formData, incentiveSharingPercent: parseFloat(e.target.value) || 0 })}
+                  className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                  disabled={fieldsDisabled}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Primary Incentive %</label>
+                <Input
+                  type="number"
+                  placeholder="Direct commission earning share"
+                  value={formData.primaryIncentivePercent}
+                  onChange={(e) => setFormData({ ...formData, primaryIncentivePercent: parseFloat(e.target.value) || 0 })}
+                  className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                  disabled={fieldsDisabled}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Direct Reporting Manager</label>
+                <Select
+                  value={formData.underManagerId || "none"}
+                  onValueChange={(v) => setFormData({ ...formData, underManagerId: v === "none" ? "" : v })}
+                >
+                  <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
+                    <SelectValue placeholder="Select Direct Reporting Manager" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Manager (Top Level)</SelectItem>
+                    {salespersonManagers
+                      .filter((m: any) => (m.userId?._id || m.userId?.id || m.userId) !== id)
+                      .map((m: any) => (
+                        <SelectItem key={m._id} value={m._id || ""}>
+                          {m.userId?.name || "Unknown"} ({m.salespersonCode})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-row items-center justify-between p-3 rounded-lg bg-white border border-slate-200 md:col-span-2">
+                <div className="space-y-0.5">
+                  <label className="text-[13px] font-semibold text-[#333333]">Is Manager Staff</label>
+                  <p className="text-[10px] text-slate-500">Allows other sales executives to report under them</p>
+                </div>
+                <Checkbox
+                  checked={formData.isSalespersonManager}
+                  onCheckedChange={(v) => setFormData({ ...formData, isSalespersonManager: !!v })}
+                  className="h-5 w-5 rounded border-slate-300"
+                  disabled={fieldsDisabled}
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Additional Remarks / Other Information</label>
+                <textarea
+                  placeholder="Enter any other operational details, incentive remarks or notes..."
+                  rows={4}
+                  value={formData.salespersonRemarks}
+                  onChange={(e) => setFormData({ ...formData, salespersonRemarks: e.target.value })}
+                  className="w-full rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm p-3 border"
+                  disabled={fieldsDisabled}
+                />
+              </div>
+            </div>
+          </TabsContent>
           </>
           )}
 
@@ -1843,6 +2150,23 @@ export default function SetupStaffForm() {
           </div>
           </div>
         </Tabs>
+
+        {/* ManageCompaniesDialog is an HRMS component and needs HRMS's ConfirmContext,
+            which isn't mounted on the Setup side — provide it locally here. */}
+        <ConfirmProvider>
+          <ManageCompaniesDialog
+            open={companiesDialogOpen}
+            onOpenChange={setCompaniesDialogOpen}
+            companies={managingCompanies}
+            onChanged={() => {
+              refetchManagingCompanies().then(({ data }) => {
+                if (formData.managingCompanyId && data && !data.some((c) => (c._id || c.id) === formData.managingCompanyId)) {
+                  setFormData((prev: any) => ({ ...prev, managingCompanyId: "" }));
+                }
+              });
+            }}
+          />
+        </ConfirmProvider>
       </div>
     </DashboardLayout>
   );
