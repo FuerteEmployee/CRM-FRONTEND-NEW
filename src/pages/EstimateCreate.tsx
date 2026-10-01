@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
 export default function EstimateCreate() {
@@ -96,7 +97,8 @@ export default function EstimateCreate() {
     shipping_state: "",
     shipping_zip: "",
     shipping_country: "",
-    branch: ""
+    branch: "",
+    bank_detail: "",
   });
 
   const [showQtyAs, setShowQtyAs] = useState("qty");
@@ -205,7 +207,8 @@ export default function EstimateCreate() {
         ...estimate,
         date: estimate.date ? new Date(estimate.date).toISOString().split('T')[0] : formData.date,
         expirydate: estimate.expirydate ? new Date(estimate.expirydate).toISOString().split('T')[0] : formData.expirydate,
-        discount_type: estimate.discount_percent > 0 ? "percent" : "no_discount"
+        discount_type: estimate.discount_percent > 0 ? "percent" : "no_discount",
+        bank_detail: (estimate.bank_detail?._id || estimate.bank_detail || "").toString(),
       });
 
       if (estimate.items) {
@@ -225,6 +228,14 @@ export default function EstimateCreate() {
   // Branch is sourced from the HRMS module — only show/fetch it when the
   // tenant's plan actually includes HRMS, even for a pilot-flagged user.
   const canUseBranch = isPilot && isModuleEnabled("hrms");
+  const canUseBankDetails = canAccessBankDetails(user?.email);
+
+  const { data: bankDetailsList = [] } = useQuery<any[]>({
+    queryKey: ["bank-details"],
+    queryFn: () => financeService.getBankDetails().then((res: any) => res.data || res),
+    enabled: canUseBankDetails,
+  });
+  const activeBankDetailsList = bankDetailsList.filter((b: any) => b.active !== false);
 
   const { data: branchesRaw = [] } = useQuery<any[]>({
     queryKey: ["hrms-branches-list"],
@@ -621,6 +632,28 @@ export default function EstimateCreate() {
                   onChange={(e) => setFormData(p => ({ ...p, salesPerson: e.target.value }))}
                 />
               </div>
+
+              {canUseBankDetails && (
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Bank Details</Label>
+                  <Select
+                    value={formData.bank_detail || "none"}
+                    onValueChange={(v) => setFormData(p => ({ ...p, bank_detail: v === "none" ? "" : v }))}
+                  >
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="Select Bank Account" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      <SelectItem value="none">None</SelectItem>
+                      {activeBankDetailsList.map((bd: any) => (
+                        <SelectItem key={bd._id} value={bd._id}>
+                          {bd.bankName} — {bd.accountNumber}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">

@@ -62,6 +62,10 @@ import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
+import { useSettings } from "@/context/SettingsContext";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
+import { isEkagraUser } from "@/lib/ekagraTenant";
+import { EKAGRA_COMPANY_INFO, getPlaceOfSupply, amountToWords, getDefaultTermsText } from "@/lib/ekagraTaxInvoice";
 
 const INVOICE_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Voucher Number", sample: "INV-2201", core: true },
@@ -134,6 +138,11 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = usePermissions();
+  const { getSetting } = useSettings();
+  const companyName = getSetting("companyName", "Fuerte Developers");
+  const compCity = getSetting("compCity", "");
+  const canUseBankDetails = canAccessBankDetails(user?.email);
 
   const updateStatusMutation = useMutation({
     mutationFn: (status: string) => salesService.updateInvoice(d._id || d.id, { status }),
@@ -258,6 +267,287 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
     return placement === "before" ? `${sym}${signed}` : `${signed}${sym}`;
   };
 
+  // Ekagra Engineering's Tax Invoice format — mirrors their existing
+  // Tally-printed invoice layout (GSTIN/PAN header, M/s buyer box, HSN-coded
+  // item table, CGST/SGST split, amount in words).
+  const generateEkagraTaxInvoiceHtml = () => {
+    const client = d.client || {};
+    const items = d.items || [];
+    const subtotal = Number(d.subtotal || 0);
+    const cgst = Number(d.total_cgst || 0);
+    const sgst = Number(d.total_sgst || 0);
+    const igst = Number(d.total_igst || 0);
+    const cgstPct = subtotal > 0 ? (cgst / subtotal) * 100 : 0;
+    const sgstPct = subtotal > 0 ? (sgst / subtotal) * 100 : 0;
+    const igstPct = subtotal > 0 ? (igst / subtotal) * 100 : 0;
+    const money = (n: number) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const na = (v: any) => (v === undefined || v === null || v === "" ? "-" : v);
+    const buyerAddressLine = d.partyAddress || [client.address, client.city].filter(Boolean).join(", ");
+    const buyerLocationLine = [client.state, client.zip].filter(Boolean).join(" ");
+    const bd = d.bank_detail;
+
+    return `
+      <html>
+        <head>
+          <title>Tax Invoice ${invoiceNumber}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { font-family: Arial, Helvetica, sans-serif; color: #111; padding: 24px; font-size: 12px; }
+            .frame { border: 1.5px solid #000; }
+            .row { display: flex; }
+            .cell { border: 1px solid #000; padding: 6px 10px; }
+            .no-border-top { border-top: none; }
+            .center { text-align: center; }
+            .right { text-align: right; }
+            .bold { font-weight: bold; }
+            table { width: 100%; border-collapse: collapse; }
+            table.items th, table.items td { border: 1px solid #000; padding: 5px 8px; font-size: 11.5px; }
+            table.items th { font-weight: bold; }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 1.2cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="frame">
+            <div class="cell center no-border-top" style="border-top: none;">
+              <div class="bold" style="font-size: 20px; letter-spacing: 0.5px;">${EKAGRA_COMPANY_INFO.name}</div>
+              ${EKAGRA_COMPANY_INFO.addressLines.map((l) => `<div style="font-size:11.5px;">${l}</div>`).join("")}
+            </div>
+            <div class="row">
+              <div class="cell" style="flex:1;">GSTIN No. : ${EKAGRA_COMPANY_INFO.gstin}</div>
+              <div class="cell" style="flex:1; border-left:none;">State : ${EKAGRA_COMPANY_INFO.state} &nbsp; State Code : ${EKAGRA_COMPANY_INFO.stateCode}</div>
+              <div class="cell" style="flex:1; border-left:none;">PAN No. : ${EKAGRA_COMPANY_INFO.pan}</div>
+            </div>
+
+            <div class="row">
+              <div class="cell bold" style="flex:1;">${d.voucherType || "Debit Memo"}</div>
+              <div class="cell bold center" style="flex:2; border-left:none; font-size:16px;">Tax Invoice</div>
+              <div class="cell right" style="flex:1; border-left:none;">ORIGINAL</div>
+            </div>
+
+            <div class="row">
+              <div class="cell" style="flex:2;">
+                <div class="bold">M/s.&nbsp;&nbsp;${na(client.company)}</div>
+                <div>${na(buyerAddressLine)}</div>
+                <div>${na(buyerLocationLine)}</div>
+                <div>${na(client.country)}</div>
+                <div style="margin-top:6px;">GSTIN No. : ${na(d.gstin || client.gst_number)}</div>
+                <div>Place of Supply : ${getPlaceOfSupply(client.state)}</div>
+                <div>PAN No. : ${na(client.pan_number)}</div>
+              </div>
+              <div class="cell" style="flex:1; border-left:none;">
+                <div><b>Invoice No.</b> &nbsp;: ${na(d.number)}</div>
+                <div><b>Invoice Date</b> : ${d.date ? formatDate(d.date) : "-"}</div>
+                <div><b>Party Group</b> &nbsp;: ${na(d.partyGroup)}</div>
+                <div><b>Terms of Payment</b> : ${na(d.termsOfPayment)}</div>
+                <div><b>Sales Person</b> : ${na(d.salesPerson)}</div>
+                <div><b>Branch</b> &nbsp;&nbsp;&nbsp;&nbsp;: ${na(typeof d.branch === "object" ? d.branch?.name : d.branch)}</div>
+              </div>
+            </div>
+
+            <table class="items">
+              <thead>
+                <tr>
+                  <th style="width:6%;">Sr.</th>
+                  <th>Particular</th>
+                  <th style="width:12%;">HSN Code</th>
+                  <th style="width:10%;">Quantity</th>
+                  <th style="width:8%;">Unit</th>
+                  <th style="width:12%;" class="right">Rate</th>
+                  <th style="width:14%;" class="right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${items.map((item: any, i: number) => `
+                  <tr>
+                    <td class="center">${i + 1}</td>
+                    <td>${na(item.description || item.name)}</td>
+                    <td class="center">${na(item.itemHSN)}</td>
+                    <td class="right">${Number(item.qty || item.quantity || 0).toLocaleString("en-IN")}</td>
+                    <td class="center">${na(item.unit)}</td>
+                    <td class="right">${money(item.rate || item.price || 0)}</td>
+                    <td class="right">${money(item.amount ?? ((item.qty || 0) * (item.rate || 0)))}</td>
+                  </tr>
+                `).join("")}
+                ${Array.from({ length: Math.max(0, 3 - items.length) }).map(() => `
+                  <tr><td class="center">&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                `).join("")}
+              </tbody>
+            </table>
+
+            <div class="row">
+              <div class="cell" style="flex:2;">&nbsp;</div>
+              <div class="cell" style="flex:1; border-left:none; padding:0;">
+                <div class="row" style="border-bottom:1px solid #000;">
+                  <div class="cell" style="flex:1; border:none;">Sub Total</div>
+                  <div class="cell right" style="flex:1; border:none;">${money(subtotal)}</div>
+                </div>
+                ${igst > 0 ? `
+                  <div class="row" style="border-bottom:1px solid #000;">
+                    <div class="cell" style="flex:1; border:none;">IGST ${igstPct.toFixed(2)} %</div>
+                    <div class="cell right" style="flex:1; border:none;">${money(igst)}</div>
+                  </div>
+                ` : `
+                  <div class="row" style="border-bottom:1px solid #000;">
+                    <div class="cell" style="flex:1; border:none;">CGST ${cgstPct.toFixed(2)} %</div>
+                    <div class="cell right" style="flex:1; border:none;">${money(cgst)}</div>
+                  </div>
+                  <div class="row" style="border-bottom:1px solid #000;">
+                    <div class="cell" style="flex:1; border:none;">SGST ${sgstPct.toFixed(2)} %</div>
+                    <div class="cell right" style="flex:1; border:none;">${money(sgst)}</div>
+                  </div>
+                `}
+                <div class="row">
+                  <div class="cell bold" style="flex:1; border:none;">Grand Total</div>
+                  <div class="cell bold right" style="flex:1; border:none;">${money(d.total)}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="cell" style="border-top:none;">
+              <b>Rs. In Words</b> &nbsp;: ${amountToWords(Number(d.total || 0))}
+            </div>
+
+            <div class="cell" style="border-top:none;">
+              <b>Payment / Bank Details</b>
+              <div>${bd ? `${na(bd.accountHolderName)} — Bank: ${na(bd.bankName)}` : "-"}</div>
+              ${bd ? `<div>A/C No: ${na(bd.accountNumber)} &nbsp; IFSC: ${na(bd.ifscCode)}${bd.branch?.name ? ` · Branch: ${bd.branch.name}` : ""}</div>` : ""}
+            </div>
+
+            <div class="row">
+              <div class="cell" style="flex:1; border-top:none;">
+                <div class="bold">Terms &amp; Conditions</div>
+                <div>${d.notes || d.adminnote || getDefaultTermsText(compCity)}</div>
+              </div>
+              <div class="cell right" style="flex:1; border-top:none; border-left:none;">
+                <div class="bold">For, ${EKAGRA_COMPANY_INFO.name}</div>
+                <div style="margin-top:36px;">Authorised Signatory</div>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
+  const generatePdfHtml = () => {
+    if (isEkagraUser(user?.email)) return generateEkagraTaxInvoiceHtml();
+    const bd = d.bank_detail;
+    const bankDetailsHtml = (canUseBankDetails && bd)
+      ? `
+          <div class="bank-details">
+            <div class="bank-details-title">Payment / Bank Details</div>
+            <div class="bank-details-row">
+              <b>${bd.accountHolderName || "—"}</b><br/>
+              Bank: ${bd.bankName || "—"}<br/>
+              A/C No: ${bd.accountNumber || "—"} &nbsp; IFSC: ${bd.ifscCode || "—"}
+              ${bd.branch?.name ? `<br/>Branch: ${bd.branch.name}` : ""}
+            </div>
+          </div>
+        `
+      : '';
+
+    return `
+      <html>
+        <head>
+          <title>Invoice ${invoiceNumber}</title>
+          <style>
+            body { font-family: system-ui, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: 0 auto; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+            .title { font-size: 32px; font-weight: 800; color: #2563eb; margin-bottom: 10px; }
+            .company { font-weight: bold; font-size: 18px; color: #0f172a; }
+            .meta { font-size: 14px; color: #475569; line-height: 1.6; }
+            table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+            th { background: #dbeafe; color: #2563eb; padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+            td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+            .totals { margin-top: 30px; width: 50%; float: right; }
+            .totals-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+            .totals-row.grand { font-weight: 800; font-size: 18px; color: #0f172a; border-bottom: none; }
+            .bank-details { clear: both; margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 13px; }
+            .bank-details-title { font-weight: bold; color: #2563eb; margin-bottom: 8px; text-transform: uppercase; font-size: 12px; letter-spacing: 0.05em; }
+            .bank-details-row { color: #334155; line-height: 1.6; margin-bottom: 8px; }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 2cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="title">${invoiceNumber}</div>
+              <div class="company">${companyName}</div>
+            </div>
+            <div style="text-align: right">
+              <div style="margin-bottom: 15px;">
+                <div style="font-size: 12px; color: #64748b; font-weight: bold; margin-bottom: 5px;">BILL TO</div>
+                <div class="company" style="color: #2563eb;">${d.client?.company || 'Customer'}</div>
+              </div>
+              <div class="meta">
+                <b>Invoice Date:</b> ${d.date ? formatDate(d.date) : '-'}<br/>
+                <b>Status:</b> ${status.label}
+              </div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Rate</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(d.items || []).map((item: any) => `
+                <tr>
+                  <td><b>${item.description || item.name || "—"}</b></td>
+                  <td>${item.qty || item.quantity || 1}</td>
+                  <td>${formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
+                  <td>${formatRowAmount(d, Number((item.qty || item.quantity || 1) * (item.rate || item.price || 0)))}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            ${d.subtotal !== undefined ? `
+              <div class="totals-row">
+                <span>Subtotal</span>
+                <span>${formatRowAmount(d, Number(d.subtotal))}</span>
+              </div>
+            ` : ''}
+            <div class="totals-row grand">
+              <span>Total</span>
+              <span>${formatRowAmount(d, Number(d.total || 0))}</span>
+            </div>
+          </div>
+
+          ${bankDetailsHtml}
+        </body>
+      </html>
+    `;
+  };
+
+  const handlePdfAction = (action: 'view' | 'new_tab' | 'download' | 'print') => {
+    const html = generatePdfHtml();
+    const blob = new Blob([action === 'print' ? html.replace('<body>', '<body onload="window.print()">') : html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+
+    if (action === 'download') {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Invoice_${invoiceNumber}.html`;
+      a.click();
+      toast({ title: "Download Started", description: "Your document is downloading." });
+    } else {
+      window.open(url, action === 'view' ? 'PDF_Viewer' : '_blank', action === 'view' ? 'width=800,height=900' : '');
+    }
+  };
+
   return (
     <>
       <input
@@ -358,10 +648,10 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>View PDF</DropdownMenuItem>
-                <DropdownMenuItem>View PDF in New Tab</DropdownMenuItem>
-                <DropdownMenuItem>Download</DropdownMenuItem>
-                <DropdownMenuItem>Print</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('view')}>View PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('new_tab')}>View PDF in New Tab</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('download')}>Download</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('print')}>Print</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -776,6 +1066,7 @@ const Invoices = () => {
   // Branch is sourced from the HRMS module — only show/fetch it when the
   // tenant's plan actually includes HRMS, even for a pilot-flagged user.
   const canUseBranch = isPilot && isModuleEnabled("hrms");
+  const canUseBankDetails = canAccessBankDetails(user?.email);
 
   const { data: branchesRaw = [] } = useQuery({
     queryKey: ["hrms-branches-list"],
@@ -817,7 +1108,8 @@ const Invoices = () => {
     "Quantity", "Rate", "Unit",
     "Amount", "Freight", "Total",
     ...(canUseBranch ? ["Branch"] : []),
-  ], [isPilot, canUseBranch]);
+    ...(canUseBankDetails ? ["Bank Details"] : []),
+  ], [isPilot, canUseBranch, canUseBankDetails]);
 
   const exportColumns = useMemo(() => [
     { header: "Voucher Number", key: "voucherNumber" },
@@ -841,7 +1133,8 @@ const Invoices = () => {
     { header: "Freight", key: "freight", type: "number" as const },
     { header: "Total", key: "total", type: "number" as const },
     ...(canUseBranch ? [{ header: "Branch", key: "branch" }] : []),
-  ], [isPilot, canUseBranch]);
+    ...(canUseBankDetails ? [{ header: "Bank Details", key: "bankDetails" }] : []),
+  ], [isPilot, canUseBranch, canUseBankDetails]);
 
   const TABLE_COLUMN_COUNT = 1 + tableHeaders.length + 1;
 
@@ -1063,6 +1356,7 @@ const Invoices = () => {
       total: inv.total || 0,
       // branch — resolved from branchId if populated as object, else use stored name string
       branch: inv.branch?.name || inv.branch || "",
+      bankDetails: inv.bank_detail ? `${inv.bank_detail.bankName || ""} — ${inv.bank_detail.accountNumber || ""}` : "",
       // Extra fields (ignored by ExportButton since it only reads the
       // configured `columns` keys) used to render the on-screen table:
       invoice: inv,
@@ -1340,6 +1634,7 @@ const Invoices = () => {
                       <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.freight || 0)}</td>
                       <td className="px-6 py-4 font-black text-primary whitespace-nowrap">{formatRowAmount(inv, row.total || 0)}</td>
                       {canUseBranch && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.branch || "-"}</td>}
+                      {canUseBankDetails && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.bankDetails || "-"}</td>}
                       <td className="px-6 py-4">
                         <TableActions
                           onView={() => setPreviewInvoice(inv)}

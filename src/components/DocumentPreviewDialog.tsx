@@ -1,13 +1,16 @@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Download, Send, Printer } from "lucide-react";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatDate } from "@/lib/dateFormat";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/CurrencyContext";
 import { salesService } from "@/api/services/sales.service";
 import { isRudraverseTenant } from "@/lib/rudraverseTenant";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
+import { isEkagraUser } from "@/lib/ekagraTenant";
+import { EKAGRA_COMPANY_INFO, getPlaceOfSupply, amountToWords, getDefaultTermsText } from "@/lib/ekagraTaxInvoice";
 import { usePermissions } from "@/hooks/usePermissions";
 import { settingsService } from "@/api/services/settings.service";
 
@@ -50,6 +53,9 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
   const isEstimate = type === "estimate";
   const isInvoice = type === "invoice";
   const isRudraverse = isRudraverseTenant(user?.email);
+  const canUseBankDetails = canAccessBankDetails(user?.email);
+  const bankDetail = canUseBankDetails ? data.bank_detail : null;
+  const showEkagraTaxInvoice = isInvoice && isEkagraUser(user?.email);
 
   const payments = paymentsData || [];
   const totalPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
@@ -207,6 +213,10 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                 overflow: "hidden",
               }}
             >
+              {showEkagraTaxInvoice ? (
+                <EkagraTaxInvoiceLayout data={data} num={num} date={date} bankDetail={bankDetail} compCity={compCity} />
+              ) : (
+              <>
               {/* ── Invoice Header ── */}
               <div style={{ background: "linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%)", padding: "28px 32px 20px", color: "#fff" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -413,6 +423,21 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                 </div>
               )}
 
+              {/* ── Bank Details ── */}
+              {bankDetail && (
+                <div style={{ padding: "0 32px 20px" }}>
+                  <div style={{ fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.8px", color: "#64748b", marginBottom: "6px" }}>
+                    Payment / Bank Details
+                  </div>
+                  <div style={{ background: "#f8fafc", borderRadius: "6px", border: "1px solid #e2e8f0", padding: "12px 16px", fontSize: "11px", color: "#334155", lineHeight: 1.6 }}>
+                    <div style={{ fontWeight: 700, color: "#1e293b" }}>{bankDetail.accountHolderName || "—"}</div>
+                    <div>Bank: {bankDetail.bankName || "—"}</div>
+                    <div>A/C No: {bankDetail.accountNumber || "—"} &nbsp; IFSC: {bankDetail.ifscCode || "—"}</div>
+                    {bankDetail.branch?.name && <div>Branch: {bankDetail.branch.name}</div>}
+                  </div>
+                </div>
+              )}
+
               {/* ── Footer ── */}
               <div style={{ background: "#f1f5f9", borderTop: "1px solid #e2e8f0", padding: "12px 32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ fontSize: "10px", color: "#64748b" }}>
@@ -422,6 +447,8 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                   {num} — {date}
                 </div>
               </div>
+              </>
+              )}
             </div>
           </div>
         )}
@@ -457,5 +484,158 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Ekagra Engineering's Tax Invoice layout — mirrors their existing
+// Tally-printed invoice format exactly (GSTIN/PAN header, M/s buyer box,
+// HSN-coded item table, CGST/SGST or IGST split, amount in words).
+// Shared visual spec with Invoices.tsx's generateEkagraTaxInvoiceHtml
+// (used for the Print/Download actions) so both views stay in sync.
+function EkagraTaxInvoiceLayout({ data, num, date, bankDetail, compCity }: { data: any; num: string; date: string; bankDetail?: any; compCity?: string }) {
+  const client = data.client || {};
+  const items = data.items || [];
+  const subtotal = Number(data.subtotal || 0);
+  const cgst = Number(data.total_cgst || 0);
+  const sgst = Number(data.total_sgst || 0);
+  const igst = Number(data.total_igst || 0);
+  const cgstPct = subtotal > 0 ? (cgst / subtotal) * 100 : 0;
+  const sgstPct = subtotal > 0 ? (sgst / subtotal) * 100 : 0;
+  const igstPct = subtotal > 0 ? (igst / subtotal) * 100 : 0;
+  const money = (n: number) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const na = (v: any) => (v === undefined || v === null || v === "" ? "-" : v);
+  const buyerAddressLine = data.partyAddress || [client.address, client.city].filter(Boolean).join(", ");
+  const buyerLocationLine = [client.state, client.zip].filter(Boolean).join(" ");
+
+  const cell: CSSProperties = { border: "1px solid #000", padding: "6px 10px" };
+  const row: CSSProperties = { display: "flex" };
+
+  return (
+    <div style={{ border: "1.5px solid #000", fontFamily: "Arial, Helvetica, sans-serif", fontSize: "12px", color: "#111" }}>
+      <div style={{ ...cell, textAlign: "center", borderTop: "none" }}>
+        <div style={{ fontWeight: "bold", fontSize: "20px", letterSpacing: "0.5px" }}>{EKAGRA_COMPANY_INFO.name}</div>
+        {EKAGRA_COMPANY_INFO.addressLines.map((l) => (
+          <div key={l} style={{ fontSize: "11.5px" }}>{l}</div>
+        ))}
+      </div>
+      <div style={row}>
+        <div style={{ ...cell, flex: 1 }}>GSTIN No. : {EKAGRA_COMPANY_INFO.gstin}</div>
+        <div style={{ ...cell, flex: 1, borderLeft: "none" }}>State : {EKAGRA_COMPANY_INFO.state} &nbsp; State Code : {EKAGRA_COMPANY_INFO.stateCode}</div>
+        <div style={{ ...cell, flex: 1, borderLeft: "none" }}>PAN No. : {EKAGRA_COMPANY_INFO.pan}</div>
+      </div>
+
+      <div style={row}>
+        <div style={{ ...cell, flex: 1, fontWeight: "bold" }}>{data.voucherType || "Debit Memo"}</div>
+        <div style={{ ...cell, flex: 2, borderLeft: "none", fontWeight: "bold", textAlign: "center", fontSize: "16px" }}>Tax Invoice</div>
+        <div style={{ ...cell, flex: 1, borderLeft: "none", textAlign: "right" }}>ORIGINAL</div>
+      </div>
+
+      <div style={row}>
+        <div style={{ ...cell, flex: 2 }}>
+          <div style={{ fontWeight: "bold" }}>M/s.&nbsp;&nbsp;{na(client.company)}</div>
+          <div>{na(buyerAddressLine)}</div>
+          <div>{na(buyerLocationLine)}</div>
+          <div>{na(client.country)}</div>
+          <div style={{ marginTop: "6px" }}>GSTIN No. : {na(data.gstin || client.gst_number)}</div>
+          <div>Place of Supply : {getPlaceOfSupply(client.state)}</div>
+          <div>PAN No. : {na(client.pan_number)}</div>
+        </div>
+        <div style={{ ...cell, flex: 1, borderLeft: "none" }}>
+          <div><b>Invoice No.</b> &nbsp;: {na(data.number)}</div>
+          <div><b>Invoice Date</b> : {na(date)}</div>
+          <div><b>Party Group</b> &nbsp;: {na(data.partyGroup)}</div>
+          <div><b>Terms of Payment</b> : {na(data.termsOfPayment)}</div>
+          <div><b>Sales Person</b> : {na(data.salesPerson)}</div>
+          <div><b>Branch</b> &nbsp;&nbsp;&nbsp;&nbsp;: {na(typeof data.branch === "object" ? data.branch?.name : data.branch)}</div>
+        </div>
+      </div>
+
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={{ ...cell, width: "6%" }}>Sr.</th>
+            <th style={cell}>Particular</th>
+            <th style={{ ...cell, width: "12%" }}>HSN Code</th>
+            <th style={{ ...cell, width: "10%" }}>Quantity</th>
+            <th style={{ ...cell, width: "8%" }}>Unit</th>
+            <th style={{ ...cell, width: "12%", textAlign: "right" }}>Rate</th>
+            <th style={{ ...cell, width: "14%", textAlign: "right" }}>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item: any, i: number) => (
+            <tr key={i}>
+              <td style={{ ...cell, textAlign: "center" }}>{i + 1}</td>
+              <td style={cell}>{na(item.description || item.name)}</td>
+              <td style={{ ...cell, textAlign: "center" }}>{na(item.itemHSN)}</td>
+              <td style={{ ...cell, textAlign: "right" }}>{Number(item.qty || item.quantity || 0).toLocaleString("en-IN")}</td>
+              <td style={{ ...cell, textAlign: "center" }}>{na(item.unit)}</td>
+              <td style={{ ...cell, textAlign: "right" }}>{money(item.rate || item.price || 0)}</td>
+              <td style={{ ...cell, textAlign: "right" }}>{money(item.amount ?? ((item.qty || 0) * (item.rate || 0)))}</td>
+            </tr>
+          ))}
+          {Array.from({ length: Math.max(0, 3 - items.length) }).map((_, i) => (
+            <tr key={`blank-${i}`}>
+              <td style={{ ...cell, textAlign: "center" }}>&nbsp;</td>
+              <td style={cell}></td><td style={cell}></td><td style={cell}></td><td style={cell}></td><td style={cell}></td><td style={cell}></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div style={row}>
+        <div style={{ ...cell, flex: 2, borderTop: "none" }}>&nbsp;</div>
+        <div style={{ ...cell, flex: 1, borderTop: "none", borderLeft: "none", padding: 0 }}>
+          <div style={{ ...row, borderBottom: "1px solid #000" }}>
+            <div style={{ flex: 1, padding: "6px 10px" }}>Sub Total</div>
+            <div style={{ flex: 1, padding: "6px 10px", textAlign: "right" }}>{money(subtotal)}</div>
+          </div>
+          {igst > 0 ? (
+            <div style={{ ...row, borderBottom: "1px solid #000" }}>
+              <div style={{ flex: 1, padding: "6px 10px" }}>IGST {igstPct.toFixed(2)} %</div>
+              <div style={{ flex: 1, padding: "6px 10px", textAlign: "right" }}>{money(igst)}</div>
+            </div>
+          ) : (
+            <>
+              <div style={{ ...row, borderBottom: "1px solid #000" }}>
+                <div style={{ flex: 1, padding: "6px 10px" }}>CGST {cgstPct.toFixed(2)} %</div>
+                <div style={{ flex: 1, padding: "6px 10px", textAlign: "right" }}>{money(cgst)}</div>
+              </div>
+              <div style={{ ...row, borderBottom: "1px solid #000" }}>
+                <div style={{ flex: 1, padding: "6px 10px" }}>SGST {sgstPct.toFixed(2)} %</div>
+                <div style={{ flex: 1, padding: "6px 10px", textAlign: "right" }}>{money(sgst)}</div>
+              </div>
+            </>
+          )}
+          <div style={{ ...row, fontWeight: "bold" }}>
+            <div style={{ flex: 1, padding: "6px 10px" }}>Grand Total</div>
+            <div style={{ flex: 1, padding: "6px 10px", textAlign: "right" }}>{money(data.total)}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ ...cell, borderTop: "none" }}>
+        <b>Rs. In Words</b> &nbsp;: {amountToWords(Number(data.total || 0))}
+      </div>
+
+      <div style={{ ...cell, borderTop: "none" }}>
+        <b>Payment / Bank Details</b>
+        <div>{bankDetail ? `${na(bankDetail.accountHolderName)} — Bank: ${na(bankDetail.bankName)}` : "-"}</div>
+        {bankDetail && (
+          <div>A/C No: {na(bankDetail.accountNumber)} &nbsp; IFSC: {na(bankDetail.ifscCode)}{bankDetail.branch?.name ? ` · Branch: ${bankDetail.branch.name}` : ""}</div>
+        )}
+      </div>
+
+      <div style={row}>
+        <div style={{ ...cell, flex: 1, borderTop: "none" }}>
+          <div style={{ fontWeight: "bold" }}>Terms &amp; Conditions</div>
+          <div>{data.notes || data.adminnote || getDefaultTermsText(compCity)}</div>
+        </div>
+        <div style={{ ...cell, flex: 1, borderTop: "none", borderLeft: "none", textAlign: "right" }}>
+          <div style={{ fontWeight: "bold" }}>For, {EKAGRA_COMPANY_INFO.name}</div>
+          <div style={{ marginTop: "36px" }}>Authorised Signatory</div>
+        </div>
+      </div>
+    </div>
   );
 }

@@ -66,7 +66,7 @@ import {
 } from "@/components/ui/collapsible";
 import React, { useState, useEffect } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -332,7 +332,7 @@ export function AppSidebar() {
   // The Setup button is ONLY visible when the user has Settings > View permission (or is admin).
   // HRMS-only self-service staff (added via HRMS Staff Directory) never get Setup access,
   // regardless of any permission they might otherwise carry.
-  const isPilot = isTrinetraPilotUser(user?.email);
+  const isPilot = canAccessBankDetails(user?.email);
   const hasSetupAccess = !isHrmsOnly && (isAdmin || canView("Settings"));
 
   const getDaysRemaining = () => {

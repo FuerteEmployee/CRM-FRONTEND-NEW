@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePermissions } from "@/hooks/usePermissions";
-import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 
 interface BankDetail {
   _id: string;
@@ -58,7 +58,7 @@ export default function SetupBankDetails() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can, user } = usePermissions();
-  const isPilot = isTrinetraPilotUser(user?.email);
+  const isPilot = canAccessBankDetails(user?.email);
 
   if (!isPilot) {
     return (
@@ -152,15 +152,14 @@ export default function SetupBankDetails() {
   };
 
   const handleSave = () => {
-    if (!formData.bankName || !formData.accountHolderName || !formData.accountNumber || !formData.ifscCode || !formData.branch) {
-      toast({ title: "Error", description: "All fields are required including Branch", variant: "destructive" });
-      return;
-    }
+    // branch is an ObjectId ref on the backend — sending "" instead of omitting
+    // it would fail Mongoose's cast, even though the field itself isn't required.
+    const payload = { ...formData, branch: formData.branch || undefined };
 
     if (currentBankDetail) {
-      updateMutation.mutate({ id: currentBankDetail._id, data: formData });
+      updateMutation.mutate({ id: currentBankDetail._id, data: payload });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(payload);
     }
   };
 
@@ -228,7 +227,7 @@ export default function SetupBankDetails() {
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">* Bank Name</Label>
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">Bank Name</Label>
               <Input
                 placeholder="e.g. HDFC Bank"
                 value={formData.bankName}
@@ -238,7 +237,7 @@ export default function SetupBankDetails() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">* Account Holder Name</Label>
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">Account Holder Name</Label>
               <Input
                 placeholder="e.g. Acme Corporation Pvt Ltd"
                 value={formData.accountHolderName}
@@ -248,7 +247,7 @@ export default function SetupBankDetails() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">* Account Number</Label>
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">Account Number</Label>
               <Input
                 placeholder="e.g. 50200012345678"
                 value={formData.accountNumber}
@@ -258,7 +257,7 @@ export default function SetupBankDetails() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">* IFSC Code</Label>
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">IFSC Code</Label>
               <Input
                 placeholder="e.g. HDFC0001234"
                 value={formData.ifscCode}
@@ -268,7 +267,7 @@ export default function SetupBankDetails() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">* Branch</Label>
+              <Label className="text-xs font-bold uppercase tracking-wider text-slate-600">Branch</Label>
               <Select
                 value={formData.branch}
                 onValueChange={(value) => setFormData({ ...formData, branch: value })}

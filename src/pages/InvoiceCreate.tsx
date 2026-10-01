@@ -28,6 +28,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
+import { isEkagraUser } from "@/lib/ekagraTenant";
+import { EKAGRA_COMPANY_INFO } from "@/lib/ekagraTaxInvoice";
 import { 
   ChevronLeft, 
   HelpCircle, 
@@ -96,6 +99,7 @@ export default function InvoiceCreate() {
     gstin: "",
     salesPerson: "",
     branch: "",
+    bank_detail: "",
   });
 
   const [status, setStatus] = useState("unpaid");
@@ -144,6 +148,19 @@ export default function InvoiceCreate() {
 
   const { user, isModuleEnabled } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
+  const canUseBankDetails = canAccessBankDetails(user?.email);
+  // The intra/inter-state (CGST+SGST vs IGST) check compares the buyer's state
+  // to the SELLING company's own state — Gujarat for the original pilot
+  // tenant, Bihar for Ekagra. Hardcoding one state for everyone silently
+  // mis-classified every Ekagra invoice.
+  const homeStateName = isEkagraUser(user?.email) ? EKAGRA_COMPANY_INFO.state.toLowerCase() : "gujarat";
+
+  const { data: bankDetailsList = [] } = useQuery<any[]>({
+    queryKey: ["bank-details"],
+    queryFn: () => financeService.getBankDetails().then((res: any) => res.data || res),
+    enabled: canUseBankDetails,
+  });
+  const activeBankDetailsList = bankDetailsList.filter((b: any) => b.active !== false);
   // Branch is sourced from the HRMS module — only show/fetch it when the
   // tenant's plan actually includes HRMS, even for a pilot-flagged user.
   const canUseBranch = isPilot && isModuleEnabled("hrms");
@@ -268,6 +285,7 @@ export default function InvoiceCreate() {
         gstin: invoice.gstin || "",
         salesPerson: invoice.salesPerson || "",
         branch: typeof invoice.branch === "object" ? (invoice.branch?.name || "") : (invoice.branch || ""),
+        bank_detail: (invoice.bank_detail?._id || invoice.bank_detail || "").toString(),
       });
 
       if (invoice.status) {
@@ -477,6 +495,7 @@ export default function InvoiceCreate() {
       gstin: formData.gstin,
       salesPerson: formData.salesPerson || "",
       branch: formData.branch || "",
+      bank_detail: formData.bank_detail || undefined,
       items: items.map(item => ({
         description: item.description,
         long_description: item.long_description,
@@ -821,6 +840,29 @@ export default function InvoiceCreate() {
                           <SelectItem key={s._id || s.id} value={name}>{name}</SelectItem>
                         );
                       })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Bank Details */}
+              {canUseBankDetails && (
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Bank Details</Label>
+                  <Select
+                    value={formData.bank_detail || "none"}
+                    onValueChange={(v) => setFormData(p => ({ ...p, bank_detail: v === "none" ? "" : v }))}
+                  >
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="Select Bank Account" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      <SelectItem value="none">None</SelectItem>
+                      {activeBankDetailsList.map((bd: any) => (
+                        <SelectItem key={bd._id} value={bd._id}>
+                          {bd.bankName} — {bd.accountNumber}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1276,7 +1318,7 @@ export default function InvoiceCreate() {
                   </div>
                 ) : (
                   (() => {
-                    const isIntra = !customer.state || customer.state.toLowerCase().includes("gujarat");
+                    const isIntra = !customer.state || customer.state.toLowerCase().includes(homeStateName);
                     return isIntra ? (
                       <>
                         <div className="flex justify-between items-center py-1">

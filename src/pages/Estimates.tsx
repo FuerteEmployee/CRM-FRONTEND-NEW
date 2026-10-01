@@ -28,6 +28,8 @@ import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
 import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
+import { useSettings } from "@/context/SettingsContext";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 
 const ESTIMATE_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Company Name", sample: "Acme Traders", required: true, core: true },
@@ -74,6 +76,10 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { formatAmount, symbol } = useCurrency();
+  const { user } = usePermissions();
+  const { getSetting } = useSettings();
+  const companyName = getSetting("companyName", "Fuerte Developers");
+  const canUseBankDetails = canAccessBankDetails(user?.email);
 
   const { data: currencies = [] } = useQuery({
     queryKey: ["currencies"],
@@ -180,6 +186,121 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
     convertMutation.mutate(id);
   };
 
+  const generatePdfHtml = () => {
+    const bd = d.bank_detail;
+    const bankDetailsHtml = (canUseBankDetails && bd)
+      ? `
+          <div class="bank-details">
+            <div class="bank-details-title">Payment / Bank Details</div>
+            <div class="bank-details-row">
+              <b>${bd.accountHolderName || "—"}</b><br/>
+              Bank: ${bd.bankName || "—"}<br/>
+              A/C No: ${bd.accountNumber || "—"} &nbsp; IFSC: ${bd.ifscCode || "—"}
+              ${bd.branch?.name ? `<br/>Branch: ${bd.branch.name}` : ""}
+            </div>
+          </div>
+        `
+      : '';
+
+    return `
+      <html>
+        <head>
+          <title>Estimate ${estimateNumber}</title>
+          <style>
+            body { font-family: system-ui, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: 0 auto; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+            .title { font-size: 32px; font-weight: 800; color: #2563eb; margin-bottom: 10px; }
+            .company { font-weight: bold; font-size: 18px; color: #0f172a; }
+            .meta { font-size: 14px; color: #475569; line-height: 1.6; }
+            table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+            th { background: #dbeafe; color: #2563eb; padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+            td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+            .totals { margin-top: 30px; width: 50%; float: right; }
+            .totals-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+            .totals-row.grand { font-weight: 800; font-size: 18px; color: #0f172a; border-bottom: none; }
+            .bank-details { clear: both; margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 13px; }
+            .bank-details-title { font-weight: bold; color: #2563eb; margin-bottom: 8px; text-transform: uppercase; font-size: 12px; letter-spacing: 0.05em; }
+            .bank-details-row { color: #334155; line-height: 1.6; margin-bottom: 8px; }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 2cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="title">${estimateNumber}</div>
+              <div class="company">${companyName}</div>
+            </div>
+            <div style="text-align: right">
+              <div style="margin-bottom: 15px;">
+                <div style="font-size: 12px; color: #64748b; font-weight: bold; margin-bottom: 5px;">BILL TO</div>
+                <div class="company" style="color: #2563eb;">${d.contact_name || d.client_id?.company || d.rel_id || 'Customer'}</div>
+              </div>
+              <div class="meta">
+                <b>Estimate Date:</b> ${d.date ? formatDate(d.date) : '-'}<br/>
+                <b>Status:</b> ${status.label}
+              </div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Rate</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(d.items || []).map((item: any) => `
+                <tr>
+                  <td><b>${item.description || item.name || "—"}</b></td>
+                  <td>${item.qty || item.quantity || 1}</td>
+                  <td>${formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
+                  <td>${formatRowAmount(d, Number((item.qty || item.quantity || 1) * (item.rate || item.price || 0)))}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            ${d.subtotal !== undefined ? `
+              <div class="totals-row">
+                <span>Subtotal</span>
+                <span>${formatRowAmount(d, Number(d.subtotal))}</span>
+              </div>
+            ` : ''}
+            <div class="totals-row grand">
+              <span>Total</span>
+              <span>${formatRowAmount(d, Number(d.total || 0))}</span>
+            </div>
+          </div>
+
+          ${bankDetailsHtml}
+        </body>
+      </html>
+    `;
+  };
+
+  const handlePdfAction = (action: 'view' | 'new_tab' | 'download' | 'print') => {
+    const html = generatePdfHtml();
+    const blob = new Blob([action === 'print' ? html.replace('<body>', '<body onload="window.print()">') : html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+
+    if (action === 'download') {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Estimate_${estimateNumber}.html`;
+      a.click();
+      toast({ title: "Download Started", description: "Your document is downloading." });
+    } else {
+      window.open(url, action === 'view' ? 'PDF_Viewer' : '_blank', action === 'view' ? 'width=800,height=900' : '');
+    }
+  };
+
   return (
     <>
       <input
@@ -265,10 +386,10 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>View PDF</DropdownMenuItem>
-                <DropdownMenuItem>View PDF in New Tab</DropdownMenuItem>
-                <DropdownMenuItem>Download</DropdownMenuItem>
-                <DropdownMenuItem>Print</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('view')}>View PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('new_tab')}>View PDF in New Tab</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('download')}>Download</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('print')}>Print</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -563,6 +684,7 @@ const Estimates = () => {
   // Branch is sourced from the HRMS module — only show it when the
   // tenant's plan actually includes HRMS, even for a pilot-flagged user.
   const canUseBranch = isPilot && isModuleEnabled("hrms");
+  const canUseBankDetails = canAccessBankDetails(user?.email);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { formatAmount, symbol } = useCurrency();
@@ -739,6 +861,7 @@ const Estimates = () => {
       "Date": e.date ? new Date(e.date).toLocaleDateString("en-GB") : "",
       "Status": e.status || "draft",
       ...(canUseBranch ? { "Branch": getBranchName(e) } : {}),
+      ...(canUseBankDetails ? { "Bank Details": e.bank_detail ? `${e.bank_detail.bankName || ""} — ${e.bank_detail.accountNumber || ""}` : "" } : {}),
     };
     const items = e.items?.length ? e.items : [{ description: "", qty: "", rate: "", amount: "" }];
     return items.map((item: any) => ({
@@ -939,6 +1062,7 @@ const Estimates = () => {
                 { header: "Date", key: "Date" },
                 { header: "Status", key: "Status" },
                 ...(canUseBranch ? [{ header: "Branch", key: "Branch" }] : []),
+                ...(canUseBankDetails ? [{ header: "Bank Details", key: "Bank Details" }] : []),
               ]}
             />
             <ImportDialog
@@ -988,17 +1112,17 @@ const Estimates = () => {
                     onCheckedChange={() => toggleSelectAll(pageEstIds)}
                   />
                 </th>
-                {["Company Name", "Connect Person", "Phone Number", "Mail Id", "Item", "Quantity", "Rate", "Amount", "Sales Person", "Date", ...(canUseBranch ? ["Branch"] : []), "Actions"].map(h => (
+                {["Company Name", "Connect Person", "Phone Number", "Mail Id", "Item", "Quantity", "Rate", "Amount", "Sales Person", "Date", ...(canUseBranch ? ["Branch"] : []), ...(canUseBankDetails ? ["Bank Details"] : []), "Actions"].map(h => (
                   <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {isLoadingEstimates ? (
-                <SkeletonTableRows rows={6} colSpan={12 + (canUseBranch ? 1 : 0)} />
+                <SkeletonTableRows rows={6} colSpan={12 + (canUseBranch ? 1 : 0) + (canUseBankDetails ? 1 : 0)} />
               ) : tableRows.length === 0 ? (
                 <tr>
-                  <td colSpan={12 + (canUseBranch ? 1 : 0)} className="px-6 py-12 text-center text-muted-foreground italic">
+                  <td colSpan={12 + (canUseBranch ? 1 : 0) + (canUseBankDetails ? 1 : 0)} className="px-6 py-12 text-center text-muted-foreground italic">
                     No estimates found.
                   </td>
                 </tr>
@@ -1042,6 +1166,11 @@ const Estimates = () => {
                       {canUseBranch && (
                         <td className="px-6 py-4 text-muted-foreground">
                           {getBranchName(est) || "-"}
+                        </td>
+                      )}
+                      {canUseBankDetails && (
+                        <td className="px-6 py-4 text-muted-foreground">
+                          {est.bank_detail ? `${est.bank_detail.bankName || ""} — ${est.bank_detail.accountNumber || ""}` : "-"}
                         </td>
                       )}
                       <td className="px-6 py-4">

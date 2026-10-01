@@ -15,6 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/context/SettingsContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
+import { financeService } from "@/api/services/finance.service";
 import { quotationService } from "@/api/services/quotation.service";
 import { customerService } from "@/api/services/customer.service";
 import { quotationTypeService } from "@/api/services/quotationType.service";
@@ -249,10 +251,18 @@ export default function QuotationModule() {
   const { getSetting } = useSettings();
   const { user, isModuleEnabled } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
+  const canUseBankDetails = canAccessBankDetails(user?.email);
   // Branch-scoped customer selection is sourced from the HRMS module — only
   // show/fetch it when the tenant's plan actually includes HRMS, otherwise
   // fall back to picking a customer from the full, unscoped list.
   const canUseBranch = isModuleEnabled("hrms");
+
+  const { data: bankDetails = [] } = useQuery<any[]>({
+    queryKey: ["bank-details"],
+    queryFn: () => financeService.getBankDetails().then((res: any) => res.data || res),
+    enabled: canUseBankDetails,
+  });
+  const activeBankDetails = bankDetails.filter((b: any) => b.active !== false);
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams);
@@ -372,6 +382,7 @@ export default function QuotationModule() {
   const [gstPercent, setGstPercent] = useState(18);
   const [discountPercent, setDiscountPercent] = useState(0);
   const [notes, setNotes] = useState(DEFAULT_NOTES);
+  const [bankDetailId, setBankDetailId] = useState("");
 
   // Simple vs Pro create-format — forced when the type restricts it, otherwise user-toggled.
   const [format, setFormat] = useState<"simple" | "pro">(allowedFormat === "pro" ? "pro" : "simple");
@@ -540,6 +551,7 @@ export default function QuotationModule() {
     setGstPercent(18);
     setDiscountPercent(0);
     setNotes(DEFAULT_NOTES);
+    setBankDetailId("");
     setFormat(allowedFormat === "pro" ? "pro" : "simple");
     setProjectBuilding("");
     setUnitNo("");
@@ -707,6 +719,7 @@ export default function QuotationModule() {
     discount_total: discountAmount,
     total_tax: gstAmount,
     total: grandTotal,
+    bank_detail: bankDetailId || undefined,
   });
 
   const createMutation = useMutation({
@@ -769,6 +782,7 @@ export default function QuotationModule() {
     setNotes(q.notes || DEFAULT_NOTES);
     setGstPercent(q.gst_percent ?? (q.total_tax && q.subtotal ? Math.round((q.total_tax / q.subtotal) * 100) : 18));
     setDiscountPercent(q.discount_percent || 0);
+    setBankDetailId((q as any).bank_detail?._id || (q as any).bank_detail || "");
     setFormat(q.format === "pro" ? "pro" : "simple");
     setShowItemImages((q as any).show_item_images !== false);
 
@@ -1280,6 +1294,45 @@ export default function QuotationModule() {
         y += 4.5;
       }
       y += 6;
+    }
+
+    // Payment / Bank Details — the specific account selected on this quotation.
+    // q.bank_detail is populated when it comes from the list/detail fetch; when
+    // downloading right after Save (unpopulated id string), fall back to the
+    // already-loaded bank details list to resolve it.
+    const selectedBankDetail = (q as any).bank_detail && typeof (q as any).bank_detail === "object"
+      ? (q as any).bank_detail
+      : bankDetails.find((b: any) => b._id === (q as any).bank_detail);
+
+    if (selectedBankDetail) {
+      ensureSpace(25);
+
+      doc.setDrawColor(220, 220, 220);
+      doc.line(14, y, 196, y);
+      y += 7;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(...primaryRgb);
+      doc.text("PAYMENT / BANK DETAILS", 14, y);
+      y += 6;
+
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(20, 20, 20);
+      doc.text(selectedBankDetail.accountHolderName || "—", 14, y);
+      y += 4.5;
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(90, 90, 90);
+      doc.text(`Bank: ${selectedBankDetail.bankName || "—"}`, 14, y);
+      y += 4.5;
+      doc.text(`A/C No: ${selectedBankDetail.accountNumber || "—"}   IFSC: ${selectedBankDetail.ifscCode || "—"}`, 14, y);
+      y += 4.5;
+      if (selectedBankDetail.branch?.name) {
+        doc.text(`Branch: ${selectedBankDetail.branch.name}`, 14, y);
+        y += 4.5;
+      }
+      y += 4;
     }
 
     // Footer — company details + authorised signatory
@@ -2226,6 +2279,25 @@ export default function QuotationModule() {
                         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[140px] text-sm" />
                       </div>
 
+                      {canUseBankDetails && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Bank Details</Label>
+                          <Select value={bankDetailId || "none"} onValueChange={(v) => setBankDetailId(v === "none" ? "" : v)}>
+                            <SelectTrigger className="h-10 rounded-xl">
+                              <SelectValue placeholder="Select Bank Account" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {activeBankDetails.map((bd: any) => (
+                                <SelectItem key={bd._id} value={bd._id}>
+                                  {bd.bankName} — {bd.accountNumber}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
                       {format === "pro" && (
                         <div className="space-y-3">
                           <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
@@ -2394,6 +2466,7 @@ export default function QuotationModule() {
                             <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Amount</th>
                             <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Grand Total</th>
                             <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Status</th>
+                            {canUseBankDetails && <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Bank Details</th>}
                             <th className="px-6 py-4 w-24 text-right font-bold text-xs text-muted-foreground uppercase tracking-wider">Actions</th>
                           </tr>
                         </thead>
@@ -2420,6 +2493,11 @@ export default function QuotationModule() {
                                   {q.status || "Draft"}
                                 </span>
                               </td>
+                              {canUseBankDetails && (
+                                <td className="px-6 py-3 text-muted-foreground">
+                                  {(q as any).bank_detail ? `${(q as any).bank_detail.bankName || ""} — ${(q as any).bank_detail.accountNumber || ""}` : "-"}
+                                </td>
+                              )}
                               <td className="px-6 py-3 text-right">
                                 <div className="flex items-center justify-end gap-1">
                                   <button onClick={() => handleDownloadPDF(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Download PDF">
