@@ -11,7 +11,6 @@ import { Skeleton } from "@/hrms/components/ui/skeleton";
 import {
   UserCheck,
   Coffee,
-  Camera,
   History as HistoryIcon,
   Timer,
   ChevronLeft,
@@ -33,6 +32,9 @@ import {
   MapPin,
   LayoutGrid,
   List,
+  Camera,
+  CameraOff,
+  PartyPopper,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
@@ -42,6 +44,7 @@ import { getTrackingReadiness } from "@/hrms/lib/trackingSetup";
 import { BackgroundTracker } from "@/hrms/plugins/backgroundTracker";
 import { realtimeService } from "@/hrms/services/RealtimeService";
 import { shiftService, configuredLunchMinutes, type Shift } from "@/hrms/services/shiftService";
+import { holidayService, type Holiday } from "@/hrms/services/holidayService";
 import { useAuth } from "@/hrms/contexts/AuthContext";
 import { toast } from "@/hrms/hooks/use-toast";
 import { ToastAction } from "@/hrms/components/ui/toast";
@@ -59,7 +62,6 @@ import {
   isAfter
 } from "date-fns";
 import { useHaptics } from "@/hrms/hooks/useHaptics";
-import { CameraCapture } from "@/hrms/components/staff/CameraCapture";
 import {
   Dialog,
   DialogContent,
@@ -78,11 +80,19 @@ const ATT_CAL_CELL: Record<string, { bg: string; border: string; label: string; 
   "On Duty": { bg: "bg-blue-100", border: "border-blue-200", label: "ON DUTY", labelColor: "text-blue-500", dot: "bg-blue-400" },
   "Pending": { bg: "bg-sky-50", border: "border-sky-200", label: "TODAY", labelColor: "text-sky-500", dot: "bg-sky-400" },
   "Weekly Off": { bg: "bg-white", border: "border-slate-100", label: "OFF", labelColor: "text-slate-400", dot: "bg-slate-300" },
+  "Holiday": { bg: "bg-violet-100", border: "border-violet-200", label: "HOLIDAY", labelColor: "text-violet-600", dot: "bg-violet-400" },
+  // Punched in but never punched out, and the server never finalised a status.
+  // Distinct from Absent: the employee did turn up.
+  "No punch-out": { bg: "bg-orange-100", border: "border-orange-200", label: "NO OUT", labelColor: "text-orange-600", dot: "bg-orange-400" },
   "Upcoming": { bg: "bg-white", border: "border-slate-100", label: "–", labelColor: "text-slate-300", dot: "" },
 };
 
 const AttendancePage = () => {
   const { user, refreshUser } = useAuth();
+  // `user` comes from the main CRM's PermissionContext, which stores
+  // firstname/lastname — not a combined `name` field — so build it here.
+  const staffName = [(user as any)?.firstname, (user as any)?.lastname].filter(Boolean).join(" ").trim() || (user as any)?.name || "User";
+  const staffInitials = staffName !== "User" ? staffName.substring(0, 2).toUpperCase() : "US";
   const navigate = useNavigate();
   const location = useLocation();
   const { lightImpact } = useHaptics();
@@ -106,18 +116,76 @@ const AttendancePage = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isProcessing, setIsProcessing] = useState(false);
   const [fetchingLocation, setFetchingLocation] = useState(false);
-  const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [cameraAction, setCameraAction] = useState<"punch-in" | "punch-out" | "lunch-in" | "lunch-out" | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [showRePunchConfirm, setShowRePunchConfirm] = useState(false);
   const [attView, setAttView] = useState<"calendar" | "list">("calendar");
+  // Camera modal state — opens when the user taps Punch In / Punch Out;
+  // captures a selfie from the live camera feed and sends it with the punch.
+  // If the camera is unavailable or denied, the punch still goes through without an image.
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [cameraPunchAction, setCameraPunchAction] = useState<"punch-in" | "punch-out">("punch-in");
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [capturedSelfie, setCapturedSelfie] = useState<string | null>(null); // data-URL preview
+  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const geoWatchRef = useRef<number | null>(null);   // watchPosition watch ID
   const gpsWarmRef = useRef<number | null>(null);     // keeps GPS hardware warm on page mount
   const outsideCountRef = useRef(0);                    // consecutive outside readings
   const lastCheckRef = useRef(0);                    // timestamp of last checkGeoFence call
   const [geoStatus, setGeoStatus] = useState<{ enabled: boolean; inside: boolean; outsideCount: number } | null>(null);
   const [shift, setShift] = useState<Shift | null>(null);
+  const [todayHoliday, setTodayHoliday] = useState<Holiday | null>(null);
+  // Company holidays covering the month being viewed, so the history can label
+  // them instead of calling them absences.
+  const [monthHolidays, setMonthHolidays] = useState<Holiday[]>([]);
+
+  // Company holiday today? Punch-in is optional and the day is paid — tell
+  // the employee instead of letting the screen nag about the shift.
+  useEffect(() => {
+    const branchId = (user as any)?.hrmsBranchId || (user as any)?.storeId || undefined;
+    holidayService
+      .getToday(typeof branchId === "object" ? branchId?._id : branchId)
+      .then(setTodayHoliday)
+      .catch(() => { /* non-fatal — banner just stays hidden */ });
+  }, [user]);
+
+  // Holidays for the month on screen. A holiday may span days (date..endDate),
+  // so it is expanded per-day, matching how payroll credits festivalDates.
+  useEffect(() => {
+    const branchRaw = (user as any)?.hrmsBranchId || (user as any)?.storeId || undefined;
+    const branchId = typeof branchRaw === "object" ? branchRaw?._id : branchRaw;
+    holidayService
+      .getAll({
+        year: selectedMonth.getFullYear(),
+        month: selectedMonth.getMonth() + 1,
+        branchId,
+      })
+      .then(setMonthHolidays)
+      .catch(() => setMonthHolidays([]));
+  }, [user, selectedMonth]);
+
+  // date string -> holiday name, expanded across multi-day holidays.
+  const holidayByDate = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const h of monthHolidays) {
+      if (h.isActive === false || !h.date) continue;
+      const last = h.endDate && h.endDate >= h.date ? h.endDate : h.date;
+      const cursor = new Date(`${h.date}T00:00:00`);
+      const stop = new Date(`${last}T00:00:00`);
+      // Guard against a malformed range producing an unbounded loop.
+      let guard = 0;
+      while (cursor <= stop && guard < 400) {
+        map.set(format(cursor, "yyyy-MM-dd"), h.name);
+        cursor.setDate(cursor.getDate() + 1);
+        guard += 1;
+      }
+    }
+    return map;
+  }, [monthHolidays]);
 
   // The cached profile (from login) never reflects admin-side edits made
   // afterwards — e.g. a shift assigned later would still show "No shift
@@ -145,6 +213,81 @@ const AttendancePage = () => {
       }
     }
     return false;
+  };
+
+  // Open camera stream for the confirmation modal
+  const openCameraStream = async () => {
+    setCameraReady(false);
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(() => {});
+      }
+      setCameraReady(true);
+    } catch (err: any) {
+      setCameraError("Camera unavailable. You can still punch in without it.");
+    }
+  };
+
+  // Stop camera stream when modal closes
+  const closeCameraStream = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCameraReady(false);
+    setCameraError(null);
+    setCapturedSelfie(null);
+    setCapturedBlob(null);
+  };
+
+  // Capture a still frame from the video into a Blob + data-URL preview
+  const captureSnapshot = (): Promise<{ blob: Blob; dataUrl: string } | null> => {
+    return new Promise((resolve) => {
+      const video = videoRef.current;
+      if (!video || !cameraReady) { resolve(null); return; }
+      const w = video.videoWidth || 640;
+      const h = video.videoHeight || 480;
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { resolve(null); return; }
+      // Mirror horizontally to match the mirrored live preview
+      ctx.translate(w, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, w, h);
+      canvas.toBlob((blob) => {
+        if (!blob) { resolve(null); return; }
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+        resolve({ blob, dataUrl });
+      }, "image/jpeg", 0.85);
+    });
+  };
+
+  // Opens the camera modal instead of punching directly
+  const handlePunchWithCamera = async (action: "punch-in" | "punch-out") => {
+    const isDevOn = await checkDeveloperOptions();
+    if (isDevOn) {
+      toast({
+        title: "Action Denied",
+        description: "Please turn off Developer Options in your phone settings to register attendance.",
+        variant: "destructive",
+        duration: 8000,
+      });
+      return;
+    }
+    setCameraPunchAction(action);
+    setShowCameraModal(true);
+    // Start camera stream after modal opens
+    setTimeout(() => openCameraStream(), 150);
   };
 
   // Clock — runs once, independent of month/employee changes
@@ -461,12 +604,20 @@ const AttendancePage = () => {
 
       const isPast = isBefore(date, startOfDay(new Date()));
 
+      // Days with no record at all are not automatically absences. Company
+      // holidays are PAID days in payroll, so labelling them "Absent" made an
+      // employee's own page show phantom absences and disagree with their payslip.
+      const holiday = holidayByDate.get(dateStr);
+      if (holiday) {
+        return { date: dateStr, status: "Holiday", holidayName: holiday } as any;
+      }
+
       return {
         date: dateStr,
         status: isToday ? "Pending" : (isPast ? "Absent" : "Upcoming"),
       } as any;
     }).reverse();
-  }, [selectedMonth, history, shiftDurationMins]);
+  }, [selectedMonth, history, shiftDurationMins, holidayByDate]);
 
   const stats = useMemo(() => {
     const monthHistory = fullHistory.filter(h => h.status !== "Upcoming");
@@ -523,26 +674,90 @@ const AttendancePage = () => {
         reject(new Error("Geolocation is not supported by your browser"));
         return;
       }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          accuracy: pos.coords.accuracy,
-          fixAt: pos.timestamp,
-        }),
-        (error) => {
-          let msg = "Failed to get location.";
-          if (error.code === error.PERMISSION_DENIED) msg = "Location Permission Denied: Please allow location access in your device settings.";
-          else if (error.code === error.POSITION_UNAVAILABLE) msg = "Location Unavailable: Please ensure GPS is enabled and try again.";
-          else if (error.code === error.TIMEOUT) msg = "Location Timeout: GPS signal is weak. Please step outside and retry.";
-          reject(new Error(msg));
-        },
-        {
-          timeout: 15000,
-          enableHighAccuracy: true,
-          maximumAge: 0,
-        },
-      );
+
+      let settled = false;
+      const finish = (fn: () => void) => {
+        if (!settled) {
+          settled = true;
+          fn();
+        }
+      };
+
+      // Absolute safety timeout so getLocation never hangs indefinitely —
+      // must exceed both fresh-fix attempts below (9s + 8s) plus the final
+      // cached-fix fallback attempt.
+      const safetyTimer = setTimeout(() => {
+        finish(() => reject(new Error("Location Timeout: Could not detect device location. Please check browser location permissions.")));
+      }, 22000);
+
+      const tryGetPos = (highAcc: boolean, timeoutMs: number, maxAge: number, onFail: (err: any) => void) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            clearTimeout(safetyTimer);
+            finish(() =>
+              resolve({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+                accuracy: pos.coords.accuracy,
+                fixAt: pos.timestamp,
+              })
+            );
+          },
+          onFail,
+          {
+            timeout: timeoutMs,
+            enableHighAccuracy: highAcc,
+            maximumAge: maxAge,
+          },
+        );
+      };
+
+      // Try high accuracy first (GPS on mobile), then fall back to standard
+      // accuracy (WiFi/IP on laptop/desktop). Both need a fresh fix
+      // (maximumAge: 0) since they're the "real" attempts.
+      tryGetPos(true, 9000, 0, (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          clearTimeout(safetyTimer);
+          finish(() =>
+            reject(
+              new Error(
+                "Location Permission Denied: Please allow location access in your browser or Windows privacy settings."
+              )
+            )
+          );
+        } else {
+          tryGetPos(false, 8000, 0, (err2) => {
+            if (err2.code === err2.PERMISSION_DENIED) {
+              clearTimeout(safetyTimer);
+              finish(() =>
+                reject(
+                  new Error(
+                    "Location Permission Denied: Please allow location access in your browser or Windows privacy settings."
+                  )
+                )
+              );
+              return;
+            }
+            // Last resort: accept a recent cached fix (up to 60s old) instead of
+            // failing outright on a transient GPS/WiFi-positioning hiccup. The
+            // server still rejects anything worse than 150m accuracy, so this
+            // never bypasses the geofence check — it just avoids blocking punch-in
+            // when a fresh fix twice failed to arrive in time.
+            tryGetPos(false, 3000, 60000, (err3) => {
+              clearTimeout(safetyTimer);
+              let msg = "Failed to get location.";
+              if (err3.code === err3.PERMISSION_DENIED) {
+                msg = "Location Permission Denied: Please allow location access in your browser or Windows privacy settings.";
+              } else if (err3.code === err3.POSITION_UNAVAILABLE) {
+                msg = "Location Unavailable: Please ensure Location Services are enabled on your device.";
+              } else if (err3.code === err3.TIMEOUT) {
+                msg = "Location Timeout: Could not detect location. Please check your network/location settings.";
+              }
+              finish(() => reject(new Error(msg)));
+            });
+          });
+        }
+      });
     });
   };
 
@@ -557,9 +772,10 @@ const AttendancePage = () => {
   ): Promise<{ lat: number; lng: number; accuracy: number; fixAt: number } | null> => {
     setFetchingLocation(true);
     try {
-      const pos = await getLocation(); // enableHighAccuracy, maximumAge: 0, 15s timeout
+      const pos = await getLocation();
       return pos;
     } catch (error: any) {
+      console.warn("[AttendancePage] Could not acquire location for punch:", error);
       toast({
         title: "Location Required",
         description: error?.message || "Could not get your location.",
@@ -577,9 +793,10 @@ const AttendancePage = () => {
     }
   };
 
-  const handleCapture = async (blob: Blob) => {
-    setIsCameraOpen(false);
-    const action = cameraAction;
+  // Geo-fence enforces presence. Selfie blob is optional — if camera was available
+  // it is captured from the modal and sent with the punch; if denied or unavailable
+  // the punch goes through without any image.
+  const handleDirectPunch = async (action: "punch-in" | "punch-out", selfieBlob: Blob | null = null) => {
     const isDevOn = await checkDeveloperOptions();
     if (isDevOn) {
       toast({
@@ -592,80 +809,22 @@ const AttendancePage = () => {
     }
     setIsProcessing(true);
     try {
-      const pos = await acquireFreshLocation(() => {
-        setCameraAction(action);
-        setIsCameraOpen(true);
-      });
+      const pos = await acquireFreshLocation(() => handleDirectPunch(action, selfieBlob));
       if (!pos) return; // punch blocked — no valid location
       const location = { lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, fixAt: pos.fixAt };
-
-      if (cameraAction === "punch-in") {
-        await attendanceService.punchIn(blob, location);
+      if (action === "punch-in") {
+        await attendanceService.punchIn(selfieBlob, location);
         toast({ title: "Punched In", description: "Punched in successfully." });
         if (user) locationService.startTracking(user);
         gateTrackingSetup();
-      } else if (cameraAction === "punch-out") {
-        await attendanceService.punchOut(blob, location);
+      } else {
+        await attendanceService.punchOut(selfieBlob, location);
         toast({ title: "Punched Out", description: "Punched out successfully." });
         locationService.stopTracking();
       }
       await fetchToday();
     } catch (error: any) {
-      // Handle geo-fence denial from backend (HTTP 403)
-      const responseData = error?.response?.data;
-      if (responseData?.geoFenceViolation) {
-        toast({
-          title: cameraAction === "punch-out"
-            ? "Punch Out Denied — Outside Branch Area"
-            : "Punch In Denied — Outside Branch Area",
-          description: responseData.message || "You are not within your assigned branch location radius. Attendance actions are not allowed from this location.",
-          variant: "destructive",
-          duration: 8000,
-        });
-      } else {
-        toast({
-          title: "Action Failed",
-          description: error?.response?.data?.message || error.message || "Something went wrong.",
-          variant: "destructive",
-          duration: 5000,
-        });
-      }
-    } finally {
-      setIsProcessing(false);
-      setCameraAction(null);
-    }
-  };
-
-  // Used for sessions 2-5: geo-fence enforces presence; no selfie needed.
-  const handleDirectPunch = async (action: "punch-in" | "punch-out") => {
-    const isDevOn = await checkDeveloperOptions();
-    if (isDevOn) {
-      toast({
-        title: "Action Denied",
-        description: "Please turn off Developer Options in your phone settings to register attendance.",
-        variant: "destructive",
-        duration: 8000,
-      });
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      const pos = await acquireFreshLocation(() => handleDirectPunch(action));
-      if (!pos) return; // punch blocked — no valid location
-      const location = { lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, fixAt: pos.fixAt };
-      if (action === "punch-in") {
-        await attendanceService.punchIn(null, location);
-        toast({ title: "Punched In", description: "New session started." });
-        if (user) locationService.startTracking(user);
-        gateTrackingSetup();
-      } else {
-        await attendanceService.punchOut(null, location);
-        toast({ title: "Punched Out", description: "Session ended." });
-        locationService.stopTracking();
-      }
-      await fetchToday();
-    } catch (error: any) {
-      const responseData = error?.response?.data;
+      const responseData = error?.responseData ?? error?.response?.data;
       if (responseData?.geoFenceViolation) {
         toast({
           title: action === "punch-out"
@@ -713,8 +872,8 @@ const AttendancePage = () => {
       }
       await fetchToday();
     } catch (error: any) {
-      const msg = error?.response?.data?.message || error.message || "Something went wrong.";
-      const outside = error?.response?.data?.geoFenceViolation || /outside the office/i.test(msg);
+      const msg = error?.responseData?.message ?? error?.response?.data?.message ?? error.message ?? "Something went wrong.";
+      const outside = (error?.responseData ?? error?.response?.data)?.geoFenceViolation || /outside the office/i.test(msg);
       toast({
         title: outside ? "Outside Branch Area" : "Action Failed",
         description: msg,
@@ -738,7 +897,7 @@ const AttendancePage = () => {
             <span className="text-xs font-semibold uppercase tracking-wider text-foreground">Attendance</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Hi, {user?.name || "User"}
+            Hi, {staffName}
           </h1>
           <p className="text-muted-foreground text-xs mt-0.5">Manage your shifts and track your working hours.</p>
         </div>
@@ -746,13 +905,33 @@ const AttendancePage = () => {
         <div className="flex items-center gap-3 p-2 pl-3 bg-muted/30 rounded-xl border border-border/50">
           <div className="text-right">
             <p className="text-[10px] font-bold text-muted-foreground uppercase leading-none mb-1">Signed In As</p>
-            <p className="text-xs font-bold">{user?.name || "User"}</p>
+            <p className="text-xs font-bold">{staffName}</p>
           </div>
           <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs font-bold border border-primary/20">
-            {user?.name?.substring(0, 2).toUpperCase() || "US"}
+            {staffInitials}
           </div>
         </div>
       </div>
+
+      {/* Holiday Banner — punch-in not required today */}
+      {todayHoliday && (
+        <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 to-fuchsia-50/40 p-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
+              <PartyPopper className="h-5 w-5 text-purple-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-purple-800 leading-tight">
+                Today is a holiday — {todayHoliday.name}
+              </p>
+              <p className="text-xs text-purple-500 mt-0.5">
+                Punch-in is not required and your salary won't be deducted for today.
+                {todayHoliday.description ? ` ${todayHoliday.description}` : ""}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Shift Info Banner */}
       {shift ? (
@@ -1095,14 +1274,14 @@ const AttendancePage = () => {
                     if (!hasEverPunchedIn) {
                       return (
                         <Button
-                          onClick={() => { lightImpact(); setCameraAction("punch-in"); setIsCameraOpen(true); }}
+                          onClick={() => { lightImpact(); handlePunchWithCamera("punch-in"); }}
                           disabled={isProcessing}
                           className="flex-1 h-14 rounded-xl bg-primary text-white hover:bg-primary/90 font-bold text-lg shadow-lg transition-all active:scale-95 group"
                         >
                           {isProcessing ? (
                             <><Loader2 className="animate-spin h-5 w-5 mr-2" />{fetchingLocation ? "Fetching location…" : ""}</>
                           ) : (
-                            <>Start Shift <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" /></>
+                            <><Camera className="mr-2 h-5 w-5" />Start Shift <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" /></>
                           )}
                         </Button>
                       );
@@ -1132,31 +1311,21 @@ const AttendancePage = () => {
                 ) : (
                   <>
                     {/* End Shift hidden during lunch — must exit break first */}
-                    {status !== "Lunch" && (() => {
-                      const isAdditionalSession = (attendance?.sessions ?? []).some(
-                        s => s.punchIn?.time && !s.punchOut?.time
-                      );
-                      return (
-                        <Button
-                          onClick={() => {
-                            lightImpact();
-                            if (isAdditionalSession) {
-                              handleDirectPunch("punch-out");
-                            } else {
-                              setCameraAction("punch-out");
-                              setIsCameraOpen(true);
-                            }
-                          }}
-                          variant="outline"
-                          disabled={isProcessing}
-                          className="flex-1 h-14 rounded-xl border-2 font-bold text-lg transition-all active:scale-95 bg-background"
-                        >
-                          {isProcessing ? (
-                            <><Loader2 className="animate-spin h-5 w-5 mr-2" />{fetchingLocation ? "Fetching location…" : ""}</>
-                          ) : "End Shift"}
-                        </Button>
-                      );
-                    })()}
+                    {status !== "Lunch" && (
+                      <Button
+                        onClick={() => {
+                          lightImpact();
+                          handlePunchWithCamera("punch-out");
+                        }}
+                        variant="outline"
+                        disabled={isProcessing}
+                        className="flex-1 h-14 rounded-xl border-2 font-bold text-lg transition-all active:scale-95 bg-background"
+                      >
+                        {isProcessing ? (
+                          <><Loader2 className="animate-spin h-5 w-5 mr-2" />{fetchingLocation ? "Fetching location…" : ""}</>
+                        ) : <><Camera className="mr-2 h-5 w-5" />End Shift</>}
+                      </Button>
+                    )}
                     {/* Lunch Break — only for main session (Session 1), and only before any punch-out.
                         Once the employee has punched out (manual End Shift OR auto geo-fence exit),
                         the lunch buttons must never reappear — even in a later "Punch In Again" session. */}
@@ -1337,7 +1506,15 @@ const AttendancePage = () => {
                       const isTodayDay = isSameDay(date, new Date());
                       const isSunday = date.getDay() === 0;
                       const isWeeklyOff = isSunday && !record && !isUpcoming;
-                      const cellStatus = record?.status ?? (isUpcoming ? "Upcoming" : isWeeklyOff ? "Weekly Off" : "Absent");
+                      const holidayName = holidayByDate.get(dateStr);
+                      const cellStatus = record?.status
+                        ?? (isUpcoming
+                          ? "Upcoming"
+                          : holidayName
+                            ? "Holiday"
+                            : isWeeklyOff
+                              ? "Weekly Off"
+                              : "Absent");
                       const c = ATT_CAL_CELL[cellStatus] ?? ATT_CAL_CELL["Upcoming"];
                       return (
                         <div key={dateStr} className={cn(
@@ -1403,26 +1580,148 @@ const AttendancePage = () => {
         </Card>
       </div>
 
-      <Dialog open={isCameraOpen} onOpenChange={setIsCameraOpen}>
-        <DialogContent className="sm:max-w-xl rounded-3xl p-0 overflow-hidden border-none shadow-2xl animate-fade-in">
-          <div className="p-8 border-b bg-muted/30">
-            <DialogHeader>
-              <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg">
-                  <Camera className="h-6 w-6" />
-                </div>
-                <div>
-                  <DialogTitle className="text-2xl font-bold tracking-tight uppercase">Identity Verification</DialogTitle>
-                  <DialogDescription className="text-sm text-muted-foreground">Please position your face in the frame.</DialogDescription>
-                </div>
+      {/* ── Camera Confirmation Modal ─────────────────────────────────────── */}
+      <Dialog
+        open={showCameraModal}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeCameraStream();
+            setShowCameraModal(false);
+          }
+        }}
+      >
+        <DialogContent className="rounded-3xl max-w-sm mx-auto p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-2">
+            <DialogTitle className="text-lg font-black text-center">
+              {cameraPunchAction === "punch-in" ? "Starting Your Shift" : "Ending Your Shift"}
+            </DialogTitle>
+            <DialogDescription className="text-center text-sm text-muted-foreground mt-1">
+              {capturedSelfie
+                ? "Selfie captured! Click Punch to confirm."
+                : cameraError
+                ? "Camera unavailable. You can still punch without a selfie."
+                : "Take a selfie to confirm your attendance."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Camera / Captured preview area */}
+          <div className="relative mx-4 mb-2 rounded-2xl overflow-hidden bg-black aspect-[4/3]">
+            {/* Loading spinner */}
+            {!cameraReady && !cameraError && !capturedSelfie && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/70">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <span className="text-xs font-medium">Starting camera…</span>
               </div>
-            </DialogHeader>
-          </div>
-          <div className="p-8">
-            <CameraCapture
-              onCapture={handleCapture}
-              onCancel={() => setIsCameraOpen(false)}
+            )}
+
+            {/* Camera unavailable */}
+            {cameraError && !capturedSelfie && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/70 px-4 text-center">
+                <CameraOff className="h-8 w-8" />
+                <span className="text-xs font-medium">{cameraError}</span>
+              </div>
+            )}
+
+            {/* Live video feed (hidden once selfie is captured) */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={cn(
+                "w-full h-full object-cover scale-x-[-1]",
+                cameraReady && !capturedSelfie ? "opacity-100" : "opacity-0 absolute inset-0"
+              )}
             />
+
+            {/* Captured selfie preview */}
+            {capturedSelfie && (
+              <img
+                src={capturedSelfie}
+                alt="Captured selfie"
+                className="w-full h-full object-cover"
+              />
+            )}
+
+            {/* Corner frame guides — only on live feed */}
+            {cameraReady && !capturedSelfie && (
+              <>
+                <div className="absolute top-3 left-3 w-8 h-8 border-t-2 border-l-2 border-white/60 rounded-tl-lg" />
+                <div className="absolute top-3 right-3 w-8 h-8 border-t-2 border-r-2 border-white/60 rounded-tr-lg" />
+                <div className="absolute bottom-3 left-3 w-8 h-8 border-b-2 border-l-2 border-white/60 rounded-bl-lg" />
+                <div className="absolute bottom-3 right-3 w-8 h-8 border-b-2 border-r-2 border-white/60 rounded-br-lg" />
+              </>
+            )}
+
+            {/* Retake button overlay on captured preview */}
+            {capturedSelfie && (
+              <button
+                onClick={() => { setCapturedSelfie(null); setCapturedBlob(null); }}
+                className="absolute bottom-3 right-3 bg-black/60 text-white text-xs px-2 py-1 rounded-lg flex items-center gap-1 hover:bg-black/80 transition"
+              >
+                <Camera className="h-3 w-3" /> Retake
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-3 px-4 pb-6">
+            {/* Capture selfie button — only shown when camera is live and no selfie yet */}
+            {cameraReady && !capturedSelfie && (
+              <Button
+                onClick={async () => {
+                  const snap = await captureSnapshot();
+                  if (snap) {
+                    setCapturedSelfie(snap.dataUrl);
+                    setCapturedBlob(snap.blob);
+                  }
+                }}
+                disabled={isProcessing}
+                className="h-12 rounded-xl bg-white/10 border border-white/20 text-foreground font-bold text-base backdrop-blur"
+                variant="outline"
+              >
+                <Camera className="mr-2 h-5 w-5" />Take Selfie
+              </Button>
+            )}
+
+            {/* Main punch button */}
+            <Button
+              onClick={async () => {
+                // If camera is ready but selfie not yet taken, capture it now
+                let blob = capturedBlob;
+                if (cameraReady && !blob) {
+                  const snap = await captureSnapshot();
+                  blob = snap?.blob ?? null;
+                  if (snap) {
+                    setCapturedSelfie(snap.dataUrl);
+                    setCapturedBlob(snap.blob);
+                  }
+                }
+                closeCameraStream();
+                setShowCameraModal(false);
+                handleDirectPunch(cameraPunchAction, blob);
+              }}
+              disabled={isProcessing}
+              className="h-12 rounded-xl bg-primary text-white font-bold text-base"
+            >
+              {isProcessing ? (
+                <><Loader2 className="animate-spin h-5 w-5 mr-2" />{fetchingLocation ? "Fetching location…" : "Processing…"}</>
+              ) : (
+                cameraPunchAction === "punch-in"
+                  ? <><LogIn className="mr-2 h-5 w-5" />Punch In</>
+                  : <><LogOut className="mr-2 h-5 w-5" />Punch Out</>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                closeCameraStream();
+                setShowCameraModal(false);
+              }}
+              disabled={isProcessing}
+              className="h-12 rounded-xl font-bold text-base"
+            >
+              Cancel
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1442,7 +1741,7 @@ const AttendancePage = () => {
             <Button
               onClick={() => {
                 setShowRePunchConfirm(false);
-                handleDirectPunch("punch-in");
+                handlePunchWithCamera("punch-in");
               }}
               disabled={isProcessing}
               className="h-12 rounded-xl bg-primary text-white font-bold text-base"

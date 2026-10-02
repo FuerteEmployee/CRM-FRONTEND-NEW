@@ -7,29 +7,42 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Search, FileText, Plus, Zap, Mail, Eye, Maximize2, Pencil, ChevronDown } from "lucide-react";
 import { formatDate } from "@/lib/dateFormat";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
+import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
+
+const PROPOSAL_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Subject", sample: "Q3 Marketing Proposal", required: true, core: true },
+  { key: "Company", sample: "Bright Solutions Pvt Ltd", required: true, core: true },
+  { key: "Total", sample: 50000, core: true },
+  { key: "Date", sample: "27-08-2026", core: true },
+  { key: "Branch", sample: "Delhi", core: true },
+  { key: "Status", sample: 1, core: false },
+];
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
-  "1": { label: "Draft",    className: "bg-muted text-muted-foreground" },
-  "2": { label: "Sent",     className: "bg-blue-500/10 text-blue-500" },
-  "3": { label: "Open",     className: "bg-primary/10 text-primary" },
-  "4": { label: "Revised",  className: "bg-orange-500/10 text-orange-500" },
+  "1": { label: "Draft", className: "bg-muted text-muted-foreground" },
+  "2": { label: "Sent", className: "bg-blue-500/10 text-blue-500" },
+  "3": { label: "Open", className: "bg-primary/10 text-primary" },
+  "4": { label: "Revised", className: "bg-orange-500/10 text-orange-500" },
   "5": { label: "Declined", className: "bg-destructive/10 text-destructive" },
   "6": { label: "Accepted", className: "bg-green-500/10 text-green-500" },
 };
@@ -47,8 +60,10 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
   setIsFullscreen: (v: boolean) => void;
 }) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { formatAmount, symbol } = useCurrency();
-  const { data: currencies = [] } = useQuery({
+  const { data: currencies = [] } = useQuery<any>({
     queryKey: ["currencies"],
     queryFn: financeService.getCurrencies,
     staleTime: 5 * 60 * 1000,
@@ -295,7 +310,13 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
                     <div className="text-right shrink-0">
                       <p className="text-xs text-muted-foreground mb-0.5">To:</p>
                       <p className="text-sm font-semibold text-primary">{d.proposal_to || d.rel_id || d.customer || "—"}</p>
-                      {d.phone && <p className="text-xs text-primary mt-2">{d.phone}</p>}
+                      {d.phone && (
+                        <WhatsAppQuickChat
+                          phone={d.phone}
+                          data={{ customer_name: d.company || d.proposal_to || d.customer, invoice_no: `PRO-${proposalNumber}` }}
+                          className="mt-2"
+                        />
+                      )}
                       {d.email && <p className="text-xs text-primary">{d.email}</p>}
                     </div>
                   </div>
@@ -488,14 +509,32 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
 
 const Proposals = () => {
   const [proposalSearch, setProposalSearch] = useState("");
+  const [debouncedProposalSearch, setDebouncedProposalSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedProposalSearch(proposalSearch.trim()), 350);
+    return () => clearTimeout(t);
+  }, [proposalSearch]);
   const [proposalItemsPerPage, setProposalItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedProposal, setSelectedProposal] = useState<any>(null);
   const [previewProposal, setPreviewProposal] = useState<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const navigate = useNavigate();
-  const { can } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+  const [branchFilter, setBranchFilter] = useState("all");
+  const { data: branchesRaw = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
   const { formatAmount, symbol } = useCurrency();
-  const { data: currencies = [] } = useQuery({
+  const { data: currencies = [] } = useQuery<any>({
     queryKey: ["currencies"],
     queryFn: financeService.getCurrencies,
     staleTime: 5 * 60 * 1000,
@@ -519,10 +558,52 @@ const Proposals = () => {
   const [bulkState, setBulkState] = useState({ massDelete: false, status: "" });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
 
-  const { data: proposals = [], isLoading: isLoadingProposals } = useQuery({
-    queryKey: ["proposals"],
-    queryFn: () => salesService.getProposals().then((res: any) => res.data || res),
+  const getProposalBranchName = (p: any) => (typeof p.branch === "object" ? (p.branch?.name || "") : (p.branch || ""));
+
+  // Shared by both client-side fallback filters below ("All" page-size mode
+  // and the export-time refetch). The backend searches `proposal_to`, but
+  // the client fallback searches what's actually shown in the "To" column
+  // (rel_id/customer) so "some pages" vs "all pages" mode stay internally
+  // consistent — see resolveProposalNames in proposal_controller.js.
+  const proposalMatchesSearch = (p: any, q: string): boolean => {
+    if (!q) return true;
+    if ((p.subject || p.title || "").toLowerCase().includes(q)) return true;
+    if (getProposalBranchName(p).toLowerCase().includes(q)) return true;
+    const toValue = p.proposal_to || p.rel_id || p.customer || "";
+    if (String(toValue).toLowerCase().includes(q)) return true;
+    if ((getStatus(p.status).label || "").toLowerCase().includes(q)) return true;
+    if (p.tags && String(p.tags).toLowerCase().includes(q)) return true;
+    return false;
+  };
+
+  interface ProposalsPage { rows: any[]; total: number; pages: number }
+  const { data: proposalsResult, isLoading: isLoadingProposals } = useQuery<ProposalsPage>({
+    queryKey: ["proposals", proposalItemsPerPage, currentPage, debouncedProposalSearch, branchFilter],
+    queryFn: async () => {
+      if (proposalItemsPerPage === "All") {
+        const response = await salesService.getProposals();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        const q = debouncedProposalSearch.toLowerCase();
+        const rowsFiltered = rows.filter((p: any) => {
+          const matchesSearch = proposalMatchesSearch(p, q);
+          const matchesBranch = branchFilter === "all" || getProposalBranchName(p) === branchFilter;
+          return matchesSearch && matchesBranch;
+        });
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1 };
+      }
+
+      const res: any = await salesService.getProposals({
+        page: currentPage,
+        limit: proposalItemsPerPage,
+        search: debouncedProposalSearch || undefined,
+        branch: branchFilter !== "all" ? branchFilter : undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1 };
+      return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1 };
+    },
+    placeholderData: keepPreviousData,
   });
+  const proposals: any[] = proposalsResult?.rows ?? [];
 
   const importMutation = useMutation({
     mutationFn: (rows: any[]) => salesService.importProposals(rows),
@@ -552,21 +633,16 @@ const Proposals = () => {
     }
   });
 
-  const handleSelectAll = (checked: boolean) => {
-    const pageData = filtered.slice(0, proposalItemsPerPage === "All" ? filtered.length : parseInt(proposalItemsPerPage));
-    if (checked) setSelectedProposals(pageData.map((item: any) => item._id || item.id));
-    else setSelectedProposals([]);
-  };
 
   const handleBulkAction = async () => {
     if (selectedProposals.length === 0) {
-      toast({ title: "Error", description: "No items selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No items selected." });
       return;
     }
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedProposals.map(id => salesService.deleteProposal(id)));
+        await salesService.bulkDeleteProposals(selectedProposals);
         toast({ title: "Success", description: `Deleted ${selectedProposals.length} items.` });
       } else if (bulkState.status) {
         await Promise.all(selectedProposals.map(id => salesService.updateProposal(id, { status: bulkState.status })));
@@ -577,15 +653,38 @@ const Proposals = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false, status: "" });
     } catch {
-      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to perform bulk action." });
     } finally {
       setIsBulkLoading(false);
     }
   };
 
-  const filtered = (Array.isArray(proposals) ? proposals : []).filter((p: any) =>
-    (p.subject || p.title || "").toLowerCase().includes(proposalSearch.toLowerCase())
-  );
+  const totalRows = proposalsResult?.total ?? 0;
+  const pageSize = proposalItemsPerPage === "All" ? (totalRows || 1) : parseInt(proposalItemsPerPage);
+  const totalPages = proposalsResult?.pages ?? 1;
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedProposals = proposals;
+  const pageIds = paginatedProposals.map((p: any) => p._id || p.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selectedProposals.includes(id));
+
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredProposals = async () => {
+    const response = await salesService.getProposals();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    const q = debouncedProposalSearch.toLowerCase();
+    return rows.filter((p: any) => {
+      const matchesSearch = proposalMatchesSearch(p, q);
+      const matchesBranch = branchFilter === "all" || getProposalBranchName(p) === branchFilter;
+      return matchesSearch && matchesBranch;
+    });
+  };
+
+  const handleSelectAll = () => {
+    setSelectedProposals(prev =>
+      allPageSelected ? prev.filter(id => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]
+    );
+  };
 
   return (
     <DashboardLayout>
@@ -618,8 +717,8 @@ const Proposals = () => {
 
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
-          <div className="flex items-center gap-3">
-            <Select value={proposalItemsPerPage} onValueChange={setProposalItemsPerPage}>
+          <div className="flex flex-wrap items-center gap-3">
+            <Select value={proposalItemsPerPage} onValueChange={(v) => { setProposalItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -631,7 +730,7 @@ const Proposals = () => {
             </Select>
             <Dialog open={bulkActionOpen} onOpenChange={(open) => {
               if (open && selectedProposals.length === 0) {
-                toast({ title: "Error", description: "Please select at least one item first.", variant: "destructive" });
+                toast({ title: "Error", description: "Please select at least one item first." });
                 return;
               }
               setBulkActionOpen(open);
@@ -652,13 +751,13 @@ const Proposals = () => {
                       id="mass_delete"
                       className="border-red-200 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
                       checked={bulkState.massDelete}
-                      onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                      onCheckedChange={(checked) => setBulkState({ ...bulkState, massDelete: checked as boolean })}
                     />
                     <Label htmlFor="mass_delete" className="text-sm font-semibold text-red-600">Mass Delete</Label>
                   </div>
                   <div className="space-y-1.5 pt-2">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Change Status</Label>
-                    <Select value={bulkState.status} onValueChange={(val) => setBulkState({...bulkState, status: val})} disabled={bulkState.massDelete}>
+                    <Select value={bulkState.status} onValueChange={(val) => setBulkState({ ...bulkState, status: val })} disabled={bulkState.massDelete}>
                       <SelectTrigger className="h-10 bg-slate-50/50 border-slate-200 rounded-lg">
                         <SelectValue placeholder="Select Status" />
                       </SelectTrigger>
@@ -682,7 +781,7 @@ const Proposals = () => {
               </DialogContent>
             </Dialog>
             <ExportButton
-              data={filtered}
+              data={loadAllFilteredProposals}
               filename="proposals"
               columns={[
                 { header: "Proposal #", key: (p) => p.number || p._id },
@@ -690,18 +789,41 @@ const Proposals = () => {
                 { header: "To", key: (p) => p.proposal_to || p.rel_id || p.customer || "N/A" },
                 { header: "Total", key: (p) => p.total || p.amount || "0" },
                 { header: "Date", key: "date" },
-                { header: "Status", key: "status" }
+                { header: "Status", key: "status" },
+                ...(canUseBranch ? [{ header: "Branch", key: (p: any) => (typeof p.branch === "object" ? (p.branch?.name || "-") : (p.branch || "-")) }] : []),
               ]}
             />
-            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            <ImportDialog
+              title="Import Proposals"
+              columns={PROPOSAL_IMPORT_COLUMNS}
+              onData={handleImportData}
+              loading={importMutation.isPending}
+              triggerLabel="Import"
+              templateFilename="proposals_sample_import.xlsx"
+              sheetName="Proposals"
+              mappingNote="Your Excel columns (Subject, Company, Total, Date, Branch) will be automatically detected and mapped to proposals. Company must match an existing customer."
+            />
+            {canUseBranch && (
+              <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
+                <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                  <SelectValue placeholder="All Branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {branches.map((b: any) => (
+                    <SelectItem key={b._id || b.id} value={b.name}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search proposals..."
+              placeholder="Search proposals or branch..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={proposalSearch}
-              onChange={(e) => setProposalSearch(e.target.value)}
+              onChange={(e) => { setProposalSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
@@ -715,31 +837,30 @@ const Proposals = () => {
                   <input
                     type="checkbox"
                     className="rounded border-border"
-                    checked={(() => {
-                      const pageData = filtered.slice(0, proposalItemsPerPage === "All" ? filtered.length : parseInt(proposalItemsPerPage));
-                      return pageData.length > 0 && selectedProposals.length === pageData.length;
-                    })()}
-                    onChange={(e) => handleSelectAll(e.target.checked)}
+                    checked={allPageSelected}
+                    onChange={handleSelectAll}
                   />
                 </th>
-                {["Proposal #", "Subject", "To", "Total", "Date", "Open Till", "Tags", "Date Created", "Status", "Actions"].map(h => (
+                {[
+                  "Proposal #", "Subject", "To", "Total", "Date", "Open Till", "Tags", "Date Created", "Status",
+                  ...(canUseBranch ? ["Branch"] : []),
+                  "Actions",
+                ].map(h => (
                   <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {isLoadingProposals ? (
-                Array(3).fill(0).map((_, i) => (
-                  <tr key={i}><td colSpan={11} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
-                ))
-              ) : filtered.length === 0 ? (
+                <SkeletonTableRows rows={6} colSpan={11 + (canUseBranch ? 1 : 0)} />
+              ) : paginatedProposals.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-muted-foreground italic">
+                  <td colSpan={11 + (canUseBranch ? 1 : 0)} className="px-6 py-12 text-center text-muted-foreground italic">
                     No proposals found.
                   </td>
                 </tr>
               ) : (
-                filtered.map((prop: any) => {
+                paginatedProposals.map((prop: any) => {
                   const status = getStatus(prop.status);
                   const proposalNum = (prop._id || prop.id)?.slice(-6).toUpperCase();
                   return (
@@ -786,6 +907,11 @@ const Proposals = () => {
                           {status.label}
                         </Badge>
                       </td>
+                      {canUseBranch && (
+                        <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                          {typeof prop.branch === "object" ? (prop.branch?.name || "-") : (prop.branch || "-")}
+                        </td>
+                      )}
                       <td className="px-6 py-4">
                         <TableActions
                           onView={() => setPreviewProposal(prop)}
@@ -804,12 +930,29 @@ const Proposals = () => {
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing 1 to {filtered.length} of {filtered.length} entries
+            Showing {totalRows === 0 ? 0 : (safePage - 1) * pageSize + 1} to {Math.min(safePage * pageSize, totalRows)} of {totalRows} entries
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+            >
+              Previous
+            </Button>
+            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">{safePage}</div>
+            <span className="text-xs text-muted-foreground px-1">of {totalPages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+            >
+              Next
+            </Button>
           </div>
         </div>
       </div>

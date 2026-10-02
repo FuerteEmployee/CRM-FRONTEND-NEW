@@ -28,8 +28,9 @@ export * from "./checklistService";
 // export * from "./modelClassService"; (missing)
 // export * from "./hsnSacService"; (missing)
 // export * from "./productMasterService"; (missing)
-export * from "./systemSettingsService";
+// export * from "./systemSettingsService"; (removed — HRMS Settings page dropped)
 export * from "./departmentService";
+export * from "./holidayService";
 export * from "./designationService";
 export * from "./shiftService";
 // export * from "./purchaseService"; (missing)
@@ -106,7 +107,7 @@ const modelClassApi = {} as any;
 const hsnSacApi = {} as any;
 // import { productMasterApi } from "./productMasterService";
 const productMasterApi = {} as any;
-import { settingsService as settingsApi } from "./systemSettingsService";
+// import { settingsService as settingsApi } from "./systemSettingsService"; (removed — HRMS Settings page dropped)
 import { departmentService as departmentApi } from "./departmentService";
 // import { purchaseService as purchaseApi } from "./purchaseService";
 const purchaseApi = {} as any;
@@ -161,7 +162,6 @@ export {
   modelClassApi,
   hsnSacApi,
   productMasterApi,
-  settingsApi,
   departmentApi,
   dealerApi,
   purchaseApi,

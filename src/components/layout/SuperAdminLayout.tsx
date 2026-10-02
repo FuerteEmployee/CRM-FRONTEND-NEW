@@ -31,7 +31,7 @@ export function SuperAdminLayout() {
   const navigate = useNavigate();
   const { logout, user } = usePermissionContext();
   const { getSetting } = useSettings();
-  const companyName = getSetting("companyName", "FuerteCRM");
+  const companyName = getSetting("companyName", "Trinetra TechnoWorld");
   const [profileOpen, setProfileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -58,7 +58,7 @@ export function SuperAdminLayout() {
   };
 
   return (
-    <div className="flex h-screen w-full bg-gray-50 font-sans overflow-hidden">
+    <div className="flex h-dvh w-full bg-gray-50 font-sans overflow-hidden">
       {/* Mobile backdrop */}
       {sidebarOpen && (
         <div

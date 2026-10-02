@@ -2,7 +2,7 @@ import { apiClient } from "../client";
 
 export const customerService = {
   // Clients
-  getAll: () => apiClient.get("/clients"),
+  getAll: (params) => apiClient.get("/clients", params ? { params } : undefined),
 
   getById: (id) => apiClient.get(`/clients/${id}`),
 
@@ -12,7 +12,12 @@ export const customerService = {
 
   delete: (id) => apiClient.delete(`/clients/${id}`),
 
-  importClients: (data) => apiClient.post("/clients/import", data),
+  bulkDelete: (ids) => apiClient.post("/clients/bulk-delete", { ids }),
+
+  transferOrAssign: (data) => apiClient.post("/clients/transfer-or-assign", data),
+
+  importClients: (data, branchId) =>
+    apiClient.post("/clients/import", branchId ? { clients: data, branchId } : data),
 
   importContacts: (data) => apiClient.post("/clients/contacts/import", data),
   getStatement: (id, params) => apiClient.get(`/clients/${id}/statement`, { params }),
@@ -21,6 +26,23 @@ export const customerService = {
   getContacts: (clientId) => apiClient.get(`/clients/${clientId}/contacts`),
 
   getAllContacts: () => apiClient.get("/clients/contacts/all"),
+
+  /**
+   * Paginated/searchable contacts across all clients. Pass { page, limit,
+   * search } as needed. Named distinctly from getContacts(clientId) above
+   * (that one fetches a single client's contacts) to avoid colliding with
+   * it in this object literal.
+   */
+  getContactsPaginated: (params = {}) => {
+    // Drop undefined/null/"" so callers can pass optional filters without them
+    // literally becoming the string "undefined" in the query (URLSearchParams
+    // stringifies every value it's given, undefined included).
+    const cleaned = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "")
+    );
+    const query = new URLSearchParams(cleaned).toString();
+    return apiClient.get(`/clients/contacts/all${query ? `?${query}` : ""}`);
+  },
 
   createContact: (clientId, data) =>
     apiClient.post(`/clients/${clientId}/contacts`, data),

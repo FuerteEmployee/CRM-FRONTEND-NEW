@@ -260,11 +260,11 @@ export default function ShiftManagementPage() {
                     <DialogContent className="bg-white border-0 rounded-[2.5rem] max-w-lg shadow-2xl p-0 overflow-hidden flex flex-col max-h-[90vh]">
                         <DialogHeader className="p-8 pb-4 shrink-0">
                             <div className="flex items-center gap-3 mb-2">
-                                <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center text-white shadow-soft">
-                                    <AlarmClock className="h-6 w-6" />
+                                <div className="h-10 w-10 shrink-0 rounded-xl gradient-primary flex items-center justify-center text-white shadow-soft">
+                                    <AlarmClock className="h-6 w-6 shrink-0" />
                                 </div>
-                                <div>
-                                    <DialogTitle className="text-2xl font-bold">
+                                <div className="min-w-0">
+                                    <DialogTitle className="text-2xl font-bold truncate">
                                         {editingShift ? "Update Shift" : "New Shift"}
                                     </DialogTitle>
                                     <DialogDescription className="text-muted-foreground font-medium">
@@ -274,9 +274,9 @@ export default function ShiftManagementPage() {
                             </div>
                         </DialogHeader>
 
-                        <div className="overflow-y-auto flex-1">
-                            <Form {...form}>
-                                <form onSubmit={form.handleSubmit(onFormSubmit)} className="space-y-6 px-8 py-4">
+                        <Form {...form}>
+                            <form onSubmit={form.handleSubmit(onFormSubmit)} className="flex flex-col flex-1 overflow-hidden">
+                                <div className="overflow-y-auto flex-1 space-y-6 px-8 py-4">
 
                                     {/* Shift Name */}
                                     <FormField
@@ -294,7 +294,7 @@ export default function ShiftManagementPage() {
                                     />
 
                                     {/* Start / End Time */}
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <FormField
                                             control={form.control}
                                             name="startTime"
@@ -548,7 +548,7 @@ export default function ShiftManagementPage() {
                                                 {lunch.enabled && (
                                                     <div className="space-y-3">
                                                         {/* Mode */}
-                                                        <div className="grid grid-cols-2 gap-2">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                             {([["flexible_duration", "Fixed duration"], ["fixed_window", "Fixed window"]] as const).map(([m, lbl]) => (
                                                                 <button key={m} type="button" onClick={() => setLunch({ mode: m })}
                                                                     className={cn("rounded-xl border-2 py-2 text-[12px] font-bold transition-all",
@@ -567,7 +567,7 @@ export default function ShiftManagementPage() {
                                                                 <p className="text-[11px] text-muted-foreground mt-1">Any {minsLabel} within the shift.</p>
                                                             </div>
                                                         ) : (
-                                                            <div className="grid grid-cols-2 gap-3">
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                                 <div>
                                                                     <label className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Lunch start</label>
                                                                     <Input type="time" value={lunch.startTime} onChange={(e) => setLunch({ startTime: e.target.value })} className="h-10 rounded-xl mt-1" />
@@ -580,7 +580,7 @@ export default function ShiftManagementPage() {
                                                         )}
 
                                                         {/* Deduction mode */}
-                                                        <div className="grid grid-cols-2 gap-2">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                                             {([["auto", "Auto-deduct"], ["punch", "From punches"]] as const).map(([d, lbl]) => (
                                                                 <button key={d} type="button" onClick={() => setLunch({ deduction: d })}
                                                                     className={cn("rounded-xl border-2 py-2 text-[12px] font-bold transition-all",
@@ -616,24 +616,25 @@ export default function ShiftManagementPage() {
                                         );
                                     })()}
 
-                                    <DialogFooter className="py-4 flex items-center gap-3">
-                                        <Button variant="ghost" type="button" onClick={() => setIsAddOpen(false)} className="rounded-xl h-12">
-                                            Cancel
-                                        </Button>
-                                        <Button disabled={isSubmitting} type="submit" className="flex-1 rounded-xl h-12 gradient-primary font-bold shadow-glow">
-                                            {isSubmitting && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />}
-                                            {editingShift ? "Save Changes" : "Create Shift"}
-                                        </Button>
-                                    </DialogFooter>
-                                </form>
-                            </Form>
-                        </div>
+                                </div>
+
+                                <DialogFooter className="px-8 py-4 border-t border-gray-100 shrink-0 flex items-center gap-3">
+                                    <Button variant="ghost" type="button" onClick={() => setIsAddOpen(false)} className="rounded-xl h-12">
+                                        Cancel
+                                    </Button>
+                                    <Button disabled={isSubmitting} type="submit" className="flex-1 rounded-xl h-12 gradient-primary font-bold shadow-glow">
+                                        {isSubmitting && <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />}
+                                        {editingShift ? "Save Changes" : "Create Shift"}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </Form>
                     </DialogContent>
                 </Dialog>
             </div>
 
             <div className="space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-2xl gradient-primary flex items-center justify-center text-white shadow-soft">
                             <Clock className="h-5 w-5" />
@@ -645,7 +646,7 @@ export default function ShiftManagementPage() {
                             </p>
                         </div>
                     </div>
-                    <div className="relative w-64">
+                    <div className="relative w-full sm:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
                         <Input
                             placeholder="Search shifts..."

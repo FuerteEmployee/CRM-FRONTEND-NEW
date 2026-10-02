@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/hrms/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -427,9 +428,13 @@ function CanvasSlipRenderer({ slip, elements, canvasBg, canvasWidth, canvasHeigh
 interface Props {
   payrollId: string;
   onClose: () => void;
+  // Defaults to the admin-facing endpoint (any payrollId). The staff
+  // self-service page passes salaryTemplateService.getMyPayrollSlip instead,
+  // which is scoped server-side to the logged-in employee's own records.
+  fetchSlip?: (payrollId: string, templateId?: string) => Promise<SalarySlipData>;
 }
 
-export default function SalarySlipViewer({ payrollId, onClose }: Props) {
+export default function SalarySlipViewer({ payrollId, onClose, fetchSlip = salaryTemplateService.getPayrollSlip }: Props) {
   const [slip, setSlip] = useState<SalarySlipData | null>(null);
   const [templates, setTemplates] = useState<SalaryTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("__default__");
@@ -442,7 +447,7 @@ export default function SalarySlipViewer({ payrollId, onClose }: Props) {
       try {
         const [tmplList, slipData] = await Promise.all([
           salaryTemplateService.getAll(),
-          salaryTemplateService.getPayrollSlip(payrollId),
+          fetchSlip(payrollId),
         ]);
         setTemplates(tmplList);
         setSlip(slipData);
@@ -459,7 +464,7 @@ export default function SalarySlipViewer({ payrollId, onClose }: Props) {
     setIsLoading(true);
     try {
       const templateId = val === "__default__" ? undefined : val;
-      const slipData = await salaryTemplateService.getPayrollSlip(payrollId, templateId);
+      const slipData = await fetchSlip(payrollId, templateId);
       setSlip(slipData);
     } catch (err: any) {
       toast({ title: err.message || "Failed to reload slip", variant: "destructive" });
@@ -557,7 +562,14 @@ export default function SalarySlipViewer({ payrollId, onClose }: Props) {
     earnings: true, deductions: true, attendance: true, leaveDetails: true, bankDetails: true,
   };
 
-  return (
+  // Rendered via a portal straight into <body> — this component is mounted
+  // deep inside DashboardLayout's sidebar wrapper, which (like shadcn's
+  // Sidebar primitive generally does) applies a CSS transform for its
+  // collapse animation. A transformed ancestor becomes the containing block
+  // for any `position: fixed` descendant, so without the portal this overlay
+  // was positioning itself relative to that wrapper instead of the real
+  // viewport — showing up offset from the top instead of covering the screen.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-100/80 backdrop-blur-sm">
       {/* Top bar */}
       <div className="flex-shrink-0 flex items-center justify-between bg-white border-b border-slate-200 px-4 py-3 shadow-sm">
@@ -821,6 +833,7 @@ export default function SalarySlipViewer({ payrollId, onClose }: Props) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

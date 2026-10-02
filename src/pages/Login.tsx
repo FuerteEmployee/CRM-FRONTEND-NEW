@@ -24,7 +24,12 @@ import { authService } from "@/api/services/auth.service";
 import { toast } from "sonner";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useSettings } from "@/context/SettingsContext";
+import { useCurrency } from "@/context/CurrencyContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
+import { getLandingPath } from "@/lib/landingPath";
+import { AlreadyLoggedInBanner } from "@/components/auth/AlreadyLoggedInBanner";
+import { TwoFactorCodeForm } from "@/components/auth/TwoFactorCodeForm";
+import { getDeviceInfo, getLoginLocation } from "@/hrms/utils/deviceId";
 
 const features = [
   { icon: BarChart3, label: "Real-time Analytics" },
@@ -36,38 +41,76 @@ const Login = () => {
   const navigate = useNavigate();
   const { setFromLoginResponse } = usePermissionContext();
   const { settings, refreshSettings } = useSettings();
+  const { refetch: refetchCurrencies } = useCurrency();
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState("admin");
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [logoLightError, setLogoLightError] = useState(false);
+  const [logoDarkError, setLogoDarkError] = useState(false);
+  const [stage, setStage] = useState<"credentials" | "otp">("credentials");
+
+  const completeLogin = (response: any) => {
+    toast.success("Welcome back!");
+    setFromLoginResponse(response.user, response.permissions, response.plan_modules);
+    // Reload settings with the new auth token so this admin's own
+    // branding (logo, favicon, company name) applies immediately
+    refreshSettings();
+    // Currency queries are disabled until a token exists (avoids a 401
+    // on the public login page) — fetch now that we just logged in.
+    refetchCurrencies();
+    const userAdmin = response.user?.admin;
+    const isAdmin = userAdmin === true || userAdmin === 1 || userAdmin === "1" || userAdmin === "true";
+    navigate(getLandingPath(response.user, response.permissions, !isAdmin && !response.user?.is_superadmin));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await authService.login({ email, password });
-      if (response.requires2FA) {
-        toast.info("2FA Check Required. Please verify your identity.");
-        // In a real app, you'd navigate to a 2FA page or show a modal
+      const deviceInfo = await getDeviceInfo();
+      const location = await getLoginLocation();
+      const response = await authService.login({ email, password, deviceId: deviceInfo.deviceId, deviceInfo, ...(location ? { location } : {}) });
+      // The backend alone decides whether 2FA is required for this account
+      // (based on its tenant) — the frontend only reacts to it.
+      if (response.two_factor_auth_enabled) {
+        setStage("otp");
+        toast.info(response.message || "A verification code has been sent to your email.");
       } else {
-        toast.success("Welcome back!");
-        setFromLoginResponse(response.user, response.permissions, response.plan_modules);
-        // Reload settings with the new auth token so this admin's own
-        // branding (logo, favicon, company name) applies immediately
-        refreshSettings();
-        const userAdmin = response.user?.admin;
-        const isAdmin = userAdmin === true || userAdmin === 1 || userAdmin === "1" || userAdmin === "true";
-        if (response.user?.is_superadmin) {
-          navigate("/super-admin/dashboard");
-        } else if (isAdmin) {
-          navigate("/admin/dashboard");
-        } else {
-          navigate("/staff/dashboard");
-        }
+        completeLogin(response);
       }
     } catch (error: any) {
-      toast.error(error.message || "Invalid credentials. Please try again.");
+      if (error.response?.data?.devicePending) {
+        toast.info(error.message);
+      } else {
+        toast.error(error.message || "Invalid credentials. Please try again.");
+      }
       console.error("Login error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerify = async (code: string) => {
+    setLoading(true);
+    try {
+      const response = await authService.verify2FA({ email, code });
+      completeLogin(response);
+    } catch (error: any) {
+      toast.error(error.message || "Invalid or expired code. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setLoading(true);
+    try {
+      const response = await authService.login({ email, password });
+      toast.info(response.message || "A new verification code has been sent to your email.");
+    } catch (error: any) {
+      toast.error(error.message || "Could not resend the code. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -84,15 +127,17 @@ const Login = () => {
 
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          {settings?.compLogoLight ? (
-            <img src={resolveImageUrl(settings.compLogoLight)} alt="Logo" className="h-10 w-auto object-contain" />
+          {settings?.compLogoLight && !logoLightError ? (
+            <div className="flex items-center gap-2">
+              <img src={resolveImageUrl(settings.compLogoLight)} alt="Logo" className="h-10 w-auto object-contain" onError={() => setLogoLightError(true)} />
+            </div>
           ) : (
             <>
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-primary font-extrabold text-lg shadow-lg">
                 {settings?.companyName?.charAt(0) || "C"}
               </div>
               <span className="text-2xl font-bold tracking-tight">
-                {settings?.companyName || "CRMPro"}
+                {settings?.companyName}
               </span>
             </>
           )}
@@ -147,122 +192,145 @@ const Login = () => {
         <div className="w-full max-w-sm space-y-8">
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center justify-center gap-2 mb-2">
-            {settings?.compLogoDark ? (
-              <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-9 w-auto object-contain" />
+            {settings?.compLogoDark && !logoDarkError ? (
+              <div className="flex items-center gap-2">
+                <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-9 w-auto object-contain" onError={() => setLogoDarkError(true)} />
+              </div>
             ) : (
               <>
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-base">
                   {settings?.companyName?.charAt(0) || "C"}
                 </div>
                 <span className="text-xl font-bold">
-                  {settings?.companyName || "CRMPro"}
+                  {settings?.companyName}
                 </span>
               </>
             )}
           </div>
 
-          {/* Header */}
-          <div className="space-y-1">
-            <h2 className="text-2xl font-bold tracking-tight text-foreground">
-              Welcome back
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Sign in to your account to continue
-            </p>
-          </div>
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email */}
-            <div className="space-y-1.5">
-              <Label htmlFor="email" className="text-sm font-medium">
-                Email address
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter Your Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-10 bg-muted/40 border-border/60 focus-visible:bg-background transition-colors"
-              />
-            </div>
-
-            {/* Password */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-sm font-medium">
-                  Password
-                </Label>
-                <Link
-                  to="/admin/forgot-password"
-                  className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
-                >
-                  Forgot password?
-                </Link>
+          {stage === "otp" ? (
+            <TwoFactorCodeForm
+              email={email}
+              loading={loading}
+              onVerify={handleVerify}
+              onResend={handleResend}
+              onBack={() => setStage("credentials")}
+            />
+          ) : (
+            <>
+              {/* Header */}
+              <div className="space-y-1">
+                <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                  Welcome back
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Sign in to your account to continue
+                </p>
               </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter Your Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="h-10 pr-10 bg-muted/40 border-border/60 focus-visible:bg-background transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+
+              <AlreadyLoggedInBanner />
+
+              {/* Form */}
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {/* Email */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-sm font-medium">
+                    Email address
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Enter Your Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="h-10 bg-muted/40 border-border/60 focus-visible:bg-background transition-colors"
+                  />
+                </div>
+
+                {/* Password */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password" className="text-sm font-medium">
+                      Password
+                    </Label>
+                    <Link
+                      to="/admin/forgot-password"
+                      className="text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                    >
+                      Forgot password?
+                    </Link>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      id="password"
+                      type={showPassword ? "text" : "password"}
+                      disableVoice
+                      placeholder="Enter Your Password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="h-10 pr-10 bg-muted/40 border-border/60 focus-visible:bg-background transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Submit */}
+                <Button
+                  type="submit"
+                  className="w-full h-10 font-semibold gap-2 shadow-sm"
+                  disabled={loading}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <svg
+                        className="animate-spin h-4 w-4"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8v8H4z"
+                        />
+                      </svg>
+                      Signing in...
+                    </span>
                   ) : (
-                    <Eye className="h-4 w-4" />
+                    <>
+                      Sign In
+                      <ArrowRight className="h-4 w-4" />
+                    </>
                   )}
-                </button>
-              </div>
-            </div>
+                </Button>
+              </form>
 
-            {/* Submit */}
-            <Button
-              type="submit"
-              className="w-full h-10 font-semibold gap-2 shadow-sm"
-              disabled={loading}
-            >
-              {loading ? (
-                <span className="flex items-center gap-2">
-                  <svg
-                    className="animate-spin h-4 w-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8H4z"
-                    />
-                  </svg>
-                  Signing in...
-                </span>
-              ) : (
-                <>
-                  Sign In
-                  <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </Button>
-          </form>
-
-          {/* Footer */}
+              {/* Footer */}
+              <p className="text-sm text-center text-muted-foreground">
+                Don&apos;t have an account?{" "}
+                <Link to="/welcome" className="text-primary font-medium hover:underline">
+                  Sign up
+                </Link>
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>

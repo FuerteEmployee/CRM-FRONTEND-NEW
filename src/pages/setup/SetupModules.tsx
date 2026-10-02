@@ -28,6 +28,7 @@ export default function SetupModules() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { data: modules = [], isLoading } = useQuery<any[]>({
     queryKey: ["modules"],
@@ -81,7 +82,10 @@ export default function SetupModules() {
     );
   }, [modules, search]);
 
-  const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
+  const modulePageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
+  const totalModulePages = Math.max(1, Math.ceil(filtered.length / modulePageSize));
+  const safeModulePage = Math.min(currentPage, totalModulePages);
+  const pageData = itemsPerPage === "All" ? filtered : filtered.slice((safeModulePage - 1) * modulePageSize, safeModulePage * modulePageSize);
   const canManage = isAdmin;
 
   return (
@@ -134,7 +138,7 @@ export default function SetupModules() {
         {/* Table controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
           <div className="flex items-center gap-3">
-            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+            <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -161,7 +165,7 @@ export default function SetupModules() {
               placeholder="Search..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
@@ -230,9 +234,35 @@ export default function SetupModules() {
           </table>
         </div>
 
-        <p className="text-xs font-bold text-muted-foreground italic px-4">
-          Showing 1 to {pageData.length} of {filtered.length} entries
-        </p>
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4">
+          <p className="text-xs font-bold text-muted-foreground italic">
+            Showing {filtered.length === 0 ? 0 : (safeModulePage - 1) * modulePageSize + 1} to {Math.min(safeModulePage * modulePageSize, filtered.length)} of {filtered.length} entries
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safeModulePage <= 1}
+            >
+              Previous
+            </Button>
+            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
+              {safeModulePage}
+            </div>
+            <span className="text-xs text-muted-foreground px-1">of {totalModulePages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalModulePages, p + 1))}
+              disabled={safeModulePage >= totalModulePages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </div>
     </DashboardLayout>
   );

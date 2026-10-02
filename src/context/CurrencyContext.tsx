@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { financeService } from "@/api/services/finance.service";
 
 interface Currency {
@@ -33,15 +33,16 @@ const CurrencyContext = createContext<CurrencyContextType>({
 });
 
 export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const queryClient = useQueryClient();
-
   // Share the same query key as SetupCurrencies so both use the same cached data
-  const { data: currencies = [] } = useQuery<Currency[]>({
+  const { data: currencies = [], refetch: refetchQuery } = useQuery<Currency[]>({
     queryKey: ["currencies"],
     queryFn: financeService.getCurrencies,
     staleTime: 5 * 60 * 1000,
     retry: 2,
     retryDelay: 1000,
+    // No token yet (e.g. on the public login page) — skip the call instead
+    // of firing a guaranteed 401.
+    enabled: !!localStorage.getItem("crm_token"),
   });
 
   const defaultCurrency: Currency | null =
@@ -64,8 +65,11 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   );
 
   const refetch = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["currencies"] });
-  }, [queryClient]);
+    // A plain invalidate wouldn't actually fetch while the query is
+    // `enabled: false` pre-login — call the query's own refetch, which
+    // fetches regardless of `enabled`, so currencies load right after login.
+    refetchQuery();
+  }, [refetchQuery]);
 
   return (
     <CurrencyContext.Provider

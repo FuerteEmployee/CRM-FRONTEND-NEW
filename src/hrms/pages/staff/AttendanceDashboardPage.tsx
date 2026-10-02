@@ -30,6 +30,7 @@ import {
   Edit2,
   ShieldCheck,
   AlertTriangle,
+  PartyPopper,
 } from "lucide-react";
 import { format, isAfter, isSameDay } from "date-fns";
 import {
@@ -58,7 +59,10 @@ import {
   DialogDescription,
 } from "@/hrms/components/ui/dialog";
 import { toast } from "@/hrms/components/ui/use-toast";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { StatCard, safeFormat, statusColor } from "@/hrms/components/staff/HRMSShared";
+import { realtimeService } from "@/hrms/services/RealtimeService";
+import { holidayService, type Holiday } from "@/hrms/services/holidayService";
 
 const fmtTime = (time?: string) => {
   if (!time) return null;
@@ -88,14 +92,32 @@ const AttendanceDashboardPage: React.FC = () => {
   const [branches, setBranches] = useState<any[]>([]);
   const [viewingAttendance, setViewingAttendance] = useState<any>(null);
   const [resolvedAddresses, setResolvedAddresses] = useState<Record<string, string>>({});
-  const [datePresentCount, setDatePresentCount] = useState(0); // count of attendance records for the currently selected date
+  // Every attendance record for the selected date, unfiltered by the status
+  // chip. The stat tiles are derived from this — "Present" used to be simply
+  // allForDate.total, which counted records the same page displayed as Absent
+  // (a punch-in with no punch-out on a past day), so Present + Absent never
+  // reconciled against headcount.
+  const [allDateRecords, setAllDateRecords] = useState<any[]>([]);
   const [dateAbsentees, setDateAbsentees] = useState<any[]>([]); // absentees for the currently selected date
   const [absentSearchQuery, setAbsentSearchQuery] = useState("");
   const [deviceApprovals, setDeviceApprovals] = useState<any[]>([]);
+  // True when the pending-approvals request failed, so an empty list is not
+  // mistaken for "nothing to approve".
+  const [deviceApprovalsFailed, setDeviceApprovalsFailed] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [shiftFilter, setShiftFilter] = useState<string>("all");
   const selectedDateStr = useMemo(() => format(selectedMonth, "yyyy-MM-dd"), [selectedMonth]);
+  // Company holiday covering the date on screen — not tracked by the reference
+  // project's own dashboard, added here so an unpunched employee reads as
+  // "on a paid holiday" instead of a plain absence for that one day.
+  const [selectedDateHoliday, setSelectedDateHoliday] = useState<Holiday | null>(null);
+
+  // Server-side pagination for the Records table (attendance list only —
+  // the Absent chip still uses the separate, unbounded getAbsentEmployees call).
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
+  const [attendanceTotal, setAttendanceTotal] = useState(0);
 
   // Admin punch correction dialog state
   const [overrideTarget, setOverrideTarget] = useState<{ userId: string; name: string; date: string } | null>(null);
@@ -113,7 +135,15 @@ const AttendanceDashboardPage: React.FC = () => {
         staffService.getAll(),
         employeeApi.getLeaves(),
         hrmsbranchService.getAll(),
-        apiClient.get("/users/device-approvals?status=pending").then((r: any) => r?.data || []).catch(() => []),
+        // Was `.catch(() => [])`, which rendered a failed request as "no pending
+        // requests" — device approvals are a security decision, so silently
+        // showing zero is the wrong default. Now it surfaces the failure.
+        apiClient.get("/users/device-approvals?status=pending")
+          .then((r: any) => r?.data || [])
+          .catch(() => {
+            setDeviceApprovalsFailed(true);
+            return [];
+          }),
         shiftService.getAll(),
       ]);
       setEmployees(staff);
@@ -135,31 +165,31 @@ const AttendanceDashboardPage: React.FC = () => {
     const resolveAddr = async (lat: number, lng: number) => {
       const cacheKey = `${lat.toFixed(5)},${lng.toFixed(5)}`;
       if (resolvedAddresses[cacheKey]) return;
-      // Server-side provider chain — street-precise when a geocoding API key
-      // is configured on the backend (key never reaches the browser).
+      // Server-side provider chain only — street-precise when a geocoding API
+      // key is configured on the backend (the key never reaches the browser).
+      //
+      // There used to be a browser-side fallback straight to
+      // nominatim.openstreetmap.org, which sent each employee's exact punch
+      // coordinates to a third party whenever no backend key was configured.
+      // In an employee-monitoring product that is staff location data leaving
+      // the client's infrastructure — and it also breached Nominatim's usage
+      // policy at this volume. Removed: if the backend cannot resolve an
+      // address we show the raw coordinates instead of leaking them.
+      let resolved = "";
       try {
         const res: any = await apiClient.get("/locations/reverse-geocode", {
           params: { lat, lng },
           silent: true,
         } as any);
-        const addr = res?.address ?? res?.data?.address;
-        if (addr) {
-          setResolvedAddresses(prev => ({ ...prev, [cacheKey]: addr }));
-          return;
-        }
-      } catch { /* fall through to direct OSM lookup */ }
-      try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 5000);
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
-          { headers: { "User-Agent": "ScreenTimeERP/1.0" }, signal: controller.signal },
-        );
-        clearTimeout(timer);
-        const data = await res.json();
-        const addr = data?.display_name;
-        if (addr) setResolvedAddresses(prev => ({ ...prev, [cacheKey]: addr }));
-      } catch { }
+        resolved = res?.address ?? res?.data?.address ?? "";
+      } catch {
+        // Provider unavailable or no key configured — fall through to coordinates.
+      }
+      // Always write something, so the UI stops saying "Fetching address..."
+      setResolvedAddresses(prev => ({
+        ...prev,
+        [cacheKey]: resolved || `${lat.toFixed(5)}, ${lng.toFixed(5)} — address unavailable`,
+      }));
     };
     const locations = [
       viewingAttendance.punchIn?.location,
@@ -172,50 +202,90 @@ const AttendanceDashboardPage: React.FC = () => {
   }, [viewingAttendance]);
 
   // Fetch attendance from server — all filters sent as query params (including Absent)
-  useEffect(() => {
-    const fetchAtt = async () => {
-      setAttLoading(true);
-      try {
-        const dateStr = format(selectedMonth, "yyyy-MM-dd");
-        const branchParam = selectedBranch === "all" ? undefined : selectedBranch;
-        const shiftParam = shiftFilter === "all" ? undefined : shiftFilter;
+  const fetchAtt = useCallback(async () => {
+    setAttLoading(true);
+    try {
+      const dateStr = format(selectedMonth, "yyyy-MM-dd");
+      const branchParam = selectedBranch === "all" ? undefined : selectedBranch;
+      const shiftParam = shiftFilter === "all" ? undefined : shiftFilter;
 
-        // Always pull the full unfiltered set for the selected date — this
-        // drives the "Present" stat tile and the absent list, independent of
-        // whichever status chip is currently selected.
-        const [allForDate, absentData] = await Promise.all([
-          employeeApi.getAttendance({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
-          employeeApi.getAbsentEmployees({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
-        ]);
-        setDatePresentCount(allForDate.length);
-        setDateAbsentees(absentData);
+      // Always pull the (paginated) unfiltered set for the selected date —
+      // its `total` drives the "Present" stat tile independent of whichever
+      // status chip is currently selected. When the "all" chip is active this
+      // same call also serves as the paginated table data, so it fetches the
+      // current page in that case; otherwise it only needs the total count.
+      const wantsAllAsDisplay = statusFilter === "all";
+      const [allForDate, absentData, unfilteredRecords] = await Promise.all([
+        employeeApi.getAttendancePage({
+          date: dateStr,
+          hrmsBranchId: branchParam,
+          shiftId: shiftParam,
+          page: wantsAllAsDisplay ? currentPage : 1,
+          limit: wantsAllAsDisplay ? pageSize : 1,
+        }),
+        employeeApi.getAbsentEmployees({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
+        // Unbounded (no page/limit) so the stat tiles can be derived from every
+        // record for the date, independent of the paginated table above.
+        employeeApi.getAttendance({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
+      ]);
+      setAllDateRecords(unfilteredRecords);
+      setDateAbsentees(absentData);
 
-        if (statusFilter === "Absent") {
-          setAbsentList(absentData);
-          setAttendance([]);
-        } else if (statusFilter === "all") {
-          setAttendance(allForDate);
-          setAbsentList([]);
-        } else {
-          const filtered = await employeeApi.getAttendance({
-            date: dateStr,
-            hrmsBranchId: branchParam,
-            shiftId: shiftParam,
-            statusFilter,
-          });
-          setAttendance(filtered);
-          setAbsentList([]);
-        }
-      } catch {
-        toast({ title: "Failed to load attendance", variant: "destructive" });
-      } finally {
-        setAttLoading(false);
+      if (statusFilter === "Absent") {
+        setAbsentList(absentData);
+        setAttendance([]);
+        setAttendanceTotal(absentData.length);
+      } else if (statusFilter === "all") {
+        setAttendance(allForDate.data);
+        setAbsentList([]);
+        setAttendanceTotal(allForDate.total);
+      } else {
+        const filtered = await employeeApi.getAttendancePage({
+          date: dateStr,
+          hrmsBranchId: branchParam,
+          shiftId: shiftParam,
+          statusFilter,
+          page: currentPage,
+          limit: pageSize,
+        });
+        setAttendance(filtered.data);
+        setAbsentList([]);
+        setAttendanceTotal(filtered.total);
       }
-    };
-    fetchAtt();
+    } catch {
+      toast({ title: "Failed to load attendance", variant: "destructive" });
+    } finally {
+      setAttLoading(false);
+    }
+  }, [selectedMonth, selectedBranch, shiftFilter, statusFilter, currentPage, pageSize]);
+
+  useEffect(() => { fetchAtt(); }, [fetchAtt]);
+
+  // Reset back to page 1 whenever the date/branch/shift/status filter changes
+  // (a stale currentPage from a previous, larger result set could otherwise
+  // point past the end of a smaller filtered set).
+  useEffect(() => {
+    setCurrentPage(1);
   }, [selectedMonth, selectedBranch, shiftFilter, statusFilter]);
 
-  const getEmployeeName = (id: string | any) => {
+  // Live-refresh when anyone punches in/out today — without this, the stat
+  // tiles and Records table only ever update on a manual reload or filter
+  // change, even while this dashboard is open and being watched.
+  useEffect(() => {
+    realtimeService.init((user as any)?.token || "", (user as any)?._id || (user as any)?.id);
+    const handleAttendanceUpdate = (payload: any) => {
+      if (payload?.date === selectedDateStr) fetchAtt();
+    };
+    realtimeService.on("attendance_update", handleAttendanceUpdate);
+    return () => realtimeService.off("attendance_update");
+  }, [fetchAtt, selectedDateStr, user]);
+
+  // The attendance API already returns each record with `userId` populated
+  // (see getAllAttendance's populate("userId", "name ...")) — prefer that
+  // name directly. The local `employees` cross-reference is only a fallback
+  // for callers (like row actions) that only have a bare id to work with.
+  const getEmployeeName = (id: string | any, populatedName?: string) => {
+    if (populatedName) return populatedName;
     const emp = employees.find((e: User) => String((e as any)._id || e.id) === String(id));
     return emp ? emp.name : "Staff";
   };
@@ -234,6 +304,22 @@ const AttendanceDashboardPage: React.FC = () => {
     if (!hasPunchOut) return isViewingToday ? "On Duty" : "Absent";
     return att.status || "Absent";
   };
+
+  // Does this record count as the employee having turned up? Drives the stat
+  // tiles, which must not contradict the rows underneath them.
+  const countsAsPresent = (att: any) => getEffectiveStatus(att) !== "Absent";
+
+  // Tiles derived from the unfiltered record set for the date. Plain derivation
+  // rather than useMemo — this is one day of records, and memoising a predicate
+  // that is re-created every render buys nothing.
+  const presentCount = allDateRecords.filter(countsAsPresent).length;
+  // Records that exist but do not count as present, plus employees the server
+  // reports as having no record at all. Previously the first group was counted
+  // as Present, so the two tiles could never add up.
+  const unaccountedCount = allDateRecords.length - presentCount;
+  // A company holiday is a paid day off, not an absence — don't count anyone
+  // against it just for not punching in.
+  const absentTotal = selectedDateHoliday ? 0 : dateAbsentees.length + unaccountedCount;
 
   const openOverride = (userId: string, name: string, date: string) => {
     setOverrideTarget({ userId, name, date });
@@ -274,26 +360,7 @@ const AttendanceDashboardPage: React.FC = () => {
       });
       toast({ title: "Attendance Corrected", description: `${overrideTarget.name} — ${overrideStatus || correctionCalc?.label || "updated"}.` });
       setOverrideTarget(null);
-      const branchParam = selectedBranch === "all" ? undefined : selectedBranch;
-      const shiftParam = shiftFilter === "all" ? undefined : shiftFilter;
-      const dateStr = format(selectedMonth, "yyyy-MM-dd");
-      const [allForDate, absentData] = await Promise.all([
-        employeeApi.getAttendance({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
-        employeeApi.getAbsentEmployees({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam }),
-      ]);
-      setDatePresentCount(allForDate.length);
-      setDateAbsentees(absentData);
-      if (statusFilter === "Absent") {
-        setAbsentList(absentData);
-        setAttendance([]);
-      } else if (statusFilter === "all") {
-        setAttendance(allForDate);
-        setAbsentList([]);
-      } else {
-        const filtered = await employeeApi.getAttendance({ date: dateStr, hrmsBranchId: branchParam, shiftId: shiftParam, statusFilter });
-        setAttendance(filtered);
-        setAbsentList([]);
-      }
+      await fetchAtt();
     } catch {
       toast({ title: "Error", description: "Failed to correct attendance", variant: "destructive" });
     } finally {
@@ -313,7 +380,7 @@ const AttendanceDashboardPage: React.FC = () => {
     }
     return searchQuery
       ? attendance.filter((att: any) =>
-        getEmployeeName(att.userId?._id || att.userId)
+        getEmployeeName(att.userId?._id || att.userId, att.userId?.name)
           .toLowerCase()
           .includes(searchQuery.toLowerCase())
       )
@@ -331,6 +398,13 @@ const AttendanceDashboardPage: React.FC = () => {
       return selectedDateStr >= from && selectedDateStr <= to;
     });
   }, [leaves, selectedDateStr]);
+
+  useEffect(() => {
+    holidayService
+      .getAll({ date: selectedDateStr })
+      .then((list) => setSelectedDateHoliday(list[0] || null))
+      .catch(() => setSelectedDateHoliday(null));
+  }, [selectedDateStr]);
 
   // Exports exactly what's on screen — respects the date, branch, shift and
   // status filter currently selected (e.g. "Full Day" only exports Full Day rows).
@@ -358,7 +432,7 @@ const AttendanceDashboardPage: React.FC = () => {
           const m = Math.round((hours - h) * 60);
           return {
             "S.No": idx + 1,
-            "Employee": getEmployeeName(att.userId?._id || att.userId),
+            "Employee": getEmployeeName(att.userId?._id || att.userId, att.userId?.name),
             "Date": att.date || selectedDateStr,
             "Punch In": fmtTime(att.punchIn?.time || att.punchIn) || "--:--",
             "Punch Out": fmtTime(att.punchOut?.time || att.punchOut) || "--:--",
@@ -390,10 +464,29 @@ const AttendanceDashboardPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Selected date is a company holiday — absences below aren't counted */}
+      {selectedDateHoliday && (
+        <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 to-fuchsia-50/40 p-4">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center shrink-0">
+              <PartyPopper className="h-5 w-5 text-purple-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-purple-800 leading-tight">
+                {selectedDateStr} is a holiday — {selectedDateHoliday.name}
+              </p>
+              <p className="text-xs text-purple-500 mt-0.5">
+                Unpunched staff below are not counted as absent today.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-        <StatCard icon={UserCheck} label="Present" value={datePresentCount} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
+        <StatCard icon={UserCheck} label="Present" value={presentCount} gradient="bg-gradient-to-br from-emerald-500 to-teal-600" />
         <StatCard icon={CalendarDays} label="On Leave" value={onLeaveForDate.length} gradient="bg-gradient-to-br from-blue-500 to-indigo-600" />
-        <StatCard icon={AlertCircle} label="Absent" value={dateAbsentees.length} gradient="bg-gradient-to-br from-red-500 to-rose-600" />
+        <StatCard icon={AlertCircle} label="Absent" value={absentTotal} gradient="bg-gradient-to-br from-red-500 to-rose-600" />
       </div>
 
       <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden">
@@ -513,6 +606,9 @@ const AttendanceDashboardPage: React.FC = () => {
         ) : (
           <DataTable
             data={displayData}
+            {...(statusFilter === "Absent"
+              ? {}
+              : { totalItems: attendanceTotal, currentPage, onPageChange: setCurrentPage, pageSize })}
             columns={statusFilter === "Absent" ? [
               {
                 header: "Staff",
@@ -557,7 +653,7 @@ const AttendanceDashboardPage: React.FC = () => {
                 header: "Staff",
                 accessorKey: (att: any) => (
                   <div>
-                    <p className="text-sm font-semibold text-slate-700">{getEmployeeName(att.userId?._id || att.userId)}</p>
+                    <p className="text-sm font-semibold text-slate-700">{getEmployeeName(att.userId?._id || att.userId, att.userId?.name)}</p>
                     <p className="text-[10px] text-slate-400 capitalize">{att.status}</p>
                   </div>
                 ),
@@ -621,44 +717,62 @@ const AttendanceDashboardPage: React.FC = () => {
               },
               {
                 header: "Selfie",
-                accessorKey: (att: any) => (
-                  <div className="flex items-center gap-1.5">
-                    <div className="flex flex-col items-center gap-0.5">
-                      <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-wider">IN</span>
-                      <div
-                        className="h-8 w-8 rounded-lg overflow-hidden border border-emerald-100 cursor-pointer hover:scale-110 transition-transform"
-                        onClick={() => att.punchIn?.selfieUrl && window.open(att.punchIn.selfieUrl, "_blank")}
-                      >
-                        <img
-                          src={att.punchIn?.selfieUrl || `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`}
-                          alt="Punch In"
-                          className="h-full w-full object-cover"
-                          onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`)}
-                        />
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-center gap-0.5">
-                      <span className="text-[8px] font-bold text-blue-500 uppercase tracking-wider">OUT</span>
-                      <div
-                        className="h-8 w-8 rounded-lg overflow-hidden border border-blue-100 cursor-pointer hover:scale-110 transition-transform"
-                        onClick={() => att.punchOut?.selfieUrl && window.open(att.punchOut.selfieUrl, "_blank")}
-                      >
-                        {att.punchOut?.selfieUrl ? (
+                id: "selfie",
+                accessorKey: (att: any) => {
+                  const punchInSelfie = resolveImageUrl(att.punchIn?.selfieUrl || att.selfieInUrl);
+                  const punchOutSelfie = resolveImageUrl(att.punchOut?.selfieUrl || att.selfieOutUrl);
+                  const punchInFailed = att.selfieVerificationStatus === "failed";
+                  return (
+                    <div className="flex items-center gap-1.5">
+                      <div className="relative group/selfie shrink-0">
+                        <button
+                          type="button"
+                          disabled={!punchInSelfie}
+                          onClick={() => punchInSelfie && window.open(punchInSelfie, "_blank")}
+                          className={`h-8 w-8 rounded-lg overflow-hidden border shadow-sm flex items-center justify-center bg-slate-50 transition active:scale-95 ${
+                            punchInFailed 
+                              ? "border-red-500 ring-2 ring-red-500/20" 
+                              : "border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
                           <img
-                            src={att.punchOut.selfieUrl}
-                            alt="Punch Out"
+                            src={punchInSelfie || `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`}
+                            alt="Punch In"
                             className="h-full w-full object-cover"
-                            onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=OUT&background=3b82f6&color=fff`)}
+                            onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`)}
                           />
-                        ) : (
-                          <div className="h-full w-full bg-slate-100 flex items-center justify-center">
-                            <span className="text-[7px] font-bold text-slate-400">—</span>
-                          </div>
-                        )}
+                        </button>
+                        <span className={`absolute -top-1.5 -right-1 px-1 rounded text-white font-black text-[7px] uppercase shadow-sm pointer-events-none ${
+                          punchInFailed ? "bg-red-500 animate-pulse" : "bg-emerald-500"
+                        }`}>
+                          {punchInFailed ? "Failed" : "IN"}
+                        </span>
                       </div>
+
+                      {punchOutSelfie ? (
+                        <div className="relative group/selfie shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => window.open(punchOutSelfie, "_blank")}
+                            className="h-8 w-8 rounded-lg overflow-hidden border border-slate-200 shadow-sm flex items-center justify-center bg-slate-50 transition hover:border-slate-300 active:scale-95"
+                          >
+                            <img
+                              src={punchOutSelfie}
+                              alt="Punch Out"
+                              className="h-full w-full object-cover"
+                              onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=OUT&background=3b82f6&color=fff`)}
+                            />
+                          </button>
+                          <span className="absolute -top-1.5 -right-1 px-1 rounded bg-rose-500 text-white font-black text-[7px] uppercase shadow-sm pointer-events-none">OUT</span>
+                        </div>
+                      ) : (
+                        <div className="h-8 w-8 rounded-lg border border-dashed border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-300 select-none shrink-0">
+                          OUT
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ),
+                  );
+                },
               },
               {
                 header: "Total Hrs",
@@ -748,7 +862,7 @@ const AttendanceDashboardPage: React.FC = () => {
                 id: "actions",
                 accessorKey: (att: any) => {
                   const staffId = att.userId?._id || att.userId;
-                  const empName = getEmployeeName(staffId);
+                  const empName = getEmployeeName(staffId, att.userId?.name);
                   return (
                     <div className="flex items-center gap-1">
                       <Button
@@ -818,6 +932,18 @@ const AttendanceDashboardPage: React.FC = () => {
       </Card>
 
       {/* Device Approval Requests */}
+      {deviceApprovalsFailed && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-xs font-semibold text-amber-800">
+            Could not load pending device-login requests.
+          </p>
+          <p className="text-[11px] text-amber-700 mt-0.5">
+            This is not the same as having none — reload, or check that your role
+            has permission to manage device approvals.
+          </p>
+        </div>
+      )}
+
       {deviceApprovals.length > 0 && (
         <Card className="border border-amber-200 bg-amber-50/40 shadow-sm overflow-hidden">
           <CardHeader className="py-4 border-b border-amber-100">
@@ -872,7 +998,7 @@ const AttendanceDashboardPage: React.FC = () => {
         <DialogContent className="rounded-3xl max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-violet-500" /> Correct Attendance
+              <ShieldCheck className="h-5 w-5 shrink-0 text-violet-500" /> Correct Attendance
             </DialogTitle>
             <DialogDescription>
               <span className="font-semibold text-slate-700">{overrideTarget?.name}</span>
@@ -885,7 +1011,7 @@ const AttendanceDashboardPage: React.FC = () => {
           </DialogHeader>
           <div className="space-y-4 pt-1">
             {/* Time inputs — both optional, fill whichever needs correcting */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                   Punch In <span className="text-slate-300 normal-case font-normal">(optional)</span>
@@ -934,7 +1060,7 @@ const AttendanceDashboardPage: React.FC = () => {
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">
                 Set Status Directly <span className="text-slate-300 normal-case font-normal">(optional — overrides the calculation above)</span>
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {(["Full Day", "Half Day"] as const).map((s) => (
                   <button
                     key={s}
@@ -987,56 +1113,60 @@ const AttendanceDashboardPage: React.FC = () => {
           {viewingAttendance && (
             <div className="space-y-4">
               {/* Punch In / Punch Out selfies */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
                   { key: "punchIn", label: "Punch In", color: "emerald", bg: "10b981" },
                   { key: "punchOut", label: "Punch Out", color: "blue", bg: "3b82f6" },
-                ].map(({ key, label, color, bg }) => (
-                  <div key={key} className="space-y-2">
-                    <p className={`text-[10px] font-bold uppercase tracking-widest text-${color}-500`}>{label}</p>
-                    <div className="h-28 w-full rounded-xl overflow-hidden border border-slate-100">
-                      {viewingAttendance[key]?.selfieUrl ? (
-                        <img
-                          src={viewingAttendance[key].selfieUrl}
-                          alt={label}
-                          className="h-full w-full object-cover cursor-pointer"
-                          onClick={() => window.open(viewingAttendance[key].selfieUrl, "_blank")}
-                          onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=${label}&background=${bg}&color=fff&size=200`)}
-                        />
-                      ) : (
-                        <div className="h-full w-full bg-slate-50 flex items-center justify-center border border-dashed border-slate-200 rounded-xl">
-                          {/* A missing selfie is NOT the same as "no punch". Auto
-                              punch-outs, admin corrections and session 2+ punches
-                              have a valid time but no selfie — those must read
-                              "No Selfie", never "Still On Duty". Only a genuinely
-                              absent punch (no time at all) is Still On Duty /
-                              Not Recorded. */}
-                          <p className="text-[10px] text-slate-400 font-semibold uppercase">
-                            {(viewingAttendance[key]?.time || (key === "punchIn" && viewingAttendance[key]))
-                              ? "No Selfie"
-                              : key === "punchOut" ? "Still On Duty" : "Not Recorded"}
-                          </p>
-                        </div>
-                      )}
+                ].map(({ key, label, color, bg }) => {
+                  const rawSelfie = viewingAttendance[key]?.selfieUrl || (key === "punchIn" ? viewingAttendance.selfieInUrl : viewingAttendance.selfieOutUrl);
+                  const selfieUrl = resolveImageUrl(rawSelfie);
+                  return (
+                    <div key={key} className="space-y-2">
+                      <p className={`text-[10px] font-bold uppercase tracking-widest text-${color}-500`}>{label}</p>
+                      <div className="h-28 w-full rounded-xl overflow-hidden border border-slate-100">
+                        {selfieUrl ? (
+                          <img
+                            src={selfieUrl}
+                            alt={label}
+                            className="h-full w-full object-cover cursor-pointer"
+                            onClick={() => window.open(selfieUrl, "_blank")}
+                            onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=${label}&background=${bg}&color=fff&size=200`)}
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-slate-50 flex items-center justify-center border border-dashed border-slate-200 rounded-xl">
+                            {/* A missing selfie is NOT the same as "no punch". Auto
+                                punch-outs, admin corrections and session 2+ punches
+                                have a valid time but no selfie — those must read
+                                "No Selfie", never "Still On Duty". Only a genuinely
+                                absent punch (no time at all) is Still On Duty /
+                                Not Recorded. */}
+                            <p className="text-[10px] text-slate-400 font-semibold uppercase">
+                              {(viewingAttendance[key]?.time || (key === "punchIn" && viewingAttendance[key]))
+                                ? "No Selfie"
+                                : key === "punchOut" ? "Still On Duty" : "Not Recorded"}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      <p className={`text-sm font-bold text-${color}-600 text-center`}>
+                        {fmtTime(viewingAttendance[key]?.time || viewingAttendance[key]) || "--:--"}
+                      </p>
+                      <p className="text-[10px] text-slate-500 text-center leading-tight px-1">
+                        {viewingAttendance[key]?.location?.address
+                          ? viewingAttendance[key].location.address
+                          : viewingAttendance[key]?.location?.lat
+                            ? resolvedAddresses[`${Number(viewingAttendance[key].location.lat).toFixed(5)},${Number(viewingAttendance[key].location.lng).toFixed(5)}`] || "Fetching address..."
+                            : ""}
+                      </p>
                     </div>
-                    <p className={`text-sm font-bold text-${color}-600 text-center`}>
-                      {fmtTime(viewingAttendance[key]?.time || viewingAttendance[key]) || "--:--"}
-                    </p>
-                    <p className="text-[10px] text-slate-500 text-center leading-tight px-1">
-                      {viewingAttendance[key]?.location?.address
-                        ? viewingAttendance[key].location.address
-                        : viewingAttendance[key]?.location?.lat
-                          ? resolvedAddresses[`${Number(viewingAttendance[key].location.lat).toFixed(5)},${Number(viewingAttendance[key].location.lng).toFixed(5)}`] || "Fetching address..."
-                          : ""}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Lunch In / Lunch Out */}
               {(viewingAttendance.lunchIn?.time || viewingAttendance.lunchOut?.time) && (
                 <div className={cn(
-                  "grid grid-cols-2 gap-4 p-4 rounded-2xl border",
+                  "grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl border",
                   viewingAttendance.lunchOverLimit ? "bg-red-50/70 border-red-200" : "bg-amber-50/60 border-amber-100"
                 )}>
                   {[
@@ -1122,7 +1252,7 @@ const AttendanceDashboardPage: React.FC = () => {
               )}
 
               {/* Stats row */}
-              <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100 text-center">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100 text-center">
                 <div>
                   <p className="text-[9px] uppercase font-bold text-slate-400 mb-1">Total Hours</p>
                   <p className="text-sm font-bold text-slate-700">{viewingAttendance.totalHours ? Number(viewingAttendance.totalHours).toFixed(2) : "0.00"} hrs</p>

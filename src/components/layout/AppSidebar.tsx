@@ -15,7 +15,6 @@ import {
   FileSignature,
   HeadphonesIcon,
   Target,
-  ChevronDown,
   ChevronLeft,
   ClipboardList,
   BookOpen,
@@ -43,9 +42,10 @@ import {
   HelpCircle,
   ArrowLeft,
   Bookmark,
+  Menu,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
   Sidebar,
@@ -64,12 +64,36 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useState, useEffect } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { computeReorderPayload } from "@/lib/sidebarReorder";
+import { toast } from "sonner";
 import { mainSidebarService } from "@/api/services/mainsidebar.service";
 import { quotationTypeService } from "@/api/services/quotationType.service";
+import { settingsService } from "@/api/services/settings.service";
 import * as Icons from "lucide-react";
-import { usePermissions } from "@/hooks/usePermissions";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { Badge } from "@/components/ui/badge";
@@ -134,6 +158,7 @@ const setupMenuItems = [
         title: "Expenses Categories",
         url: "/admin/setup/finance/expense-categories",
       },
+      { title: "Bank Details", url: "/admin/setup/finance/bank-details" },
     ],
   },
   {
@@ -154,6 +179,7 @@ const setupMenuItems = [
     ],
   },
   { title: "Modules", url: "/admin/setup/modules", icon: Layout },
+  { title: "Main Sidebar", url: "/admin/setup/mainsidebar", icon: Menu },
   { title: "Quotation Types", url: "/admin/setup/quotation-types", icon: FileBarChart },
   {
     title: "Email Templates",
@@ -179,12 +205,104 @@ const setupMenuItems = [
   { title: "Help", url: "https://fuertedevelopers.com/", icon: HelpCircle },
 ];
 
+// Wraps a DB-backed sidebar item so it stays fully clickable/navigable as
+// normal, while adding a small grip handle on the left that drags to
+// reorder it. The handle is rendered in-flow (via the render-prop) rather
+// than overlaid on top of the label, so it never covers/clips the item's
+// text — it just takes its own sliver of space to the left of the icon.
+const SortableNavItem = ({
+  id,
+  children,
+}: {
+  id: string;
+  children: (handle: { attributes: any; listeners: any }) => React.ReactNode;
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 };
+  return (
+    <SidebarMenuItem ref={setNodeRef} style={style}>
+      {children({ attributes, listeners })}
+    </SidebarMenuItem>
+  );
+};
+
+const DragHandle = ({ attributes, listeners }: { attributes: any; listeners: any }) => (
+  <button
+    type="button"
+    {...attributes}
+    {...listeners}
+    title="Drag to reorder"
+    className="flex items-center justify-center h-6 w-4 shrink-0 rounded text-sidebar-foreground/30 hover:text-sidebar-foreground cursor-grab active:cursor-grabbing mr-0.5"
+  >
+    <Icons.GripVertical className="h-3.5 w-3.5" />
+  </button>
+);
+
+// Same footprint as DragHandle, with nothing in it — reserved for rows that
+// don't get a grip handle (nothing to drag, or no _id yet) so their icon
+// still starts at the same x-position as every draggable row above it,
+// instead of sitting flush left and breaking the vertical alignment.
+const HandleGutter = () => <span className="h-6 w-4 shrink-0 mr-0.5" aria-hidden="true" />;
+
+// Same drag-to-reorder pattern as SortableNavItem, but for a whole collapsible
+// section (Sales / Quotation Maker / HRMS / Utilities / Reports) so the
+// sections themselves can be moved relative to each other, not just the
+// items inside one of them.
+const SortableSection = ({
+  id,
+  children,
+}: {
+  id: string;
+  children: (handle: { attributes: any; listeners: any }) => React.ReactNode;
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 };
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children({ attributes, listeners })}
+    </div>
+  );
+};
+
+// The two independently-reorderable clusters of collapsible sections on the
+// main sidebar. Kept as two clusters (rather than one flat list spanning the
+// whole sidebar) so "Management" stays anchored between them exactly where
+// it always has — dragging can reshuffle Sales/Quotation Maker relative to
+// each other, and HRMS/Utilities/Reports relative to each other, without
+// letting a section jump across that boundary.
+const SALES_GROUP_KEYS = ["sales", "quotationMaker"] as const;
+const WORKSPACE_GROUP_KEYS = ["hrms", "utilities", "reports"] as const;
+
+// Drops unknown keys (renamed/removed sections) and appends any canonical
+// key missing from a stored order (a newly added section) so a stale saved
+// order never hides or loses a section.
+const sanitizeSectionOrder = (stored: any, canonical: readonly string[]): string[] => {
+  const kept = Array.isArray(stored) ? stored.filter((k: string) => canonical.includes(k)) : [];
+  const missing = canonical.filter((k) => !kept.includes(k));
+  return [...kept, ...missing];
+};
+
 export function AppSidebar() {
   const { state, setOpenMobile, isMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { user, isAdmin, isStaff, canView, isModuleEnabled } = usePermissions();
+  const { user, permissions, isAdmin, isStaff, can, canView, isModuleEnabled } = usePermissions();
   const basePath = isStaff ? "/staff" : "/admin";
+  const navigate = useNavigate();
+
+  // Restrict the menu to Dashboard + HRMS for anyone whose role only grants
+  // HRMS permissions — not just staff created via the old HRMS self-service
+  // flow (`is_hrms_staff`), but also any staff assigned an HRMS-only role
+  // (e.g. the seeded "HRMS" role) through the normal Setup > Staff > Role
+  // dropdown. Driven by their actual granted permissions, not a fixed flag.
+  const hasAnyHrmsPermission = Object.keys(permissions).some(
+    (feature) => feature.startsWith("HRMS") && canView(feature)
+  );
+  const hasAnyOtherPermission = Object.keys(permissions).some(
+    (feature) => !feature.startsWith("HRMS") && canView(feature)
+  );
+  const isHrmsOnly =
+    !isAdmin && (user?.is_hrms_staff || (hasAnyHrmsPermission && !hasAnyOtherPermission));
 
   const getUrl = (url: string | undefined) => {
     if (!url) return "";
@@ -192,11 +310,12 @@ export function AppSidebar() {
     if (url.startsWith("/admin")) return url.replace("/admin", basePath);
     return url;
   };
-  const { getSetting } = useSettings();
+  const { getSetting, settings, refreshSettings } = useSettings();
   const { chatUnreadCount } = useNotificationContext();
 
-  const companyName = getSetting("companyName", "CRMPro");
+  const companyName = getSetting("companyName", "Trinetra TechnoWorld");
   const logoLight = resolveImageUrl(getSetting("compLogoLight", ""));
+  const [logoError, setLogoError] = useState(false);
 
   const visibleSetupItems = setupMenuItems.filter((item) => {
     // If the item has a permission key, check it
@@ -210,8 +329,11 @@ export function AppSidebar() {
     return true;
   });
 
-  // The Setup button is ONLY visible when the user has Settings > View permission (or is admin)
-  const hasSetupAccess = isAdmin || canView("Settings");
+  // The Setup button is ONLY visible when the user has Settings > View permission (or is admin).
+  // HRMS-only self-service staff (added via HRMS Staff Directory) never get Setup access,
+  // regardless of any permission they might otherwise carry.
+  const isPilot = canAccessBankDetails(user?.email);
+  const hasSetupAccess = !isHrmsOnly && (isAdmin || canView("Settings"));
 
   const getDaysRemaining = () => {
     if (!user?.tenant) return null;
@@ -245,6 +367,77 @@ export function AppSidebar() {
     queryFn: () => quotationTypeService.getQuotationTypes(true),
   });
 
+  // Drag-and-drop reordering of the DB-backed sidebar groups — a small grip
+  // handle appears directly on each item (no separate "reorder mode"),
+  // gated by the same permission the backend reorder endpoint requires.
+  const queryClient = useQueryClient();
+  const canReorderSidebar = can("Settings", "Edit");
+  // Whether ANY row in the sidebar can show a grip handle right now. When
+  // true, every row (draggable or not) reserves the same gutter width so
+  // icons line up in one straight column instead of the non-draggable rows
+  // (Setup, Subscription Details, …) sitting flush left of the rest.
+  const alignHandleGutter = canReorderSidebar && !collapsed;
+  const dndSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  // The menu list scrolls (overflow-auto), which clips the dragged row if it's
+  // just moved in-place via CSS transform — render the active row in a
+  // DragOverlay instead, which portals to <body> so it floats above the
+  // scroll container instead of being cut off by it.
+  const [activeDragItem, setActiveDragItem] = useState<any>(null);
+
+  // Order of the collapsible sections themselves (Sales/Quotation
+  // Maker/HRMS/Utilities/Reports), persisted as a plain Setting rather than
+  // a new backend model — reordering here just rewrites this array, no
+  // schema change needed. Kept in local state (rather than read straight
+  // from `settings` on every render) so a drag can update the UI instantly;
+  // `settings` is the source of truth this resyncs from on load and after
+  // a failed save.
+  const [salesGroupOrder, setSalesGroupOrder] = useState<string[]>(() =>
+    sanitizeSectionOrder(getSetting("sidebarSalesGroupOrder"), SALES_GROUP_KEYS),
+  );
+  const [workspaceGroupOrder, setWorkspaceGroupOrder] = useState<string[]>(() =>
+    sanitizeSectionOrder(getSetting("sidebarWorkspaceGroupOrder"), WORKSPACE_GROUP_KEYS),
+  );
+  useEffect(() => {
+    setSalesGroupOrder(sanitizeSectionOrder(settings.sidebarSalesGroupOrder, SALES_GROUP_KEYS));
+    setWorkspaceGroupOrder(sanitizeSectionOrder(settings.sidebarWorkspaceGroupOrder, WORKSPACE_GROUP_KEYS));
+  }, [settings.sidebarSalesGroupOrder, settings.sidebarWorkspaceGroupOrder]);
+
+  const persistSectionOrder = (settingName: string, value: string[]) => {
+    settingsService.updateSettings({ settings: [{ name: settingName, value }] }).catch((err: any) => {
+      toast.error(err?.message || "Failed to save menu order");
+      refreshSettings();
+    });
+  };
+
+  const reorderMutation = useMutation({
+    mutationFn: (items: { id: string; order: number }[]) => mainSidebarService.reorderSidebarItems(items),
+    onSuccess: (data: any[]) => {
+      queryClient.setQueryData(["mainsidebar"], data);
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to reorder menu");
+      queryClient.invalidateQueries({ queryKey: ["mainsidebar"] });
+    },
+  });
+
+  // Quotation Maker's items live in their own collection (QuotationType),
+  // not MainSidebar, so reordering them hits a different endpoint and
+  // invalidates a different query — kept as its own mutation rather than
+  // overloading reorderMutation.
+  const reorderQuotationMutation = useMutation({
+    mutationFn: (items: { id: string; order: number }[]) => quotationTypeService.reorderQuotationTypes(items),
+    onSuccess: (data: any[]) => {
+      queryClient.setQueryData(["quotation-types"], data);
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to reorder quotation types");
+      queryClient.invalidateQueries({ queryKey: ["quotation-types"] });
+    },
+  });
+
   const getMenuItems = () => {
     const rawItems = dbMenuItems.length > 0 ? dbMenuItems : fallbackNav;
     const items = rawItems.filter((i: any) => i.active !== false);
@@ -257,17 +450,21 @@ export function AppSidebar() {
     if (isUserAdminOrSuper) {
       // Admins see management items, hide "My ..." personal views
       filteredHrms = filteredHrms.filter(item => 
+        !item.title.startsWith("My ") &&
         item.title !== "My Attendance" &&
         item.title !== "My Leaves" &&
         item.title !== "My Expenses" &&
+        item.title !== "My Salary" &&
         item.title !== "My Advance Salary"
       );
     } else {
       // Non-admins see "My ..." personal views, hide management items
       filteredHrms = filteredHrms.filter(item => 
+        item.title.startsWith("My ") ||
         item.title === "My Attendance" ||
         item.title === "My Leaves" ||
         item.title === "My Expenses" ||
+        item.title === "My Salary" ||
         item.title === "My Advance Salary"
       );
     }
@@ -278,6 +475,12 @@ export function AppSidebar() {
       // "Quotations" used to live here as a flat entry — it now has its own
       // "Quotation Maker" group below, built from dynamic quotation types.
       salesNav: items.filter((i: any) => i.group === "Sales" && i.url !== "/admin/quotations"),
+      // WhatsApp Marketing (and any future marketing items) get their own
+      // group, gated on the "whatsapp" plan module rather than "sales" — a
+      // tenant can have WhatsApp without Sales (or vice versa), and grouping
+      // it under Sales used to hide it whenever a plan had sales:false even
+      // with whatsapp:true.
+      marketingNav: items.filter((i: any) => i.group === "Marketing"),
       managementNav: items.filter((i: any) => i.group === "Management" && (!i.url || !i.url.includes("/hrms"))),
       utilitiesNav: items.filter((i: any) => i.group === "Utilities"),
       reportsNav: items.filter((i: any) => i.group === "Reports"),
@@ -293,10 +496,79 @@ export function AppSidebar() {
   const quotationMakerNav = quotationTypes
     .filter((t: any) => t.active !== false)
     .map((t: any) => ({
+      _id: t._id,
       title: t.name,
       url: `/admin/quotations?type=${t.slug}`,
       icon: t.icon || "FileBarChart",
+      order: t.order,
     }));
+
+  // Every drag/select-reorderable section on the live sidebar, paired with
+  // the mutation + query key that owns its persistence — Quotation Maker is
+  // backed by QuotationType (a separate collection) while everything else
+  // is backed by MainSidebar, so a reorder needs to know which API to hit.
+  const dragSections = () => [
+    { items: dynamicNav.mainNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.customersNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.salesNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.marketingNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.managementNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.utilitiesNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.reportsNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: dynamicNav.hrmsNav, mutation: reorderMutation, queryKey: ["mainsidebar"] },
+    { items: quotationMakerNav, mutation: reorderQuotationMutation, queryKey: ["quotation-types"] },
+  ];
+  const findDragSection = (id: string) => dragSections().find((s) => s.items.some((i: any) => i._id === id));
+
+  // Shared by both the drag handle and the "move to position" select below —
+  // reassigns this section's own existing order slots to the new sequence.
+  const applyReorder = (
+    section: any[],
+    fromId: string,
+    toIndex: number,
+    mutation: typeof reorderMutation,
+    queryKey: string[],
+  ) => {
+    const oldIndex = section.findIndex((i: any) => i._id === fromId);
+    if (oldIndex === -1 || oldIndex === toIndex) return;
+    const { payload: rawPayload } = computeReorderPayload(section, oldIndex, toIndex);
+    // A locked item's own order can never change (no handle, excluded from
+    // the sortable context), but computeReorderPayload's arrayMove can still
+    // recompute its numeric order as a side effect of items shifting around
+    // it — drop any locked id here so its stored position is truly untouched.
+    const lockedIds = new Set(section.filter((i: any) => i.locked).map((i: any) => i._id));
+    const payload = rawPayload.filter((p: any) => !lockedIds.has(p.id));
+    queryClient.setQueryData(queryKey, (old: any[] = []) =>
+      old.map((item) => {
+        const match = payload.find((p) => p.id === item._id);
+        return match ? { ...item, order: match.order } : item;
+      }),
+    );
+    mutation.mutate(payload);
+  };
+
+  const handleSidebarDragStart = (event: DragStartEvent) => {
+    const section = findDragSection(event.active.id as string);
+    const found = section?.items.find((i: any) => i._id === event.active.id);
+    if (found) setActiveDragItem(found);
+  };
+
+  // Reordering only ever changes `order`, never `group` — a drop is only
+  // honored when it lands within the same DB-backed section it started in,
+  // since a cross-section drop would visually look like the item jumped
+  // into a different collapsible even though it never actually changed group.
+  const handleSidebarDragEnd = (event: DragEndEvent) => {
+    setActiveDragItem(null);
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const section = findDragSection(active.id as string);
+    if (!section || !section.items.some((i: any) => i._id === over.id)) return;
+    const newIndex = section.items.findIndex((i: any) => i._id === over.id);
+    applyReorder(section.items, active.id as string, newIndex, section.mutation, section.queryKey);
+  };
+
+  const mainSidebarDragCtx = { mutation: reorderMutation, queryKey: ["mainsidebar"] };
+  const quotationDragCtx = { mutation: reorderQuotationMutation, queryKey: ["quotation-types"] };
   const [openSections, setOpenSections] = useState<Record<string, boolean>>(
     () => {
       try {
@@ -333,9 +605,34 @@ export function AppSidebar() {
     setOpenSections((prev) => ({ ...prev, [title]: !prev[title] }));
   };
 
+  const checkIsActive = (url: string | undefined) => {
+    if (!url) return false;
+    const urlStr = getUrl(url);
+    const [urlPath, urlQuery] = urlStr.split("?");
+    let queryMatches = true;
+    if (urlQuery) {
+      const itemParams = new URLSearchParams(urlQuery);
+      const currentParams = new URLSearchParams(location.search);
+      queryMatches = Array.from(itemParams.entries()).every(
+        ([key, val]) => currentParams.get(key) === val
+      );
+    }
+    return (
+      (location.pathname === urlPath && queryMatches) ||
+      (urlPath !== "/admin/hrms" &&
+        urlPath !== "/hrms" &&
+        urlPath !== "/admin/dashboard" &&
+        urlPath !== "/staff/dashboard" &&
+        urlPath !== "/admin" &&
+        location.pathname.startsWith(urlPath + "/") &&
+        (!urlQuery || queryMatches))
+    );
+  };
+
   const renderItems = (
     items: any[],
     onItemClick?: () => void,
+    dragCtx?: { mutation: any; queryKey: string[] },
   ) => {
     const handleClick = () => {
       if (onItemClick) onItemClick();
@@ -343,12 +640,17 @@ export function AppSidebar() {
     };
 
     // Map sidebar URLs → plan module keys (SaasPlan.module_access)
+    // Note: staff users have basePath=/staff so URLs are rewritten; include both variants.
     const URL_MODULE_MAP: Record<string, string> = {
       // Finance module
       "/admin/invoices": "finance",
       "/admin/payments": "finance",
       "/admin/credit-notes": "finance",
       "/admin/items": "finance",
+      "/staff/invoices": "finance",
+      "/staff/payments": "finance",
+      "/staff/credit-notes": "finance",
+      "/staff/items": "finance",
       // Individual modules
       "/admin/tasks": "tasks",
       "/admin/projects": "projects",
@@ -368,84 +670,209 @@ export function AppSidebar() {
       "/admin/announcements": "announcements",
       "/admin/calendar": "calendar",
       "/admin/bookmarks": "bookmarks",
+      "/admin/website-forms": "website_forms",
+      "/admin/whatsapp": "whatsapp",
+      // Staff URL variants
+      "/staff/tasks": "tasks",
+      "/staff/projects": "projects",
+      "/staff/support": "support",
+      "/staff/leads": "leads",
+      "/staff/contracts": "contracts",
+      "/staff/chat": "chat",
+      "/staff/meetings": "meetings",
+      "/staff/subscriptions": "subscriptions",
+      "/staff/expenses": "expenses",
+      "/staff/proposals": "proposals",
+      "/staff/estimates": "estimates",
+      "/staff/announcements": "announcements",
+      "/staff/goals": "goals",
+      "/staff/calendar": "calendar",
+      "/staff/bookmarks": "bookmarks",
+      "/staff/website-forms": "website_forms",
+      "/staff/whatsapp": "whatsapp",
       // Reports sub-routes
       "/admin/reports/expenses": "reports",
       "/admin/reports/expenses-vs-income": "reports",
       "/admin/reports/sales": "reports",
+      "/admin/reports/purchase": "reports",
       "/admin/reports/leads": "reports",
       "/admin/reports": "reports",
     };
 
-    return items
+    const visible = items
       .filter((item: any) => !item.permission || canView(item.permission))
       .filter((item: any) => {
         // Hide modules disabled in the tenant's plan
         const moduleKey = URL_MODULE_MAP[getUrl(item.url)];
         return !moduleKey || isModuleEnabled(moduleKey);
-      })
-      .map((item: any) => {
-        const urlStr = getUrl(item.url) || "";
-        // Quotation Maker links carry a `?type=<slug>` query string — compare
-        // path and query separately so highlighting still works for them.
-        const [urlPath, urlQuery] = urlStr.split("?");
-        const isActive =
-          (location.pathname === urlPath && (!urlQuery || location.search === `?${urlQuery}`)) ||
-          (urlPath !== "/admin/hrms" && urlPath !== "/hrms" && urlPath !== "/admin/dashboard" && urlPath !== "/staff/dashboard" && urlPath !== "/admin" && location.pathname.startsWith(urlPath + "/"));
-        const isExternal = urlStr.startsWith("http");
-        const IconComponent = (Icons as any)[item.icon] || Icons.Circle;
+      });
 
-        return (
-          <SidebarMenuItem key={item.title}>
-            <SidebarMenuButton asChild isActive={!isExternal && isActive}>
-              {isExternal ? (
-                <a
-                  href={getUrl(item.url)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={handleClick}
-                  className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                >
-                  <IconComponent className="mr-2.5 h-4 w-4 shrink-0 transition-colors" />
-                  {!collapsed && (
-                    <span className="text-[13px] font-medium flex-1 text-left flex items-center justify-between">
-                      {item.title}
-                      {item.title === "Chat" && chatUnreadCount > 0 && (
-                        <Badge variant="destructive" className="ml-auto h-5 px-1.5 flex items-center justify-center text-[10px] min-w-[20px]">
-                          {chatUnreadCount}
-                        </Badge>
-                      )}
-                    </span>
-                  )}
-                </a>
-              ) : (
-                <NavLink
-                  to={getUrl(item.url)}
-                  end
-                  onClick={handleClick}
-                  className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                  activeClassName="sidebar-active-item font-semibold"
-                >
-                  {isActive && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
-                  )}
-                  <IconComponent
-                    className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isActive ? "text-primary" : ""}`}
-                  />
-                  {!collapsed && (
-                    <span className="text-[13px] font-medium flex-1 text-left flex items-center justify-between">
-                      {item.title}
-                      {item.title === "Chat" && chatUnreadCount > 0 && (
-                        <Badge variant="destructive" className="ml-auto h-5 px-1.5 flex items-center justify-center text-[10px] min-w-[20px]">
-                          {chatUnreadCount}
-                        </Badge>
-                      )}
-                    </span>
-                  )}
-                </NavLink>
+    // A tenant sidebar override can mark one of its flat "Main" items as a
+    // stand-in for a whole nested section (see Tenant.sidebar_config's
+    // childGroup) — e.g. "HRMS" positioned wherever the tenant picked, but
+    // still expandable to that group's real, live sub-items instead of
+    // being a dead link. Rendered inline here so it participates in this
+    // same list's drag-to-reorder.
+    const CHILD_GROUP_NAV: Record<string, any[]> = {
+      HRMS: dynamicNav.hrmsNav,
+      Reports: dynamicNav.reportsNav,
+      Utilities: dynamicNav.utilitiesNav,
+      // Quotation Maker's items come from the separate QuotationType
+      // collection (see quotationMakerNav above), not MainSidebar.
+      QuotationMaker: quotationMakerNav,
+    };
+
+    return visible.map((item: any) => {
+        if (item.childGroup) {
+          const GroupIcon = (Icons as any)[item.icon] || Icons.Users;
+          const childItems = CHILD_GROUP_NAV[item.childGroup] || [];
+          const showGroupHandle = !!dragCtx && canReorderSidebar && !collapsed && !!item._id;
+          if (showGroupHandle) {
+            return (
+              <SortableSection key={item._id} id={item._id}>
+                {(handle) => renderCollapsibleItem(item.title, GroupIcon, childItems, undefined, handle)}
+              </SortableSection>
+            );
+          }
+          return (
+            <React.Fragment key={item._id || item.title}>
+              {renderCollapsibleItem(item.title, GroupIcon, childItems, undefined)}
+            </React.Fragment>
+          );
+        }
+
+        // "Setup" isn't a normal route link — clicking it swaps the whole
+        // sidebar into its own nested menu tree (setupMenuItems) via
+        // menuMode, so a tenant override positioning it inline still needs
+        // this mode-switch button instead of a plain NavLink.
+        if (item.url === "/admin/setup") {
+          const SetupIcon = (Icons as any)[item.icon] || Icons.Settings;
+          const setupShowHandle = !!dragCtx && canReorderSidebar && !collapsed && !!item._id && !item.locked;
+          const setupButton = (
+            <SidebarMenuButton
+              id="tour-setup"
+              onClick={() => {
+                setMenuMode("setup");
+                setOpenSections({});
+                if (isMobile) setOpenMobile(false);
+              }}
+              className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative cursor-pointer"
+            >
+              <SetupIcon className="mr-2.5 h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-left text-[13px] font-medium">{item.title}</span>
+                  <Icons.ChevronRight className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 group-hover:text-sidebar-foreground transition-colors" />
+                </>
               )}
             </SidebarMenuButton>
-          </SidebarMenuItem>
+          );
+          const setupRow = (handle?: { attributes: any; listeners: any }) => (
+            <div className="flex items-center w-full">
+              {alignHandleGutter && (
+                setupShowHandle && handle
+                  ? <DragHandle attributes={handle.attributes} listeners={handle.listeners} />
+                  : <HandleGutter />
+              )}
+              <div className="flex-1 min-w-0">{setupButton}</div>
+            </div>
+          );
+          if (setupShowHandle) {
+            return (
+              <SortableNavItem key={item._id} id={item._id}>
+                {(handle) => setupRow(handle)}
+              </SortableNavItem>
+            );
+          }
+          return <SidebarMenuItem key={item._id || item.title}>{setupRow()}</SidebarMenuItem>;
+        }
+
+        const urlStr = getUrl(item.url) || "";
+        const isActive = checkIsActive(item.url);
+        const isExternal = urlStr.startsWith("http");
+        const IconComponent = (Icons as any)[item.icon] || Icons.Circle;
+        // Icon-only (collapsed) sidebar has no room for a handle alongside it.
+        // Also requires a real _id — the transient fallbackNav placeholder
+        // (rendered before the DB-backed items have loaded) has none, and
+        // dnd-kit's sortable identity can't be undefined.
+        const showHandle = !!dragCtx && canReorderSidebar && !collapsed && !!item._id && !item.locked;
+
+        const button = (
+          <SidebarMenuButton asChild isActive={!isExternal && isActive}>
+            {isExternal ? (
+              <a
+                href={getUrl(item.url)}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleClick}
+                title={item.title}
+                className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
+              >
+                <IconComponent className="mr-2.5 h-4 w-4 shrink-0 transition-colors" />
+                {!collapsed && (
+                  <span className="text-[13px] font-medium flex-1 min-w-0 text-left flex items-center justify-between gap-1">
+                    <span className="truncate">{item.title}</span>
+                    {item.title === "Chat" && chatUnreadCount > 0 && (
+                      <Badge variant="destructive" className="ml-auto h-5 px-1.5 flex items-center justify-center text-[10px] min-w-[20px] shrink-0">
+                        {chatUnreadCount}
+                      </Badge>
+                    )}
+                  </span>
+                )}
+              </a>
+            ) : (
+              <NavLink
+                to={getUrl(item.url)}
+                end
+                onClick={handleClick}
+                title={item.title}
+                className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
+                activeClassName={isActive ? "sidebar-active-item font-semibold" : ""}
+              >
+                {isActive && (
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
+                )}
+                <IconComponent
+                  className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isActive ? "text-primary" : ""}`}
+                />
+                {!collapsed && (
+                  <span className="text-[13px] font-medium flex-1 min-w-0 text-left flex items-center justify-between gap-1">
+                    <span className="truncate">{item.title}</span>
+                    {item.title === "Chat" && chatUnreadCount > 0 && (
+                      <Badge variant="destructive" className="ml-auto h-5 px-1.5 flex items-center justify-center text-[10px] min-w-[20px] shrink-0">
+                        {chatUnreadCount}
+                      </Badge>
+                    )}
+                  </span>
+                )}
+              </NavLink>
+            )}
+          </SidebarMenuButton>
         );
+
+        const row = (handle?: { attributes: any; listeners: any }) => (
+          <div className="flex items-center w-full">
+            {alignHandleGutter && (
+              showHandle && handle
+                ? <DragHandle attributes={handle.attributes} listeners={handle.listeners} />
+                : <HandleGutter />
+            )}
+            <div className="flex-1 min-w-0">{button}</div>
+          </div>
+        );
+
+        if (showHandle) {
+          return (
+            <SortableNavItem key={item._id} id={item._id}>
+              {(handle) => row(handle)}
+            </SortableNavItem>
+          );
+        }
+
+        // Prefer the DB _id (guaranteed unique) — title alone isn't, and a
+        // duplicated title within the same section is exactly what produces
+        // React's "duplicate key" warning here.
+        return <SidebarMenuItem key={item._id || item.title}>{row()}</SidebarMenuItem>;
       });
   };
 
@@ -453,6 +880,8 @@ export function AppSidebar() {
     label: string,
     icon: React.ElementType,
     items: any[],
+    dragCtx?: { mutation: any; queryKey: string[] },
+    sectionHandle?: { attributes: any; listeners: any },
   ) => {
     const visibleItems = items.filter(
       (item: any) => !item.permission || canView(item.permission),
@@ -463,37 +892,57 @@ export function AppSidebar() {
     const Icon = icon;
     const open = !!openSections[label];
     const isAnyChildActive = visibleItems.some(
-      (item) =>
-        location.pathname === getUrl(item.url) ||
-        location.pathname.startsWith(getUrl(item.url) + "/"),
+      (item) => checkIsActive(item.url),
     );
     return (
       <Collapsible open={open} onOpenChange={() => toggleSection(label)}>
         <SidebarMenuItem>
-          <CollapsibleTrigger asChild>
-            <SidebarMenuButton className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative">
-              {isAnyChildActive && (
-                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
-              )}
-              <Icon
-                className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isAnyChildActive ? "text-primary" : ""}`}
-              />
-              {!collapsed && (
-                <>
-                  <span className="flex-1 text-left text-[13px] font-medium">
-                    {label}
-                  </span>
-                  <ChevronDown
-                    className={`h-3.5 w-3.5 transition-transform duration-300 ${open ? "" : "-rotate-90"}`}
+          {/* The grip handle is a sibling of the trigger button, not nested inside
+              it — same reason as the per-item DragHandle: nesting it inside the
+              button would put it inside CollapsibleTrigger's click target, so a
+              drag attempt would also toggle the section open/closed. */}
+          <div className="flex items-center w-full">
+            {alignHandleGutter && (
+              sectionHandle
+                ? <DragHandle attributes={sectionHandle.attributes} listeners={sectionHandle.listeners} />
+                : <HandleGutter />
+            )}
+            <div className="flex-1 min-w-0">
+              <CollapsibleTrigger asChild>
+                <SidebarMenuButton className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative">
+                  {isAnyChildActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
+                  )}
+                  <Icon
+                    className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isAnyChildActive ? "text-primary" : ""}`}
                   />
-                </>
-              )}
-            </SidebarMenuButton>
-          </CollapsibleTrigger>
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 text-left text-[13px] font-medium truncate">
+                        {label}
+                      </span>
+                      <Icons.ChevronRight
+                        className={cn(
+                          "h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 transition-transform duration-200 group-hover:text-sidebar-foreground",
+                          open && "rotate-90 text-sidebar-foreground",
+                        )}
+                      />
+                    </>
+                  )}
+                </SidebarMenuButton>
+              </CollapsibleTrigger>
+            </div>
+          </div>
           <CollapsibleContent className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
-            <SidebarGroupContent className="pl-3 border-l border-sidebar-border/60 ml-[18px] mt-0.5 space-y-0">
+            <SidebarGroupContent className="pl-2.5 border-l border-sidebar-border/60 ml-[14px] mt-0.5 space-y-0">
               <SidebarMenu className="gap-0.5">
-                {renderItems(visibleItems)}
+                {dragCtx && canReorderSidebar ? (
+                  <SortableContext items={visibleItems.map((i: any) => i._id)} strategy={verticalListSortingStrategy}>
+                    {renderItems(visibleItems, undefined, dragCtx)}
+                  </SortableContext>
+                ) : (
+                  renderItems(visibleItems)
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </CollapsibleContent>
@@ -502,20 +951,141 @@ export function AppSidebar() {
     );
   };
 
+  // Wraps a flat (non-collapsible) DB-backed section in its own SortableContext
+  // so its grip handles can only reorder within that same section.
+  const renderDraggableSection = (items: any[], dragCtx?: { mutation: any; queryKey: string[] }) => {
+    if (dragCtx && canReorderSidebar) {
+      return (
+        // Locked items are excluded here so dnd-kit never treats them as a
+        // drop target — a drag can't land "between" a locked item and its
+        // neighbor, so it can't get nudged out of place by other reorders.
+        <SortableContext items={items.filter((i: any) => !i.locked).map((i: any) => i._id)} strategy={verticalListSortingStrategy}>
+          {renderItems(items, undefined, dragCtx)}
+        </SortableContext>
+      );
+    }
+    return renderItems(items);
+  };
+
+  // A tenant override can pin one of these three groups inline into the flat
+  // "Main" list instead (see renderItems' childGroup handling) — when it
+  // does, skip rendering that same group again down here in its normal
+  // fixed spot, so it doesn't appear twice.
+  const inlineRenderedGroups = new Set(
+    dynamicNav.mainNav.map((i: any) => i.childGroup).filter(Boolean),
+  );
+
+  // Same idea for the two hardcoded, non-group items below (Setup and
+  // Subscription Details) — a tenant override can reposition either one
+  // into the flat list too (Setup via renderItems' url-based special case,
+  // Subscription Details as an ordinary leaf link); when it does, the fixed
+  // copy further down must not also render, or it'd show twice.
+  const inlineRenderedUrls = new Set(dynamicNav.mainNav.map((i: any) => i.url));
+
+  // Backing data for each reorderable section key, looked up by
+  // renderSectionGroup below. Quotation Maker included here even though it
+  // isn't part of `dynamicNav` (MainSidebar) — it's its own collection.
+  const SECTION_DEFS: Record<string, { label: string; icon: React.ElementType; items: any[]; dragCtx: { mutation: any; queryKey: string[] }; enabled: boolean }> = {
+    sales: { label: "Sales", icon: Icons.Zap, items: dynamicNav.salesNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("sales") },
+    quotationMaker: { label: "Quotation Maker", icon: Icons.FileBarChart, items: quotationMakerNav, dragCtx: quotationDragCtx, enabled: isModuleEnabled("sales") && !inlineRenderedGroups.has("QuotationMaker") },
+    hrms: { label: "HRMS", icon: Icons.Users, items: dynamicNav.hrmsNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("hrms") && !inlineRenderedGroups.has("HRMS") },
+    utilities: { label: "Utilities", icon: Icons.CircleDot, items: dynamicNav.utilitiesNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("utility") && !inlineRenderedGroups.has("Utilities") },
+    reports: { label: "Reports", icon: Icons.TrendingUp, items: dynamicNav.reportsNav, dragCtx: mainSidebarDragCtx, enabled: isModuleEnabled("reports") && !inlineRenderedGroups.has("Reports") },
+  };
+  const sectionHasContent = (key: string) => {
+    const def = SECTION_DEFS[key];
+    return !!def?.enabled && def.items.some((item: any) => !item.permission || canView(item.permission));
+  };
+
+  // Renders one cluster (Sales+Quotation Maker, or HRMS+Utilities+Reports)
+  // of collapsible sections as its own drag-and-drop-reorderable group, so
+  // the sections can be moved relative to each other the same way items
+  // inside a section already can. Falls back to plain (non-draggable)
+  // rendering when there's nothing to reorder against, or the viewer can't
+  // reorder — no point paying for DnD wiring for a list of one.
+  const renderSectionGroup = (
+    order: string[],
+    settingName: string,
+    setOrder: (next: string[]) => void,
+  ) => {
+    const visibleKeys = order.filter(sectionHasContent);
+    if (visibleKeys.length === 0) return null;
+
+    const renderSection = (key: string, handle?: { attributes: any; listeners: any }) => {
+      const def = SECTION_DEFS[key];
+      return renderCollapsibleItem(def.label, def.icon, def.items, def.dragCtx, handle);
+    };
+
+    if (collapsed || !canReorderSidebar || visibleKeys.length < 2) {
+      return <>{visibleKeys.map((key) => <React.Fragment key={key}>{renderSection(key)}</React.Fragment>)}</>;
+    }
+
+    const handleDragEnd = (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      // A drag on an item *inside* one of these sections (e.g. an HRMS menu
+      // item) bubbles up to this section-order DndContext too, since its
+      // SortableContext is nested inside this one — without this branch it
+      // silently no-ops (active.id is a Mongo _id, never one of the section
+      // keys below), so the grip handle looks live but dragging does nothing.
+      // Fall back to the same item-level reorder the top-level sections use.
+      if (!order.includes(active.id as string)) {
+        const section = findDragSection(active.id as string);
+        if (!section || !section.items.some((i: any) => i._id === over.id)) return;
+        const newItemIndex = section.items.findIndex((i: any) => i._id === over.id);
+        applyReorder(section.items, active.id as string, newItemIndex, section.mutation, section.queryKey);
+        return;
+      }
+
+      const oldIndex = order.indexOf(active.id as string);
+      const newIndex = order.indexOf(over.id as string);
+      if (oldIndex === -1 || newIndex === -1) return;
+      const next = arrayMove(order, oldIndex, newIndex);
+      setOrder(next);
+      persistSectionOrder(settingName, next);
+    };
+
+    return (
+      <DndContext
+        sensors={dndSensors}
+        collisionDetection={closestCenter}
+        modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={visibleKeys} strategy={verticalListSortingStrategy}>
+          {visibleKeys.map((key) => (
+            <SortableSection key={key} id={key}>
+              {(handle) => renderSection(key, handle)}
+            </SortableSection>
+          ))}
+        </SortableContext>
+      </DndContext>
+    );
+  };
+
   return (
     <Sidebar collapsible="offcanvas" id="tour-sidebar">
       <SidebarHeader className="p-4 pb-3">
         <NavLink
-          to="/admin/dashboard"
+          to={`${basePath}/dashboard`}
           className="flex items-center gap-2.5 group"
         >
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm group-hover:shadow-md transition-shadow duration-300 overflow-hidden">
-            {logoLight ? (
-              <img src={logoLight} alt="Logo" className="h-full w-full object-cover" />
-            ) : (
-              companyName[0]
-            )}
-          </div>
+          {logoLight && !logoError ? (
+            <img
+              src={logoLight}
+              alt="Logo"
+              className={cn(
+                "h-9 w-auto object-contain shrink-0",
+                collapsed ? "max-w-9" : "max-w-[140px]",
+              )}
+              onError={() => setLogoError(true)}
+            />
+          ) : (
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-sm shadow-sm group-hover:shadow-md transition-shadow duration-300 shrink-0">
+              {companyName[0]}
+            </div>
+          )}
           {!collapsed && (
             <span className="text-lg font-bold tracking-tight text-sidebar-foreground">
               {companyName}
@@ -539,42 +1109,86 @@ export function AppSidebar() {
         ) : menuMode === "main" ? (
           <SidebarGroup className="py-2">
             <SidebarGroupContent>
+              <DndContext
+                sensors={dndSensors}
+                collisionDetection={closestCenter}
+                modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+                onDragStart={handleSidebarDragStart}
+                onDragEnd={handleSidebarDragEnd}
+                onDragCancel={() => setActiveDragItem(null)}
+              >
               <SidebarMenu className="gap-0.5">
-                {renderItems(dynamicNav.mainNav)}
-                {renderItems(dynamicNav.customersNav)}
-                {renderCollapsibleItem("Sales", Icons.Zap, dynamicNav.salesNav)}
-                {renderCollapsibleItem("Quotation Maker", Icons.FileBarChart, quotationMakerNav)}
-                {renderItems(dynamicNav.managementNav)}
-                {isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav)}
-                {renderCollapsibleItem("Utilities", Icons.CircleDot, dynamicNav.utilitiesNav)}
-                {renderCollapsibleItem("Reports", Icons.TrendingUp, dynamicNav.reportsNav)}
-                {hasSetupAccess && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      id="tour-setup"
-                      onClick={() => {
-                        setMenuMode("setup");
-                        setOpenSections({});
-                        if (isMobile) setOpenMobile(false);
-                      }}
-                      className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative cursor-pointer"
-                    >
-                      <Icons.Settings className="mr-2.5 h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
-                      {!collapsed && (
-                        <span className="text-[13px] font-medium">Setup</span>
-                      )}
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                {renderDraggableSection(dynamicNav.mainNav.filter((i: any) => !isHrmsOnly || i.title === "Dashboard"), mainSidebarDragCtx)}
+                {!isHrmsOnly ? (
+                  <>
+                    {renderDraggableSection(dynamicNav.customersNav, mainSidebarDragCtx)}
+                    {/* Direct top-level link, not a collapsible section — its own
+                        module gate ("whatsapp") is applied per-item inside
+                        renderItems via URL_MODULE_MAP, independent of Sales. */}
+                    {renderDraggableSection(dynamicNav.marketingNav, mainSidebarDragCtx)}
+                    {renderSectionGroup(salesGroupOrder, "sidebarSalesGroupOrder", setSalesGroupOrder)}
+                    {renderDraggableSection(dynamicNav.managementNav, mainSidebarDragCtx)}
+                  </>
+                ) : (
+                  /* HRMS-only staff can still be assigned tasks — always show Tasks link */
+                  isStaff && renderItems(dynamicNav.managementNav.filter((i: any) => i.title === "Tasks"))
                 )}
-                {renderItems([
-                  {
-                    title: "Subscription Details",
-                    url: "/admin/pricing",
-                    icon: "DollarSign",
-                    permission: "Subscriptions",
-                  }
-                ])}
+                {/* HRMS-only staff always see HRMS on its own, fixed — reordering
+                    it against Utilities/Reports only makes sense once all three
+                    are actually on screen together, i.e. for full-access users. */}
+                {isHrmsOnly && isModuleEnabled("hrms") && renderCollapsibleItem("HRMS", Icons.Users, dynamicNav.hrmsNav, mainSidebarDragCtx)}
+                {!isHrmsOnly && (
+                  <>
+                    {renderSectionGroup(workspaceGroupOrder, "sidebarWorkspaceGroupOrder", setWorkspaceGroupOrder)}
+                    {hasSetupAccess && !inlineRenderedUrls.has("/admin/setup") && (
+                      <SidebarMenuItem>
+                        <div className="flex items-center w-full">
+                          {alignHandleGutter && <HandleGutter />}
+                          <div className="flex-1 min-w-0">
+                        <SidebarMenuButton
+                          id="tour-setup"
+                          onClick={() => {
+                            setMenuMode("setup");
+                            setOpenSections({});
+                            if (isMobile) setOpenMobile(false);
+                          }}
+                          className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative cursor-pointer"
+                        >
+                          <Icons.Settings className="mr-2.5 h-4 w-4 shrink-0 transition-colors group-hover:text-primary" />
+                          {!collapsed && (
+                            <>
+                              <span className="flex-1 text-left text-[13px] font-medium">Setup</span>
+                              <Icons.ChevronRight className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 group-hover:text-sidebar-foreground transition-colors" />
+                            </>
+                          )}
+                        </SidebarMenuButton>
+                          </div>
+                        </div>
+                      </SidebarMenuItem>
+                    )}
+                    {!inlineRenderedUrls.has("/admin/pricing") && renderItems([
+                      {
+                        title: "Subscription Details",
+                        url: "/admin/pricing",
+                        icon: "DollarSign",
+                        permission: "Subscriptions",
+                      }
+                    ])}
+                  </>
+                )}
               </SidebarMenu>
+              <DragOverlay dropAnimation={null}>
+                {activeDragItem ? (() => {
+                  const OverlayIcon = (Icons as any)[activeDragItem.icon] || Icons.Circle;
+                  return (
+                    <div className="flex items-center gap-2.5 h-8 pl-2 pr-3 rounded-md bg-sidebar-accent shadow-lg border border-sidebar-border text-[13px] font-medium text-sidebar-foreground">
+                      <OverlayIcon className="h-4 w-4 shrink-0" />
+                      <span className="truncate">{activeDragItem.title}</span>
+                    </div>
+                  );
+                })() : null}
+              </DragOverlay>
+              </DndContext>
             </SidebarGroupContent>
           </SidebarGroup>
         ) : (
@@ -612,9 +1226,7 @@ export function AppSidebar() {
                     if (item.subItems && item.subItems.length > 0) {
                       const isOpen = !!openSections[item.title];
                       const isAnyChildActive = item.subItems.some(
-                        (sub: any) =>
-                          location.pathname === getUrl(sub.url) ||
-                          location.pathname.startsWith(getUrl(sub.url) + "/"),
+                        (sub: any) => checkIsActive(sub.url),
                       );
 
                       return (
@@ -637,13 +1249,13 @@ export function AppSidebar() {
                                 />
                                 {!collapsed && (
                                   <>
-                                    <span className="flex-1 text-left text-[13px] font-medium">
+                                    <span className="flex-1 text-left text-[13px] font-medium truncate">
                                       {item.title}
                                     </span>
-                                    <ChevronDown
+                                    <Icons.ChevronRight
                                       className={cn(
-                                        "h-3.5 w-3.5 transition-transform duration-300",
-                                        !isOpen && "-rotate-90",
+                                        "h-3.5 w-3.5 shrink-0 text-sidebar-foreground/50 transition-transform duration-200 group-hover:text-sidebar-foreground",
+                                        isOpen && "rotate-90 text-sidebar-foreground",
                                       )}
                                     />
                                   </>
@@ -651,14 +1263,10 @@ export function AppSidebar() {
                               </SidebarMenuButton>
                             </CollapsibleTrigger>
                             <CollapsibleContent className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
-                              <SidebarGroupContent className="pl-3 border-l border-sidebar-border/60 ml-[18px] mt-0.5 space-y-0.5">
+                              <SidebarGroupContent className="pl-2.5 border-l border-sidebar-border/60 ml-[14px] mt-0.5 space-y-0.5">
                                 <SidebarMenu className="gap-0.5">
-                                  {item.subItems.map((sub: any) => {
-                                    const isSubActive =
-                                      location.pathname === getUrl(sub.url) ||
-                                      location.pathname.startsWith(
-                                        getUrl(sub.url) + "/",
-                                      );
+                                  {item.subItems.filter((sub: any) => isPilot || sub.url !== "/admin/setup/finance/bank-details").map((sub: any) => {
+                                    const isSubActive = checkIsActive(sub.url);
                                     return (
                                       <SidebarMenuItem key={sub.title}>
                                         <SidebarMenuButton asChild isActive={isSubActive}>
@@ -669,8 +1277,9 @@ export function AppSidebar() {
                                               if (isMobile)
                                                 setOpenMobile(false);
                                             }}
+                                            title={sub.title}
                                             className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                                            activeClassName="sidebar-active-item font-semibold"
+                                            activeClassName={isSubActive ? "sidebar-active-item font-semibold" : ""}
                                           >
                                             {isSubActive && (
                                               <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary" />
@@ -692,8 +1301,7 @@ export function AppSidebar() {
                     }
 
                     const urlStr = getUrl(item.url) || "";
-                    const isActive = location.pathname === urlStr ||
-                      (urlStr !== "/admin/hrms" && urlStr !== "/hrms" && urlStr !== "/admin/dashboard" && urlStr !== "/staff/dashboard" && urlStr !== "/admin" && location.pathname.startsWith(urlStr + "/"));
+                    const isActive = checkIsActive(item.url);
 
                     const isExternal = urlStr.startsWith("http");
 
@@ -722,7 +1330,7 @@ export function AppSidebar() {
                               end
                               onClick={() => isMobile && setOpenMobile(false)}
                               className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
-                              activeClassName="sidebar-active-item font-semibold"
+                              activeClassName={isActive ? "sidebar-active-item font-semibold" : ""}
                             >
                               {isActive && (
                                 <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary" />

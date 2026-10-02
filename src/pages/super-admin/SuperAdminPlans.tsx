@@ -4,6 +4,7 @@ import {
   IndianRupee, Target, HeadphonesIcon, FileSignature, FolderKanban, CheckSquare,
   MessageSquare, Video, CreditCard, Receipt, FileText, ClipboardList,
   BookOpen, BarChart3, Clock, Goal, Megaphone, CalendarDays, Bookmark, UserCog,
+  Zap, CircleDot, FormInput, MessageCircle,
 } from "lucide-react";
 import { apiClient as api } from "@/api/client";
 import { toast } from "sonner";
@@ -47,6 +48,10 @@ interface SaasPlan {
     calendar: boolean;
     bookmarks: boolean;
     hrms: boolean;
+    sales: boolean;
+    utility: boolean;
+    website_forms: boolean;
+    whatsapp: boolean;
   };
 }
 
@@ -72,6 +77,10 @@ const MODULE_META: { key: keyof SaasPlan["module_access"]; label: string; icon: 
   { key: "calendar",         label: "Calendar",         icon: CalendarDays,  color: "text-fuchsia-500" },
   { key: "bookmarks",        label: "Bookmarks",        icon: Bookmark,      color: "text-amber-600" },
   { key: "hrms",             label: "HRMS",             icon: UserCog,       color: "text-indigo-600" },
+  { key: "sales",            label: "Sales",            icon: Zap,           color: "text-orange-600" },
+  { key: "utility",          label: "Utility",          icon: CircleDot,     color: "text-slate-600" },
+  { key: "website_forms",    label: "Website Forms",      icon: FormInput,      color: "text-cyan-600" },
+  { key: "whatsapp",         label: "WhatsApp Marketing", icon: MessageCircle,  color: "text-green-600" },
 ];
 
 const BANNER_PRESETS = [
@@ -95,7 +104,7 @@ const DEFAULT_PLAN: Partial<SaasPlan> = {
     chat: true, meetings: true, subscriptions: true, expenses: true, estimates: true,
     proposals: true, estimate_request: true, knowledge_base: true, reports: true,
     time_tracking: true, goals: true, announcements: true, calendar: true, bookmarks: true,
-    hrms: true,
+    hrms: true, sales: true, utility: true, website_forms: true, whatsapp: true,
   },
 };
 
@@ -171,6 +180,16 @@ export default function SuperAdminPlans() {
     setFormData((prev) => ({
       ...prev,
       module_access: { ...prev.module_access!, [field]: !prev.module_access?.[field] },
+    }));
+  };
+
+  const toggleAllModules = (enabled: boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      module_access: MODULE_META.reduce(
+        (acc, { key }) => ({ ...acc, [key]: enabled }),
+        {} as SaasPlan["module_access"],
+      ),
     }));
   };
 
@@ -332,7 +351,7 @@ export default function SuperAdminPlans() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-gray-600">Price (₹)</label>
                       <input
@@ -355,7 +374,7 @@ export default function SuperAdminPlans() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-gray-600">Trial Days</label>
                       <input
@@ -425,7 +444,26 @@ export default function SuperAdminPlans() {
 
                 {/* ── RIGHT: Module Access ── */}
                 <div className="space-y-3">
-                  <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider pb-1.5 border-b border-gray-100">Module Access</p>
+                  <div className="flex items-center justify-between pb-1.5 border-b border-gray-100">
+                    <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">Module Access</p>
+                    {(() => {
+                      const allEnabled = MODULE_META.every(({ key }) => formData.module_access?.[key] ?? true);
+                      return (
+                        <div
+                          onClick={() => toggleAllModules(!allEnabled)}
+                          className="flex items-center gap-1.5 cursor-pointer select-none group"
+                          title={allEnabled ? "Disable all modules" : "Enable all modules"}
+                        >
+                          <span className="text-[10px] font-semibold text-gray-500 group-hover:text-gray-700">
+                            {allEnabled ? "All Enabled" : "Enable All"}
+                          </span>
+                          <span className={`relative inline-flex h-4 w-8 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ${allEnabled ? "bg-emerald-500" : "bg-gray-300"}`}>
+                            <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow transition-transform duration-200 ${allEnabled ? "translate-x-4" : "translate-x-0"}`} />
+                          </span>
+                        </div>
+                      );
+                    })()}
+                  </div>
                   <div className="space-y-2">
                     {MODULE_META.map(({ key, label, icon: Icon, color }) => {
                       const isActive = formData.module_access?.[key] ?? true;

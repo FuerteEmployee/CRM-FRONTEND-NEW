@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,9 +49,10 @@ import { projectService } from "@/api/services/project.service";
 import { useNavigate } from "react-router-dom";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 
 const statusConfig = [
   { id: 1, label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
@@ -63,20 +64,72 @@ const statusConfig = [
 
 const Projects = () => {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [activeStatus, setActiveStatus] = useState<number | "all">("all");
   const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
   const [bulkState, setBulkState] = useState({ massDelete: false, status: "" });
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
   const navigate = useNavigate();
 
-  const { data: projects = [], isLoading } = useQuery<any[]>({
-    queryKey: ["projects"],
-    queryFn: projectService.getAll,
+  // Server-paginated once a finite page size is chosen; "All" (itemsPerPage
+  // >= 999999) keeps the legacy full fetch, filtered client-side exactly as
+  // this page always has — same split used on Invoices/Leads/Items.
+  const { data: projectsResult, isLoading } = useQuery({
+    queryKey: ["projects", itemsPerPage, currentPage, debouncedSearch, activeStatus],
+    queryFn: async () => {
+      if (itemsPerPage >= 999999) {
+        const response = await projectService.getAll();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        const q = debouncedSearch.toLowerCase();
+        const rowsFiltered = rows.filter((p: any) => {
+          const branchName = typeof p.branch === "object" ? (p.branch?.name || "") : (p.branch || "");
+          const matchesSearch =
+            !q ||
+            (p.name || "").toLowerCase().includes(q) ||
+            (p.description || "").toLowerCase().includes(q) ||
+            (p.clientid?.company || "").toLowerCase().includes(q) ||
+            (Array.isArray(p.tags) ? p.tags.join(" ") : (p.tags || "")).toLowerCase().includes(q) ||
+            branchName.toLowerCase().includes(q);
+          const matchesStatus = activeStatus === "all" || p.status === activeStatus;
+          return matchesSearch && matchesStatus;
+        });
+        const aggMap = new Map<number, number>();
+        rows.forEach((p: any) => aggMap.set(p.status, (aggMap.get(p.status) || 0) + 1));
+        const statusAgg = Array.from(aggMap.entries()).map(([status, count]) => ({ status, count }));
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1, statusAgg };
+      }
+
+      const res: any = await projectService.getAll({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+        status: activeStatus !== "all" ? activeStatus : undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, statusAgg: [] };
+      return {
+        rows: res?.data ?? [],
+        total: res?.total ?? 0,
+        pages: res?.pages ?? 1,
+        statusAgg: res?.statusAgg ?? [],
+      };
+    },
   });
+  const projects: any[] = projectsResult?.rows ?? [];
+  const statusAgg: { status: number; count: number }[] = projectsResult?.statusAgg ?? [];
+  const totalProjectsOverall = statusAgg.reduce((sum, s) => sum + s.count, 0);
 
   const deleteMutation = useMutation({
     mutationFn: projectService.delete,
@@ -89,15 +142,35 @@ const Projects = () => {
     },
   });
 
-  const filteredProjects = useMemo(() => {
-    return projects.filter((p: any) => {
-      const matchesSearch = 
-        (p.name || "").toLowerCase().includes(search.toLowerCase()) ||
-        (p.clientid?.company || "").toLowerCase().includes(search.toLowerCase());
+  // Export is a one-off action, not the on-screen table — it fetches the
+  // full filtered set on demand rather than paginating.
+  const loadAllFilteredProjects = async () => {
+    const response = await projectService.getAll();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    const q = debouncedSearch.toLowerCase();
+    return rows.filter((p: any) => {
+      const branchName = typeof p.branch === "object" ? (p.branch?.name || "") : (p.branch || "");
+      const matchesSearch =
+        !q ||
+        (p.name || "").toLowerCase().includes(q) ||
+        (p.description || "").toLowerCase().includes(q) ||
+        (p.clientid?.company || "").toLowerCase().includes(q) ||
+        (Array.isArray(p.tags) ? p.tags.join(" ") : (p.tags || "")).toLowerCase().includes(q) ||
+        branchName.toLowerCase().includes(q);
       const matchesStatus = activeStatus === "all" || p.status === activeStatus;
       return matchesSearch && matchesStatus;
     });
-  }, [projects, search, activeStatus]);
+  };
+
+  // The table already shows exactly one server-paginated page — no further
+  // client-side slicing needed.
+  const paginatedProjects = projects;
+  const totalProjectPages = projectsResult?.pages ?? 1;
+  const safeProjectPage = Math.min(currentPage, totalProjectPages);
+  const projectPageSize = itemsPerPage >= 999999 ? (paginatedProjects.length || 1) : itemsPerPage;
+  const filteredProjectsCount = projectsResult?.total ?? 0;
+  const projectPageIds = paginatedProjects.map((p: any) => p._id);
+  const allProjectPageSelected = projectPageIds.length > 0 && projectPageIds.every((id: string) => selectedProjects.includes(id));
 
   const handleBulkAction = async () => {
     if (selectedProjects.length === 0) {
@@ -107,7 +180,7 @@ const Projects = () => {
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedProjects.map(id => projectService.delete(id)));
+        await projectService.bulkDelete(selectedProjects);
         toast.success(`Deleted ${selectedProjects.length} projects.`);
       } else if (bulkState.status) {
         const status = parseInt(bulkState.status);
@@ -125,15 +198,16 @@ const Projects = () => {
     }
   };
 
-  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
-    if (filteredProjects.length === 0) {
+  const handleExport = async (type: "xlsx" | "csv" | "pdf" | "print") => {
+    const exportRows = await loadAllFilteredProjects();
+    if (exportRows.length === 0) {
       toast.error("No data to export");
       return;
     }
 
     if (type === "csv" || type === "xlsx") {
       const headers = ["Project Name", "Customer", "Tags", "Start Date", "Deadline", "Status"];
-      const rows = filteredProjects.map((p: any) => [
+      const rows = exportRows.map((p: any) => [
         p.name || "",
         p.clientid?.company || "Unknown",
         p.tags ? p.tags.join(", ") : "",
@@ -164,9 +238,9 @@ const Projects = () => {
   const stats = useMemo(() => {
     return statusConfig.map(status => ({
       ...status,
-      count: projects.filter(p => p.status === status.id).length
+      count: statusAgg.find(s => s.status === status.id)?.count || 0
     }));
-  }, [projects]);
+  }, [statusAgg]);
 
   return (
     <DashboardLayout>
@@ -186,18 +260,18 @@ const Projects = () => {
           <Button
             variant={activeStatus === "all" ? "default" : "outline"}
             size="sm"
-            onClick={() => setActiveStatus("all")}
+            onClick={() => { setActiveStatus("all"); setCurrentPage(1); }}
             className="h-8 text-xs font-medium"
           >
             All
-            <span className="ml-1.5 opacity-60">({projects.length})</span>
+            <span className="ml-1.5 opacity-60">({totalProjectsOverall})</span>
           </Button>
           {stats.map((status) => (
             <Button
               key={status.id}
               variant={activeStatus === status.id ? "default" : "outline"}
               size="sm"
-              onClick={() => setActiveStatus(status.id)}
+              onClick={() => { setActiveStatus(status.id); setCurrentPage(1); }}
               className="h-8 text-xs font-medium"
             >
               {status.label}
@@ -209,11 +283,11 @@ const Projects = () => {
         <Card>
           <CardContent className="p-0">
             {/* Control Bar */}
-            <div className="flex items-center justify-between p-3 border-b">
-              <div className="flex items-center gap-2">
-                <Select 
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
+              <div className="flex flex-wrap items-center gap-2">
+                <Select
                   value={itemsPerPage.toString()} 
-                  onValueChange={(val) => setItemsPerPage(val === "All" ? 999999 : Number(val))}
+                  onValueChange={(val) => { setItemsPerPage(val === "All" ? 999999 : Number(val)); setCurrentPage(1); }}
                 >
                   <SelectTrigger className="w-[70px] h-8 text-[11px] font-bold">
                     <SelectValue />
@@ -305,13 +379,13 @@ const Projects = () => {
                 </Dialog>
               </div>
 
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search projects..."
-                  className="pl-8 h-8 w-[200px] text-xs"
+                  className="pl-8 h-8 w-full sm:w-[200px] text-xs"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 />
               </div>
             </div>
@@ -322,20 +396,19 @@ const Projects = () => {
                 <thead>
                   <tr className="border-b text-left text-[11px] text-muted-foreground uppercase tracking-wider bg-zinc-50/50">
                     <th className="p-3 font-semibold w-8">
-                      <Checkbox 
-                        checked={selectedProjects.length === filteredProjects.length && filteredProjects.length > 0}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setSelectedProjects(filteredProjects.map((p: any) => p._id));
-                          } else {
-                            setSelectedProjects([]);
-                          }
+                      <Checkbox
+                        checked={allProjectPageSelected}
+                        onCheckedChange={() => {
+                          setSelectedProjects(prev =>
+                            allProjectPageSelected ? prev.filter((id: string) => !projectPageIds.includes(id)) : [...new Set([...prev, ...projectPageIds])]
+                          );
                         }}
                       />
                     </th>
                     <th className="p-3 font-semibold">#</th>
                     <th className="p-3 font-semibold">Project Name ↕</th>
                     <th className="p-3 font-semibold">Customer</th>
+                    {canUseBranch && <th className="p-3 font-semibold">Branch</th>}
                     <th className="p-3 font-semibold">Tags</th>
                     <th className="p-3 font-semibold text-center">Start Date</th>
                     <th className="p-3 font-semibold text-center">Deadline</th>
@@ -346,21 +419,15 @@ const Projects = () => {
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="border-b">
-                        <td colSpan={10} className="p-8">
-                          <Skeleton className="h-8 w-full" />
-                        </td>
-                      </tr>
-                    ))
-                  ) : filteredProjects.length === 0 ? (
+                    <SkeletonTableRows rows={6} colSpan={10 + (canUseBranch ? 1 : 0)} />
+                  ) : paginatedProjects.length === 0 ? (
                     <tr>
                       <td colSpan={10} className="p-10 text-center text-muted-foreground text-sm">
                         No projects found.
                       </td>
                     </tr>
                   ) : (
-                    filteredProjects.map((project, index) => (
+                    paginatedProjects.map((project, index) => (
                       <tr key={project._id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
                         <td className="p-3">
                           <Checkbox 
@@ -394,6 +461,11 @@ const Projects = () => {
                             {project.clientid?.company || "Unknown"}
                           </span>
                         </td>
+                        {canUseBranch && (
+                          <td className="p-3 text-xs text-zinc-600 whitespace-nowrap">
+                            {typeof project.branch === "object" ? (project.branch?.name || "-") : (project.branch || "-")}
+                          </td>
+                        )}
                         <td className="p-3">
                           <div className="flex flex-wrap gap-1">
                             {project.tags && project.tags.length > 0 ? (
@@ -444,6 +516,37 @@ const Projects = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Pagination Footer */}
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 py-4">
+              <p className="text-xs font-bold text-muted-foreground italic">
+                Showing {filteredProjectsCount === 0 ? 0 : (safeProjectPage - 1) * projectPageSize + 1} to {Math.min(safeProjectPage * projectPageSize, filteredProjectsCount)} of {filteredProjectsCount} entries
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-4 rounded-lg font-bold text-xs"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safeProjectPage <= 1}
+                >
+                  Previous
+                </Button>
+                <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
+                  {safeProjectPage}
+                </div>
+                <span className="text-xs text-muted-foreground px-1">of {totalProjectPages}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-4 rounded-lg font-bold text-xs"
+                  onClick={() => setCurrentPage(p => Math.min(totalProjectPages, p + 1))}
+                  disabled={safeProjectPage >= totalProjectPages}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

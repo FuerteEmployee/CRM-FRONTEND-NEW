@@ -2,7 +2,7 @@
 import { apiClient } from '../client';
 
 export const leadService = {
-  getAll: () => apiClient.get('/leads'),
+  getAll: (params) => apiClient.get('/leads', params ? { params } : undefined),
   
   getById: (id) => apiClient.get(`/leads/${id}`),
   
@@ -10,7 +10,11 @@ export const leadService = {
   
   update: (id, data) => apiClient.put(`/leads/${id}`, data),
 
+  updateLeadStatus: (id, status) => apiClient.patch(`/leads/${id}/status`, { status }),
+
   delete: (id) => apiClient.delete(`/leads/${id}`),
+
+  bulkDelete: (ids) => apiClient.post('/leads/bulk-delete', { ids }),
 
   convertToCustomer: (id) => apiClient.post(`/leads/${id}/convert`),
 

@@ -153,6 +153,65 @@
     --warning-foreground: 0 0% 0%;
     --info: 0 0% 100%;
     --info-foreground: 0 0% 0%;
+
+    --header-background: var(--background);
+    --header-links: 0 0% 100%;
+
+    /* Custom Theme Variables — mirrors :root/.color's set so tenant Theme
+       Style customization (Setup > Theme Style) stays visible in dark mode
+       instead of silently keeping its light-mode color via !important rules
+       (main-content, header, tables, modals, customer portal chrome). */
+    --table-links-color: 0 0% 100%;
+    --table-links-hover-color: 0 0% 80%;
+    --table-headings-color: 0 0% 60%;
+    --items-table-heading-bg: 0 0% 15%;
+    --items-table-heading-text: 0 0% 100%;
+    --modal-heading-bg: 0 0% 5%;
+    --modal-heading-color: 0 0% 100%;
+    --modal-close-color: 0 0% 60%;
+    --modal-header-text: 0 0% 60%;
+    --main-content-bg: var(--background);
+
+    /* Customer Area Variables */
+    --customer-nav-bg: var(--background);
+    --customer-nav-links: 0 0% 100%;
+    --customer-footer-bg: var(--background);
+    --customer-footer-text: 0 0% 60%;
+
+    /* General Settings Variables */
+    --links-color: 0 0% 100%;
+    --links-hover-color: 0 0% 80%;
+    --admin-login-bg: var(--background);
+    --text-muted: 0 0% 60%;
+    --text-danger: 0 0% 100%;
+    --text-warning: 0 0% 100%;
+    --text-info: 0 0% 100%;
+    --text-success: 0 0% 100%;
+
+    --tag-adsleads: 0 0% 60%;
+    --tag-brijtag: 0 0% 60%;
+    --tag-ceramic: 0 0% 60%;
+    --tag-closedtoday: 0 0% 60%;
+    --tag-education: 0 0% 60%;
+    --tag-furniture: 0 0% 60%;
+    --tag-god: 0 0% 60%;
+    --tag-homeopathy: 0 0% 60%;
+    --tag-hospital: 0 0% 60%;
+    --tag-jaimin: 0 0% 60%;
+    --tag-jaiminfollowups: 0 0% 60%;
+    --tag-jewellery: 0 0% 60%;
+    --tag-meetingdonewithadil: 0 0% 60%;
+    --tag-meetingdonewithyagnesh: 0 0% 60%;
+    --tag-metaads: 0 0% 60%;
+    --tag-morbi: 0 0% 60%;
+    --tag-naturopathy: 0 0% 60%;
+    --tag-podcast: 0 0% 60%;
+    --tag-solidsurface: 0 0% 60%;
+    --tag-studyroomreferral: 0 0% 60%;
+    --tag-supermarket: 0 0% 60%;
+    --tag-tiles: 0 0% 60%;
+    --tag-warm: 0 0% 60%;
+    --tag-yagnesh: 0 0% 60%;
   }
 
   .color {
@@ -615,6 +674,19 @@ html, body {
 .leaflet-bar { border: none !important; }
 .leaflet-attribution-flag { display: none !important; }
 .leaflet-control-attribution { background: rgba(255, 255, 255, 0.3) !important; backdrop-filter: blur(4px) !important; font-size: 8px !important; opacity: 0.5 !important; }
+
+/* iOS Safari (and any other iOS browser, since Apple mandates WebKit for all
+   of them) zooms the whole page in when a focused input's font-size is under
+   16px, and doesn't zoom back out on blur. `-webkit-touch-callout` is an
+   Apple-only property that Android/Blink browsers don't recognize, so this
+   @supports check scopes the fix to iOS only and leaves Android untouched. */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 767px) {
+    input, select, textarea {
+      font-size: 16px !important;
+    }
+  }
+}
 
 @media print {
   /* Hide sidebar, top bar, headers, notifications, etc. */

@@ -5,6 +5,7 @@ import { Badge } from "@/hrms/components/ui/badge";
 import { apiClient } from "@/hrms/services/apiClient";
 import { toast } from "@/hrms/hooks/use-toast";
 import { DataTable } from "@/hrms/components/common/DataTable";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import {
     Smartphone,
     CheckCircle2,
@@ -152,7 +153,7 @@ export default function DeviceApprovalsPage() {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
                     <div className="h-10 w-10 rounded-xl bg-amber-100 flex items-center justify-center">
                         <Clock className="h-5 w-5 text-amber-600" />
@@ -183,7 +184,7 @@ export default function DeviceApprovalsPage() {
             </div>
 
             {/* Filter Tabs */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
                 {(["pending", "approved", "rejected", "revoked", "all"] as const).map((tab) => (
                     <Button
                         key={tab}
@@ -229,7 +230,7 @@ export default function DeviceApprovalsPage() {
                                     <p className="font-bold text-foreground">{r.userId?.name || "Unknown"}</p>
                                     <p className="text-xs text-muted-foreground">{r.userId?.email}</p>
                                     {r.userId?.mobile && (
-                                        <p className="text-xs text-muted-foreground">{r.userId.mobile}</p>
+                                        <WhatsAppQuickChat phone={r.userId.mobile} data={{ customer_name: r.userId?.name }} />
                                     )}
                                 </div>
                             ),
@@ -280,6 +281,7 @@ export default function DeviceApprovalsPage() {
                             header: "Status",
                             accessorKey: (r) => (
                                 <Badge
+                                    variant="outline"
                                     className={
                                         r.status === "pending"
                                             ? "bg-amber-50 text-amber-700 border-amber-200"

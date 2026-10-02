@@ -37,7 +37,7 @@ import { supportService } from "@/api/services/support.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { usePermissions } from "@/hooks/usePermissions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 
@@ -84,13 +84,13 @@ const Support = () => {
 
   const handleBulkAction = async () => {
     if (selectedTickets.length === 0) {
-      toast({ title: "Error", description: "No tickets selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No tickets selected."});
       return;
     }
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedTickets.map(id => supportService.deleteTicket(id)));
+        await supportService.bulkDeleteTickets(selectedTickets);
         toast({ title: "Success", description: `Deleted ${selectedTickets.length} tickets.` });
       } else {
         const updates: any = {};
@@ -110,7 +110,7 @@ const Support = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false, status: "", department: "", priority: "", tags: "", service: "" });
     } catch (err: any) {
-      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to perform bulk action."});
     } finally {
       setIsBulkLoading(false);
     }
@@ -124,11 +124,24 @@ const Support = () => {
     }
   };
 
-  const filtered = tickets.filter(
-    (t: any) =>
-      (t.subject || "").toLowerCase().includes(search.toLowerCase()) ||
-      (t.client?.company || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = tickets.filter((t: any) => {
+    const q = search.toLowerCase();
+    const departmentName = (typeof t.department === "object" ? t.department?.name : t.department) || "";
+    const statusName = (typeof t.status === "object" ? t.status?.name : t.status) || "";
+    const priorityName = (typeof t.priority === "object" ? t.priority?.name : t.priority) || "";
+    const contactName = t.contact_name || t.name || "";
+    const tagsMatch = Array.isArray(t.tags) && t.tags.some((tag: any) => (tag || "").toLowerCase().includes(q));
+    return (
+      (t.subject || "").toLowerCase().includes(q) ||
+      (t.client?.company || "").toLowerCase().includes(q) ||
+      tagsMatch ||
+      departmentName.toLowerCase().includes(q) ||
+      (t.service || "").toLowerCase().includes(q) ||
+      contactName.toLowerCase().includes(q) ||
+      statusName.toLowerCase().includes(q) ||
+      priorityName.toLowerCase().includes(q)
+    );
+  });
 
   const handleExport = (type: "xlsx" | "csv" | "pdf" | "print" | "json") => {
     if (filtered.length === 0) {
@@ -232,7 +245,7 @@ const Support = () => {
 
                 <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                   if (open && selectedTickets.length === 0) {
-                    toast({ title: "Error", description: "Please select at least one ticket first.", variant: "destructive" });
+                    toast({ title: "Error", description: "Please select at least one ticket first."});
                     return;
                   }
                   setBulkActionOpen(open);
@@ -377,13 +390,7 @@ const Support = () => {
                 </thead>
                 <tbody className="text-sm">
                   {isLoading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="border-b">
-                        <td colSpan={11} className="p-4">
-                          <Skeleton className="h-10 w-full" />
-                        </td>
-                      </tr>
-                    ))
+                    <SkeletonTableRows rows={6} colSpan={11} />
                   ) : paginated.length === 0 ? (
                     <tr>
                       <td colSpan={11} className="p-10 text-center text-slate-500 font-medium">

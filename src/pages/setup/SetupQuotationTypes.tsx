@@ -72,7 +72,7 @@ const SetupQuotationTypes = () => {
   };
 
   const createMutation = useMutation({
-    mutationFn: quotationTypeService.createQuotationType,
+    mutationFn: (data: any) => quotationTypeService.createQuotationType(data),
     onSuccess: () => {
       invalidate();
       toast.success("Quotation type created");
@@ -92,7 +92,7 @@ const SetupQuotationTypes = () => {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: quotationTypeService.deleteQuotationType,
+    mutationFn: (id: string) => quotationTypeService.deleteQuotationType(id),
     onSuccess: () => {
       invalidate();
       toast.success("Quotation type deleted");
@@ -324,7 +324,7 @@ const SetupQuotationTypes = () => {
               <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
                 Default PDF Theme
               </Label>
-              <div className="grid grid-cols-2 gap-3 mt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
                 {THEME_FIELDS.map((f) => (
                   <div key={f.key} className="space-y-1">
                     <Label className="text-xs font-medium">{f.label}</Label>

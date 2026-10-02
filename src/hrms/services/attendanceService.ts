@@ -1,7 +1,7 @@
 import {apiClient} from "./apiClient";
 
 export const attendanceService = {
-  punchIn: async (selfieBlob: Blob | null, location: { lat: number, lng: number, address?: string, accuracy?: number, fixAt?: number }) => {
+  punchIn: async (selfieBlob: Blob | null, location: { lat: number, lng: number, address?: string, accuracy?: number, fixAt?: number }, faceDetected?: boolean) => {
     const formData = new FormData();
     if (selfieBlob) formData.append("selfie", selfieBlob, "punch-in.jpg");
     formData.append("lat", location.lat.toString());
@@ -9,12 +9,14 @@ export const attendanceService = {
     if (location.address) formData.append("address", location.address);
     if (location.accuracy !== undefined) formData.append("accuracy", location.accuracy.toString());
     if (location.fixAt !== undefined) formData.append("fixAt", new Date(location.fixAt).toISOString());
+    if (faceDetected !== undefined) formData.append("faceDetected", faceDetected.toString());
 
-    const response = await apiClient.post("/attendance/punch-in", formData);
+    // silent:true — handleDirectPunch in AttendancePage shows its own specific toasts
+    const response = await apiClient.post("/attendance/punch-in", formData, { silent: true } as any);
     return response.data;
   },
 
-  punchOut: async (selfieBlob: Blob | null, location: { lat: number, lng: number, address?: string, accuracy?: number, fixAt?: number }) => {
+  punchOut: async (selfieBlob: Blob | null, location: { lat: number, lng: number, address?: string, accuracy?: number, fixAt?: number }, faceDetected?: boolean) => {
     const formData = new FormData();
     if (selfieBlob) formData.append("selfie", selfieBlob, "punch-out.jpg");
     formData.append("lat", location.lat.toString());
@@ -22,8 +24,10 @@ export const attendanceService = {
     if (location.address) formData.append("address", location.address);
     if (location.accuracy !== undefined) formData.append("accuracy", location.accuracy.toString());
     if (location.fixAt !== undefined) formData.append("fixAt", new Date(location.fixAt).toISOString());
+    if (faceDetected !== undefined) formData.append("faceDetected", faceDetected.toString());
 
-    const response = await apiClient.post("/attendance/punch-out", formData);
+    // silent:true — handleDirectPunch in AttendancePage shows its own specific toasts
+    const response = await apiClient.post("/attendance/punch-out", formData, { silent: true } as any);
     return response.data;
   },
 

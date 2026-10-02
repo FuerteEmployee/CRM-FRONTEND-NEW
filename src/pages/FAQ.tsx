@@ -119,10 +119,17 @@ export default function FAQ() {
   // Filter faqs by search query
   const filteredFaqs = Array.isArray(faqs) ? faqs.filter((faq: any) => {
     const searchLower = searchQuery.toLowerCase();
+    const statusLower = (faq.status || "").toLowerCase();
+    // "Draft" is the label actually shown on screen for status === 'Inactive',
+    // so let searching "draft" match those FAQs in addition to the raw status value.
+    const displayLabel = faq.status === "Inactive" ? "draft" : "";
+    const matchesStatus =
+      Boolean(searchLower) && (statusLower.includes(searchLower) || displayLabel.includes(searchLower));
     return (
       (faq.question && faq.question.toLowerCase().includes(searchLower)) ||
       (faq.answer && faq.answer.toLowerCase().includes(searchLower)) ||
-      (faq.category && faq.category.toLowerCase().includes(searchLower))
+      (faq.category && faq.category.toLowerCase().includes(searchLower)) ||
+      matchesStatus
     );
   }) : [];
 
@@ -235,7 +242,7 @@ export default function FAQ() {
                   className="min-h-[120px]"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold">Category</label>
                   <Input

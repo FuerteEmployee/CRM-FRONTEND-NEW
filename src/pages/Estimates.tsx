@@ -9,21 +9,45 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Search, Download, FileText, Target, Printer, Zap, Mail, Eye, Maximize2, Pencil, ChevronDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { formatDate } from "@/lib/dateFormat";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { estimateService } from "@/api/services/estimate.service";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
+import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
+import { useSettings } from "@/context/SettingsContext";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
+
+const ESTIMATE_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Company Name", sample: "Acme Traders", required: true, core: true },
+  { key: "Connect Person", sample: "Rahul Mehta", core: true },
+  { key: "Phone Number", sample: "9876543210", core: true },
+  { key: "Mail Id", sample: "rahul@acme.com", core: true },
+  { key: "Item", sample: "Website Design", core: true },
+  { key: "Quantity", sample: 2, core: true },
+  { key: "Rate", sample: 15000, core: true },
+  { key: "Amount", sample: 30000, core: true },
+  { key: "Sales Person", sample: "Priya Singh", core: true },
+  { key: "Date", sample: "27-08-2026", core: true },
+  { key: "Branch", sample: "Mumbai", core: true },
+  { key: "Subject", sample: "Website Redesign Proposal", core: false },
+  { key: "Status", sample: "sent", core: false },
+  { key: "Open Till", sample: "10-09-2026", core: false },
+  { key: "Estimate #", sample: "EST-1042", core: false },
+];
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
   "draft": { label: "Draft", className: "bg-slate-100 text-slate-600" },
@@ -52,6 +76,10 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { formatAmount, symbol } = useCurrency();
+  const { user } = usePermissions();
+  const { getSetting } = useSettings();
+  const companyName = getSetting("companyName", "Fuerte Developers");
+  const canUseBankDetails = canAccessBankDetails(user?.email);
 
   const { data: currencies = [] } = useQuery({
     queryKey: ["currencies"],
@@ -158,6 +186,121 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
     convertMutation.mutate(id);
   };
 
+  const generatePdfHtml = () => {
+    const bd = d.bank_detail;
+    const bankDetailsHtml = (canUseBankDetails && bd)
+      ? `
+          <div class="bank-details">
+            <div class="bank-details-title">Payment / Bank Details</div>
+            <div class="bank-details-row">
+              <b>${bd.accountHolderName || "—"}</b><br/>
+              Bank: ${bd.bankName || "—"}<br/>
+              A/C No: ${bd.accountNumber || "—"} &nbsp; IFSC: ${bd.ifscCode || "—"}
+              ${bd.branch?.name ? `<br/>Branch: ${bd.branch.name}` : ""}
+            </div>
+          </div>
+        `
+      : '';
+
+    return `
+      <html>
+        <head>
+          <title>Estimate ${estimateNumber}</title>
+          <style>
+            body { font-family: system-ui, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: 0 auto; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+            .title { font-size: 32px; font-weight: 800; color: #2563eb; margin-bottom: 10px; }
+            .company { font-weight: bold; font-size: 18px; color: #0f172a; }
+            .meta { font-size: 14px; color: #475569; line-height: 1.6; }
+            table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+            th { background: #dbeafe; color: #2563eb; padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+            td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+            .totals { margin-top: 30px; width: 50%; float: right; }
+            .totals-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+            .totals-row.grand { font-weight: 800; font-size: 18px; color: #0f172a; border-bottom: none; }
+            .bank-details { clear: both; margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 13px; }
+            .bank-details-title { font-weight: bold; color: #2563eb; margin-bottom: 8px; text-transform: uppercase; font-size: 12px; letter-spacing: 0.05em; }
+            .bank-details-row { color: #334155; line-height: 1.6; margin-bottom: 8px; }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 2cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="title">${estimateNumber}</div>
+              <div class="company">${companyName}</div>
+            </div>
+            <div style="text-align: right">
+              <div style="margin-bottom: 15px;">
+                <div style="font-size: 12px; color: #64748b; font-weight: bold; margin-bottom: 5px;">BILL TO</div>
+                <div class="company" style="color: #2563eb;">${d.contact_name || d.client_id?.company || d.rel_id || 'Customer'}</div>
+              </div>
+              <div class="meta">
+                <b>Estimate Date:</b> ${d.date ? formatDate(d.date) : '-'}<br/>
+                <b>Status:</b> ${status.label}
+              </div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Rate</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(d.items || []).map((item: any) => `
+                <tr>
+                  <td><b>${item.description || item.name || "—"}</b></td>
+                  <td>${item.qty || item.quantity || 1}</td>
+                  <td>${formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
+                  <td>${formatRowAmount(d, Number((item.qty || item.quantity || 1) * (item.rate || item.price || 0)))}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            ${d.subtotal !== undefined ? `
+              <div class="totals-row">
+                <span>Subtotal</span>
+                <span>${formatRowAmount(d, Number(d.subtotal))}</span>
+              </div>
+            ` : ''}
+            <div class="totals-row grand">
+              <span>Total</span>
+              <span>${formatRowAmount(d, Number(d.total || 0))}</span>
+            </div>
+          </div>
+
+          ${bankDetailsHtml}
+        </body>
+      </html>
+    `;
+  };
+
+  const handlePdfAction = (action: 'view' | 'new_tab' | 'download' | 'print') => {
+    const html = generatePdfHtml();
+    const blob = new Blob([action === 'print' ? html.replace('<body>', '<body onload="window.print()">') : html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+
+    if (action === 'download') {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Estimate_${estimateNumber}.html`;
+      a.click();
+      toast({ title: "Download Started", description: "Your document is downloading." });
+    } else {
+      window.open(url, action === 'view' ? 'PDF_Viewer' : '_blank', action === 'view' ? 'width=800,height=900' : '');
+    }
+  };
+
   return (
     <>
       <input
@@ -243,10 +386,10 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>View PDF</DropdownMenuItem>
-                <DropdownMenuItem>View PDF in New Tab</DropdownMenuItem>
-                <DropdownMenuItem>Download</DropdownMenuItem>
-                <DropdownMenuItem>Print</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('view')}>View PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('new_tab')}>View PDF in New Tab</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('download')}>Download</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('print')}>Print</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -523,16 +666,36 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
 
 const Estimates = () => {
   const [estimateSearch, setEstimateSearch] = useState("");
+  const [debouncedEstimateSearch, setDebouncedEstimateSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedEstimateSearch(estimateSearch.trim()), 350);
+    return () => clearTimeout(t);
+  }, [estimateSearch]);
+  const [branchFilter, setBranchFilter] = useState("all");
   const [estimateItemsPerPage, setEstimateItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
   const [previewEstimate, setPreviewEstimate] = useState<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const navigate = useNavigate();
-  const { can } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+  const canUseBankDetails = canAccessBankDetails(user?.email);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { formatAmount, symbol } = useCurrency();
+
+  const { data: branchesData } = useQuery({
+    queryKey: ["hrms-branches"],
+    queryFn: () => hrmsbranchService.getAll(),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches = branchesData?.data || [];
 
   const { data: currencies = [] } = useQuery({
     queryKey: ["currencies"],
@@ -561,19 +724,20 @@ const Estimates = () => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
-  const toggleSelectAll = (items: any[]) => {
-    setSelectedIds(prev => prev.length === items.length ? [] : items.map(i => i._id || i.id));
+  const toggleSelectAll = (pageIds: string[]) => {
+    const allSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.includes(id));
+    setSelectedIds(prev => allSelected ? prev.filter(id => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]);
   };
 
   const handleBulkAction = async () => {
     if (selectedIds.length === 0) {
-      toast({ title: "Error", description: "No items selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No items selected."});
       return;
     }
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedIds.map(id => estimateService.deleteEstimate(id)));
+        await estimateService.bulkDeleteEstimates(selectedIds);
         toast({ title: "Success", description: `Deleted ${selectedIds.length} items.` });
       } else if (bulkState.status) {
         await Promise.all(selectedIds.map(id => estimateService.updateEstimate(id, { status: bulkState.status })));
@@ -584,24 +748,44 @@ const Estimates = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false, status: "" });
     } catch {
-      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to perform bulk action."});
     } finally {
       setIsBulkLoading(false);
     }
   };
 
-  const { data: allData = [], isLoading: isLoadingEstimates } = useQuery({
-    queryKey: ["estimates"],
+  // Paginated server-side (per estimate document) once a finite page size is
+  // chosen; "All" keeps the legacy full fetch, filtered client-side exactly
+  // as this page always has.
+  interface EstimatesPage { rows: any[]; total: number; pages: number }
+  const { data: estimatesResult, isLoading: isLoadingEstimates } = useQuery<EstimatesPage>({
+    queryKey: ["estimates", estimateItemsPerPage, currentPage, debouncedEstimateSearch, branchFilter],
     queryFn: async () => {
-      const response = await estimateService.getEstimates();
-      return Array.isArray(response) ? response : response?.data || [];
-    },
-  });
+      if (estimateItemsPerPage === "All") {
+        const response = await estimateService.getEstimates();
+        const rows: any[] = (Array.isArray(response) ? response : response?.data || []).filter((item: any) => !item.form);
+        const q = debouncedEstimateSearch.toLowerCase();
+        const rowsFiltered = rows.filter((e: any) => {
+          const matchesSearch = estimateMatchesSearch(e, q);
+          const matchesBranch = branchFilter === "all" || getBranchName(e) === branchFilter;
+          return matchesSearch && matchesBranch;
+        });
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1 };
+      }
 
-  const estimates = useMemo(
-    () => allData.filter((item: any) => !item.form),
-    [allData]
-  );
+      const res: any = await estimateService.getEstimates({
+        page: currentPage,
+        limit: estimateItemsPerPage,
+        search: debouncedEstimateSearch || undefined,
+        branch: branchFilter !== "all" ? branchFilter : undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1 };
+      const rows: any[] = (res?.data ?? []).filter((item: any) => !item.form);
+      return { rows, total: res?.total ?? 0, pages: res?.pages ?? 1 };
+    },
+    placeholderData: keepPreviousData,
+  });
+  const estimates: any[] = estimatesResult?.rows ?? [];
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => estimateService.deleteEstimate(id),
@@ -626,14 +810,117 @@ const Estimates = () => {
   });
 
   const handleImportData = (rows: Record<string, any>[]) => {
-    const valid = rows.filter(r => r["subject"] || r["Subject"] || r["company"] || r["Company"] || r["total"] || r["Total"] || r["Estimate #"] || r["To"]);
-    if (!valid.length) { toast({ title: "No valid rows", description: "Rows need at least a subject or company column.", variant: "destructive" }); return; }
+    const RECOGNIZED_KEYS = [
+      "subject", "company", "companyname", "total", "estimate#", "to",
+      "connectperson", "phonenumber", "mailid", "item", "quantity", "rate", "amount", "salesperson", "date",
+    ];
+    const normalize = (key: string) => key.toLowerCase().replace(/[^a-z0-9#]/g, "");
+    const valid = rows.filter(r =>
+      Object.keys(r).some(key => RECOGNIZED_KEYS.includes(normalize(key)) && String(r[key]).trim() !== "")
+    );
+    if (!valid.length) { toast({ title: "No valid rows", description: "Rows need at least one recognizable column (Company Name, Item, Amount, etc).", variant: "destructive" }); return; }
     importMutation.mutate(valid as any);
   };
 
-  const filtered = estimates.filter((e: any) => 
-    (e.subject || e.number || "").toLowerCase().includes(estimateSearch.toLowerCase())
-  );
+  const getBranchName = (e: any) => (typeof e.branch === "object" ? (e.branch?.name || "") : (e.branch || ""));
+
+  // Shared by both client-side fallback filters below ("All" page-size mode
+  // and the export-time refetch) — mirrors every field the backend's
+  // getEstimates search now also matches. `subject` isn't a real Estimate
+  // field, but is left in place (pre-existing, harmless dead check).
+  const estimateMatchesSearch = (e: any, q: string): boolean => {
+    if (!q) return true;
+    if ((e.subject || e.number || "").toLowerCase().includes(q)) return true;
+    if (getBranchName(e).toLowerCase().includes(q)) return true;
+    const companyName = e.contact_name || e.client?.company || e.client_id?.company || e.rel_id || "";
+    if (String(companyName).toLowerCase().includes(q)) return true;
+    if ((e.connectPerson || "").toLowerCase().includes(q)) return true;
+    if ((e.phone || "").toLowerCase().includes(q)) return true;
+    if ((e.mailId || "").toLowerCase().includes(q)) return true;
+    if ((e.salesPerson || "").toLowerCase().includes(q)) return true;
+    if ((e.items || []).some((item: any) => (item.description || "").toLowerCase().includes(q))) return true;
+    return false;
+  };
+
+  // `estimates` is already filtered by search/branch — server-side when
+  // paginated, client-side (over the full fetch) in "All" mode — so no
+  // second filter pass is needed here.
+
+  // One export row per line item — an estimate with 3 items produces 3 rows,
+  // each repeating the estimate-level fields and varying only Item/Qty/Rate/Amount.
+  const buildEstimateExportRows = (list: any[]) => list.flatMap((e: any) => {
+    const companyName = e.contact_name || e.client?.company || e.client_id?.company || e.rel_id || "N/A";
+    const estimateNumber = e.number || "";
+    const rowBase = {
+      "Estimate #": estimateNumber,
+      "Company Name": companyName,
+      "Connect Person": e.connectPerson || "",
+      "Phone Number": e.phone || "",
+      "Mail Id": e.mailId || "",
+      "Sales Person": e.salesPerson || "",
+      "Date": e.date ? new Date(e.date).toLocaleDateString("en-GB") : "",
+      "Status": e.status || "draft",
+      ...(canUseBranch ? { "Branch": getBranchName(e) } : {}),
+      ...(canUseBankDetails ? { "Bank Details": e.bank_detail ? `${e.bank_detail.bankName || ""} — ${e.bank_detail.accountNumber || ""}` : "" } : {}),
+    };
+    const items = e.items?.length ? e.items : [{ description: "", qty: "", rate: "", amount: "" }];
+    return items.map((item: any) => ({
+      ...rowBase,
+      "Item": item.description || "",
+      "Quantity": item.qty ?? "",
+      "Rate": item.rate ?? "",
+      "Amount": item.amount ?? (item.qty && item.rate ? item.qty * item.rate : ""),
+    }));
+  });
+
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredEstimates = async () => {
+    const response = await estimateService.getEstimates();
+    const rows: any[] = (Array.isArray(response) ? response : response?.data || []).filter((item: any) => !item.form);
+    const q = debouncedEstimateSearch.toLowerCase();
+    return rows.filter((e: any) => {
+      const matchesSearch = estimateMatchesSearch(e, q);
+      const matchesBranch = branchFilter === "all" || getBranchName(e) === branchFilter;
+      return matchesSearch && matchesBranch;
+    });
+  };
+
+  // Same flattening as buildEstimateExportRows, but keeps a reference to the
+  // parent estimate so the on-screen table can render one row per line item
+  // while checkbox selection / view / edit / delete still target the parent.
+  const tableRows = useMemo(() => estimates.flatMap((e: any) => {
+    const companyName = e.contact_name || e.client?.company || e.client_id?.company || e.rel_id || "N/A";
+    const rowBase = {
+      estimate: e,
+      companyName,
+      connectPerson: e.connectPerson || "",
+      phone: e.phone || "",
+      mailId: e.mailId || "",
+      salesPerson: e.salesPerson || "",
+      date: e.date,
+    };
+    const items = e.items?.length ? e.items : [{ description: "", qty: "", rate: "", amount: "" }];
+    return items.map((item: any, idx: number) => ({
+      ...rowBase,
+      key: `${e._id || e.id}-${idx}`,
+      itemDescription: item.description || "",
+      qty: item.qty ?? "",
+      rate: item.rate ?? "",
+      amount: item.amount ?? (item.qty && item.rate ? item.qty * item.rate : ""),
+    }));
+  }), [estimates]);
+
+  // Pagination is per estimate document (matching how the server paginates),
+  // not per flattened line-item row — "10 per page" means 10 estimates,
+  // which can render as more or fewer table rows depending on item counts.
+  const totalRows = estimatesResult?.total ?? 0;
+  const pageSize = estimateItemsPerPage === "All" ? (totalRows || 1) : parseInt(estimateItemsPerPage);
+  const totalPages = estimatesResult?.pages ?? 1;
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedRows = tableRows;
+  const pageEstIds = [...new Set(paginatedRows.map((r: any) => r.estimate._id || r.estimate.id))] as string[];
+  const allPageSelected = pageEstIds.length > 0 && pageEstIds.every(id => selectedIds.includes(id));
 
   return (
     <DashboardLayout>
@@ -696,8 +983,8 @@ const Estimates = () => {
 
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
-          <div className="flex items-center gap-3">
-            <Select value={estimateItemsPerPage} onValueChange={setEstimateItemsPerPage}>
+          <div className="flex flex-wrap items-center gap-3">
+            <Select value={estimateItemsPerPage} onValueChange={(v) => { setEstimateItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -709,7 +996,7 @@ const Estimates = () => {
             </Select>
             <Dialog open={bulkActionOpen} onOpenChange={(open) => {
               if (open && selectedIds.length === 0) {
-                toast({ title: "Error", description: "Please select at least one item first.", variant: "destructive" });
+                toast({ title: "Error", description: "Please select at least one item first."});
                 return;
               }
               setBulkActionOpen(open);
@@ -759,130 +1046,175 @@ const Estimates = () => {
               </DialogContent>
             </Dialog>
             <ExportButton
-              data={filtered}
+              data={async () => buildEstimateExportRows(await loadAllFilteredEstimates())}
               filename="estimates"
               columns={[
-                { header: "Estimate #", key: (e) => e.number || e._id },
-                { header: "Subject", key: "subject" },
-                { header: "To", key: (e) => e.contact_name || e.client_id?.company || e.rel_id || "N/A" },
-                { header: "Total", key: "total" },
-                { header: "Date", key: "date" },
-                { header: "Status", key: "status" }
+                { header: "Estimate #", key: "Estimate #" },
+                { header: "Company Name", key: "Company Name" },
+                { header: "Connect Person", key: "Connect Person" },
+                { header: "Phone Number", key: "Phone Number" },
+                { header: "Mail Id", key: "Mail Id" },
+                { header: "Item", key: "Item" },
+                { header: "Quantity", key: "Quantity", type: "number" },
+                { header: "Rate", key: "Rate", type: "number" },
+                { header: "Amount", key: "Amount", type: "number" },
+                { header: "Sales Person", key: "Sales Person" },
+                { header: "Date", key: "Date" },
+                { header: "Status", key: "Status" },
+                ...(canUseBranch ? [{ header: "Branch", key: "Branch" }] : []),
+                ...(canUseBankDetails ? [{ header: "Bank Details", key: "Bank Details" }] : []),
               ]}
             />
-            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            <ImportDialog
+              title="Import Estimates"
+              columns={ESTIMATE_IMPORT_COLUMNS}
+              onData={handleImportData}
+              loading={importMutation.isPending}
+              triggerLabel="Import"
+              templateFilename="estimates_sample_import.xlsx"
+              sheetName="Estimates"
+              mappingNote="Your Excel columns (Company Name, Connect Person, Phone Number, Mail Id, Item, Quantity, Rate, Amount, Sales Person, Date, Branch) will be automatically detected and mapped to estimates."
+            />
+            {canUseBranch && (
+              <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
+                <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                  <SelectValue placeholder="All Branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {branches.map((b: any) => (
+                    <SelectItem key={b._id || b.id} value={b.name}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
-              placeholder="Search estimates..."
+              placeholder="Search estimates or branch..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={estimateSearch}
-              onChange={(e) => setEstimateSearch(e.target.value)}
+              onChange={(e) => { setEstimateSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
 
         {/* Estimates Table */}
         <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+        <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
               <tr>
                 <th className="w-10 px-3 py-4">
-                  {(() => {
-                    const pageData = filtered.slice(0, estimateItemsPerPage === "All" ? filtered.length : parseInt(estimateItemsPerPage));
-                    return (
-                      <Checkbox
-                        checked={selectedIds.length === pageData.length && pageData.length > 0}
-                        onCheckedChange={() => toggleSelectAll(pageData)}
-                      />
-                    );
-                  })()}
+                  <Checkbox
+                    checked={allPageSelected}
+                    onCheckedChange={() => toggleSelectAll(pageEstIds)}
+                  />
                 </th>
-                {["Estimate #", "Subject", "To", "Total", "Date", "Open Till", "Tags", "Date Created", "Status", "Actions"].map(h => (
+                {["Company Name", "Connect Person", "Phone Number", "Mail Id", "Item", "Quantity", "Rate", "Amount", "Sales Person", "Date", ...(canUseBranch ? ["Branch"] : []), ...(canUseBankDetails ? ["Bank Details"] : []), "Actions"].map(h => (
                   <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {isLoadingEstimates ? (
-                Array(3).fill(0).map((_, i) => (
-                  <tr key={i}><td colSpan={11} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
-                ))
-              ) : filtered.length === 0 ? (
+                <SkeletonTableRows rows={6} colSpan={12 + (canUseBranch ? 1 : 0) + (canUseBankDetails ? 1 : 0)} />
+              ) : tableRows.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-6 py-12 text-center text-muted-foreground italic">
+                  <td colSpan={12 + (canUseBranch ? 1 : 0) + (canUseBankDetails ? 1 : 0)} className="px-6 py-12 text-center text-muted-foreground italic">
                     No estimates found.
                   </td>
                 </tr>
               ) : (
-                filtered.map((est: any) => (
-                  <tr key={est._id || est.id} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(est._id || est.id) ? 'bg-primary/5' : ''}`}>
-                    <td className="px-3 py-2">
-                      <Checkbox
-                        checked={selectedIds.includes(est._id || est.id)}
-                        onCheckedChange={() => toggleSelect(est._id || est.id)}
-                      />
-                    </td>
-                    <td className="px-6 py-4">
-                      <button
-                        className="font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer text-left"
-                        onClick={() => setSelectedEstimate(est)}
-                      >
-                        {est.number || (est._id || est.id)?.slice(-6).toUpperCase()}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 font-medium text-foreground">{est.subject}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{est.contact_name || est.client_id?.company || est.rel_id || "N/A"}</td>
-                    <td className="px-6 py-4 font-black text-foreground">{formatRowAmount(est, est.total || 0)}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{est.date ? formatDate(est.date) : "-"}</td>
-                    <td className="px-6 py-4 text-muted-foreground">{est.open_till ? formatDate(est.open_till) : "-"}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1">
-                        {est.tags?.map((tag: string, i: number) => (
-                          <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-muted-foreground">{est.createdAt ? formatDate(est.createdAt) : "-"}</td>
-                    <td className="px-6 py-4">
-                      <Badge className={cn(
-                        "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
-                        est.status?.toLowerCase() === "draft" ? "bg-slate-100 text-slate-600" :
-                        est.status?.toLowerCase() === "sent" ? "bg-blue-50 text-blue-600" :
-                        est.status?.toLowerCase() === "accepted" ? "bg-emerald-50 text-emerald-600" :
-                        est.status?.toLowerCase() === "declined" ? "bg-red-50 text-red-600" :
-                        est.status?.toLowerCase() === "expired" ? "bg-amber-50 text-amber-600" :
-                        "bg-muted text-muted-foreground"
-                      )}>
-                        {est.status}
-                      </Badge>
-                    </td>
-                    <td className="px-6 py-4">
-                      <TableActions
-                        onView={() => setPreviewEstimate(est)}
-                        onEdit={can("Estimates", "Edit") ? () => navigate(`/admin/estimates/edit/${est._id || est.id}`) : undefined}
-                        onDelete={can("Estimates", "Delete") ? () => deleteMutation.mutate(est._id || est.id) : undefined}
-                      />
-                    </td>
-                  </tr>
-                ))
+                paginatedRows.map((row: any) => {
+                  const est = row.estimate;
+                  const estId = est._id || est.id;
+                  return (
+                    <tr key={row.key} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(estId) ? 'bg-primary/5' : ''}`}>
+                      <td className="px-3 py-2">
+                        <Checkbox
+                          checked={selectedIds.includes(estId)}
+                          onCheckedChange={() => toggleSelect(estId)}
+                        />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="font-medium text-foreground">{row.companyName}</div>
+                        <button
+                          className="text-[10px] font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer text-left"
+                          onClick={() => setSelectedEstimate(est)}
+                        >
+                          {est.number || estId?.slice(-6).toUpperCase()}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground">{row.connectPerson || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">
+                        {row.phone ? (
+                          <WhatsAppQuickChat
+                            phone={row.phone}
+                            data={{ customer_name: row.companyName, invoice_no: est.number || estId?.slice(-6).toUpperCase() }}
+                          />
+                        ) : "-"}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground">{row.mailId || "-"}</td>
+                      <td className="px-6 py-4 font-medium text-foreground">{row.itemDescription || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{row.qty !== "" ? row.qty : "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{row.rate !== "" ? formatRowAmount(est, Number(row.rate)) : "-"}</td>
+                      <td className="px-6 py-4 font-black text-foreground">{row.amount !== "" ? formatRowAmount(est, Number(row.amount)) : "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{row.salesPerson || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground">{row.date ? formatDate(row.date) : "-"}</td>
+                      {canUseBranch && (
+                        <td className="px-6 py-4 text-muted-foreground">
+                          {getBranchName(est) || "-"}
+                        </td>
+                      )}
+                      {canUseBankDetails && (
+                        <td className="px-6 py-4 text-muted-foreground">
+                          {est.bank_detail ? `${est.bank_detail.bankName || ""} — ${est.bank_detail.accountNumber || ""}` : "-"}
+                        </td>
+                      )}
+                      <td className="px-6 py-4">
+                        <TableActions
+                          onView={() => setPreviewEstimate(est)}
+                          onEdit={can("Estimates", "Edit") ? () => navigate(`/admin/estimates/edit/${estId}`) : undefined}
+                          onDelete={can("Estimates", "Delete") ? () => deleteMutation.mutate(estId) : undefined}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
+        </div>
         </div>
 
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing 1 to {filtered.length} of {filtered.length} entries
+            Showing {totalRows === 0 ? 0 : (safePage - 1) * pageSize + 1} to {Math.min(safePage * pageSize, totalRows)} of {totalRows} entries
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safePage <= 1}
+            >
+              Previous
+            </Button>
+            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">{safePage}</div>
+            <span className="text-xs text-muted-foreground px-1">of {totalPages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={safePage >= totalPages}
+            >
+              Next
+            </Button>
           </div>
         </div>
       </div>

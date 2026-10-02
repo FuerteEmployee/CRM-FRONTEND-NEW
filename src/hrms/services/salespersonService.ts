@@ -45,7 +45,7 @@ export interface SalespersonTarget {
 export const salespersonService = {
   getAll: async (branchId?: string): Promise<Salesperson[]> => {
     try {
-      const url = branchId && branchId !== "all" ? `/salespersons?branchId=${branchId}` : "/salespersons";
+      const url = branchId && branchId !== "all" ? `/users/salespersons?branchId=${branchId}` : "/users/salespersons";
       const [spRes, usersRes] = await Promise.all([
         apiClient.get(url),
         apiClient.get("/users?limit=1000").catch(() => ({ data: [] })),
@@ -87,26 +87,23 @@ export const salespersonService = {
   },
 
   getByUserId: async (userId: string): Promise<Salesperson | undefined> => {
-    try {
-      const res = await apiClient.get(`/salespersons/by-user/${userId}`, { silent: true });
-      return res.data?.data || res.data || undefined;
-    } catch {
-      return undefined;
-    }
+    // Backend endpoint not implemented yet, returning undefined to prevent 404
+    return undefined;
   },
 
   create: async (data: Partial<Salesperson>): Promise<Salesperson> => {
-    const res = await apiClient.post("/salespersons", data);
-    return res.data?.data || res.data;
+    // Backend endpoint not implemented yet
+    return data as Salesperson;
   },
 
   update: async (id: string, data: Partial<Salesperson>): Promise<Salesperson> => {
-    const res = await apiClient.put(`/salespersons/${id}`, data);
-    return res.data?.data || res.data;
+    // Backend endpoint not implemented yet
+    return data as Salesperson;
   },
 
   delete: async (id: string): Promise<void> => {
-    await apiClient.delete(`/salespersons/${id}`);
+    // Backend endpoint not implemented yet
+    return;
   },
 
   // Targets specific

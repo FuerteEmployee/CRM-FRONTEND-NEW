@@ -381,16 +381,16 @@ const Calendar = () => {
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <DialogContent className="max-w-md rounded-3xl p-0 border-none shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <DialogHeader className="bg-primary p-6 text-primary-foreground shrink-0">
-              <div className="flex justify-between items-center">
-                <div>
-                  <DialogTitle className="text-xl font-bold flex items-center gap-2">
-                    <CalendarIcon className="h-5 w-5" />
+              <div className="flex justify-between items-center gap-4">
+                <div className="min-w-0">
+                  <DialogTitle className="text-xl font-bold flex items-center gap-2 truncate">
+                    <CalendarIcon className="h-5 w-5 shrink-0" />
                     {selectedEventId ? "Edit Event" : "Add New Event"}
                   </DialogTitle>
-                  <p className="text-primary-foreground/70 text-xs font-medium mt-1">{selectedEventId ? "Update your schedule entry" : "Create a new entry in your schedule"}</p>
+                  <p className="text-primary-foreground/70 text-xs font-medium mt-1 truncate">{selectedEventId ? "Update your schedule entry" : "Create a new entry in your schedule"}</p>
                 </div>
                 {selectedEventId && (
-                  <Button variant="ghost" size="icon" onClick={deleteEvent} className="text-white hover:text-red-300 hover:bg-red-500/20 rounded-full h-8 w-8">
+                  <Button variant="ghost" size="icon" onClick={deleteEvent} className="shrink-0 text-white hover:text-red-300 hover:bg-red-500/20 rounded-full h-8 w-8">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 )}

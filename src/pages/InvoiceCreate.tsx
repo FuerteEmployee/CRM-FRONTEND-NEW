@@ -26,6 +26,11 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
+import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
+import { isEkagraUser } from "@/lib/ekagraTenant";
+import { EKAGRA_COMPANY_INFO } from "@/lib/ekagraTaxInvoice";
 import { 
   ChevronLeft, 
   HelpCircle, 
@@ -51,9 +56,11 @@ import { financeService } from "@/api/services/finance.service";
 import { salesService } from "@/api/services/sales.service";
 import { itemService } from "@/api/services/item.service";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemSelect";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/CurrencyContext";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
 export default function InvoiceCreate() {
   const { clientId, id } = useParams();
@@ -84,7 +91,15 @@ export default function InvoiceCreate() {
     discount_type: "no_discount",
     adminnote: "",
     client_note: "",
-    terms: ""
+    terms: "",
+    voucherType: "",
+    partyAddress: "",
+    partyGroup: "",
+    termsOfPayment: "",
+    gstin: "",
+    salesPerson: "",
+    branch: "",
+    bank_detail: "",
   });
 
   const [status, setStatus] = useState("unpaid");
@@ -105,7 +120,14 @@ export default function InvoiceCreate() {
     qty: 1,
     rate: 0,
     tax: "",
-    unit: ""
+    unit: "",
+    itemGroup: "",
+    itemHSN: "",
+    itemBatch: "",
+    gstPercentage: 0,
+    freight_charge: 0,
+    freight_percent: 1,
+    amount: 0
   });
   const [discountValue, setDiscountValue] = useState(0);
   const [discountType, setDiscountType] = useState("percent");
@@ -124,10 +146,55 @@ export default function InvoiceCreate() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const { user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  const canUseBankDetails = canAccessBankDetails(user?.email);
+  // The intra/inter-state (CGST+SGST vs IGST) check compares the buyer's state
+  // to the SELLING company's own state — Gujarat for the original pilot
+  // tenant, Bihar for Ekagra. Hardcoding one state for everyone silently
+  // mis-classified every Ekagra invoice.
+  const homeStateName = isEkagraUser(user?.email) ? EKAGRA_COMPANY_INFO.state.toLowerCase() : "gujarat";
+
+  const { data: bankDetailsList = [] } = useQuery<any[]>({
+    queryKey: ["bank-details"],
+    queryFn: () => financeService.getBankDetails().then((res: any) => res.data || res),
+    enabled: canUseBankDetails,
+  });
+  const activeBankDetailsList = bankDetailsList.filter((b: any) => b.active !== false);
+  // Branch is sourced from the HRMS module — only show/fetch it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+
+  const { data: branchesRaw = [] } = useQuery({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
+
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: () => customerService.getAll().then((res: any) => res.data || res)
   });
+
+  const filteredCustomers = useMemo(() => {
+    if (!canUseBranch) return customers;
+    if (!formData.branch) return [];
+    const targetBranch = formData.branch.toLowerCase().trim();
+    const branchObj = branches.find((b: any) => b.name && b.name.toLowerCase().trim() === targetBranch);
+    return customers.filter((c: any) => {
+      const cBranchName = typeof c.branch === "object" ? c.branch?.name : c.branch;
+      const cBranchId = typeof c.branch === "object" ? (c.branch?._id || c.branch?.id) : c.branch;
+      if (cBranchName && typeof cBranchName === "string" && cBranchName.toLowerCase().trim() === targetBranch) {
+        return true;
+      }
+      if (branchObj && cBranchId && String(cBranchId) === String(branchObj._id)) {
+        return true;
+      }
+      return false;
+    });
+  }, [customers, formData.branch, canUseBranch, branches]);
 
   const { data: customer } = useQuery({
     queryKey: ["customer", formData.client],
@@ -181,7 +248,16 @@ export default function InvoiceCreate() {
   });
 
   useEffect(() => {
-    if (invoice && taxesFetched) {
+    // apiClient.get() swallows non-auth HTTP errors and resolves with `[]`
+    // instead of throwing (see api/client.js) — so a deleted/invalid invoice
+    // id 404s but still lands here as a truthy empty array, not undefined.
+    // Guard on a real invoice object (has an _id) rather than just truthiness.
+    if (isEdit && invoice && !(invoice as any)._id) {
+      toast({ title: "Invoice not found", description: "This invoice may have been deleted.", variant: "destructive" });
+      navigate("/admin/invoices");
+      return;
+    }
+    if (invoice && (invoice as any)._id && taxesFetched) {
       setFormData({
         client: (invoice.client?._id || invoice.client || "").toString(),
         project: (invoice.project?._id || invoice.project || "").toString(),
@@ -201,9 +277,17 @@ export default function InvoiceCreate() {
         discount_type: invoice.discount_percent > 0 ? "percent" : "no_discount",
         adminnote: invoice.adminnote || "",
         client_note: invoice.notes || "",
-        terms: invoice.terms || ""
+        terms: invoice.terms || "",
+        voucherType: invoice.voucherType || "",
+        partyAddress: invoice.partyAddress || "",
+        partyGroup: invoice.partyGroup || "",
+        termsOfPayment: invoice.termsOfPayment || "",
+        gstin: invoice.gstin || "",
+        salesPerson: invoice.salesPerson || "",
+        branch: typeof invoice.branch === "object" ? (invoice.branch?.name || "") : (invoice.branch || ""),
+        bank_detail: (invoice.bank_detail?._id || invoice.bank_detail || "").toString(),
       });
-      
+
       if (invoice.status) {
         setStatus(invoice.status);
       }
@@ -211,42 +295,98 @@ export default function InvoiceCreate() {
       const totalPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
       setAmountPaid(totalPaid || "");
 
-      setItems(invoice.items.map((item: any) => ({
+      setItems((invoice.items || []).map((item: any) => ({
         ...item,
         id: Math.random().toString(36).substr(2, 9),
-        tax: taxes.find(t => t.taxrate === item.tax)?._id || ""
+        tax: taxes.find(t => t.taxrate === item.tax)?._id || "",
+        itemGroup: item.itemGroup || "",
+        itemHSN: item.itemHSN || "",
+        itemBatch: item.itemBatch || "",
+        gstPercentage: item.gstPercentage || 0,
+        unit: item.unit || "",
+        freight_charge: item.freight_charge || 0,
+        amount: item.amount ?? ((item.qty * item.rate) || 0)
       })));
       
       setDiscountValue(invoice.discount_percent || 0);
       setAdjustmentValue(invoice.adjustment || 0);
     }
-  }, [invoice, taxes, payments]);
+  }, [invoice, taxes, taxesFetched, payments, isEdit, navigate, toast]);
+
+  const isIntraState = () => {
+    if (!customer) return true; // default/fallback
+    const gstin = (customer.gst_number || "").trim();
+    if (/^\d{2}/.test(gstin)) {
+      return gstin.substring(0, 2) === "24"; // HOME_STATE_GST_CODE = "24"
+    }
+    const state = (customer.billing_state || customer.state || "").trim().toLowerCase();
+    if (state) {
+      return state === "gujarat";
+    }
+    // detectStateFromAddress
+    const address = `${customer.billing_street || ""} ${customer.address || ""}`.toLowerCase();
+    const INDIAN_STATES = [
+      "andhra pradesh", "arunachal pradesh", "assam", "bihar", "chhattisgarh",
+      "delhi", "goa", "gujarat", "haryana", "himachal pradesh", "jammu and kashmir",
+      "jharkhand", "karnataka", "kerala", "madhya pradesh", "maharashtra", "manipur",
+      "meghalaya", "mizoram", "nagaland", "odisha", "punjab", "rajasthan", "sikkim",
+      "tamil nadu", "telangana", "tripura", "uttar pradesh", "uttarakhand", "west bengal",
+    ];
+    const sorted = [...INDIAN_STATES].sort((x, y) => y.length - x.length);
+    const detected = sorted.find((s) => address.includes(s)) || "";
+    if (detected) {
+      return detected === "gujarat";
+    }
+    return true; // default
+  };
 
   const calculations = useMemo(() => {
-    const subTotal = items.reduce((acc, item) => acc + (item.qty * item.rate), 0);
+    const subTotal = items.reduce((acc, item) => acc + ((Number(item.qty) || 0) * (Number(item.rate) || 0)), 0);
+    const totalFreight = items.reduce((acc, item) => acc + (Number(item.freight_charge) || 0), 0);
     const discountAmount = formData.discount_type === "no_discount" ? 0 :
       (discountType === "percent" ? (subTotal * (discountValue / 100)) : discountValue);
     // Tax is charged on the discounted amount, not the full pre-discount subtotal.
     const discountFactor = subTotal > 0 ? 1 - discountAmount / subTotal : 1;
+    // Freight is added to each line before GST — same rule as the Purchase module
+    // (taxable value = rate*qty + freight, tax computed on top of that).
     const totalTax = items.reduce((acc, item) => {
-      const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || 0;
-      return acc + ((item.qty * item.rate) * discountFactor * (taxRate / 100));
+      const taxRate = (taxes.find(t => t._id === item.tax)?.taxrate ?? Number(item.gstPercentage)) || 0;
+      const itemTaxable = ((Number(item.qty) || 0) * (Number(item.rate) || 0)) + (Number(item.freight_charge) || 0);
+      return acc + (itemTaxable * discountFactor * (taxRate / 100));
     }, 0);
-    const total = subTotal - discountAmount + totalTax + Number(adjustmentValue);
+    const total = subTotal + totalFreight - discountAmount + totalTax + Number(adjustmentValue);
 
-    return { subTotal, discountAmount, totalTax, total };
+    return { subTotal, totalFreight, discountAmount, totalTax, total };
   }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, taxes]);
+
+  // Freight is entered as a percentage of the draft row's Sub Total (qty ×
+  // rate), defaulting to 1%, and always drives the stored rupee freight_charge
+  // that the rest of this file (calculations, saved items) already expects.
+  useEffect(() => {
+    const subTotal = (Number(newItem.qty) || 0) * (Number(newItem.rate) || 0);
+    const pct = Number(newItem.freight_percent) || 0;
+    const calcFreight = subTotal > 0 && pct > 0 ? Math.round(subTotal * (pct / 100) * 100) / 100 : 0;
+    setNewItem(p => (p.freight_charge === calcFreight ? p : { ...p, freight_charge: calcFreight }));
+  }, [newItem.qty, newItem.rate, newItem.freight_percent]);
 
   const addItem = () => {
     if (!newItem.description) return;
-    setItems([...items, { ...newItem, id: Date.now().toString() }]);
+    const amount = newItem.amount || Number(newItem.qty) * Number(newItem.rate);
+    setItems([...items, { ...newItem, amount, id: Date.now().toString() }]);
     setNewItem({
       description: "",
       long_description: "",
       qty: 1,
       rate: 0,
       tax: "",
-      unit: ""
+      unit: "",
+      itemGroup: "",
+      itemHSN: "",
+      itemBatch: "",
+      gstPercentage: 0,
+      freight_charge: 0,
+      freight_percent: 1,
+      amount: 0
     });
     setIsAddItemModalOpen(false);
   };
@@ -300,12 +440,18 @@ export default function InvoiceCreate() {
   });
 
   const handleSave = (statusArg: string) => {
+    if (canUseBranch && !formData.branch) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a branch."
+      });
+      return;
+    }
+
     if (!formData.client) {
       toast({ 
         title: "Validation Error", 
-        description: "Please select a customer.", 
-        variant: "destructive" 
-      });
+        description: "Please select a customer."});
       return;
     }
 
@@ -342,19 +488,35 @@ export default function InvoiceCreate() {
       project: formData.project || undefined,
       created_by: formData.sale_agent || undefined,
       status: finalStatus,
+      voucherType: formData.voucherType,
+      partyAddress: formData.partyAddress,
+      partyGroup: formData.partyGroup,
+      termsOfPayment: formData.termsOfPayment,
+      gstin: formData.gstin,
+      salesPerson: formData.salesPerson || "",
+      branch: formData.branch || "",
+      bank_detail: formData.bank_detail || undefined,
       items: items.map(item => ({
         description: item.description,
         long_description: item.long_description,
         qty: Number(item.qty) || 0,
         rate: Number(item.rate) || 0,
-        tax: Number(taxes.find((t: any) => t._id === item.tax)?.taxrate) || 0,
-        tax_name: taxes.find((t: any) => t._id === item.tax)?.name || ""
-      })), 
+        tax: Number(taxes.find((t: any) => t._id === item.tax)?.taxrate ?? item.gstPercentage) || 0,
+        tax_name: taxes.find((t: any) => t._id === item.tax)?.name || (item.gstPercentage ? `GST ${item.gstPercentage}%` : ""),
+        itemGroup: item.itemGroup || "",
+        itemHSN: item.itemHSN || "",
+        itemBatch: item.itemBatch || "",
+        unit: item.unit || "",
+        gstPercentage: Number(item.gstPercentage) || 0,
+        freight_charge: Number(item.freight_charge) || 0,
+        amount: Number(item.amount) || (Number(item.qty) || 0) * (Number(item.rate) || 0)
+      })),
       discount_percent: Number(discountType === "percent" ? discountValue : 0) || 0,
       adjustment: Number(adjustmentValue) || 0,
       subtotal: Number(calculations.subTotal) || 0,
+      total_freight: Number(calculations.totalFreight) || 0,
       total_tax: Number(calculations.totalTax) || 0,
-      total: Number(calculations.total) || 0 
+      total: Number(calculations.total) || 0
     };
 
     // Remove undefined fields to be clean
@@ -385,6 +547,33 @@ export default function InvoiceCreate() {
           {/* Left Column: Basic Info */}
           <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
             <CardContent className="p-8 space-y-8">
+              {/* Branch — pilot-only, dynamically fetched from HRMS */}
+              {canUseBranch && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Branch</Label>
+                    <span className="text-destructive text-lg leading-none">*</span>
+                  </div>
+                  <Select
+                    value={formData.branch || "none"}
+                    onValueChange={(v) => {
+                      const val = v === "none" ? "" : v;
+                      setFormData(p => ({ ...p, branch: val, client: "", project: "" }));
+                    }}
+                  >
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="Select Branch" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      <SelectItem value="none">Select Branch</SelectItem>
+                      {branches.map((b) => (
+                        <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Customer Selection */}
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
@@ -392,8 +581,8 @@ export default function InvoiceCreate() {
                   <span className="text-destructive text-lg leading-none">*</span>
                 </div>
                 <SearchableSelect
-                  placeholder="Select Customer"
-                  options={customers.map((c: any) => ({ value: c._id, label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email }))}
+                  placeholder={canUseBranch && !formData.branch ? "Please select a branch first..." : "Select Customer"}
+                  options={filteredCustomers.map((c: any) => ({ value: c._id, label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email }))}
                   value={formData.client}
                   onValueChange={(val) => setFormData(p => ({ ...p, client: val, project: "" }))}
                 />
@@ -418,7 +607,7 @@ export default function InvoiceCreate() {
               </div>
 
               {/* Bill To / Ship To */}
-              <div className="grid grid-cols-2 gap-8 py-4 border-y border-border/30 border-dashed">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 py-4 border-y border-border/30 border-dashed">
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-primary">
                     <Edit2 className="h-3.5 w-3.5" />
@@ -467,7 +656,7 @@ export default function InvoiceCreate() {
               </div>
 
               {/* Dates */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Invoice Date</Label>
@@ -505,6 +694,57 @@ export default function InvoiceCreate() {
                   Prevent sending overdue reminders for this invoice
                 </Label>
               </div>
+
+              {/* Voucher / Party Details */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-border/30 border-dashed">
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Voucher Type</Label>
+                  <Input
+                    placeholder="e.g. Sales"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.voucherType}
+                    onChange={(e) => setFormData(p => ({ ...p, voucherType: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">GSTIN/UIN</Label>
+                  <Input
+                    placeholder="Party GSTIN"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.gstin}
+                    onChange={(e) => setFormData(p => ({ ...p, gstin: e.target.value.toUpperCase() }))}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2.5">
+                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Party Address</Label>
+                <Textarea
+                  className="min-h-[80px] rounded-2xl border-border/50 bg-background shadow-sm p-4 text-xs font-medium resize-none"
+                  placeholder="Party address..."
+                  value={formData.partyAddress}
+                  onChange={(e) => setFormData(p => ({ ...p, partyAddress: e.target.value }))}
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Party Group</Label>
+                  <Input
+                    placeholder="Party Group"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.partyGroup}
+                    onChange={(e) => setFormData(p => ({ ...p, partyGroup: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Terms of Payment</Label>
+                  <Input
+                    placeholder="e.g. Net 30"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.termsOfPayment}
+                    onChange={(e) => setFormData(p => ({ ...p, termsOfPayment: e.target.value }))}
+                  />
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -541,7 +781,7 @@ export default function InvoiceCreate() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {/* Currency */}
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
@@ -581,7 +821,54 @@ export default function InvoiceCreate() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              {/* Sales Person */}
+              {isPilot && (
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Sales Person</Label>
+                  <Select 
+                    value={formData.salesPerson || "none"} 
+                    onValueChange={(v) => setFormData(p => ({ ...p, salesPerson: v === "none" ? "" : v }))}
+                  >
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="Select Sales Person" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      <SelectItem value="none">None</SelectItem>
+                      {staff.map((s: any) => {
+                        const name = `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.name || s.email;
+                        return (
+                          <SelectItem key={s._id || s.id} value={name}>{name}</SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Bank Details */}
+              {canUseBankDetails && (
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Bank Details</Label>
+                  <Select
+                    value={formData.bank_detail || "none"}
+                    onValueChange={(v) => setFormData(p => ({ ...p, bank_detail: v === "none" ? "" : v }))}
+                  >
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="Select Bank Account" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      <SelectItem value="none">None</SelectItem>
+                      {activeBankDetailsList.map((bd: any) => (
+                        <SelectItem key={bd._id} value={bd._id}>
+                          {bd.bankName} — {bd.accountNumber}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {/* Recurring */}
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Recurring Invoice?</Label>
@@ -612,7 +899,7 @@ export default function InvoiceCreate() {
               </div>
 
               {/* Status and Initial Payment */}
-              <div className="grid grid-cols-2 gap-6 pt-4 border-t border-border/30 border-dashed">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-border/30 border-dashed">
                 {/* Status Selection */}
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Status</Label>
@@ -689,29 +976,34 @@ export default function InvoiceCreate() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="flex items-center gap-4 flex-1 w-full md:w-auto">
                 <div className="flex-1 max-w-sm">
-                  <SearchableSelect 
-                    placeholder="Add Item"
-                    options={availableItems.map((i: any) => ({ value: i._id, label: i.description }))}
-                    value=""
-                    onValueChange={(val) => {
-                      const item = availableItems.find((i: any) => i._id === val);
-                      if (item) {
-                        setNewItem({
-                          description: item.description,
-                          long_description: item.long_description || "",
-                          qty: 1,
-                          rate: item.rate,
-                          tax: item.tax?._id || "",
-                          unit: item.unit || ""
-                        });
-                        setIsAddItemModalOpen(true);
-                      }
+                  <ItemSelect
+                    placeholder="Select item to add..."
+                    onChange={(item: ItemRecord) => {
+                      const taxId = typeof item.tax === "object" && item.tax ? item.tax._id : (typeof item.tax === "string" ? item.tax : "");
+                      const gstPct = gstRateFromItem(item);
+                      const qty = 1;
+                      const rate = item.rate || 0;
+                      // Prefill the editable draft row instead of committing straight to
+                      // the table — the user reviews/adjusts qty, rate, etc. and confirms
+                      // with the checkmark button before it becomes a final line.
+                      setNewItem({
+                        description: item.name,
+                        long_description: item.long_description || "",
+                        qty,
+                        rate,
+                        tax: taxId,
+                        unit: item.unit || "",
+                        itemGroup: item.group || "",
+                        itemHSN: item.hsn_sac_code || "",
+                        itemBatch: "",
+                        gstPercentage: gstPct,
+                        freight_charge: 0,
+                        freight_percent: 1,
+                        amount: qty * rate
+                      });
                     }}
                   />
                 </div>
-                <Button size="icon" variant="outline" className="rounded-xl h-10 w-10 border-border/50 shadow-sm" onClick={() => setIsAddItemModalOpen(true)}>
-                  <Plus className="h-4 w-4" />
-                </Button>
                 <div className="w-48">
                   <Select>
                     <SelectTrigger className="h-10 rounded-xl bg-background border-border/50 shadow-sm text-xs font-bold">
@@ -758,20 +1050,28 @@ export default function InvoiceCreate() {
             </div>
 
             {/* Items Table */}
-            <div className="rounded-[2rem] border border-border/50 overflow-hidden shadow-sm">
-              <table className="w-full">
+            <div className="rounded-[2rem] border border-border/50 overflow-x-auto shadow-sm">
+              <table className="w-full min-w-[1800px]">
                 <thead>
                   <tr className="bg-red-600 text-white">
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                       <AlertCircle className="h-3.5 w-3.5" />
                       Item
                     </th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Description</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Qty</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Rate</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Tax</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Amount</th>
-                    <th className="p-4 text-right">
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Description</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Item Group</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">HSN</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Batch</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Qty</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Unit</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Rate</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Sub Total</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Freight %</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">GST %</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Tax</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Tax Amount</th>
+                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Amount</th>
+                    <th className="px-2 py-3 text-right">
                       <Settings className="h-4 w-4 ml-auto opacity-50" />
                     </th>
                   </tr>
@@ -779,43 +1079,104 @@ export default function InvoiceCreate() {
                 <tbody className="bg-background/40">
                   {/* New Item Input Row */}
                   <tr className="border-b border-border/30 bg-primary/5 group">
-                    <td className="p-4 align-top w-[250px]">
+                    <td className="px-2 py-3 align-top w-[250px]">
                       <Textarea 
                         placeholder="Description" 
                         className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
                         value={newItem.description}
                         onChange={(e) => setNewItem(p => ({ ...p, description: e.target.value }))}
+                        disableVoice
                       />
                     </td>
-                    <td className="p-4 align-top">
-                      <Textarea 
-                        placeholder="Long description" 
+                    <td className="px-2 py-3 align-top">
+                      <Textarea
+                        placeholder="Long description"
                         className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
                         value={newItem.long_description}
                         onChange={(e) => setNewItem(p => ({ ...p, long_description: e.target.value }))}
+                        disableVoice
                       />
                     </td>
-                    <td className="p-4 align-top w-[120px]">
-                      <div className="space-y-1">
-                        <Input 
-                          type="number" 
-                          value={newItem.qty} 
-                          onChange={(e) => setNewItem(p => ({ ...p, qty: Number(e.target.value) }))}
-                          className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
-                        />
-                        <span className="text-[10px] font-black text-muted-foreground/50 uppercase tracking-tighter block text-center">Unit</span>
-                      </div>
+                    <td className="px-2 py-3 align-top w-[130px]">
+                      <Input
+                        placeholder="Item Group"
+                        value={newItem.itemGroup}
+                        onChange={(e) => setNewItem(p => ({ ...p, itemGroup: e.target.value }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
+                      />
                     </td>
-                    <td className="p-4 align-top w-[150px]">
-                      <Input 
-                        placeholder="Rate" 
+                    <td className="px-2 py-3 align-top w-[110px]">
+                      <Input
+                        placeholder="HSN"
+                        value={newItem.itemHSN}
+                        onChange={(e) => setNewItem(p => ({ ...p, itemHSN: e.target.value }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
+                      />
+                    </td>
+                    <td className="px-2 py-3 align-top w-[110px]">
+                      <Input
+                        placeholder="Batch"
+                        value={newItem.itemBatch}
+                        onChange={(e) => setNewItem(p => ({ ...p, itemBatch: e.target.value }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
+                      />
+                    </td>
+                    <td className="px-2 py-3 align-top w-[100px]">
+                      <Input
+                        type="number"
+                        value={newItem.qty}
+                        onChange={(e) => setNewItem(p => ({ ...p, qty: Number(e.target.value) }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
+                      />
+                    </td>
+                    <td className="px-2 py-3 align-top w-[100px]">
+                      <Input
+                        placeholder="Unit"
+                        value={newItem.unit}
+                        onChange={(e) => setNewItem(p => ({ ...p, unit: e.target.value }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
+                      />
+                    </td>
+                    <td className="px-2 py-3 align-top w-[150px]">
+                      <Input
+                        placeholder="Rate"
                         type="number"
                         value={newItem.rate}
                         onChange={(e) => setNewItem(p => ({ ...p, rate: Number(e.target.value) }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
                       />
                     </td>
-                    <td className="p-4 align-top w-[180px]">
+                    <td className="px-2 py-3 align-top w-[110px] text-xs font-bold text-muted-foreground">
+                      {formatDocAmount(newItem.qty * newItem.rate)}
+                    </td>
+                    <td className="px-2 py-3 align-top w-[130px]">
+                      <Input
+                        placeholder="Freight %"
+                        type="number"
+                        value={newItem.freight_percent}
+                        onChange={(e) => setNewItem(p => ({ ...p, freight_percent: Number(e.target.value) }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">= {formatDocAmount(newItem.freight_charge)}</p>
+                    </td>
+                    <td className="px-2 py-3 align-top w-[100px]">
+                      <Input
+                        type="number"
+                        placeholder="GST %"
+                        value={newItem.gstPercentage}
+                        onChange={(e) => setNewItem(p => ({ ...p, gstPercentage: Number(e.target.value) }))}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                        disableVoice
+                      />
+                    </td>
+                    <td className="px-2 py-3 align-top w-[180px]">
                       <Select value={newItem.tax} onValueChange={(v) => setNewItem(p => ({ ...p, tax: v }))}>
                         <SelectTrigger className="h-10 rounded-xl bg-background border-border/50 shadow-sm text-xs font-bold">
                           <SelectValue placeholder="No Tax" />
@@ -828,10 +1189,22 @@ export default function InvoiceCreate() {
                         </SelectContent>
                       </Select>
                     </td>
-                    <td className="p-4 align-top text-sm font-black text-foreground">
-                      {formatDocAmount(newItem.qty * newItem.rate * (1 + (taxes.find(t => t._id === newItem.tax)?.taxrate || 0) / 100))}
-                    </td>
-                    <td className="p-4 align-top text-right">
+                    {(() => {
+                      const taxRate = taxes.find(t => t._id === newItem.tax)?.taxrate || newItem.gstPercentage || 0;
+                      const taxable = newItem.qty * newItem.rate + (Number(newItem.freight_charge) || 0);
+                      const taxAmt = taxable * (taxRate / 100);
+                      return (
+                        <>
+                          <td className="px-2 py-3 align-top text-xs font-bold text-muted-foreground">
+                            {formatDocAmount(taxAmt)}
+                          </td>
+                          <td className="px-2 py-3 align-top text-sm font-black text-foreground">
+                            {formatDocAmount(taxable + taxAmt)}
+                          </td>
+                        </>
+                      );
+                    })()}
+                    <td className="px-2 py-3 align-top text-right">
                       <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
                         <Check className="h-4 w-4" />
                       </Button>
@@ -839,23 +1212,37 @@ export default function InvoiceCreate() {
                   </tr>
 
                   {/* Added Items List */}
-                  {items.map((item) => (
+                  {items.map((item) => {
+                    const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || item.gstPercentage || 0;
+                    const itemFreight = Number(item.freight_charge) || 0;
+                    const taxable = item.qty * item.rate + itemFreight;
+                    const taxAmt = taxable * (taxRate / 100);
+                    return (
                     <tr key={item.id} className="border-b border-border/20 hover:bg-muted/5 transition-colors">
-                      <td className="p-4 align-top font-bold text-xs">{item.description}</td>
-                      <td className="p-4 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
-                      <td className="p-4 align-top text-xs font-bold">{item.qty} {item.unit}</td>
-                      <td className="p-4 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
-                      <td className="p-4 align-top text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                        {taxes.find(t => t._id === item.tax)?.name || "No Tax"}
+                      <td className="px-2 py-3 align-top font-bold text-xs">{item.description}</td>
+                      <td className="px-2 py-3 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
+                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.itemGroup || "-"}</td>
+                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.itemHSN || "-"}</td>
+                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.itemBatch || "-"}</td>
+                      <td className="px-2 py-3 align-top text-xs font-bold">{item.qty}</td>
+                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.unit || "-"}</td>
+                      <td className="px-2 py-3 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
+                      <td className="px-2 py-3 align-top text-xs font-bold text-muted-foreground">{formatDocAmount(item.qty * item.rate)}</td>
+                      <td className="px-2 py-3 align-top text-xs font-bold text-muted-foreground">{formatDocAmount(itemFreight)}</td>
+                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.gstPercentage || 0}%</td>
+                      <td className="px-2 py-3 align-top text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                        {taxes.find(t => t._id === item.tax)?.name || (item.gstPercentage ? `${item.gstPercentage}%` : "No Tax")}
                       </td>
-                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.qty * item.rate * (1 + (taxes.find(t => t._id === item.tax)?.taxrate || 0) / 100))}</td>
-                      <td className="p-4 align-top text-right">
+                      <td className="px-2 py-3 align-top text-xs font-bold text-muted-foreground">{formatDocAmount(taxAmt)}</td>
+                      <td className="px-2 py-3 align-top text-sm font-black text-primary">{formatDocAmount(taxable + taxAmt)}</td>
+                      <td className="px-2 py-3 align-top text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -890,7 +1277,14 @@ export default function InvoiceCreate() {
                   <span>Sub Total :</span>
                   <span className="text-foreground">{formatDocAmount(calculations.subTotal)}</span>
                 </div>
-                
+
+                {calculations.totalFreight > 0 && (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm font-bold text-muted-foreground">Freight</span>
+                    <span className="text-sm font-bold text-foreground">{formatDocAmount(calculations.totalFreight)}</span>
+                  </div>
+                )}
+
                 <div className="flex justify-between items-center py-2">
                   <span className="text-sm font-bold text-muted-foreground">Discount</span>
                   <div className="flex items-center gap-3">
@@ -915,12 +1309,41 @@ export default function InvoiceCreate() {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
-                  <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                    {formatDocAmount(calculations.totalTax)}
-                  </span>
-                </div>
+                {(!customer || calculations.totalTax === 0) ? (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
+                    <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                      {formatDocAmount(calculations.totalTax)}
+                    </span>
+                  </div>
+                ) : (
+                  (() => {
+                    const isIntra = !customer.state || customer.state.toLowerCase().includes(homeStateName);
+                    return isIntra ? (
+                      <>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-sm font-bold text-muted-foreground">CGST</span>
+                          <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                            {formatDocAmount(calculations.totalTax / 2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center py-1">
+                          <span className="text-sm font-bold text-muted-foreground">SGST</span>
+                          <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                            {formatDocAmount(calculations.totalTax / 2)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm font-bold text-muted-foreground">IGST</span>
+                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                          {formatDocAmount(calculations.totalTax)}
+                        </span>
+                      </div>
+                    );
+                  })()
+                )}
 
                 <div className="flex justify-between items-center py-2">
                   <span className="text-sm font-bold text-muted-foreground">Adjustment</span>
@@ -1041,8 +1464,8 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
         <div className="bg-slate-50 dark:bg-slate-800/50 px-8 py-6 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-4 tracking-tight">
-              <div className="p-2.5 bg-primary/10 rounded-2xl">
-                <Plus className="h-6 w-6 text-primary" />
+              <div className="p-2.5 shrink-0 bg-primary/10 rounded-2xl">
+                <Plus className="h-6 w-6 shrink-0 text-primary" />
               </div>
               Add New Item
             </DialogTitle>
@@ -1068,11 +1491,47 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
               className="min-h-[100px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium resize-none p-4 focus-visible:ring-1 focus-visible:ring-primary/30"
             />
           </div>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Item Group</Label>
+              <Input
+                value={newItem.itemGroup}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, itemGroup: e.target.value }))}
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Item HSN</Label>
+              <Input
+                value={newItem.itemHSN}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, itemHSN: e.target.value }))}
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Item Batch</Label>
+              <Input
+                value={newItem.itemBatch}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, itemBatch: e.target.value }))}
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Unit</Label>
+              <Input
+                value={newItem.unit}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, unit: e.target.value }))}
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Qty</Label>
-              <Input 
-                type="number" 
+              <Input
+                type="number"
                 value={newItem.qty}
                 onChange={(e) => setNewItem((p: any) => ({ ...p, qty: Number(e.target.value) }))}
                 className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
@@ -1080,13 +1539,22 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Rate</Label>
-              <Input 
-                type="number" 
+              <Input
+                type="number"
                 value={newItem.rate}
                 onChange={(e) => setNewItem((p: any) => ({ ...p, rate: Number(e.target.value) }))}
                 className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
               />
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">GST Percentage</Label>
+            <Input
+              type="number"
+              value={newItem.gstPercentage}
+              onChange={(e) => setNewItem((p: any) => ({ ...p, gstPercentage: Number(e.target.value) }))}
+              className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+            />
           </div>
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Tax</Label>

@@ -1,7 +1,10 @@
 import "regenerator-runtime/runtime";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
+import { RootErrorBoundary } from "./components/RootErrorBoundary.tsx";
 import "./index.css";
+import "./i18n/config"; // i18next — must be imported before App renders
+
 
 // Fix to prevent translation widgets or extensions from shifting body/html layout
 const resetLayoutShift = () => {
@@ -35,4 +38,8 @@ try {
   console.error("Layout reset failed:", e);
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <RootErrorBoundary>
+    <App />
+  </RootErrorBoundary>
+);

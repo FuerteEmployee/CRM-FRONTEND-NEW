@@ -128,16 +128,31 @@ const LeaveManagementPage = () => {
   const [emp2OffDay, setEmp2OffDay] = useState<string>("");
   const [isSwapping, setIsSwapping] = useState(false);
 
+  // Server-side pagination for the Requests list — status is passed through
+  // to the backend as a real query param (already supported by getLeaveRequests);
+  // free-text search (below) stays client-side, scoped to the current page,
+  // since the backend has no text-search support for leaves.
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(25);
+  const [totalLeaves, setTotalLeaves] = useState(0);
+  const [totalLeavePages, setTotalLeavePages] = useState(1);
+
   const load = async () => {
     setIsLoading(true);
     try {
-      const [staff, leavesData, balances] = await Promise.all([
+      const [staff, leavesRes, balances] = await Promise.all([
         staffService.getAll(),
-        employeeApi.getLeaves(),
+        employeeApi.getLeavesPage({
+          page: currentPage,
+          limit: itemsPerPage,
+          status: leaveStatusFilter === "all" ? undefined : leaveStatusFilter,
+        }),
         employeeApi.getLeaveBalances(),
       ]);
       setEmployees(Array.isArray(staff) ? staff : []);
-      setLeaves(Array.isArray(leavesData) ? leavesData : []);
+      setLeaves(Array.isArray(leavesRes.data) ? leavesRes.data : []);
+      setTotalLeaves(leavesRes.total);
+      setTotalLeavePages(leavesRes.pages);
       setLeaveBalances(Array.isArray(balances) ? balances : []);
     } catch {
       toast({ title: "Sync Failed", description: "Could not load leave records.", variant: "destructive" });
@@ -148,7 +163,13 @@ const LeaveManagementPage = () => {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [currentPage, leaveStatusFilter]);
+
+  // Reset back to page 1 whenever the status filter changes, since it's now
+  // sent as a server param and a stale page could point past the new set.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [leaveStatusFilter]);
 
   const handleApprove = async (id: string) => {
     try {
@@ -309,15 +330,14 @@ const LeaveManagementPage = () => {
           </CardHeader>
           <CardContent className="p-4 space-y-3">
             {leaves
+              // Status is now filtered server-side (see load()); free-text search
+              // still runs client-side, scoped to the currently loaded page.
               .filter((lv) => {
                 const name = getEmployeeName(lv.employeeId).toLowerCase();
-                const matchSearch =
+                return (
                   name.includes(searchQuery.toLowerCase()) ||
-                  (lv.reason || "").toLowerCase().includes(searchQuery.toLowerCase());
-                const matchStatus =
-                  leaveStatusFilter === "all" ||
-                  lv.status.toLowerCase() === leaveStatusFilter.toLowerCase();
-                return matchSearch && matchStatus;
+                  (lv.reason || "").toLowerCase().includes(searchQuery.toLowerCase())
+                );
               })
               .map((lv: any) => {
                 const statusBadgeClass =
@@ -381,6 +401,36 @@ const LeaveManagementPage = () => {
                 <p className="text-sm text-slate-400">No leave requests found.</p>
               </div>
             )}
+
+            {/* Pagination Footer */}
+            {totalLeaves > 0 && (
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 mt-1 border-t border-slate-100">
+                <p className="text-[11px] font-semibold text-slate-400">
+                  Page {currentPage} of {totalLeavePages} · {totalLeaves} requests
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-3 rounded-lg font-semibold text-[11px]"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-[11px] text-slate-400 px-1">{currentPage} / {totalLeavePages}</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-3 rounded-lg font-semibold text-[11px]"
+                    onClick={() => setCurrentPage((p) => Math.min(totalLeavePages, p + 1))}
+                    disabled={currentPage >= totalLeavePages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -417,7 +467,7 @@ const LeaveManagementPage = () => {
         <DialogContent className="max-w-2xl rounded-2xl border border-slate-200 shadow-2xl bg-white p-0 overflow-hidden">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50/60 to-white">
             <DialogTitle className="text-lg font-semibold flex items-center gap-2 text-slate-800">
-              <ArrowLeftRight className="h-5 w-5 text-indigo-500" />
+              <ArrowLeftRight className="h-5 w-5 shrink-0 text-indigo-500" />
               Swap Weekly Off Days
             </DialogTitle>
             <p className="text-sm text-slate-400 mt-0.5">
@@ -429,7 +479,7 @@ const LeaveManagementPage = () => {
 
           <div className="px-6 py-5 space-y-5">
             {/* ── Employee columns ── */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
               {/* Employee A column */}
               <div className="space-y-3">
@@ -547,7 +597,7 @@ const LeaveManagementPage = () => {
                     Both employees selected the same day — please choose different days to swap.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="p-3 rounded-xl border border-indigo-100 bg-indigo-50/30 space-y-1.5">
                       <p className="text-xs font-semibold text-slate-700">{emp1?.name}</p>
                       <p className="text-[11px] text-red-500 font-semibold flex items-center gap-1">

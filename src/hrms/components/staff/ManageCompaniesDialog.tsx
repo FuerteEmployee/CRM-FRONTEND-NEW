@@ -91,7 +91,7 @@ export function ManageCompaniesDialog({
       <DialogContent className="rounded-2xl max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-primary" /> Managing Companies
+            <Building2 className="h-4 w-4 shrink-0 text-primary" /> Managing Companies
           </DialogTitle>
           <DialogDescription>
             Add, rename or delete the external companies (LG, Samsung, …)

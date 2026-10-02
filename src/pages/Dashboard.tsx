@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { AdminDashboardSkeleton } from "@/components/ui/page-skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -26,8 +26,11 @@ import {
   ClipboardList,
   Loader2,
   ArrowRight,
+  ArrowUpRight,
   FileBarChart,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 import {
   AreaChart,
   Area,
@@ -134,8 +137,10 @@ const PlanExpiredModal = ({ plan }: { plan: any }) => {
 };
 
 const Dashboard = () => {
-  const { user, isModuleEnabled, canView } = usePermissionContext();
+  const { user, isModuleEnabled, canView, isStaff, isAdmin } = usePermissionContext();
   const { symbol, formatAmount } = useCurrency();
+  const navigate = useNavigate();
+  const basePath = isStaff ? "/staff" : "/admin";
 
   const getDaysRemaining = (): number | null => {
     if (!user?.tenant) return null;
@@ -190,7 +195,7 @@ const Dashboard = () => {
       const res = await salesService.getInvoices();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("finance")
+    enabled: !isExpired && isModuleEnabled("finance") && canView("Invoices")
   });
 
   const { data: estimatesList = [] } = useQuery({
@@ -199,7 +204,7 @@ const Dashboard = () => {
       const res = await estimateService.getEstimates();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("estimates")
+    enabled: !isExpired && isModuleEnabled("estimates") && canView("Estimates")
   });
 
   const { data: proposalsList = [] } = useQuery({
@@ -208,7 +213,7 @@ const Dashboard = () => {
       const res = await salesService.getProposals();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("proposals")
+    enabled: !isExpired && isModuleEnabled("proposals") && canView("Proposals")
   });
 
   const { data: quotationsList = [] } = useQuery({
@@ -217,17 +222,34 @@ const Dashboard = () => {
       const res = await quotationService.getQuotations();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("quotations")
+    enabled: !isExpired && isModuleEnabled("quotations") && canView("Quotations")
   });
 
-  const { data: tasksList = [] } = useQuery({
+  const { data: rawTasksList = [] } = useQuery({
     queryKey: ["dashboard-tasks"],
     queryFn: async () => {
       const res = await taskService.getAll();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("tasks")
+    enabled: !isExpired && isModuleEnabled("tasks") && canView("Tasks")
   });
+
+  const tasksList = useMemo(() => {
+    if (isStaff && !isAdmin && user?._id) {
+      const currentUserId = String(user._id);
+      return rawTasksList.filter((t: any) => {
+        const isAssigned = Array.isArray(t.assignees) && t.assignees.some((a: any) => 
+          String(typeof a === 'object' ? a?._id || a?.value : a) === currentUserId
+        );
+        const isFollower = Array.isArray(t.followers) && t.followers.some((f: any) => 
+          String(typeof f === 'object' ? f?._id || f?.value : f) === currentUserId
+        );
+        const isCreator = String(typeof t.created_by === 'object' ? t.created_by?._id : t.created_by) === currentUserId;
+        return isAssigned || isFollower || isCreator;
+      });
+    }
+    return rawTasksList;
+  }, [rawTasksList, isStaff, isAdmin, user?._id]);
 
   const { data: projectsList = [] } = useQuery({
     queryKey: ["dashboard-projects"],
@@ -235,7 +257,7 @@ const Dashboard = () => {
       const res = await projectService.getAll();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("projects")
+    enabled: !isExpired && isModuleEnabled("projects") && canView("Projects")
   });
 
   const { data: ticketsList = [] } = useQuery({
@@ -244,7 +266,7 @@ const Dashboard = () => {
       const res = await supportService.getTickets();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("support")
+    enabled: !isExpired && isModuleEnabled("support") && canView("Support")
   });
 
   const { data: announcementsList = [] } = useQuery({
@@ -262,7 +284,7 @@ const Dashboard = () => {
       const res = await leadService.getAll();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("leads")
+    enabled: !isExpired && isModuleEnabled("leads") && canView("Leads")
   });
 
   const { data: todosList = [], refetch: refetchTodos } = useQuery({
@@ -280,7 +302,7 @@ const Dashboard = () => {
       const res = await salesService.getExpenses();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("expenses")
+    enabled: !isExpired && isModuleEnabled("expenses") && canView("Expenses")
   });
 
   const { data: activityLogsList = [] } = useQuery({
@@ -289,7 +311,7 @@ const Dashboard = () => {
       const res = await utilityService.getActivityLogs();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired
+    enabled: !isExpired && canView("Activity Log")
   });
 
   const { data: clientsRes = [] } = useQuery({
@@ -298,7 +320,7 @@ const Dashboard = () => {
       const res = await customerService.getAll();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired
+    enabled: !isExpired && canView("Customers")
   });
 
   // Fetch reminders for the first client if available
@@ -310,7 +332,7 @@ const Dashboard = () => {
       const res = await customerService.getReminders(firstClientId);
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && !!firstClientId
+    enabled: !isExpired && !!firstClientId && canView("Customers")
   });
 
   // mutations for Todo
@@ -436,11 +458,35 @@ const Dashboard = () => {
   const tasksProgress = totalTasksCount > 0 ? (unfinishedTasksCount / totalTasksCount) * 100 : 0;
 
   const statCards = [
-    isModuleEnabled("finance") && canView("Invoices") && { label: "Invoices Awaiting Payment", value: `${unpaidInvoicesCount} / ${totalInvoicesCount}`, icon: FileText, progress: invoicesProgress },
-    isModuleEnabled("leads") && canView("Leads") && { label: "Converted Leads", value: `${convertedLeadsCount} / ${totalLeadsCount}`, icon: TrendingUp, progress: leadsProgress },
-    isModuleEnabled("projects") && { label: "Projects In Progress", value: `${activeProjectsCount} / ${totalProjectsCount}`, icon: FolderKanban, progress: projectsProgress },
-    isModuleEnabled("tasks") && { label: "Tasks Not Finished", value: `${unfinishedTasksCount} / ${totalTasksCount}`, icon: CheckSquare, progress: tasksProgress },
-  ].filter(Boolean) as { label: string; value: string; icon: any; progress: number }[];
+    isModuleEnabled("finance") && canView("Invoices") && {
+      label: "Invoices Awaiting Payment",
+      value: `${unpaidInvoicesCount} / ${totalInvoicesCount}`,
+      icon: FileText,
+      progress: invoicesProgress,
+      link: `${basePath}/invoices`,
+    },
+    isModuleEnabled("leads") && canView("Leads") && {
+      label: "Converted Leads",
+      value: `${convertedLeadsCount} / ${totalLeadsCount}`,
+      icon: TrendingUp,
+      progress: leadsProgress,
+      link: `${basePath}/leads`,
+    },
+    isModuleEnabled("projects") && {
+      label: "Projects In Progress",
+      value: `${activeProjectsCount} / ${totalProjectsCount}`,
+      icon: FolderKanban,
+      progress: projectsProgress,
+      link: `${basePath}/projects`,
+    },
+    isModuleEnabled("tasks") && {
+      label: "Tasks Not Finished",
+      value: `${unfinishedTasksCount} / ${totalTasksCount}`,
+      icon: CheckSquare,
+      progress: tasksProgress,
+      link: `${basePath}/tasks`,
+    },
+  ].filter(Boolean) as { label: string; value: string; icon: any; progress: number; link?: string }[];
 
   // - Invoice Overview Section Items
   const invoiceOverviewDraft = invoicesList.filter((i: any) => String(i.status || "").toLowerCase() === "draft").length;
@@ -643,7 +689,7 @@ const Dashboard = () => {
     return activityLogsList.slice(0, 10).map((log: any, idx: number) => {
       const userFull = log.staff?.firstname ? `${log.staff.firstname} ${log.staff.lastname || ""}` : (log.created_by?.firstname ? `${log.created_by.firstname}` : "User");
       const initials = userFull.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase() || "US";
-      
+
       const logDate = new Date(log.createdAt || log.date);
       let timeStr = "";
       if (!isNaN(logDate.getTime())) {
@@ -787,7 +833,7 @@ const Dashboard = () => {
           element: '#tour-stats',
           popover: {
             title: 'Key Statistics',
-            description: 'These metric cards give you an instant read on Invoices, Leads, Projects, and Tasks progress.',
+            description: 'These metric cards give you an instant read on Invoices, Leads, Projects, and Tasks progress. Click any card to jump directly to that module.',
             side: "bottom",
             align: 'start'
           }
@@ -878,47 +924,33 @@ const Dashboard = () => {
           </Button>
         </div>
 
-        {/* Subscription notification — shown within the plan's banner_warning_days window */}
-        {bannerVisible && daysRemaining !== null && (
-          <div className={`px-4 py-3 rounded-lg flex items-center justify-between shadow-sm border ${
-            daysRemaining <= 3
-              ? "bg-red-500/10 border-red-500 text-red-700 dark:text-red-400"
-              : daysRemaining <= 7
-              ? "bg-orange-500/10 border-orange-500 text-orange-700 dark:text-orange-400"
-              : daysRemaining <= 30
-              ? "bg-yellow-500/10 border-yellow-500 text-yellow-700 dark:text-yellow-500"
-              : "bg-blue-500/10 border-blue-500 text-blue-700 dark:text-blue-400"
-          }`}>
-            <div className="flex items-center gap-3">
-              <AlertTriangle className={`h-5 w-5 flex-shrink-0 ${daysRemaining > 30 ? "opacity-60" : ""}`} />
+        {/* Subscription Expiring Banner */}
+        {bannerVisible && daysRemaining !== null && daysRemaining <= 7 && (
+          <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4 md:p-5 shadow-sm mb-6 flex flex-col md:flex-row justify-between items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
+            <div className="flex items-start md:items-center gap-3">
+              <div className="bg-amber-100 dark:bg-amber-900/40 p-2 rounded-lg mt-0.5 md:mt-0 shrink-0">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500" />
+              </div>
               <div>
-                <p className="font-semibold text-sm">
-                  {user?.tenant?.status === "trial"
-                    ? daysRemaining <= 7 ? "Trial ending very soon" : "Free trial active"
-                    : daysRemaining <= 7 ? "Subscription expiring soon" : "Subscription expiring"}
-                </p>
-                <p className="text-xs opacity-90">
-                  {user?.tenant?.status === "trial"
-                    ? `You have ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"} remaining on your free trial. Upgrade now to avoid interruption.`
-                    : `Your plan expires in ${daysRemaining} ${daysRemaining === 1 ? "day" : "days"}. Renew now to keep your CRM running.`}
+                <h3 className="text-base font-bold text-amber-800 dark:text-amber-400">
+                  Subscription expiring soon
+                </h3>
+                <p className="text-sm font-medium text-amber-700/80 dark:text-amber-500/80 mt-0.5">
+                  Your plan expires in {daysRemaining} days. Renew now to keep your CRM running.
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-4 shrink-0">
-              <div className="hidden sm:flex flex-col items-end gap-1">
-                <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">Days Left</span>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-24 h-1.5 rounded-full bg-current/20 overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-current transition-all"
-                      style={{ width: `${Math.min(100, Math.max(2, (daysRemaining / bannerWarningDays) * 100))}%` }}
-                    />
-                  </div>
-                  <span className="text-sm font-black">{daysRemaining}</span>
-                </div>
+            <div className="flex items-center gap-5 w-full md:w-auto justify-between md:justify-end shrink-0 pl-11 md:pl-0">
+              <div className="text-left md:text-right flex flex-col">
+                <span className="text-[10px] font-bold text-amber-600/70 dark:text-amber-500/70 uppercase tracking-widest">Days Left</span>
+                <span className="text-xl font-black text-amber-700 dark:text-amber-400 leading-none mt-0.5">{daysRemaining}</span>
               </div>
-              <Button variant="default" size="sm" onClick={() => window.location.href = '/admin/pricing'} className="font-semibold shadow-md whitespace-nowrap">
-                {user?.tenant?.status === "trial" ? "Upgrade Plan" : "Renew Plan"}
+              <Button
+                onClick={() => window.location.href = '/admin/pricing'}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 h-10 rounded-lg flex items-center gap-2 shadow-sm transition-all"
+              >
+                Renew Plan
+                <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -927,13 +959,42 @@ const Dashboard = () => {
         {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="tour-stats">
           {statCards.map((s) => (
-            <Card key={s.label}>
+            <Card
+              key={s.label}
+              role={s.link ? "button" : undefined}
+              tabIndex={s.link ? 0 : undefined}
+              onClick={() => s.link && navigate(s.link)}
+              onKeyDown={(e) => {
+                if (s.link && (e.key === "Enter" || e.key === " ")) {
+                  e.preventDefault();
+                  navigate(s.link);
+                }
+              }}
+              className={cn(
+                "relative overflow-hidden transition-all duration-200 border-border/70 select-none",
+                s.link && "cursor-pointer hover:shadow-md hover:border-primary/50 hover:-translate-y-0.5 active:scale-[0.99] group bg-card hover:bg-muted/20"
+              )}
+            >
               <CardContent className="p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-muted-foreground font-medium">{s.label}</span>
-                  <s.icon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground font-medium group-hover:text-foreground transition-colors">
+                    {s.label}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <s.icon className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                    {s.link && (
+                      <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-200" />
+                    )}
+                  </div>
                 </div>
-                <div className="text-2xl font-bold">{s.value}</div>
+                <div className="flex items-baseline justify-between">
+                  <div className="text-2xl font-bold tracking-tight">{s.value}</div>
+                  {s.link && (
+                    <span className="text-[11px] font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-0.5">
+                      View all
+                    </span>
+                  )}
+                </div>
                 <Progress value={s.progress} className="h-1.5 mt-2" />
               </CardContent>
             </Card>
@@ -942,51 +1003,51 @@ const Dashboard = () => {
 
         {/* Invoice / Estimate / Proposal / Quotation Overview + To Do */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-          {((isModuleEnabled("finance") && canView("Invoices")) || 
-            (isModuleEnabled("estimates") && canView("Estimates")) || 
+          {((isModuleEnabled("finance") && canView("Invoices")) ||
+            (isModuleEnabled("estimates") && canView("Estimates")) ||
             (isModuleEnabled("proposals") && canView("Proposals")) ||
             (isModuleEnabled("quotations") && canView("Quotations"))) && (
-            <Card className="lg:col-span-3" id="tour-overview">
-              <CardContent className="p-5">
-                <div className={`grid grid-cols-1 ${[isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("quotations") && canView("Quotations")].filter(Boolean).length > 1 ? 'md:grid-cols-' + Math.min(4, [isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("quotations") && canView("Quotations")].filter(Boolean).length) : ''} gap-6 divide-y md:divide-y-0 md:divide-x divide-border`}>
-                  {isModuleEnabled("finance") && canView("Invoices") && (
-                    <OverviewSection
-                      title="Invoice overview"
-                      icon={FileText}
-                      items={invoiceItems}
-                    />
-                  )}
-                  {isModuleEnabled("estimates") && canView("Estimates") && (
-                    <div className={isModuleEnabled("finance") && canView("Invoices") ? "pt-4 md:pt-0 md:pl-6" : ""}>
+              <Card className="lg:col-span-3" id="tour-overview">
+                <CardContent className="p-5">
+                  <div className={`grid grid-cols-1 ${[isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("quotations") && canView("Quotations")].filter(Boolean).length > 1 ? 'md:grid-cols-' + Math.min(4, [isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("quotations") && canView("Quotations")].filter(Boolean).length) : ''} gap-6 divide-y md:divide-y-0 md:divide-x divide-border`}>
+                    {isModuleEnabled("finance") && canView("Invoices") && (
                       <OverviewSection
-                        title="Estimate overview"
-                        icon={ClipboardList}
-                        items={estimateItems}
-                      />
-                    </div>
-                  )}
-                  {isModuleEnabled("proposals") && canView("Proposals") && (
-                    <div className={(isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) ? "pt-4 md:pt-0 md:pl-6" : ""}>
-                      <OverviewSection
-                        title="Proposal overview"
+                        title="Invoice overview"
                         icon={FileText}
-                        items={proposalItems}
+                        items={invoiceItems}
                       />
-                    </div>
-                  )}
-                  {isModuleEnabled("quotations") && canView("Quotations") && (
-                    <div className={(isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) || (isModuleEnabled("proposals") && canView("Proposals")) ? "pt-4 md:pt-0 md:pl-6" : ""}>
-                      <OverviewSection
-                        title="Quotation overview"
-                        icon={FileBarChart}
-                        items={quotationItems}
-                      />
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                    )}
+                    {isModuleEnabled("estimates") && canView("Estimates") && (
+                      <div className={isModuleEnabled("finance") && canView("Invoices") ? "pt-4 md:pt-0 md:pl-6" : ""}>
+                        <OverviewSection
+                          title="Estimate overview"
+                          icon={ClipboardList}
+                          items={estimateItems}
+                        />
+                      </div>
+                    )}
+                    {isModuleEnabled("proposals") && canView("Proposals") && (
+                      <div className={(isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) ? "pt-4 md:pt-0 md:pl-6" : ""}>
+                        <OverviewSection
+                          title="Proposal overview"
+                          icon={FileText}
+                          items={proposalItems}
+                        />
+                      </div>
+                    )}
+                    {isModuleEnabled("quotations") && canView("Quotations") && (
+                      <div className={(isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) || (isModuleEnabled("proposals") && canView("Proposals")) ? "pt-4 md:pt-0 md:pl-6" : ""}>
+                        <OverviewSection
+                          title="Quotation overview"
+                          icon={FileBarChart}
+                          items={quotationItems}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
           {/* To Do Items */}
           <Card className={!((isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) || (isModuleEnabled("proposals") && canView("Proposals")) || (isModuleEnabled("quotations") && canView("Quotations"))) ? "lg:col-span-4" : ""} id="tour-todo">
@@ -1038,7 +1099,7 @@ const Dashboard = () => {
         {isModuleEnabled("finance") && canView("Invoices") && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <Card className="border-l-4 border-l-yellow-500">
-               <CardContent className="p-4">
+              <CardContent className="p-4">
                 <p className="text-sm text-yellow-600 font-medium">Outstanding Invoices</p>
                 <p className="text-xl font-bold">{formatAmount(outstandingInvoicesTotal)}</p>
               </CardContent>
@@ -1131,8 +1192,8 @@ const Dashboard = () => {
                                 <td className="py-2">
                                   <Badge variant="outline" className={
                                     t.priority === "High" || t.priority === "Urgent" ? "bg-destructive/10 text-destructive border-destructive/20" :
-                                    t.priority === "Medium" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
-                                    "bg-muted text-muted-foreground"
+                                      t.priority === "Medium" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
+                                        "bg-muted text-muted-foreground"
                                   }>
                                     {t.priority}
                                   </Badge>
@@ -1169,8 +1230,8 @@ const Dashboard = () => {
                                 <td className="py-2">
                                   <Badge variant="outline" className={
                                     p.status === "Active" || p.status === "In Progress" ? "bg-primary/10 text-primary border-primary/20" :
-                                    p.status === "Completed" || p.status === "Finished" ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400" :
-                                    "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400"
+                                      p.status === "Completed" || p.status === "Finished" ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400" :
+                                        "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400"
                                   }>
                                     {p.status}
                                   </Badge>
@@ -1224,8 +1285,8 @@ const Dashboard = () => {
                                 <td className="py-2">
                                   <Badge variant="outline" className={
                                     tk.status === "Open" ? "bg-primary/10 text-primary border-primary/20" :
-                                    tk.status === "In Progress" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
-                                    "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400"
+                                      tk.status === "In Progress" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
+                                        "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400"
                                   }>
                                     {tk.status}
                                   </Badge>
@@ -1233,8 +1294,8 @@ const Dashboard = () => {
                                 <td className="py-2">
                                   <Badge variant="outline" className={
                                     tk.priority === "High" || tk.priority === "Urgent" ? "bg-destructive/10 text-destructive border-destructive/20" :
-                                    tk.priority === "Medium" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
-                                    "bg-muted text-muted-foreground"
+                                      tk.priority === "Medium" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
+                                        "bg-muted text-muted-foreground"
                                   }>
                                     {tk.priority}
                                   </Badge>
@@ -1288,10 +1349,10 @@ const Dashboard = () => {
                                 <td className="py-2 pr-4">
                                   <Badge variant="outline" className={
                                     q.status.toLowerCase() === "accepted" ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400" :
-                                    q.status.toLowerCase() === "rejected" ? "bg-destructive/10 text-destructive border-destructive/20" :
-                                    q.status.toLowerCase() === "sent" ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400" :
-                                    q.status.toLowerCase() === "pending" ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400" :
-                                    "bg-muted text-muted-foreground"
+                                      q.status.toLowerCase() === "rejected" ? "bg-destructive/10 text-destructive border-destructive/20" :
+                                        q.status.toLowerCase() === "sent" ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400" :
+                                          q.status.toLowerCase() === "pending" ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400" :
+                                            "bg-muted text-muted-foreground"
                                   }>
                                     <span className="capitalize">{q.status}</span>
                                   </Badge>
@@ -1310,6 +1371,7 @@ const Dashboard = () => {
               </Tabs>
             </CardContent>
           </Card>
+
 
           {/* Leads Overview + Project Status */}
           <div className="space-y-4">
@@ -1437,30 +1499,32 @@ const Dashboard = () => {
         </div>
 
         {/* Recent Activities */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Recent Activity</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {dynamicRecentActivities.map((a) => (
-                <div key={a.id} className="flex items-center gap-3 py-2 border-b last:border-0">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-primary/10 text-primary text-xs">{a.avatar}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm">
-                      <span className="font-medium">{a.user}</span>{" "}
-                      <span className="text-muted-foreground">{a.action}</span>{" "}
-                      <span className="font-medium">{a.target}</span>
-                    </p>
+        {canView("Activity Log") && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Recent Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {dynamicRecentActivities.map((a) => (
+                  <div key={a.id} className="flex items-center gap-3 py-2 border-b last:border-0">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-primary/10 text-primary text-xs">{a.avatar}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm">
+                        <span className="font-medium">{a.user}</span>{" "}
+                        <span className="text-muted-foreground">{a.action}</span>{" "}
+                        <span className="font-medium">{a.target}</span>
+                      </p>
+                    </div>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{a.time}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">{a.time}</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );

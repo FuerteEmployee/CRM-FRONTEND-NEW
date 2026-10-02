@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,16 +10,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/context/SettingsContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
+import { financeService } from "@/api/services/finance.service";
 import { quotationService } from "@/api/services/quotation.service";
 import { customerService } from "@/api/services/customer.service";
 import { quotationTypeService } from "@/api/services/quotationType.service";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { mediaService } from "@/api/services/media.service";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import {
   LayoutDashboard,
   FilePlus,
   FileBarChart,
+  FileText,
   Plus,
   Edit,
   Trash2,
@@ -166,16 +175,66 @@ const hexToRgb = (hex?: string): [number, number, number] => {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 };
 
-const loadImageAsDataUrl = async (url?: string): Promise<string | null> => {
+type LoadedImage = { dataUrl: string; width: number; height: number };
+
+const loadImageAsDataUrl = async (url?: string): Promise<LoadedImage | null> => {
   if (!url) return null;
+
+  // 1. Direct Data URL handling
+  if (url.startsWith("data:image")) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ dataUrl: url, width: img.width || 100, height: img.height || 100 });
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }
+
+  // 2. Full URL resolution
+  const fullUrl = resolveImageUrl(url);
+
+  // 3. HTML Image + Canvas conversion (handles crossOrigin anonymous cleanly)
   try {
-    const res = await fetch(url);
+    const loaded = await new Promise<LoadedImage | null>((resolve) => {
+      const img = new Image();
+      img.crossOrigin = "Anonymous";
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width || 100;
+          canvas.height = img.height || 100;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return resolve(null);
+          ctx.drawImage(img, 0, 0);
+          const dataUrl = canvas.toDataURL("image/png");
+          resolve({ dataUrl, width: img.width || 100, height: img.height || 100 });
+        } catch {
+          resolve(null);
+        }
+      };
+      img.onerror = () => resolve(null);
+      img.src = fullUrl;
+    });
+    if (loaded) return loaded;
+  } catch {
+    /* fallback to fetch */
+  }
+
+  // 4. Fallback fetch blob
+  try {
+    const res = await fetch(fullUrl, { mode: "cors" });
     const blob = await res.blob();
-    return await new Promise((resolve, reject) => {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
       reader.onerror = reject;
       reader.readAsDataURL(blob);
+    });
+    return await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ dataUrl, width: img.width || 100, height: img.height || 100 });
+      img.onerror = () => resolve({ dataUrl, width: 100, height: 100 });
+      img.src = dataUrl;
     });
   } catch {
     return null;
@@ -183,12 +242,27 @@ const loadImageAsDataUrl = async (url?: string): Promise<string | null> => {
 };
 
 export default function QuotationModule() {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "dashboard");
   const typeSlug = searchParams.get("type") || "";
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { getSetting } = useSettings();
+  const { user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  const canUseBankDetails = canAccessBankDetails(user?.email);
+  // Branch-scoped customer selection is sourced from the HRMS module — only
+  // show/fetch it when the tenant's plan actually includes HRMS, otherwise
+  // fall back to picking a customer from the full, unscoped list.
+  const canUseBranch = isModuleEnabled("hrms");
+
+  const { data: bankDetails = [] } = useQuery<any[]>({
+    queryKey: ["bank-details"],
+    queryFn: () => financeService.getBankDetails().then((res: any) => res.data || res),
+    enabled: canUseBankDetails,
+  });
+  const activeBankDetails = bankDetails.filter((b: any) => b.active !== false);
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams);
@@ -206,6 +280,18 @@ export default function QuotationModule() {
   });
   const currentType = typeSlug ? quotationTypes.find((t: any) => t.slug === typeSlug) : undefined;
   const allowedFormat: "simple" | "pro" | "both" = currentType?.format || "both";
+
+  // ─── HRMS branches linked to the current quotation type — used to scope the
+  // Customer dropdown below to only the customers assigned to those branches ──
+  const { data: branches = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-for-quotation"],
+    queryFn: () => hrmsbranchService.getAll({ limit: 1000 }).then(res => res.data),
+    enabled: activeTab === "create" && canUseBranch,
+  });
+  const idOf = (ref: any): string => (typeof ref === "string" ? ref : ref?._id || ref?.id || "");
+  const branchIdsForType = currentType
+    ? branches.filter((b: any) => (b.quotationTypes || []).some((qt: any) => idOf(qt) === currentType._id)).map((b: any) => idOf(b))
+    : [];
 
   // ─── Dashboard data (scoped to the current quotation type, if any) ────
   const { data: stats } = useQuery<Stats>({
@@ -233,18 +319,43 @@ export default function QuotationModule() {
     enabled: activeTab === "dashboard",
   });
 
-  const { data: allQuotations = [], isLoading: isLoadingAll } = useQuery<Quotation[]>({
-    queryKey: ["quotations-all", currentType?._id],
+  // ─── List tab: server-side paginated (per page-size selection); "All" falls
+  // back to the old unbounded fetch, exactly as this tab always did before. ──
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState("25");
+
+  interface QuotationsListPage { rows: Quotation[]; total: number; pages: number }
+  const { data: quotationsListResult, isLoading: isLoadingList } = useQuery<QuotationsListPage>({
+    queryKey: ["quotations-list", currentType?._id, currentPage, itemsPerPage],
     queryFn: async () => {
+      if (itemsPerPage === "All") {
+        try {
+          const result = await quotationService.getQuotations(undefined, currentType?._id);
+          const rows = Array.isArray(result) ? result : [];
+          return { rows, total: rows.length, pages: 1 };
+        } catch {
+          return { rows: [], total: 0, pages: 1 };
+        }
+      }
       try {
-        const result = await quotationService.getQuotations(undefined, currentType?._id);
-        return Array.isArray(result) ? result : [];
+        const res: any = await quotationService.getQuotationsList({
+          page: currentPage,
+          limit: itemsPerPage,
+          quotation_type: currentType?._id,
+        });
+        if (Array.isArray(res)) return { rows: [], total: 0, pages: 1 };
+        return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1 };
       } catch {
-        return [];
+        return { rows: [], total: 0, pages: 1 };
       }
     },
     enabled: activeTab === "list",
   });
+  const quotationsList = quotationsListResult?.rows ?? [];
+  const totalQuotations = quotationsListResult?.total ?? 0;
+  const quotationsPageSize = itemsPerPage === "All" ? (totalQuotations || 1) : parseInt(itemsPerPage);
+  const totalQuotationPages = quotationsListResult?.pages ?? 1;
+  const safeQuotationsPage = Math.min(currentPage, totalQuotationPages);
 
   const totalThisMonth = stats?.totalThisMonth ?? 0;
   const acceptedThisMonth = stats?.acceptedThisMonth ?? 0;
@@ -253,13 +364,25 @@ export default function QuotationModule() {
   // ─── Create/Edit Quotation form state ────────────────────────────────
   const [editingId, setEditingId] = useState<string | null>(null);
   const [clientId, setClientId] = useState("");
+  // Branch picked first on the Create Quotation form — the Customer dropdown
+  // below only lists customers belonging to this branch.
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const emptyNewCustomer = {
+    company: "", customer_reference: "", contact_person: "", vat: "",
+    phonenumber: "", email: "", website: "", pan_number: "", gst_number: "",
+    account_details: "", address: "", city: "", state: "", zip: "", country: "", branch: "",
+  };
+  const [newCustomerForm, setNewCustomerForm] = useState(emptyNewCustomer);
   const [contactNumber, setContactNumber] = useState("");
   const [address, setAddress] = useState("");
   const [quotationDate, setQuotationDate] = useState(todayISO());
   const [validUntil, setValidUntil] = useState(plusDaysISO(20));
   const [items, setItems] = useState<ItemRow[]>([emptyItem()]);
   const [gstPercent, setGstPercent] = useState(18);
+  const [discountPercent, setDiscountPercent] = useState(0);
   const [notes, setNotes] = useState(DEFAULT_NOTES);
+  const [bankDetailId, setBankDetailId] = useState("");
 
   // Simple vs Pro create-format — forced when the type restricts it, otherwise user-toggled.
   const [format, setFormat] = useState<"simple" | "pro">(allowedFormat === "pro" ? "pro" : "simple");
@@ -283,34 +406,55 @@ export default function QuotationModule() {
     if (currentType?.theme) setTheme({ ...DEFAULT_THEME, ...currentType.theme });
   }, [currentType?._id]);
 
-  // Branding — defaults to the CRM's own company name where sensible, still editable per-quotation.
-  const [companyName, setCompanyName] = useState(() => getSetting("companyName", ""));
-  const [fullCompanyName, setFullCompanyName] = useState("");
-  const [tagline, setTagline] = useState("");
-  const [brandAddress, setBrandAddress] = useState("");
-  const [defaultContactNumber, setDefaultContactNumber] = useState("");
-  const [brandLogoUrl, setBrandLogoUrl] = useState<string | null>(null);
+  const getSavedBrandingDefaults = () => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(BRANDING_DEFAULTS_KEY) || "null");
+      if (saved) {
+        return {
+          companyName: saved.companyName ?? getSetting("companyName", ""),
+          fullCompanyName: saved.fullCompanyName ?? "",
+          tagline: saved.tagline ?? "",
+          brandAddress: saved.brandAddress ?? "",
+          defaultContactNumber: saved.defaultContactNumber ?? "",
+          brandLogoUrl: saved.brandLogoUrl ?? null,
+        };
+      }
+    } catch {
+      /* ignore */
+    }
+    return {
+      companyName: getSetting("companyName", ""),
+      fullCompanyName: "",
+      tagline: "",
+      brandAddress: "",
+      defaultContactNumber: "",
+      brandLogoUrl: null,
+    };
+  };
+
+  // Branding — defaults to saved branding or CRM company defaults
+  const [companyName, setCompanyName] = useState(() => getSavedBrandingDefaults().companyName);
+  const [fullCompanyName, setFullCompanyName] = useState(() => getSavedBrandingDefaults().fullCompanyName);
+  const [tagline, setTagline] = useState(() => getSavedBrandingDefaults().tagline);
+  const [brandAddress, setBrandAddress] = useState(() => getSavedBrandingDefaults().brandAddress);
+  const [defaultContactNumber, setDefaultContactNumber] = useState(() => getSavedBrandingDefaults().defaultContactNumber);
+  const [brandLogoUrl, setBrandLogoUrl] = useState<string | null>(() => getSavedBrandingDefaults().brandLogoUrl);
   const [clientLogoUrl, setClientLogoUrl] = useState<string | null>(null);
+  const [showItemImages, setShowItemImages] = useState(true);
   const [saveBrandingDefault, setSaveBrandingDefault] = useState(false);
   const [uploadingKey, setUploadingKey] = useState<string | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // Preload saved branding defaults for brand-new quotations only.
+  // Preload saved branding defaults for brand-new quotations
   useEffect(() => {
     if (editingId) return;
-    try {
-      const saved = JSON.parse(localStorage.getItem(BRANDING_DEFAULTS_KEY) || "null");
-      if (saved) {
-        setCompanyName(saved.companyName ?? getSetting("companyName", ""));
-        setFullCompanyName(saved.fullCompanyName ?? "");
-        setTagline(saved.tagline ?? "");
-        setBrandAddress(saved.brandAddress ?? "");
-        setDefaultContactNumber(saved.defaultContactNumber ?? "");
-        setBrandLogoUrl(saved.brandLogoUrl ?? null);
-      }
-    } catch {
-      /* ignore malformed cache */
-    }
+    const saved = getSavedBrandingDefaults();
+    setCompanyName(saved.companyName);
+    setFullCompanyName(saved.fullCompanyName);
+    setTagline(saved.tagline);
+    setBrandAddress(saved.brandAddress);
+    setDefaultContactNumber(saved.defaultContactNumber);
+    setBrandLogoUrl(saved.brandLogoUrl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -319,6 +463,66 @@ export default function QuotationModule() {
     queryFn: () => customerService.getAll().then((res: any) => res.data || res),
     enabled: activeTab === "create",
   });
+  // Branch choices offered on the Create Quotation form — scoped to the branch(es)
+  // tied to this quotation type, when any are configured, otherwise every branch.
+  const branchesForType = branchIdsForType.length
+    ? branches.filter((b: any) => branchIdsForType.includes(idOf(b)))
+    : branches;
+  // Auto-pick the branch when only one is available for this quotation type.
+  useEffect(() => {
+    if (!selectedBranchId && branchesForType.length === 1) {
+      setSelectedBranchId(idOf(branchesForType[0]));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branchesForType.length]);
+  // The Customer dropdown only lists customers belonging to the selected branch —
+  // unless the tenant's plan doesn't include HRMS, in which case there's no
+  // branch data to scope by, so every customer is offered instead.
+  const customersForType = !canUseBranch
+    ? customers
+    : selectedBranchId
+      ? customers.filter((c: any) => idOf(c.branch) === selectedBranchId)
+      : [];
+  // When editing an existing quotation, derive the branch from the loaded client
+  // so the Customer field stays populated (the quotation itself has no branch of its own).
+  useEffect(() => {
+    if (!editingId || !clientId || selectedBranchId) return;
+    const c = customers.find((x: any) => x._id === clientId);
+    if (c?.branch) setSelectedBranchId(idOf(c.branch));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId, clientId, customers]);
+
+  // Rudraverse-only: let the user fill in a brand-new customer's details straight
+  // from this form instead of only picking from the existing list — creates a
+  // real Client record so it behaves exactly like any other selected customer.
+  const createCustomerMutation = useMutation({
+    mutationFn: (data: typeof emptyNewCustomer) => customerService.create(data),
+    onSuccess: (created: any) => {
+      const newCustomer = created?.data || created;
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
+      setClientId(newCustomer._id);
+      setIsAddingCustomer(false);
+      setNewCustomerForm(emptyNewCustomer);
+      toast({ title: "Customer added", description: `"${newCustomer.company}" is now saved and selected.` });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to add customer", variant: "destructive" });
+    },
+  });
+
+  // "+ Add new branch" redirects to the real HRMS "New Branch" page (same full form
+  // used everywhere else), which redirects back here afterwards with ?newBranchId=...
+  // — pick it up and auto-select it, then strip it from the URL.
+  useEffect(() => {
+    const newBranchId = searchParams.get("newBranchId");
+    if (!newBranchId) return;
+    setSelectedBranchId(newBranchId);
+    setClientId("");
+    const params = new URLSearchParams(searchParams);
+    params.delete("newBranchId");
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const { data: selectedCustomer } = useQuery({
     queryKey: ["customer", clientId],
@@ -330,7 +534,7 @@ export default function QuotationModule() {
   // still editable afterwards in case the quotation needs a different contact.
   useEffect(() => {
     if (!selectedCustomer) return;
-    setContactNumber(selectedCustomer.phonenumber || "");
+    setContactNumber((selectedCustomer.phonenumber || "").replace(/\D/g, "").slice(0, 10));
     const parts = [selectedCustomer.address, selectedCustomer.city, selectedCustomer.state, selectedCustomer.zip, selectedCustomer.country].filter(Boolean);
     setAddress(parts.join(", "));
   }, [selectedCustomer]);
@@ -338,13 +542,16 @@ export default function QuotationModule() {
   const resetForm = () => {
     setEditingId(null);
     setClientId("");
+    setSelectedBranchId("");
     setContactNumber("");
     setAddress("");
     setQuotationDate(todayISO());
     setValidUntil(plusDaysISO(20));
     setItems([emptyItem()]);
     setGstPercent(18);
+    setDiscountPercent(0);
     setNotes(DEFAULT_NOTES);
+    setBankDetailId("");
     setFormat(allowedFormat === "pro" ? "pro" : "simple");
     setProjectBuilding("");
     setUnitNo("");
@@ -354,13 +561,16 @@ export default function QuotationModule() {
     setAfterImages([]);
     setTheme(currentType?.theme ? { ...DEFAULT_THEME, ...currentType.theme } : DEFAULT_THEME);
     setShowThemeColors(false);
-    setCompanyName(getSetting("companyName", ""));
-    setFullCompanyName("");
-    setTagline("");
-    setBrandAddress("");
-    setDefaultContactNumber("");
-    setBrandLogoUrl(null);
+
+    const saved = getSavedBrandingDefaults();
+    setCompanyName(saved.companyName);
+    setFullCompanyName(saved.fullCompanyName);
+    setTagline(saved.tagline);
+    setBrandAddress(saved.brandAddress);
+    setDefaultContactNumber(saved.defaultContactNumber);
+    setBrandLogoUrl(saved.brandLogoUrl);
     setClientLogoUrl(null);
+    setShowItemImages(true);
   };
 
   const addItemRow = () => setItems((prev) => [...prev, emptyItem()]);
@@ -418,6 +628,11 @@ export default function QuotationModule() {
     const url = await uploadAsset(file, `room-${roomId}-${itemId}`);
     if (url) updateRoomItem(roomId, itemId, "photoUrl", url);
   };
+  const handleSimpleItemPhotoPick = async (itemId: string, file: File | undefined) => {
+    if (!file) return;
+    const url = await uploadAsset(file, `simple-${itemId}`);
+    if (url) updateItem(itemId, "photoUrl", url);
+  };
   const handleAddBeforeImage = async (file: File | undefined) => {
     if (!file) return;
     const url = await uploadAsset(file, "before");
@@ -430,21 +645,32 @@ export default function QuotationModule() {
   };
 
   const persistBrandingDefaults = () => {
-    if (!saveBrandingDefault) return;
-    localStorage.setItem(
-      BRANDING_DEFAULTS_KEY,
-      JSON.stringify({ companyName, fullCompanyName, tagline, brandAddress, defaultContactNumber, brandLogoUrl })
-    );
+    // Save branding defaults (including Trinetra mobile number) so it persists across sessions
+    const currentSaved = getSavedBrandingDefaults();
+    const updated = {
+      ...currentSaved,
+      companyName: companyName || currentSaved.companyName,
+      fullCompanyName: fullCompanyName || currentSaved.fullCompanyName,
+      tagline: tagline || currentSaved.tagline,
+      brandAddress: brandAddress || currentSaved.brandAddress,
+      defaultContactNumber: defaultContactNumber || currentSaved.defaultContactNumber,
+      brandLogoUrl: brandLogoUrl !== undefined ? brandLogoUrl : currentSaved.brandLogoUrl,
+    };
+    localStorage.setItem(BRANDING_DEFAULTS_KEY, JSON.stringify(updated));
   };
 
   const simpleSubtotal = items.reduce((acc, i) => acc + (Number(i.qty) || 0) * (Number(i.rate) || 0), 0);
   const proSubtotal = rooms.reduce((acc, r) => acc + roomTotal(r), 0);
   const subtotal = format === "pro" ? proSubtotal : simpleSubtotal;
-  const gstAmount = subtotal * (gstPercent / 100);
-  const grandTotal = subtotal + gstAmount;
+  const discountAmount = subtotal * (discountPercent / 100);
+  const taxableAmount = subtotal - discountAmount;
+  const gstAmount = taxableAmount * (gstPercent / 100);
+  const grandTotal = taxableAmount + gstAmount;
 
   const buildPayload = (status: string) => ({
-    client: clientId,
+    client: clientId || undefined,
+    contact_number: contactNumber,
+    client_address: address,
     date: quotationDate,
     valid_till: validUntil,
     status,
@@ -452,35 +678,36 @@ export default function QuotationModule() {
     format,
     gst_percent: gstPercent,
     notes,
+    show_item_images: showItemImages,
     items:
       format === "simple"
-        ? items.filter((i) => i.description.trim()).map((i) => ({ description: i.description, qty: Number(i.qty) || 0, rate: Number(i.rate) || 0 }))
+        ? items.filter((i) => i.description.trim()).map((i) => ({ description: i.description, qty: Number(i.qty) || 0, rate: Number(i.rate) || 0, photo_url: i.photoUrl || "" }))
         : [],
     rooms:
       format === "pro"
         ? rooms.map((r) => ({
-            name: r.name,
-            items: r.items.map((it) => ({
-              description: it.description,
-              series: it.series,
-              model_no: it.model_no,
-              unit_price: Number(it.unit_price) || 0,
-              sw: Number(it.sw) || 0,
-              fan: Number(it.fan) || 0,
-              soc: Number(it.soc) || 0,
-              mod: Number(it.mod) || 0,
-              qty: Number(it.qty) || 1,
-              disc_percent: Number(it.disc_percent) || 0,
-              photo_url: it.photoUrl,
-            })),
-          }))
+          name: r.name,
+          items: r.items.map((it) => ({
+            description: it.description,
+            series: it.series,
+            model_no: it.model_no,
+            unit_price: Number(it.unit_price) || 0,
+            sw: Number(it.sw) || 0,
+            fan: Number(it.fan) || 0,
+            soc: Number(it.soc) || 0,
+            mod: Number(it.mod) || 0,
+            qty: Number(it.qty) || 1,
+            disc_percent: Number(it.disc_percent) || 0,
+            photo_url: it.photoUrl || "",
+          })),
+        }))
         : [],
     branding: {
       brandName: companyName,
       fullCompanyName,
       tagline,
       contactAddress: brandAddress,
-      defaultContactNumber,
+      defaultContactNumber: defaultContactNumber || getSavedBrandingDefaults().defaultContactNumber,
       brandLogoUrl,
       clientLogoUrl,
     },
@@ -488,8 +715,11 @@ export default function QuotationModule() {
     theme,
     attachments: { before_images: beforeImages, after_images: afterImages },
     subtotal,
+    discount_percent: discountPercent,
+    discount_total: discountAmount,
     total_tax: gstAmount,
     total: grandTotal,
+    bank_detail: bankDetailId || undefined,
   });
 
   const createMutation = useMutation({
@@ -498,7 +728,7 @@ export default function QuotationModule() {
       persistBrandingDefaults();
       queryClient.invalidateQueries({ queryKey: ["quotation-stats"] });
       queryClient.invalidateQueries({ queryKey: ["quotations-recent"] });
-      queryClient.invalidateQueries({ queryKey: ["quotations-all"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations-list"] });
       toast({ title: "Quotation saved", description: "Your quotation has been saved successfully." });
       resetForm();
       setActiveTab("dashboard");
@@ -518,7 +748,7 @@ export default function QuotationModule() {
       persistBrandingDefaults();
       queryClient.invalidateQueries({ queryKey: ["quotation-stats"] });
       queryClient.invalidateQueries({ queryKey: ["quotations-recent"] });
-      queryClient.invalidateQueries({ queryKey: ["quotations-all"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations-list"] });
       toast({ title: "Quotation updated", description: "Your quotation has been updated successfully." });
       resetForm();
       setActiveTab("list");
@@ -537,7 +767,7 @@ export default function QuotationModule() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quotation-stats"] });
       queryClient.invalidateQueries({ queryKey: ["quotations-recent"] });
-      queryClient.invalidateQueries({ queryKey: ["quotations-all"] });
+      queryClient.invalidateQueries({ queryKey: ["quotations-list"] });
       toast({ title: "Deleted", description: "Quotation deleted successfully." });
     },
   });
@@ -545,11 +775,16 @@ export default function QuotationModule() {
   const handleEdit = (q: Quotation) => {
     setEditingId(q._id);
     setClientId(q.client?._id || q.client?.id || (typeof q.client === "string" ? q.client : ""));
+    setContactNumber((q as any).contact_number || q.client?.phonenumber || "");
+    setAddress((q as any).client_address || [q.client?.address, q.client?.city, q.client?.state, q.client?.zip, q.client?.country].filter(Boolean).join(", ") || "");
     setQuotationDate(q.date ? new Date(q.date).toISOString().split("T")[0] : todayISO());
     setValidUntil(q.valid_till ? new Date(q.valid_till).toISOString().split("T")[0] : plusDaysISO(20));
     setNotes(q.notes || DEFAULT_NOTES);
     setGstPercent(q.gst_percent ?? (q.total_tax && q.subtotal ? Math.round((q.total_tax / q.subtotal) * 100) : 18));
+    setDiscountPercent(q.discount_percent || 0);
+    setBankDetailId((q as any).bank_detail?._id || (q as any).bank_detail || "");
     setFormat(q.format === "pro" ? "pro" : "simple");
+    setShowItemImages((q as any).show_item_images !== false);
 
     if (q.items && q.items.length > 0) {
       setItems(
@@ -558,6 +793,7 @@ export default function QuotationModule() {
           description: i.description || "",
           qty: i.qty || 1,
           rate: i.rate || 0,
+          photoUrl: (i as any).photo_url || (i as any).photoUrl || "",
         }))
       );
     } else {
@@ -572,19 +808,19 @@ export default function QuotationModule() {
           items:
             r.items && r.items.length > 0
               ? r.items.map((it: any) => ({
-                  id: Math.random().toString(36).slice(2, 9),
-                  description: it.description || "",
-                  series: it.series || "",
-                  model_no: it.model_no || "",
-                  unit_price: it.unit_price || 0,
-                  sw: it.sw || 0,
-                  fan: it.fan || 0,
-                  soc: it.soc || 0,
-                  mod: it.mod || 0,
-                  qty: it.qty || 1,
-                  disc_percent: it.disc_percent || 0,
-                  photoUrl: it.photo_url,
-                }))
+                id: Math.random().toString(36).slice(2, 9),
+                description: it.description || "",
+                series: it.series || "",
+                model_no: it.model_no || "",
+                unit_price: it.unit_price || 0,
+                sw: it.sw || 0,
+                fan: it.fan || 0,
+                soc: it.soc || 0,
+                mod: it.mod || 0,
+                qty: it.qty || 1,
+                disc_percent: it.disc_percent || 0,
+                photoUrl: it.photo_url || it.photoUrl || "",
+              }))
               : [emptyRoomItem()],
         }))
       );
@@ -599,18 +835,20 @@ export default function QuotationModule() {
     setBeforeImages((q as any).attachments?.before_images || []);
     setAfterImages((q as any).attachments?.after_images || []);
 
-    setCompanyName(q.branding?.brandName || getSetting("companyName", ""));
-    setFullCompanyName(q.branding?.fullCompanyName || "");
-    setTagline(q.branding?.tagline || "");
-    setBrandAddress(q.branding?.contactAddress || "");
-    setDefaultContactNumber(q.branding?.defaultContactNumber || "");
-    setBrandLogoUrl(q.branding?.brandLogoUrl || null);
+    const defaults = getSavedBrandingDefaults();
+    setCompanyName(q.branding?.brandName || defaults.companyName);
+    setFullCompanyName(q.branding?.fullCompanyName || defaults.fullCompanyName);
+    setTagline(q.branding?.tagline || defaults.tagline);
+    setBrandAddress(q.branding?.contactAddress || defaults.brandAddress);
+    setDefaultContactNumber(q.branding?.defaultContactNumber || defaults.defaultContactNumber);
+    setBrandLogoUrl(q.branding?.brandLogoUrl !== undefined ? q.branding.brandLogoUrl : defaults.brandLogoUrl);
     setClientLogoUrl(q.branding?.clientLogoUrl || null);
 
     setActiveTab("create");
   };
 
-  const validate = () => {
+  const validate = (isDraft = false) => {
+    if (isDraft) return true;
     if (!clientId) {
       toast({ title: "Validation Error", description: "Please select a customer.", variant: "destructive" });
       return false;
@@ -626,26 +864,40 @@ export default function QuotationModule() {
     return true;
   };
 
-  const handleSaveAndDownload = () => {
-    if (!validate()) return;
+  const handleSaveDraft = () => {
+    if (!validate(true)) return;
     const mut = editingId ? updateMutation : createMutation;
     mut.mutate("draft", {
+      onSuccess: () => {
+        toast({
+          title: editingId ? "Draft updated" : "Draft saved",
+          description: "Your quotation has been saved as a draft.",
+        });
+      },
+    });
+  };
+
+  const handleSaveAndDownload = () => {
+    if (!validate(false)) return;
+    const currentStatus = editingId ? (quotationsList.find((q) => q._id === editingId)?.status || "sent") : "sent";
+    const payload = buildPayload(currentStatus);
+    const mut = editingId ? updateMutation : createMutation;
+    mut.mutate(currentStatus, {
       onSuccess: (saved: any) => {
-        // `saved.client` from the API is just the raw customer ID — the create/update
-        // endpoints don't populate it — so fill in the display fields we already have
-        // from the live form (sourced from the selected customer record) instead.
-        if (saved) {
-          handleDownloadPDF({
-            ...saved,
-            client: { company: selectedClientLabel, phonenumber: contactNumber || defaultContactNumber, address },
-          });
-        }
+        const fullData = saved || payload;
+        handleDownloadPDF({
+          ...fullData,
+          number: fullData.number || (editingId ? quotationsList.find((q) => q._id === editingId)?.number : undefined),
+          contact_number: contactNumber,
+          client_address: address,
+          client: { company: selectedClientLabel, phonenumber: contactNumber, address },
+        });
       },
     });
   };
 
   const handlePreviewAndSave = () => {
-    if (!validate()) return;
+    if (!validate(false)) return;
     setIsPreviewOpen(true);
   };
 
@@ -670,20 +922,29 @@ export default function QuotationModule() {
     const clientLogoData = await loadImageAsDataUrl(q.branding?.clientLogoUrl);
     if (brandLogoData) {
       try {
-        doc.addImage(brandLogoData, "PNG", 14, 10, 18, 18);
+        const ratio = Math.min(22 / brandLogoData.width, 20 / brandLogoData.height);
+        const w = brandLogoData.width * ratio;
+        const h = brandLogoData.height * ratio;
+        const yPos = 8 + (20 - h) / 2;
+        doc.addImage(brandLogoData.dataUrl, "PNG", 14, yPos, w, h);
       } catch {
         /* unsupported image format — skip embedding, PDF still generates */
       }
     }
     if (clientLogoData) {
       try {
-        doc.addImage(clientLogoData, "PNG", 178, 10, 18, 18);
+        const ratio = Math.min(22 / clientLogoData.width, 20 / clientLogoData.height);
+        const w = clientLogoData.width * ratio;
+        const h = clientLogoData.height * ratio;
+        const yPos = 8 + (20 - h) / 2;
+        const xPos = 196 - w;
+        doc.addImage(clientLogoData.dataUrl, "PNG", xPos, yPos, w, h);
       } catch {
         /* ignore */
       }
     }
 
-    const textX = brandLogoData ? 36 : 14;
+    const textX = brandLogoData ? 40 : 14;
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(18);
     doc.text(q.branding?.brandName || "Company Name", textX, 18);
@@ -694,18 +955,18 @@ export default function QuotationModule() {
 
     doc.setDrawColor(...primaryRgb);
     doc.setLineWidth(1);
-    doc.line(14, 33, 196, 33);
+    doc.line(14, 32, 196, 32);
 
     const flatBg = hexToRgb(docTheme.flatTypeBg);
     const flatText = hexToRgb(docTheme.flatTypeText);
     const headerTextRgb = hexToRgb(docTheme.headerText);
     const roomBg = hexToRgb(docTheme.roomHeaderBg);
     const clientName = q.client?.company || q.client?.name || "Client";
-    const clientPhone = q.client?.phonenumber || q.branding?.defaultContactNumber || "—";
+    const clientPhone = (q as any).contact_number || q.client?.phonenumber || "—";
     const fmtDate = (d?: string) =>
       d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
-    let y = 37;
+    let y = 36;
     const pageHeight = doc.internal.pageSize.getHeight();
     const ensureSpace = (needed: number) => {
       if (y + needed > pageHeight - 20) {
@@ -791,12 +1052,16 @@ export default function QuotationModule() {
         y += 9;
 
         // Preload each item's photo (must happen before the synchronous didDrawCell hook runs).
-        const photoData: Record<number, string | null> = {};
+        const photoData: Record<number, LoadedImage | null> = {};
         const roomItems = room.items || [];
+        const shouldIncludeImages = (q as any).show_item_images !== false;
         for (let i = 0; i < roomItems.length; i++) {
-          const url = roomItems[i]?.photo_url;
-          photoData[i] = url ? await loadImageAsDataUrl(url) : null;
+          const url = roomItems[i]?.photo_url || roomItems[i]?.photoUrl;
+          photoData[i] = (shouldIncludeImages && url) ? await loadImageAsDataUrl(url) : null;
         }
+
+        const roomHasAnyPhoto = roomItems.some((_, idx) => !!photoData[idx]);
+        const descHeaderLabel = roomHasAnyPhoto ? "PHOTO & DESCRIPTION" : "DESCRIPTION";
 
         const body: any[] = [];
         const photoRowIndex: Record<number, number> = {};
@@ -805,12 +1070,21 @@ export default function QuotationModule() {
           const priceStr = pdfCurrency(it.unit_price);
           const totalStr = pdfCurrency(roomItemTotal(it));
           const hasBreakdown = (it.sw || 0) + (it.fan || 0) + (it.soc || 0) + (it.mod || 0) > 0;
-          const hasCaption = !!it.description?.trim() && it.description.trim() !== (it.series || "").trim();
+          const hasPhoto = !!photoData[itemIdx];
+          const hasCaption = hasPhoto && !!it.description?.trim() && it.description.trim() !== (it.series || "").trim();
 
           photoRowIndex[body.length] = itemIdx;
           body.push([
             { content: it.series || "—", styles: { fontStyle: "bold", valign: "middle" } },
-            { content: "", styles: { minCellHeight: 24 } },
+            {
+              content: hasPhoto ? "" : (it.description || "—"),
+              styles: {
+                minCellHeight: hasPhoto ? 24 : 10,
+                valign: "middle",
+                halign: hasPhoto ? "center" : "left",
+                fontSize: 8,
+              },
+            },
             { content: String(it.qty || 0), styles: { halign: "center", valign: "middle" } },
             { content: priceStr, styles: { halign: "center", valign: "middle" } },
             { content: `${it.disc_percent || 0}%`, styles: { halign: "center", valign: "middle" } },
@@ -848,22 +1122,37 @@ export default function QuotationModule() {
 
         autoTable(doc, {
           startY: y,
-          head: [["SERIES", "PHOTO & DESCRIPTION", "NOS", "PRICE", "DISCOUNT", "TOTAL"]],
+          head: [["SERIES", descHeaderLabel, "NOS", "PRICE", "DISCOUNT", "TOTAL"]],
           body,
           theme: "grid",
           headStyles: { fillColor: primaryRgb, fontSize: 8, halign: "center" },
           bodyStyles: { fontSize: 8 },
+          columnStyles: {
+            0: { cellWidth: 25 },
+            1: { cellWidth: "auto" },
+            2: { cellWidth: 15 },
+            3: { cellWidth: 25 },
+            4: { cellWidth: 20 },
+            5: { cellWidth: 25 },
+          },
           margin: { left: 14, right: 14 },
           didDrawCell: (data: any) => {
             if (data.row.section !== "body" || data.column.index !== 1) return;
             const itemIdx = photoRowIndex[data.row.index];
             if (itemIdx === undefined) return;
-            const img = photoData[itemIdx];
-            if (!img) return;
+            const imgObj = photoData[itemIdx];
+            if (!imgObj) return;
             try {
-              const pad = 2;
-              const size = Math.min(data.cell.width, data.cell.height) - pad * 2;
-              doc.addImage(img, "PNG", data.cell.x + pad, data.cell.y + pad, size, size);
+              const pad = 2.5;
+              const maxW = data.cell.width - pad * 2;
+              const maxH = data.cell.height - pad * 2;
+              if (maxW <= 0 || maxH <= 0) return;
+              const ratio = Math.min(maxW / imgObj.width, maxH / imgObj.height);
+              const imgW = imgObj.width * ratio;
+              const imgH = imgObj.height * ratio;
+              const imgX = data.cell.x + (data.cell.width - imgW) / 2;
+              const imgY = data.cell.y + (data.cell.height - imgH) / 2;
+              doc.addImage(imgObj.dataUrl, "PNG", imgX, imgY, imgW, imgH);
             } catch {
               /* unsupported image format — skip embedding, PDF still generates */
             }
@@ -872,7 +1161,15 @@ export default function QuotationModule() {
         y = (doc as any).lastAutoTable.finalY + 8;
       }
     } else {
-      const tableData = (q.items || []).map((item, index) => [
+      const shouldIncludeImages = (q as any).show_item_images !== false;
+      const simpleItems = q.items || [];
+      const photoData: Record<number, LoadedImage | null> = {};
+      for (let i = 0; i < simpleItems.length; i++) {
+        const url = simpleItems[i]?.photo_url || (simpleItems[i] as any)?.photoUrl;
+        photoData[i] = (shouldIncludeImages && url) ? await loadImageAsDataUrl(url) : null;
+      }
+
+      const tableData = simpleItems.map((item: any, index: number) => [
         index + 1,
         item.description || "—",
         item.qty || 0,
@@ -885,26 +1182,68 @@ export default function QuotationModule() {
         head: [["#", "Description", "Qty", "Rate", "Amount"]],
         body: tableData,
         headStyles: { fillColor: primaryRgb },
+        columnStyles: {
+          0: { cellWidth: 10, halign: "center" },
+          1: { cellWidth: "auto" },
+          2: { cellWidth: 20, halign: "center" },
+          3: { cellWidth: 30, halign: "right" },
+          4: { cellWidth: 30, halign: "right" },
+        },
         margin: { left: 14, right: 14 },
+        didDrawCell: (data: any) => {
+          if (data.row.section !== "body" || data.column.index !== 1) return;
+          const itemIdx = data.row.index;
+          const imgObj = photoData[itemIdx];
+          if (!imgObj) return;
+          try {
+            const pad = 2;
+            const maxW = 16;
+            const maxH = 14;
+            const ratio = Math.min(maxW / imgObj.width, maxH / imgObj.height);
+            const imgW = imgObj.width * ratio;
+            const imgH = imgObj.height * ratio;
+            const imgX = data.cell.x + 2;
+            const imgY = data.cell.y + (data.cell.height - imgH) / 2;
+            doc.addImage(imgObj.dataUrl, "PNG", imgX, imgY, imgW, imgH);
+          } catch {
+            /* ignore */
+          }
+        },
       });
       y = (doc as any).lastAutoTable.finalY + 8;
     }
 
     // Totals box
-    ensureSpace(40);
+    const hasDiscount = (q.discount_percent || 0) > 0;
+    ensureSpace(hasDiscount ? 50 : 40);
     const boxX = 116;
     const boxW = 80;
+
+    // Subtotal
     doc.setFillColor(248, 248, 248);
     doc.rect(boxX, y, boxW, 9, "F");
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(60, 60, 60);
-    doc.text("Subtotal (excl. GST)", boxX + 4, y + 6);
+    doc.text("Subtotal", boxX + 4, y + 6);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(20, 20, 20);
     doc.text(pdfCurrency(q.subtotal), boxX + boxW - 4, y + 6, { align: "right" });
     y += 9;
 
+    // Discount (if any)
+    if (hasDiscount) {
+      doc.setFillColor(248, 248, 248);
+      doc.rect(boxX, y, boxW, 9, "F");
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(220, 38, 38);
+      doc.text(`Discount (${q.discount_percent}%)`, boxX + 4, y + 6);
+      doc.setFont("helvetica", "bold");
+      doc.text(`-${pdfCurrency(q.discount_total || 0)}`, boxX + boxW - 4, y + 6, { align: "right" });
+      y += 9;
+    }
+
+    // GST
     doc.setFillColor(248, 248, 248);
     doc.rect(boxX, y, boxW, 9, "F");
     doc.setFont("helvetica", "normal");
@@ -915,6 +1254,7 @@ export default function QuotationModule() {
     doc.text(pdfCurrency(q.total_tax), boxX + boxW - 4, y + 6, { align: "right" });
     y += 9;
 
+    // Grand Total
     doc.setFillColor(...flatBg);
     doc.rect(boxX, y, boxW, 11, "F");
     doc.setFont("helvetica", "bold");
@@ -928,22 +1268,71 @@ export default function QuotationModule() {
 
     // Terms & Conditions
     if (q.notes) {
-      ensureSpace(20);
+      const lines = doc.splitTextToSize(q.notes, 182);
+      const minLinesToKeepWithHeading = Math.min(lines.length, 3);
+      const neededSpaceForHeader = 7 + 6 + (minLinesToKeepWithHeading * 4.5) + 6;
+      
+      ensureSpace(neededSpaceForHeader);
+      
       doc.setDrawColor(220, 220, 220);
       doc.line(14, y, 196, y);
       y += 7;
+      
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.setTextColor(...primaryRgb);
       doc.text("TERMS & CONDITIONS", 14, y);
       y += 6;
+      
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       doc.setTextColor(90, 90, 90);
-      const lines = doc.splitTextToSize(q.notes, 182);
-      ensureSpace(lines.length * 4 + 4);
-      doc.text(lines, 14, y);
-      y += lines.length * 4 + 10;
+      
+      for (const line of lines) {
+        ensureSpace(5);
+        doc.text(line, 14, y);
+        y += 4.5;
+      }
+      y += 6;
+    }
+
+    // Payment / Bank Details — the specific account selected on this quotation.
+    // q.bank_detail is populated when it comes from the list/detail fetch; when
+    // downloading right after Save (unpopulated id string), fall back to the
+    // already-loaded bank details list to resolve it.
+    const selectedBankDetail = (q as any).bank_detail && typeof (q as any).bank_detail === "object"
+      ? (q as any).bank_detail
+      : bankDetails.find((b: any) => b._id === (q as any).bank_detail);
+
+    if (selectedBankDetail) {
+      ensureSpace(25);
+
+      doc.setDrawColor(220, 220, 220);
+      doc.line(14, y, 196, y);
+      y += 7;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(...primaryRgb);
+      doc.text("PAYMENT / BANK DETAILS", 14, y);
+      y += 6;
+
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(20, 20, 20);
+      doc.text(selectedBankDetail.accountHolderName || "—", 14, y);
+      y += 4.5;
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(90, 90, 90);
+      doc.text(`Bank: ${selectedBankDetail.bankName || "—"}`, 14, y);
+      y += 4.5;
+      doc.text(`A/C No: ${selectedBankDetail.accountNumber || "—"}   IFSC: ${selectedBankDetail.ifscCode || "—"}`, 14, y);
+      y += 4.5;
+      if (selectedBankDetail.branch?.name) {
+        doc.text(`Branch: ${selectedBankDetail.branch.name}`, 14, y);
+        y += 4.5;
+      }
+      y += 4;
     }
 
     // Footer — company details + authorised signatory
@@ -973,11 +1362,13 @@ export default function QuotationModule() {
   const selectedClientLabel = customers.find((c: any) => c._id === clientId)?.company || "";
 
   const activeItem = sidebarItems.find((i) => i.id === activeTab);
-  const moduleTitle = currentType?.name ? `${activeItem?.label || "Quotations"} — ${currentType.name}` : activeItem?.label || "Quotations";
+  const activeLabel = activeTab === "create" && editingId ? "Edit Quotation" : (activeItem?.label || "Quotations");
+  const moduleTitle = currentType?.name
+    ? `${activeLabel} ${currentType.name}`
+    : activeLabel;
 
   const segBtnClass = (active: boolean) =>
-    `flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
-      active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+    `flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
     }`;
 
   return (
@@ -1058,7 +1449,7 @@ export default function QuotationModule() {
                 </div>
 
                 <Card className="rounded-2xl border-border/50 shadow-sm overflow-hidden">
-                  <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-border/50">
                     <h3 className="text-sm font-bold text-foreground">Recent Quotations</h3>
                     <Button onClick={() => setActiveTab("create")} className="rounded-xl font-semibold gap-2">
                       <Plus className="h-4 w-4" /> New Quotation
@@ -1073,42 +1464,44 @@ export default function QuotationModule() {
                         <p className="text-sm text-muted-foreground italic">No quotations yet.</p>
                       </div>
                     ) : (
-                      <table className="w-full text-sm text-left">
-                        <thead>
-                          <tr className="border-b border-border/40">
-                            <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">#</th>
-                            <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Client</th>
-                            <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Date</th>
-                            <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Amount</th>
-                            <th className="px-6 py-2.5 w-24" />
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/30">
-                          {recent.map((q) => (
-                            <tr key={q._id} className="hover:bg-muted/20 transition-colors">
-                              <td className="px-6 py-2.5 font-medium text-slate-700">{q.number}</td>
-                              <td className="px-6 py-2.5">{q.client?.company || "—"}</td>
-                              <td className="px-6 py-2.5 text-muted-foreground">
-                                {q.date ? new Date(q.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
-                              </td>
-                              <td className="px-6 py-2.5">₹{(q.total || 0).toLocaleString("en-IN")}</td>
-                              <td className="px-6 py-2.5 text-right">
-                                <div className="flex items-center justify-end gap-1">
-                                  <button onClick={() => handleDownloadPDF(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Download PDF">
-                                    <Download className="h-3.5 w-3.5" />
-                                  </button>
-                                  <button onClick={() => handleEdit(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Edit">
-                                    <Edit className="h-3.5 w-3.5" />
-                                  </button>
-                                  <button onClick={() => { if(window.confirm('Delete this quotation?')) deleteMutation.mutate(q._id) }} className="p-1.5 rounded-lg hover:red-50 text-muted-foreground hover:text-red-600 transition-colors">
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
-                                </div>
-                              </td>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm text-left min-w-[640px]">
+                          <thead>
+                            <tr className="border-b border-border/40">
+                              <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">#</th>
+                              <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Client</th>
+                              <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Date</th>
+                              <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Amount</th>
+                              <th className="px-6 py-2.5 w-24" />
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-border/30">
+                            {recent.map((q) => (
+                              <tr key={q._id} className="hover:bg-muted/20 transition-colors">
+                                <td className="px-6 py-2.5 font-medium text-slate-700">{q.number}</td>
+                                <td className="px-6 py-2.5">{q.client?.company || "—"}</td>
+                                <td className="px-6 py-2.5 text-muted-foreground">
+                                  {q.date ? new Date(q.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                                </td>
+                                <td className="px-6 py-2.5">₹{(q.total || 0).toLocaleString("en-IN")}</td>
+                                <td className="px-6 py-2.5 text-right">
+                                  <div className="flex items-center justify-end gap-1">
+                                    <button onClick={() => handleDownloadPDF(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Download PDF">
+                                      <Download className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button onClick={() => handleEdit(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Edit">
+                                      <Edit className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button onClick={() => { if (window.confirm('Delete this quotation?')) deleteMutation.mutate(q._id) }} className="p-1.5 rounded-lg hover:red-50 text-muted-foreground hover:text-red-600 transition-colors">
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -1187,14 +1580,49 @@ export default function QuotationModule() {
                   </div>
                   <CardContent className="p-6 space-y-5">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      {canUseBranch && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Branch</Label>
+                          <div className="space-y-1">
+                            <SearchableSelect
+                              placeholder="Select branch"
+                              options={branchesForType.map((b: any) => ({ value: idOf(b), label: b.name }))}
+                              value={selectedBranchId}
+                              onValueChange={(val) => { setSelectedBranchId(val); setClientId(""); }}
+                            />
+                            <button
+                              type="button"
+                              className="text-xs font-bold text-primary hover:underline"
+                              onClick={() => {
+                                const here = `${window.location.pathname}${window.location.search}`;
+                                navigate(`/admin/hrms/staff/branches/new?returnTo=${encodeURIComponent(here)}`);
+                              }}
+                            >
+                              + Add new branch
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Customer</Label>
-                        <SearchableSelect
-                          placeholder="Select customer"
-                          options={customers.map((c: any) => ({ value: c._id, label: c.company || "Unnamed customer" }))}
-                          value={clientId}
-                          onValueChange={setClientId}
-                        />
+                        <div className="space-y-1">
+                          <SearchableSelect
+                            placeholder={!canUseBranch || selectedBranchId ? "Select customer" : "Select a branch first"}
+                            options={customersForType.map((c: any) => ({ value: c._id, label: c.company || "Unnamed customer" }))}
+                            value={clientId}
+                            onValueChange={setClientId}
+                            disabled={canUseBranch && !selectedBranchId}
+                          />
+                          {isPilot && (
+                            <button
+                              type="button"
+                              className="text-xs font-bold text-primary hover:underline"
+                              onClick={() => { setNewCustomerForm({ ...emptyNewCustomer, branch: selectedBranchId }); setIsAddingCustomer(true); }}
+                            >
+                              + Add new customer manually
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Quotation Date</Label>
@@ -1203,9 +1631,11 @@ export default function QuotationModule() {
                       <div className="space-y-1.5">
                         <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Contact Number</Label>
                         <Input
-                          placeholder="+91 98765 43210"
+                          type="tel"
+                          maxLength={10}
+                          placeholder="e.g. 9876543210"
                           value={contactNumber}
-                          onChange={(e) => setContactNumber(e.target.value)}
+                          onChange={(e) => setContactNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
                           className="h-11"
                         />
                       </div>
@@ -1241,6 +1671,175 @@ export default function QuotationModule() {
                       </div>
                     )}
                   </CardContent>
+
+                  <Dialog open={isAddingCustomer} onOpenChange={setIsAddingCustomer}>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Add New Customer</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-2">
+                        <div className="space-y-2">
+                          <Label>Company <span className="text-destructive">*</span></Label>
+                          <Input
+                            placeholder="Company name"
+                            value={newCustomerForm.company}
+                            onChange={(e) => setNewCustomerForm((f) => ({ ...f, company: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Branch</Label>
+                          <SearchableSelect
+                            placeholder="Select branch"
+                            options={branchesForType.map((b: any) => ({ value: idOf(b), label: b.name }))}
+                            value={newCustomerForm.branch}
+                            onValueChange={(val) => setNewCustomerForm((f) => ({ ...f, branch: val }))}
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Customer Reference</Label>
+                            <Input
+                              placeholder="Customer reference"
+                              value={newCustomerForm.customer_reference}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, customer_reference: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Connect Person</Label>
+                            <Input
+                              placeholder="Contact person name"
+                              value={newCustomerForm.contact_person}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, contact_person: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>VAT Number</Label>
+                            <Input
+                              placeholder="VAT number"
+                              value={newCustomerForm.vat}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, vat: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Phone</Label>
+                            <Input
+                              type="tel"
+                              placeholder="+1 555-0100"
+                              maxLength={10}
+                              inputMode="numeric"
+                              value={newCustomerForm.phonenumber}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, phonenumber: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Email</Label>
+                            <Input
+                              type="email"
+                              placeholder="company@example.com"
+                              value={newCustomerForm.email}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, email: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Website</Label>
+                            <Input
+                              type="url"
+                              placeholder="https://example.com"
+                              value={newCustomerForm.website}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, website: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>PAN Number</Label>
+                            <Input
+                              placeholder="PAN number"
+                              value={newCustomerForm.pan_number}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, pan_number: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>GST Number</Label>
+                            <Input
+                              placeholder="GST number"
+                              value={newCustomerForm.gst_number}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, gst_number: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Account Details</Label>
+                          <Textarea
+                            placeholder="Bank name, account number, IFSC, etc."
+                            rows={2}
+                            value={newCustomerForm.account_details}
+                            onChange={(e) => setNewCustomerForm((f) => ({ ...f, account_details: e.target.value }))}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Address</Label>
+                          <Textarea
+                            placeholder="Full address"
+                            rows={2}
+                            value={newCustomerForm.address}
+                            onChange={(e) => setNewCustomerForm((f) => ({ ...f, address: e.target.value }))}
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>City</Label>
+                            <Input
+                              placeholder="City"
+                              value={newCustomerForm.city}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, city: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>State</Label>
+                            <Input
+                              placeholder="State"
+                              value={newCustomerForm.state}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, state: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Zip Code</Label>
+                            <Input
+                              placeholder="Zip code"
+                              value={newCustomerForm.zip}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, zip: e.target.value }))}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Country</Label>
+                            <Input
+                              placeholder="Country"
+                              value={newCustomerForm.country}
+                              onChange={(e) => setNewCustomerForm((f) => ({ ...f, country: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            className="flex-1"
+                            disabled={!newCustomerForm.company.trim() || createCustomerMutation.isPending}
+                            onClick={() => createCustomerMutation.mutate(newCustomerForm)}
+                          >
+                            {createCustomerMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Save
+                          </Button>
+                          <Button variant="outline" onClick={() => setIsAddingCustomer(false)}>Cancel</Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
 
                   {/* Logos & Branding */}
                   <div className="px-6 py-2.5 bg-blue-50 border-y border-blue-100">
@@ -1281,9 +1880,11 @@ export default function QuotationModule() {
                       <div className="space-y-1.5">
                         <Label className="text-xs font-medium text-muted-foreground">Default Contact Number</Label>
                         <Input
-                          placeholder="+91 98765 43210"
+                          type="tel"
+                          maxLength={10}
+                          placeholder="e.g. 9876543210 (10 digits)"
                           value={defaultContactNumber}
-                          onChange={(e) => setDefaultContactNumber(e.target.value)}
+                          onChange={(e) => setDefaultContactNumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
                           className="h-11"
                         />
                       </div>
@@ -1291,54 +1892,121 @@ export default function QuotationModule() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Brand Logo</Label>
-                        <label className="flex flex-col items-center justify-center gap-2 h-32 rounded-xl border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors overflow-hidden">
-                          {uploadingKey === "brandLogo" ? (
-                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                          ) : brandLogoUrl ? (
-                            <img src={brandLogoUrl} alt="Brand logo preview" className="h-full w-full object-contain p-3" />
-                          ) : (
-                            <>
-                              <ImagePlus className="h-6 w-6 text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground">Upload brand logo</span>
-                            </>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Brand Logo</Label>
+                          {brandLogoUrl && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setBrandLogoUrl(null)}
+                              className="h-6 px-2 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 gap-1 rounded-md"
+                            >
+                              <Trash2 className="h-3 w-3" /> Remove Logo
+                            </Button>
                           )}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => handleBrandLogoPick(e.target.files?.[0])}
-                          />
-                        </label>
+                        </div>
+                        <div className="relative group">
+                          <label className="flex flex-col items-center justify-center gap-2 h-32 rounded-xl border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors overflow-hidden">
+                            {uploadingKey === "brandLogo" ? (
+                              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                            ) : brandLogoUrl ? (
+                              <img src={resolveImageUrl(brandLogoUrl)} alt="Brand logo preview" className="h-full w-full object-contain p-3" onError={() => setBrandLogoUrl(null)} />
+                            ) : (
+                              <>
+                                <ImagePlus className="h-6 w-6 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">Upload brand logo</span>
+                              </>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleBrandLogoPick(e.target.files?.[0])}
+                            />
+                          </label>
+                          {brandLogoUrl && (
+                            <button
+                              type="button"
+                              title="Remove Brand Logo"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setBrandLogoUrl(null);
+                              }}
+                              className="absolute top-2 right-2 p-1.5 rounded-full bg-red-600/90 hover:bg-red-600 text-white transition-opacity shadow-md z-10"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
+
                       <div className="space-y-2">
-                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Client Logo</Label>
-                        <label className="flex flex-col items-center justify-center gap-2 h-32 rounded-xl border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors overflow-hidden">
-                          {uploadingKey === "clientLogo" ? (
-                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                          ) : clientLogoUrl ? (
-                            <img src={clientLogoUrl} alt="Client logo preview" className="h-full w-full object-contain p-3" />
-                          ) : (
-                            <>
-                              <ImagePlus className="h-6 w-6 text-muted-foreground" />
-                              <span className="text-xs text-muted-foreground">Upload client logo</span>
-                            </>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Client Logo</Label>
+                          {clientLogoUrl && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setClientLogoUrl(null)}
+                              className="h-6 px-2 text-[11px] font-semibold text-red-600 hover:text-red-700 hover:bg-red-50 gap-1 rounded-md"
+                            >
+                              <Trash2 className="h-3 w-3" /> Remove Logo
+                            </Button>
                           )}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(e) => handleClientLogoPick(e.target.files?.[0])}
-                          />
-                        </label>
+                        </div>
+                        <div className="relative group">
+                          <label className="flex flex-col items-center justify-center gap-2 h-32 rounded-xl border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors overflow-hidden">
+                            {uploadingKey === "clientLogo" ? (
+                              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                            ) : clientLogoUrl ? (
+                              <img src={resolveImageUrl(clientLogoUrl)} alt="Client logo preview" className="h-full w-full object-contain p-3" onError={() => setClientLogoUrl(null)} />
+                            ) : (
+                              <>
+                                <ImagePlus className="h-6 w-6 text-muted-foreground" />
+                                <span className="text-xs text-muted-foreground">Upload client logo</span>
+                              </>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => handleClientLogoPick(e.target.files?.[0])}
+                            />
+                          </label>
+                          {clientLogoUrl && (
+                            <button
+                              type="button"
+                              title="Remove Client Logo"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setClientLogoUrl(null);
+                              }}
+                              className="absolute top-2 right-2 p-1.5 rounded-full bg-red-600/90 hover:bg-red-600 text-white transition-opacity shadow-md z-10"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 p-3 rounded-xl bg-blue-50/60 border border-blue-100">
-                      <Checkbox id="saveDefaults" checked={saveBrandingDefault} onCheckedChange={(c) => setSaveBrandingDefault(c as boolean)} />
-                      <Label htmlFor="saveDefaults" className="text-xs font-medium text-blue-800">
-                        Save branding details as my default for all future quotations
-                      </Label>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-blue-50/60 border border-blue-100">
+                      <div className="flex items-center gap-2">
+                        <Checkbox id="saveDefaults" checked={saveBrandingDefault} onCheckedChange={(c) => setSaveBrandingDefault(c as boolean)} />
+                        <Label htmlFor="saveDefaults" className="text-xs font-medium text-blue-800 cursor-pointer">
+                          Save branding details as default for future quotations
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2 border-t sm:border-t-0 sm:border-l border-blue-200 pt-2 sm:pt-0 sm:pl-4">
+                        <Checkbox id="showItemImages" checked={showItemImages} onCheckedChange={(c) => setShowItemImages(c as boolean)} />
+                        <Label htmlFor="showItemImages" className="text-xs font-semibold text-blue-900 cursor-pointer">
+                          Include item photos in quotation output &amp; PDF
+                        </Label>
+                      </div>
                     </div>
                   </CardContent>
 
@@ -1366,12 +2034,53 @@ export default function QuotationModule() {
                                 <tr key={item.id}>
                                   <td className="py-2.5 pr-3 text-muted-foreground">{idx + 1}</td>
                                   <td className="py-2.5 pr-3">
-                                    <Input
-                                      placeholder="Item description..."
-                                      value={item.description}
-                                      onChange={(e) => updateItem(item.id, "description", e.target.value)}
-                                      className="h-10"
-                                    />
+                                    <div className="flex items-center gap-2">
+                                      <div className="relative group shrink-0">
+                                        <label
+                                          title="Upload or Change item photo"
+                                          className="flex flex-col items-center justify-center h-10 w-10 rounded-lg border border-dashed border-border/60 cursor-pointer hover:border-primary/50 overflow-hidden bg-background shrink-0 relative group"
+                                        >
+                                          {uploadingKey === `simple-${item.id}` ? (
+                                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                          ) : item.photoUrl ? (
+                                            <>
+                                              <img src={resolveImageUrl(item.photoUrl)} alt="" className="h-full w-full object-cover" />
+                                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                                <Edit className="h-3 w-3 text-white" />
+                                              </div>
+                                            </>
+                                          ) : (
+                                            <ImagePlus className="h-4 w-4 text-muted-foreground" />
+                                          )}
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => handleSimpleItemPhotoPick(item.id, e.target.files?.[0])}
+                                          />
+                                        </label>
+                                        {item.photoUrl && (
+                                          <button
+                                            type="button"
+                                            title="Remove Image"
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              e.stopPropagation();
+                                              updateItem(item.id, "photoUrl", "");
+                                            }}
+                                            className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-600 text-white flex items-center justify-center hover:bg-red-700 shadow transition-colors z-10"
+                                          >
+                                            <X className="h-2.5 w-2.5" />
+                                          </button>
+                                        )}
+                                      </div>
+                                      <Input
+                                        placeholder="Item description..."
+                                        value={item.description}
+                                        onChange={(e) => updateItem(item.id, "description", e.target.value)}
+                                        className="h-10 flex-1"
+                                      />
+                                    </div>
                                   </td>
                                   <td className="py-2.5 pr-3">
                                     <Input
@@ -1441,24 +2150,49 @@ export default function QuotationModule() {
                               {room.items.map((it) => (
                                 <div key={it.id} className="rounded-lg border border-border/40 p-4 space-y-3">
                                   <div className="flex items-start gap-3">
-                                    <label className="flex flex-col items-center justify-center gap-1 h-16 w-16 shrink-0 rounded-lg border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 transition-colors overflow-hidden">
-                                      {uploadingKey === `room-${room.id}-${it.id}` ? (
-                                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                                      ) : it.photoUrl ? (
-                                        <img src={it.photoUrl} alt="" className="h-full w-full object-cover" />
-                                      ) : (
-                                        <>
-                                          <Plus className="h-4 w-4 text-muted-foreground" />
-                                          <span className="text-[10px] text-muted-foreground">Photo</span>
-                                        </>
+                                    <div className="relative group shrink-0">
+                                      <label
+                                        title="Upload or Change item photo"
+                                        className="flex flex-col items-center justify-center gap-1 h-16 w-16 rounded-lg border-2 border-dashed border-border/60 cursor-pointer hover:border-primary/50 transition-colors overflow-hidden relative group"
+                                      >
+                                        {uploadingKey === `room-${room.id}-${it.id}` ? (
+                                          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                        ) : it.photoUrl ? (
+                                          <>
+                                            <img src={resolveImageUrl(it.photoUrl)} alt="" className="h-full w-full object-cover" />
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity">
+                                              <Edit className="h-4 w-4 text-white" />
+                                              <span className="text-[9px] text-white font-medium">Edit</span>
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Plus className="h-4 w-4 text-muted-foreground" />
+                                            <span className="text-[10px] text-muted-foreground">Photo</span>
+                                          </>
+                                        )}
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={(e) => handleRoomItemPhotoPick(room.id, it.id, e.target.files?.[0])}
+                                        />
+                                      </label>
+                                      {it.photoUrl && (
+                                        <button
+                                          type="button"
+                                          title="Remove Image"
+                                          onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            updateRoomItem(room.id, it.id, "photoUrl", "");
+                                          }}
+                                          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-600 text-white flex items-center justify-center hover:bg-red-700 shadow transition-colors z-10"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
                                       )}
-                                      <input
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={(e) => handleRoomItemPhotoPick(room.id, it.id, e.target.files?.[0])}
-                                      />
-                                    </label>
+                                    </div>
                                     <div className="flex-1 space-y-1.5">
                                       <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Description</Label>
                                       <Input
@@ -1545,6 +2279,25 @@ export default function QuotationModule() {
                         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[140px] text-sm" />
                       </div>
 
+                      {canUseBankDetails && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Bank Details</Label>
+                          <Select value={bankDetailId || "none"} onValueChange={(v) => setBankDetailId(v === "none" ? "" : v)}>
+                            <SelectTrigger className="h-10 rounded-xl">
+                              <SelectValue placeholder="Select Bank Account" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {activeBankDetails.map((bd: any) => (
+                                <SelectItem key={bd._id} value={bd._id}>
+                                  {bd.bankName} — {bd.accountNumber}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
                       {format === "pro" && (
                         <div className="space-y-3">
                           <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
@@ -1601,6 +2354,23 @@ export default function QuotationModule() {
                           <span className="font-medium">₹{subtotal.toFixed(2)}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Discount (%)</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={discountPercent}
+                            onChange={(e) => setDiscountPercent(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                            className="h-8 w-20 text-center"
+                          />
+                        </div>
+                        {discountPercent > 0 && (
+                          <div className="flex items-center justify-between text-sm text-destructive font-medium">
+                            <span>Discount Amount</span>
+                            <span>-₹{discountAmount.toFixed(2)}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">GST Rate (%)</span>
                           <Input
                             type="number"
@@ -1618,7 +2388,7 @@ export default function QuotationModule() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/40">
+                    <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-border/40">
                       <Button
                         variant="ghost"
                         className="rounded-xl font-semibold"
@@ -1631,6 +2401,16 @@ export default function QuotationModule() {
                         Cancel
                       </Button>
                       <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-xl font-semibold gap-2 border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                        disabled={createMutation.isPending || updateMutation.isPending}
+                        onClick={handleSaveDraft}
+                      >
+                        <FileText className="h-4 w-4" />
+                        Save as Draft
+                      </Button>
+                      <Button
                         variant="outline"
                         className="rounded-xl font-semibold gap-2"
                         disabled={createMutation.isPending || updateMutation.isPending}
@@ -1639,7 +2419,7 @@ export default function QuotationModule() {
                         {(createMutation.isPending || updateMutation.isPending) && (createMutation.variables === "draft" || updateMutation.variables === "draft") ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          <Save className="h-4 w-4" />
+                          <Download className="h-4 w-4" />
                         )}
                         {editingId ? "Update & Download PDF" : "Save & Download PDF"}
                       </Button>
@@ -1666,9 +2446,9 @@ export default function QuotationModule() {
                   </Button>
                 </div>
                 <CardContent className="p-0">
-                  {isLoadingAll ? (
+                  {isLoadingList ? (
                     <p className="text-sm text-muted-foreground italic text-center py-12">Loading all quotations...</p>
-                  ) : allQuotations.length === 0 ? (
+                  ) : quotationsList.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 gap-2">
                       <FileBarChart className="h-8 w-8 text-muted-foreground/40" />
                       <p className="text-sm text-muted-foreground italic">No quotations found.</p>
@@ -1686,11 +2466,12 @@ export default function QuotationModule() {
                             <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Amount</th>
                             <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Grand Total</th>
                             <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Status</th>
+                            {canUseBankDetails && <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Bank Details</th>}
                             <th className="px-6 py-4 w-24 text-right font-bold text-xs text-muted-foreground uppercase tracking-wider">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/30">
-                          {allQuotations.map((q) => (
+                          {quotationsList.map((q) => (
                             <tr key={q._id} className="hover:bg-muted/20 transition-colors">
                               <td className="px-6 py-3 font-medium text-slate-700">{q.number || "—"}</td>
                               <td className="px-6 py-3 font-medium">{q.client?.company || "—"}</td>
@@ -1712,6 +2493,11 @@ export default function QuotationModule() {
                                   {q.status || "Draft"}
                                 </span>
                               </td>
+                              {canUseBankDetails && (
+                                <td className="px-6 py-3 text-muted-foreground">
+                                  {(q as any).bank_detail ? `${(q as any).bank_detail.bankName || ""} — ${(q as any).bank_detail.accountNumber || ""}` : "-"}
+                                </td>
+                              )}
                               <td className="px-6 py-3 text-right">
                                 <div className="flex items-center justify-end gap-1">
                                   <button onClick={() => handleDownloadPDF(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Download PDF">
@@ -1720,7 +2506,7 @@ export default function QuotationModule() {
                                   <button onClick={() => handleEdit(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Edit">
                                     <Edit className="h-3.5 w-3.5" />
                                   </button>
-                                  <button onClick={() => { if(window.confirm('Delete this quotation?')) deleteMutation.mutate(q._id) }} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors" title="Delete">
+                                  <button onClick={() => { if (window.confirm('Delete this quotation?')) deleteMutation.mutate(q._id) }} className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors" title="Delete">
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
@@ -1731,6 +2517,48 @@ export default function QuotationModule() {
                       </table>
                     </div>
                   )}
+
+                  {/* Pagination Footer */}
+                  <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-6 py-4 border-t border-border/50">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="text-xs font-bold text-muted-foreground">Rows per page</span>
+                      <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
+                        <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["10", "25", "50", "100", "All"].map((v) => (
+                            <SelectItem key={v} value={v}>{v}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs font-bold text-muted-foreground italic">
+                        Showing {totalQuotations === 0 ? 0 : (safeQuotationsPage - 1) * quotationsPageSize + 1} to {Math.min(safeQuotationsPage * quotationsPageSize, totalQuotations)} of {totalQuotations} entries
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-4 rounded-lg font-bold text-xs"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={safeQuotationsPage <= 1}
+                      >
+                        Previous
+                      </Button>
+                      <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">{safeQuotationsPage}</div>
+                      <span className="text-xs text-muted-foreground px-1">of {totalQuotationPages}</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-4 rounded-lg font-bold text-xs"
+                        onClick={() => setCurrentPage((p) => Math.min(totalQuotationPages, p + 1))}
+                        disabled={safeQuotationsPage >= totalQuotationPages}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -1756,9 +2584,12 @@ export default function QuotationModule() {
         items={items}
         rooms={rooms}
         subtotal={subtotal}
+        discountPercent={discountPercent}
+        discountAmount={discountAmount}
         gstPercent={gstPercent}
         gstAmount={gstAmount}
         grandTotal={grandTotal}
+        showItemImages={showItemImages}
       />
     </DashboardLayout>
   );
@@ -1782,9 +2613,12 @@ function QuotationPreviewDialog({
   items,
   rooms,
   subtotal,
+  discountPercent,
+  discountAmount,
   gstPercent,
   gstAmount,
   grandTotal,
+  showItemImages = true,
 }: any) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1797,21 +2631,25 @@ function QuotationPreviewDialog({
           {/* Letterhead */}
           <div className="flex items-center justify-between pb-4 border-b border-border/40">
             <div className="flex items-center gap-3">
-              {brandLogoUrl && <img src={brandLogoUrl} alt="Brand" className="h-10 w-10 object-contain rounded" />}
+              {brandLogoUrl && <img src={resolveImageUrl(brandLogoUrl)} alt="Brand" className="h-10 w-10 object-contain rounded" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
               <div>
                 <p className="font-bold text-slate-900">{companyName || "Your Company"}</p>
                 {tagline && <p className="text-xs text-muted-foreground">{tagline}</p>}
               </div>
             </div>
-            {clientLogoUrl && <img src={clientLogoUrl} alt="Client" className="h-10 w-10 object-contain rounded" />}
+            {clientLogoUrl && <img src={resolveImageUrl(clientLogoUrl)} alt="Client" className="h-10 w-10 object-contain rounded" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
           </div>
 
           {/* Client info */}
-          <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
             <div>
               <p className="text-xs text-muted-foreground uppercase tracking-widest mb-0.5">Client</p>
               <p className="font-medium">{clientLabel || "—"}</p>
-              <p className="text-muted-foreground">{contactNumber || "—"}</p>
+              {contactNumber ? (
+                <WhatsAppQuickChat phone={contactNumber} data={{ customer_name: clientLabel }} />
+              ) : (
+                <p className="text-muted-foreground">—</p>
+              )}
               <p className="text-muted-foreground">{address || "—"}</p>
             </div>
             <div className="text-right">
@@ -1824,24 +2662,31 @@ function QuotationPreviewDialog({
 
           {/* Items */}
           {format === "simple" ? (
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-layout-fixed border-collapse">
               <thead>
-                <tr className="border-b border-border/40 text-left text-xs text-muted-foreground uppercase tracking-widest">
-                  <th className="pb-2">Description</th>
-                  <th className="pb-2 text-right">Qty</th>
-                  <th className="pb-2 text-right">Rate</th>
-                  <th className="pb-2 text-right">Amount</th>
+                <tr className="border-b border-border/45 text-left text-xs text-muted-foreground uppercase tracking-widest bg-muted/20">
+                  <th className="py-2.5 px-4 text-left">Description</th>
+                  <th className="py-2.5 px-4 text-right w-20">Qty</th>
+                  <th className="py-2.5 px-4 text-right w-28">Rate</th>
+                  <th className="py-2.5 px-4 text-right w-32">Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/20">
                 {items
                   .filter((i: ItemRow) => i.description.trim())
                   .map((i: ItemRow) => (
-                    <tr key={i.id}>
-                      <td className="py-2">{i.description}</td>
-                      <td className="py-2 text-right">{i.qty}</td>
-                      <td className="py-2 text-right">₹{Number(i.rate).toFixed(2)}</td>
-                      <td className="py-2 text-right font-medium">₹{(i.qty * i.rate).toFixed(2)}</td>
+                    <tr key={i.id} className="hover:bg-muted/10 transition-colors">
+                      <td className="py-3 px-4 align-middle">
+                        <div className="flex items-center gap-2">
+                          {showItemImages && (i.photoUrl || (i as any).photo_url) && (
+                            <img src={resolveImageUrl(i.photoUrl || (i as any).photo_url)} alt="" className="h-7 w-7 rounded object-cover border shrink-0" />
+                          )}
+                          <span className="break-all whitespace-pre-wrap min-w-0 flex-1 text-slate-800">{i.description}</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right align-middle text-slate-600">{i.qty}</td>
+                      <td className="py-3 px-4 text-right align-middle text-slate-600">₹{Number(i.rate).toFixed(2)}</td>
+                      <td className="py-3 px-4 text-right align-middle font-semibold text-slate-800">₹{(i.qty * i.rate).toFixed(2)}</td>
                     </tr>
                   ))}
               </tbody>
@@ -1851,22 +2696,29 @@ function QuotationPreviewDialog({
               {rooms.map((room: Room) => (
                 <div key={room.id}>
                   <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1.5">{room.name}</p>
-                  <table className="w-full text-sm">
+                  <table className="w-full text-sm table-layout-fixed border-collapse">
                     <thead>
-                      <tr className="border-b border-border/40 text-left text-xs text-muted-foreground uppercase tracking-widest">
-                        <th className="pb-2">Description</th>
-                        <th className="pb-2 text-right">Qty</th>
-                        <th className="pb-2 text-right">Disc%</th>
-                        <th className="pb-2 text-right">Amount</th>
+                      <tr className="border-b border-border/45 text-left text-xs text-muted-foreground uppercase tracking-widest bg-muted/20">
+                        <th className="py-2.5 px-4 text-left">Description</th>
+                        <th className="py-2.5 px-4 text-right w-20">Qty</th>
+                        <th className="py-2.5 px-4 text-right w-24">Disc%</th>
+                        <th className="py-2.5 px-4 text-right w-32">Amount</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/20">
                       {room.items.filter((i) => i.description.trim()).map((i) => (
-                        <tr key={i.id}>
-                          <td className="py-2">{i.description}</td>
-                          <td className="py-2 text-right">{i.qty}</td>
-                          <td className="py-2 text-right">{i.disc_percent}%</td>
-                          <td className="py-2 text-right font-medium">₹{roomItemTotal(i).toFixed(2)}</td>
+                        <tr key={i.id} className="hover:bg-muted/10 transition-colors">
+                          <td className="py-3 px-4 align-middle">
+                            <div className="flex items-center gap-2">
+                              {showItemImages && (i.photoUrl || (i as any).photo_url) && (
+                                <img src={resolveImageUrl(i.photoUrl || (i as any).photo_url)} alt="" className="h-7 w-7 rounded object-cover border shrink-0" />
+                              )}
+                              <span className="break-all whitespace-pre-wrap min-w-0 flex-1 text-slate-800">{i.description}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-right align-middle text-slate-600">{i.qty}</td>
+                          <td className="py-3 px-4 text-right align-middle text-slate-600">{i.disc_percent}%</td>
+                          <td className="py-3 px-4 text-right align-middle font-semibold text-slate-800">₹{roomItemTotal(i).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1883,6 +2735,12 @@ function QuotationPreviewDialog({
                 <span className="text-muted-foreground">Subtotal</span>
                 <span>₹{subtotal.toFixed(2)}</span>
               </div>
+              {discountPercent > 0 && (
+                <div className="flex justify-between text-destructive font-medium">
+                  <span>Discount ({discountPercent}%)</span>
+                  <span>-₹{discountAmount.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">GST ({gstPercent}%)</span>
                 <span>₹{gstAmount.toFixed(2)}</span>

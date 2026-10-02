@@ -14,12 +14,18 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DataTable } from "@/components/shared/DataTable";
+import { DEFAULT_WHATSAPP_QC_TEMPLATES, type WhatsappQcTemplateEntry } from "@/lib/whatsappQuickChat";
+import { WhatsappQuickChatSettingsTab } from "./WhatsappQuickChatSettingsTab";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { settingsService } from "@/api/services/settings.service";
+import { externalDataSourceService } from "@/api/services/externalDataSource.service";
 import { toast } from "sonner";
 import { LANGUAGES_SETUP_KEYS } from "@/lib/languages";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { estimateService } from "@/api/services/estimate.service";
 import {
   Settings,
@@ -46,6 +52,7 @@ import {
   PenLine,
   Tag,
   MessageSquare,
+  MessageCircle,
   Clock,
   Layers,
   Info,
@@ -66,7 +73,12 @@ import {
   X,
   ChevronDown,
   Table as TableIcon,
-  PlusCircle
+  PlusCircle,
+  EyeOff,
+  Plus,
+  Pencil,
+  Trash2,
+  Loader2
 } from "lucide-react";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
@@ -125,6 +137,8 @@ const settingsNavigation: SettingCategory[] = [
     items: [
       { id: "int-google", label: "Google", icon: Search },
       { id: "int-pusher", label: "Pusher.com", icon: ExternalLink },
+      { id: "int-external-api", label: "External APIs", icon: Plug },
+      { id: "int-whatsapp-qc", label: "WhatsApp Quick Chat", icon: MessageCircle },
     ]
   },
   {
@@ -153,6 +167,7 @@ const settingsNavigation: SettingCategory[] = [
 export default function SetupSettings() {
   const [activeTab, setActiveTab] = useState("gen-general");
   const { settings: globalSettings, refreshSettings: refreshGlobalSettings } = useSettings();
+  const { user: currentUser } = usePermissions();
 
   const { data: estimateForms = [] } = useQuery({
     queryKey: ["estimate-request-forms"],
@@ -187,6 +202,10 @@ export default function SetupSettings() {
   const [companyName, setCompanyName] = useState(() => getInit("companyName", "CRM Pro Inc."));
   const [companyDomain, setCompanyDomain] = useState(() => getInit("companyDomain", ""));
   const [allowedFileTypes, setAllowedFileTypes] = useState(() => getInit("allowedFileTypes", "pdf,doc,docx,jpg,png,zip"));
+  const [whatsappQcEnabled, setWhatsappQcEnabled] = useState(() => getInit("whatsappQcEnabled", false));
+  const [whatsappQcTemplates, setWhatsappQcTemplates] = useState<WhatsappQcTemplateEntry[]>(
+    () => getInit("whatsappQcTemplates", DEFAULT_WHATSAPP_QC_TEMPLATES)
+  );
   const [locDisableLanguages, setLocDisableLanguages] = useState(() => getInit("locDisableLanguages", false));
   const [locClientPdfLanguage, setLocClientPdfLanguage] = useState(() => getInit("locClientPdfLanguage", "English"));
   const [locDateFormat, setLocDateFormat] = useState(() => getInit("locDateFormat", "YYYY-MM-DD"));
@@ -477,6 +496,106 @@ export default function SetupSettings() {
   const [intPusherDesktopEnabled, setIntPusherDesktopEnabled] = useState(() => getInit("intPusherDesktopEnabled", true));
   const [intPusherDismissSeconds, setIntPusherDismissSeconds] = useState(() => getInit("intPusherDismissSeconds", 0));
 
+  // External API data sources — unlike the settings above, this is a growable
+  // admin-managed list (own model/CRUD, not a single Setting value), so it's
+  // wired with react-query rather than getInit/handleSaveSettings.
+  const queryClient = useQueryClient();
+  const [isExternalApiDialogOpen, setIsExternalApiDialogOpen] = useState(false);
+  const [editingExternalApiSource, setEditingExternalApiSource] = useState<any>(null);
+  const [showExternalApiKey, setShowExternalApiKey] = useState(false);
+  const [showExternalApiPassword, setShowExternalApiPassword] = useState(false);
+  const emptyExternalApiForm = { name: "", api_url: "", method: "GET", api_key: "", api_password: "", data_path: "" };
+  const [externalApiForm, setExternalApiForm] = useState(emptyExternalApiForm);
+
+  const { data: externalApiSources = [], isLoading: isExternalApiLoading } = useQuery({
+    queryKey: ["external-data-sources"],
+    queryFn: externalDataSourceService.getAll,
+  });
+
+  const invalidateExternalApiSources = () => queryClient.invalidateQueries({ queryKey: ["external-data-sources"] });
+
+  const createExternalApiSourceMutation = useMutation({
+    mutationFn: (data: any) => externalDataSourceService.create(data),
+    onSuccess: () => {
+      invalidateExternalApiSources();
+      toast.success("API data source added");
+      setIsExternalApiDialogOpen(false);
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to add data source"),
+  });
+
+  const updateExternalApiSourceMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => externalDataSourceService.update(id, data),
+    onSuccess: () => {
+      invalidateExternalApiSources();
+      toast.success("API data source updated");
+      setIsExternalApiDialogOpen(false);
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to update data source"),
+  });
+
+  const deleteExternalApiSourceMutation = useMutation({
+    mutationFn: (id: string) => externalDataSourceService.delete(id),
+    onSuccess: () => {
+      invalidateExternalApiSources();
+      toast.success("API data source removed");
+    },
+    onError: (error: any) => toast.error(error.message || "Failed to remove data source"),
+  });
+
+  const handleAddExternalApiSource = () => {
+    setEditingExternalApiSource(null);
+    setExternalApiForm(emptyExternalApiForm);
+    setShowExternalApiKey(false);
+    setShowExternalApiPassword(false);
+    setIsExternalApiDialogOpen(true);
+  };
+
+  const handleEditExternalApiSource = (source: any) => {
+    setEditingExternalApiSource(source);
+    setExternalApiForm({
+      name: source.name || "",
+      api_url: source.api_url || "",
+      method: source.method || "GET",
+      // Never prefilled with the real secret — leaving it blank on edit means
+      // "keep the existing one", matching the backend's undefined-vs-empty-string convention.
+      api_key: "",
+      api_password: "",
+      data_path: source.data_path || "",
+    });
+    setShowExternalApiKey(false);
+    setShowExternalApiPassword(false);
+    setIsExternalApiDialogOpen(true);
+  };
+
+  const handleDeleteExternalApiSource = (source: any) => {
+    if (window.confirm(`Delete the "${source.name}" data source? This cannot be undone.`)) {
+      deleteExternalApiSourceMutation.mutate(source._id);
+    }
+  };
+
+  const handleSaveExternalApiSource = () => {
+    if (!externalApiForm.name.trim() || !externalApiForm.api_url.trim()) {
+      toast.error("Form Name and API URL are required");
+      return;
+    }
+    if (editingExternalApiSource) {
+      // The edit form always shows api_key/api_password blank (never the real
+      // secret) — sending "" would tell the backend to clear the stored
+      // credential (its update contract treats "" as "clear", undefined as
+      // "leave alone"), wiping it whenever the admin edits any other field
+      // without retyping the key. Omit them here unless the admin typed a
+      // new value, so the existing credential survives unrelated edits.
+      const { api_key, api_password, ...rest } = externalApiForm;
+      const data: any = { ...rest };
+      if (api_key) data.api_key = api_key;
+      if (api_password) data.api_password = api_password;
+      updateExternalApiSourceMutation.mutate({ id: editingExternalApiSource._id, data });
+    } else {
+      createExternalApiSourceMutation.mutate(externalApiForm);
+    }
+  };
+
   const [emailHeader, setEmailHeader] = useState(() => getInit("emailHeader", `<!doctype html>
 <html>
 <head>
@@ -555,6 +674,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   const [compLogoLight, setCompLogoLight] = useState(() => getInit("compLogoLight", ""));
   const [compLogoDark, setCompLogoDark] = useState(() => getInit("compLogoDark", ""));
   const [favicon, setFavicon] = useState(() => getInit("favicon", ""));
+  const [ogImage, setOgImage] = useState(() => getInit("ogImage", ""));
 
   // Company Information State
   const [compAddress, setCompAddress] = useState(() => getInit("compAddress", ""));
@@ -669,6 +789,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   const stateMapping: any = {
     rtlAdmin: [rtlAdmin, setRtlAdmin],
     rtlCustomers: [rtlCustomers, setRtlCustomers],
+    whatsappQcEnabled: [whatsappQcEnabled, setWhatsappQcEnabled],
+    whatsappQcTemplates: [whatsappQcTemplates, setWhatsappQcTemplates],
     companyName: [companyName, setCompanyName],
     companyDomain: [companyDomain, setCompanyDomain],
     allowedFileTypes: [allowedFileTypes, setAllowedFileTypes],
@@ -1033,6 +1155,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
     compLogoLight: [compLogoLight, setCompLogoLight],
     compLogoDark: [compLogoDark, setCompLogoDark],
     favicon: [favicon, setFavicon],
+    ogImage: [ogImage, setOgImage],
     compAddress: [compAddress, setCompAddress],
     compCity: [compCity, setCompCity],
     compState: [compState, setCompState],
@@ -1254,7 +1377,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           }}
                           className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
                         />
-                        {compLogoLight && <img src={resolveImageUrl(compLogoLight)} className="h-8 w-auto border rounded p-1" alt="Logo Light" />}
+                        {compLogoLight && <img src={resolveImageUrl(compLogoLight)} className="h-8 w-auto border rounded p-1" alt="Logo Light" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                       </div>
                     </div>
                     <div className="space-y-3 pt-4 border-t">
@@ -1272,7 +1395,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           }}
                           className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
                         />
-                        {compLogoDark && <img src={resolveImageUrl(compLogoDark)} className="h-8 w-auto bg-slate-800 border rounded p-1" alt="Logo Dark" />}
+                        {compLogoDark && <img src={resolveImageUrl(compLogoDark)} className="h-8 w-auto bg-slate-800 border rounded p-1" alt="Logo Dark" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                       </div>
                     </div>
                     <div className="space-y-3 pt-4 border-t">
@@ -1290,7 +1413,28 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           }}
                           className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
                         />
-                        {favicon && <img src={resolveImageUrl(favicon)} className="h-6 w-6 border rounded p-0.5" alt="Favicon" />}
+                        {favicon && <img src={resolveImageUrl(favicon)} className="h-6 w-6 border rounded p-0.5" alt="Favicon" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
+                      </div>
+                    </div>
+                    <div className="space-y-3 pt-4 border-t">
+                      <Label className="text-sm font-semibold">Social Share Image (OG Image)</Label>
+                      <p className="text-xs text-muted-foreground -mt-1">
+                        Shown as the preview thumbnail when a link to this CRM is shared on social media, Slack, WhatsApp, etc. Works best at 1200×630px.
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          type="file"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () => setOgImage(reader.result as string);
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
+                        />
+                        {ogImage && <img src={resolveImageUrl(ogImage)} className="h-14 w-auto border rounded p-1" alt="OG Image" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
                       </div>
                     </div>
                   </div>
@@ -1357,8 +1501,21 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       className="max-w-md"
                     />
                   </div>
+
                 </CardContent>
               </Card>
+            )}
+
+            {activeTab === "int-whatsapp-qc" && (
+              <WhatsappQuickChatSettingsTab
+                enabled={whatsappQcEnabled}
+                setEnabled={setWhatsappQcEnabled}
+                templates={whatsappQcTemplates}
+                setTemplates={setWhatsappQcTemplates}
+                companyName={companyName}
+                currentUser={currentUser}
+                onPersisted={refreshGlobalSettings}
+              />
             )}
 
             {activeTab === "gen-company" && (
@@ -1437,7 +1594,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         placeholder="Enter phone number"
                         className="max-w-md"
                         value={compPhone}
-                        onChange={(e) => setCompPhone(e.target.value)}
+                        onChange={(e) => setCompPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                        maxLength={10}
+                        inputMode="numeric"
                       />
                     </div>
                     <div className="space-y-2 pt-4 border-t">
@@ -3839,7 +3998,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             <div className="flex items-center justify-between p-2 border-b">
                               <Button
                                 variant="ghost"
-                                size="xs"
+                                size="sm"
                                 className="text-[10px] h-7 w-full hover:bg-primary/10 hover:text-primary"
                                 onClick={() => setCustVisibleTabs(["notes", "statement", "invoices", "payments", "proposals", "credit notes", "estimates", "subscriptions", "expenses", "contracts", "projects", "tasks", "tickets", "files", "vault", "reminders", "map"])}
                               >
@@ -3847,7 +4006,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="xs"
+                                size="sm"
                                 className="text-[10px] h-7 w-full hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => setCustVisibleTabs([])}
                               >
@@ -3907,7 +4066,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             <div className="flex items-center justify-between p-2 border-b">
                               <Button
                                 variant="ghost"
-                                size="xs"
+                                size="sm"
                                 className="text-[10px] h-7 w-full hover:bg-primary/10 hover:text-primary"
                                 onClick={() => setCustRequiredFields([
                                   "firstname-contact", "lastname-contact", "emailaddress-contact",
@@ -3921,7 +4080,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                               </Button>
                               <Button
                                 variant="ghost"
-                                size="xs"
+                                size="sm"
                                 className="text-[10px] h-7 w-full hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => setCustRequiredFields([])}
                               >
@@ -4808,6 +4967,152 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   </div>
                 </CardContent>
               </Card>
+            )}
+
+            {activeTab === "int-external-api" && (
+              <>
+                <Card className="border shadow-sm">
+                  <CardHeader className="border-b bg-muted/30">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Plug className="h-5 w-5 text-primary" />
+                        <CardTitle className="text-lg">External APIs</CardTitle>
+                      </div>
+                      <Button size="sm" className="gap-2" onClick={handleAddExternalApiSource}>
+                        <Plus className="h-4 w-4" /> Add Data Source
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Connect your own website's API — the CRM fetches its data on the server and shows it as a table on the main Dashboard.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <DataTable
+                      columns={[
+                        { key: "name", label: "Form Name" },
+                        { key: "api_url", label: "API URL" },
+                        { key: "method", label: "Method" },
+                      ]}
+                      data={externalApiSources}
+                      isLoading={isExternalApiLoading}
+                      idField="_id"
+                      onEdit={handleEditExternalApiSource}
+                      onDelete={handleDeleteExternalApiSource}
+                    />
+                  </CardContent>
+                </Card>
+
+                <Dialog open={isExternalApiDialogOpen} onOpenChange={setIsExternalApiDialogOpen}>
+                  <DialogContent className="sm:max-w-[520px] p-0 overflow-hidden">
+                    <DialogHeader className="px-6 py-4 border-b bg-muted/30">
+                      <DialogTitle>{editingExternalApiSource ? "Edit Data Source" : "New Data Source"}</DialogTitle>
+                    </DialogHeader>
+                    <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-bold"><span className="text-red-500">*</span> Form Name</Label>
+                        <Input
+                          value={externalApiForm.name}
+                          onChange={(e) => setExternalApiForm((p) => ({ ...p, name: e.target.value }))}
+                          placeholder="e.g. Website Enquiries"
+                          className="h-11"
+                        />
+                        <p className="text-[11px] text-muted-foreground">Shown as the table's title on the main Dashboard.</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-bold"><span className="text-red-500">*</span> API URL</Label>
+                        <Input
+                          value={externalApiForm.api_url}
+                          onChange={(e) => setExternalApiForm((p) => ({ ...p, api_url: e.target.value }))}
+                          placeholder="https://yourwebsite.com/api/enquiries"
+                          className="h-11"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-bold">Method</Label>
+                        <Select value={externalApiForm.method} onValueChange={(v) => setExternalApiForm((p) => ({ ...p, method: v }))}>
+                          <SelectTrigger className="h-11"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="GET">GET</SelectItem>
+                            <SelectItem value="POST">POST</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-bold">API Key</Label>
+                        <div className="relative">
+                          <Input
+                            type={showExternalApiKey ? "text" : "password"}
+                            value={externalApiForm.api_key}
+                            onChange={(e) => setExternalApiForm((p) => ({ ...p, api_key: e.target.value }))}
+                            placeholder={editingExternalApiSource ? "Leave blank to keep existing" : "Optional"}
+                            className="h-11 pr-10"
+                            disableVoice
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowExternalApiKey((v) => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showExternalApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-bold">Password</Label>
+                        <div className="relative">
+                          <Input
+                            type={showExternalApiPassword ? "text" : "password"}
+                            value={externalApiForm.api_password}
+                            onChange={(e) => setExternalApiForm((p) => ({ ...p, api_password: e.target.value }))}
+                            placeholder={editingExternalApiSource ? "Leave blank to keep existing" : "Optional"}
+                            className="h-11 pr-10"
+                            disableVoice
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowExternalApiPassword((v) => !v)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          >
+                            {showExternalApiPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          API Key and Password (if set) are sent to your API as the <code>X-API-Key</code> / <code>X-API-Password</code> headers.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-bold">Data Path (optional)</Label>
+                        <Input
+                          value={externalApiForm.data_path}
+                          onChange={(e) => setExternalApiForm((p) => ({ ...p, data_path: e.target.value }))}
+                          placeholder="e.g. data.items"
+                          className="h-11"
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Only needed if your API's response wraps the list inside an object. Leave blank if it just returns a list directly.
+                        </p>
+                      </div>
+                    </div>
+                    <DialogFooter className="px-6 py-4 border-t bg-muted/30">
+                      <Button variant="outline" onClick={() => setIsExternalApiDialogOpen(false)}>Cancel</Button>
+                      <Button
+                        onClick={handleSaveExternalApiSource}
+                        disabled={createExternalApiSourceMutation.isPending || updateExternalApiSourceMutation.isPending}
+                      >
+                        {(createExternalApiSourceMutation.isPending || updateExternalApiSourceMutation.isPending) && (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        )}
+                        Save
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </>
             )}
 
             {activeTab === "oth-calendar" && (
@@ -6299,7 +6604,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
             )}
 
             {/* Placeholder for other tabs */}
-            {!["gen-general", "gen-company", "gen-localization", "gen-email", "gen-update", "gen-server", "fin-general", "fin-invoices", "fin-proposals", "fin-estimates", "fin-credit-notes", "fin-subscriptions", "fin-gateways", "feat-customers", "feat-tasks", "feat-support", "feat-leads", "int-google", "int-pusher", "oth-calendar", "oth-pdf", "oth-esign", "oth-tags", "oth-sms", "misc-misc", "misc-tables", "misc-inline", "misc-cron"].includes(activeTab) && (
+            {!["gen-general", "gen-company", "gen-localization", "gen-email", "gen-update", "gen-server", "fin-general", "fin-invoices", "fin-proposals", "fin-estimates", "fin-credit-notes", "fin-subscriptions", "fin-gateways", "feat-customers", "feat-tasks", "feat-support", "feat-leads", "int-google", "int-pusher", "int-external-api", "int-whatsapp-qc", "oth-calendar", "oth-pdf", "oth-esign", "oth-tags", "oth-sms", "misc-misc", "misc-tables", "misc-inline", "misc-cron"].includes(activeTab) && (
               <Card className="border shadow-sm min-h-[400px] flex items-center justify-center bg-muted/10">
                 <div className="text-center space-y-3">
                   <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">

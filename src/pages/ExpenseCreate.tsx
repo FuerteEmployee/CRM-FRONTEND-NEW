@@ -324,7 +324,7 @@ const ExpenseCreate = () => {
               <div className="space-y-1">
                 <ToggleButton label="Tax" isOpen={showTax} onClick={() => setShowTax(!showTax)} />
                 {showTax && (
-                  <div className="grid grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-300">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-300">
                     <div className="space-y-1">
                       <Label className="text-[9px] font-bold text-slate-400 uppercase">Tax 1</Label>
                       <Select value={formData.tax} onValueChange={(val) => handleSelectChange("tax", val)}>

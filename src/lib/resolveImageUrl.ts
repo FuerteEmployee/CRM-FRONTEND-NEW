@@ -7,6 +7,30 @@ const BACKEND_ORIGIN = (import.meta.env.VITE_API_URL || "").replace(/\/api\/?$/,
 
 export const resolveImageUrl = (val?: string) => {
   if (!val || typeof val !== "string") return "";
-  if (val.startsWith("data:") || val.startsWith("http") || val.startsWith("blob:")) return val;
-  return `${BACKEND_ORIGIN}/uploads/logos/${val}`;
+  const trimmed = val.trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("data:") || trimmed.startsWith("http:") || trimmed.startsWith("https:") || trimmed.startsWith("blob:")) return trimmed;
+  
+  // Do not prepend backend origin for static frontend assets
+  if (
+    trimmed.startsWith("/trinetra-") ||
+    trimmed.startsWith("/favicon.ico") ||
+    trimmed.startsWith("/icons/")
+  ) {
+    return trimmed;
+  }
+  
+  // Handle absolute disk paths or paths containing "uploads"
+  if (trimmed.includes("uploads")) {
+    const parts = trimmed.split(/[/\\]/);
+    const uploadsIndex = parts.findIndex(p => p.toLowerCase() === "uploads");
+    if (uploadsIndex !== -1 && uploadsIndex < parts.length - 1) {
+      const relPath = parts.slice(uploadsIndex).join("/");
+      return `${BACKEND_ORIGIN}/${relPath}`;
+    }
+  }
+  if (trimmed.startsWith("/uploads/")) return `${BACKEND_ORIGIN}${trimmed}`;
+  if (trimmed.startsWith("uploads/")) return `${BACKEND_ORIGIN}/${trimmed}`;
+  if (trimmed.startsWith("/")) return `${BACKEND_ORIGIN}${trimmed}`;
+  return `${BACKEND_ORIGIN}/uploads/logos/${trimmed}`;
 };

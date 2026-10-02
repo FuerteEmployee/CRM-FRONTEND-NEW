@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { usePermissionContext } from './PermissionContext';
 import { playNotificationSound } from '@/lib/soundUtils';
-import { io } from 'socket.io-client';
+import { io, Socket } from 'socket.io-client';
 import { meetingService } from '@/api/services/meeting.service';
 import { chatService } from '@/api/services/chat.service';
 import { useQuery } from '@tanstack/react-query';
@@ -14,16 +14,24 @@ export interface NotificationItem {
   message: string;
   time: string;
   read: boolean;
+  // Where clicking this notification (toast or bell-dropdown row) should
+  // navigate to — e.g. a lead reminder deep-links straight to that lead's
+  // Reminders tab. Undefined means the notification isn't clickable.
+  link?: string;
 }
 
 interface NotificationContextType {
   notifications: NotificationItem[];
   unreadCount: number;
   chatUnreadCount: number;
-  addNotification: (title: string, message: string) => void;
+  addNotification: (title: string, message: string, link?: string) => void;
   markAllAsRead: () => void;
   markAsRead: (id: string) => void;
   setChatUnreadCount: React.Dispatch<React.SetStateAction<number>>;
+  // The one app-wide socket connection — exposed so other pages (e.g.
+  // Calling Agent) can attach their own listeners instead of opening a
+  // second connection just for themselves.
+  socket: Socket | null;
 }
 
 const NotificationContext = createContext<NotificationContextType>({
@@ -34,12 +42,14 @@ const NotificationContext = createContext<NotificationContextType>({
   markAllAsRead: () => {},
   markAsRead: () => {},
   setChatUnreadCount: () => {},
+  socket: null,
 });
 
 export const NotificationProvider = ({ children }: { children: React.ReactNode }) => {
-  const { user } = usePermissionContext();
+  const { user, isStaff } = usePermissionContext();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -59,24 +69,28 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     fetchChatCount();
   }, [user?._id]);
 
-  const addNotification = (title: string, message: string) => {
+  const addNotification = (title: string, message: string, link?: string) => {
     const newNotification: NotificationItem = {
       id: Date.now().toString(),
       title,
       message,
       time: "Just now",
       read: false,
+      link,
     };
-    
+
     setNotifications(prev => [newNotification, ...prev]);
-    
-    // Show toast
+
+    // Show toast. `window.location.href` (not useNavigate) because this
+    // context sits outside <BrowserRouter> in App.tsx — a plain navigation
+    // is the only option that works from here.
     toast.info(title, {
       description: message,
+      ...(link ? { action: { label: "View", onClick: () => { window.location.href = link; } } } : {}),
     });
     
     // Play sound based on user preference
-    const soundPref = (user as any)?.notification_sound || "default";
+    const soundPref = user?.notification_sound || "default";
     playNotificationSound(soundPref);
   };
 
@@ -146,7 +160,23 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       withCredentials: true,
     });
 
-    socket.emit("join", user._id);
+    const tenantId = (user as any)?.tenant?._id;
+    const joinRooms = () => {
+      socket.emit("join", user._id);
+      // A calling-agent update with no single assigned staff member (an
+      // unrecognized-caller or ambiguous-match row) is broadcast to this
+      // room instead — see Backend's src/utils/callingAgentSocket.js. Same
+      // generic "join" mechanism, just a different room name.
+      if (tenantId) socket.emit("join", `tenant-${tenantId}`);
+    };
+    // Re-join on every connect, not just the first one — socket.io
+    // reconnects silently after a network blip, sleep/wake, or backend
+    // restart, and the server has no memory of which room a new connection
+    // belongs to until it's told again. Without this, a reconnect leaves
+    // the socket "live" but deaf to anything room-targeted (e.g. reminderDue).
+    socket.on("connect", joinRooms);
+
+    setSocket(socket);
 
     socket.on("newMessage", (msg: any) => {
       // Don't notify if the message is from the current user
@@ -168,13 +198,28 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       );
     });
 
+    // Fired by the backend's reminderDelivery cron (Backend/src/cron/reminderDelivery.js)
+    // the moment a Lead or Customer reminder's scheduled time arrives.
+    socket.on("reminderDue", (payload: any) => {
+      const title = payload?.relType === "customer" ? "Customer Reminder" : "Lead Reminder";
+      // Only leads have a deep-link target today (Leads.tsx's ?leadView=
+      // param opens that lead straight on its Reminders tab) — customer
+      // reminders still notify, just without a click-through until Customers
+      // gets the same deep-link support.
+      const link = payload?.relType === "lead" && payload?.relId
+        ? `${isStaff ? "/staff" : "/admin"}/leads?leadView=${payload.relId}&tab=reminders`
+        : undefined;
+      addNotification(title, payload?.description || "A reminder is due.", link);
+    });
+
     return () => {
       socket.disconnect();
+      setSocket(null);
     };
   }, [user]);
 
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, chatUnreadCount, addNotification, markAllAsRead, markAsRead, setChatUnreadCount }}>
+    <NotificationContext.Provider value={{ notifications, unreadCount, chatUnreadCount, addNotification, markAllAsRead, markAsRead, setChatUnreadCount, socket }}>
       {children}
     </NotificationContext.Provider>
   );

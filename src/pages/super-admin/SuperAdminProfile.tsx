@@ -95,7 +95,7 @@ export default function SuperAdminProfile() {
         <form onSubmit={handleSaveProfile} className="space-y-4">
 
           {/* Name */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                 First Name <span className="text-red-500">*</span>
@@ -154,7 +154,9 @@ export default function SuperAdminProfile() {
               <input
                 type="tel"
                 value={phonenumber}
-                onChange={(e) => setPhonenumber(e.target.value)}
+                onChange={(e) => setPhonenumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                maxLength={10}
+                inputMode="numeric"
                 placeholder="Phone number"
                 className="w-full h-9 pl-9 pr-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
               />

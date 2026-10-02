@@ -76,6 +76,9 @@ import { staffService } from "@/api/services/staff.service";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
 const ProjectCreate = () => {
   const { id, clientId } = useParams();
@@ -104,6 +107,7 @@ const ProjectCreate = () => {
     // Settings
     send_notifications: "none",
     visible_tabs: ["project_overview", "project_tasks", "project_timesheets", "project_milestones", "project_files", "project_discussions", "project_gantt", "project_tickets", "project_contracts", "project_proposals", "project_estimates", "project_invoices", "project_subscriptions", "project_expenses", "project_credit_notes", "project_notes", "project_activity"],
+    branch: "",
     settings: {
       view_tasks: true,
       create_tasks: false,
@@ -128,11 +132,43 @@ const ProjectCreate = () => {
 
   const [tagInput, setTagInput] = useState("");
 
+  const { user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show/fetch it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+
+  const { data: branchesRaw = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
+
   // Queries
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: customerService.getAll,
   });
+
+  const filteredCustomers = useMemo(() => {
+    if (!canUseBranch) return customers;
+    if (!formData.branch) return [];
+    const targetBranch = formData.branch.toLowerCase().trim();
+    const branchObj = branches.find((b: any) => b.name && b.name.toLowerCase().trim() === targetBranch);
+    return customers.filter((c: any) => {
+      const cBranchName = typeof c.branch === "object" ? c.branch?.name : c.branch;
+      const cBranchId = typeof c.branch === "object" ? (c.branch?._id || c.branch?.id) : c.branch;
+      if (cBranchName && typeof cBranchName === "string" && cBranchName.toLowerCase().trim() === targetBranch) {
+        return true;
+      }
+      if (branchObj && cBranchId && String(cBranchId) === String(branchObj._id)) {
+        return true;
+      }
+      return false;
+    });
+  }, [customers, formData.branch, canUseBranch, branches]);
 
   const { data: staff = [] } = useQuery({
     queryKey: ["staff"],
@@ -151,6 +187,7 @@ const ProjectCreate = () => {
         ...project,
         start_date: project.start_date ? new Date(project.start_date).toISOString().split('T')[0] : "",
         deadline: project.deadline ? new Date(project.deadline).toISOString().split('T')[0] : "",
+        branch: typeof project.branch === "object" ? (project.branch?.name || "") : (project.branch || ""),
       });
     }
   }, [project]);
@@ -222,6 +259,10 @@ const ProjectCreate = () => {
     };
     
     // Final check for mandatory fields after cleanup
+    if (canUseBranch && !formData.branch) {
+      toast({ title: "Error", description: "Branch is required.", variant: "destructive" });
+      return;
+    }
     if (!payload.name || !payload.clientid || !payload.start_date) {
       toast({ title: "Error", description: "Mandatory fields are missing after data cleanup.", variant: "destructive" });
       return;
@@ -300,6 +341,29 @@ const ProjectCreate = () => {
                   
                   {/* Basic Info */}
                   <div className="grid grid-cols-1 gap-8">
+                    {/* Branch — pilot-only, dynamically fetched from HRMS */}
+                    {canUseBranch && (
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">* Branch</Label>
+                        <Select
+                          value={formData.branch || "none"}
+                          onValueChange={(v) => {
+                            const val = v === "none" ? "" : v;
+                            setFormData((prev: any) => ({ ...prev, branch: val, clientid: "" }));
+                          }}
+                        >
+                          <SelectTrigger className="rounded-xl h-12 text-sm font-bold border-slate-200">
+                            <SelectValue placeholder="Select Branch" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                            <SelectItem value="none">Select Branch</SelectItem>
+                            {branches.map((b) => (
+                              <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">* Project Name</Label>
                       <Input 
@@ -313,10 +377,10 @@ const ProjectCreate = () => {
                     <div className="space-y-2">
                       <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">* Customer</Label>
                       <SearchableSelect 
-                        options={customers.map((c: any) => ({ value: c._id, label: c.company }))} 
+                        options={filteredCustomers.map((c: any) => ({ value: c._id, label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email }))} 
                         value={formData.clientid?._id || formData.clientid} 
                         onValueChange={(val) => handleSelectChange("clientid", val)} 
-                        placeholder="Search for customer..." 
+                        placeholder={canUseBranch && !formData.branch ? "Please select a branch first..." : "Search for customer..."}
                         className="rounded-xl h-12 text-sm font-bold border-slate-200 shadow-none"
                       />
                     </div>

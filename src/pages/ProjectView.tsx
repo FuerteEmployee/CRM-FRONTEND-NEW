@@ -158,8 +158,8 @@ export default function ProjectView() {
   );
 
   const { data: staff = [] } = useQuery<any[]>({
-    queryKey: ["staff"],
-    queryFn: () => staffService.getAll().then((r: any) => r.data || r),
+    queryKey: ["staff", "assignable"],
+    queryFn: staffService.getAssignable,
   });
 
   const statusMutation = useMutation({
@@ -468,7 +468,7 @@ export default function ProjectView() {
             <Card className="rounded-2xl border-border/50 shadow-sm h-fit">
               <CardContent className="p-6">
                 <h3 className="text-sm font-black text-foreground mb-5">Overview</h3>
-                <div className="grid grid-cols-2 gap-x-8 gap-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
                   <div>
                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Project #</p>
                     <p className="text-sm font-bold">{project._id?.substring(0, 8).toUpperCase()}</p>
@@ -632,7 +632,7 @@ export default function ProjectView() {
                 className="rounded-lg border-border/60 min-h-[80px] resize-none"
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm font-medium block mb-1.5">Priority</Label>
                 <Select value={taskForm.priority} onValueChange={(v) => setTaskForm(p => ({ ...p, priority: v }))}>

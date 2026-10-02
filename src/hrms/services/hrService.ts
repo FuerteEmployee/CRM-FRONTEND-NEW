@@ -26,6 +26,24 @@ export const employeeService = {
     }
   },
 
+  // Server-paginated variant of getAttendance — preserves the full envelope
+  // (total/page/pages) instead of stripping it down to a bare array. Used by
+  // consumers that need real pagination (e.g. AttendanceDashboardPage).
+  getAttendancePage: async (params?: any): Promise<{ data: any[]; total: number; page: number; pages: number }> => {
+    try {
+      // apiClient returns the raw JSON body directly: { success, data: [...], total, page, pages, limit }
+      const res = await apiClient.get("/attendance", { params });
+      return {
+        data: Array.isArray(res.data) ? res.data : [],
+        total: typeof res.total === "number" ? res.total : 0,
+        page: typeof res.page === "number" ? res.page : 1,
+        pages: typeof res.pages === "number" ? res.pages : 1,
+      };
+    } catch {
+      return { data: [], total: 0, page: 1, pages: 1 };
+    }
+  },
+
   getAttendanceById: async (id: string): Promise<any> => {
     const res = await apiClient.get(`/attendance/${id}`);
     return res.data?.data || res.data;
@@ -53,6 +71,18 @@ export const employeeService = {
   getLeaves: async (params?: any): Promise<any[]> => {
     const res = await apiClient.get("/leaves/requests", { params });
     return res.data?.data || res.data || [];
+  },
+
+  // Server-paginated variant of getLeaves — preserves total/page/pages
+  // instead of stripping the envelope down to a bare array.
+  getLeavesPage: async (params?: any): Promise<{ data: any[]; total: number; page: number; pages: number }> => {
+    const res = await apiClient.get("/leaves/requests", { params });
+    return {
+      data: Array.isArray(res.data) ? res.data : [],
+      total: typeof res.total === "number" ? res.total : (Array.isArray(res.data) ? res.data.length : 0),
+      page: typeof res.page === "number" ? res.page : 1,
+      pages: typeof res.pages === "number" ? res.pages : 1,
+    };
   },
 
   getLeaveBalances: async (): Promise<any[]> => {
@@ -141,6 +171,12 @@ export const employeeService = {
     return res.data?.data || res.data || [];
   },
 
+  // Self-service — always scoped server-side to the logged-in employee.
+  getMyPayroll: async (params: { month?: number; year?: number } = {}): Promise<any> => {
+    const res = await apiClient.get("/payroll/me", { params });
+    return res.data?.data || res.data || [];
+  },
+
   generatePayroll: async (data: { month: number; year: number; storeId: string }): Promise<any> => {
     const res = await apiClient.post("/payroll/generate", data);
     return res;
@@ -212,6 +248,27 @@ export const employeeService = {
       };
     } catch {
       return { data: [], total: 0, totalPages: 1, page: 1 };
+    }
+  },
+
+  getGeofenceAuditLogs: async (params?: {
+    userId?: string;
+    branchId?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ data: any[]; total: number; pages: number; page: number }> => {
+    try {
+      const res = await apiClient.get("/locations/geofence-audit", { params });
+      return {
+        data: res.data || [],
+        total: typeof res.total === "number" ? res.total : (res.data?.length ?? 0),
+        pages: typeof res.pages === "number" ? res.pages : 1,
+        page: typeof res.page === "number" ? res.page : 1,
+      };
+    } catch {
+      return { data: [], total: 0, pages: 1, page: 1 };
     }
   },
 };

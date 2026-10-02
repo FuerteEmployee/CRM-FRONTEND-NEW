@@ -21,7 +21,7 @@ export const utilityService = {
   
   updateSettings: (data) => apiClient.post('/settings', data),
   
-  getActivityLogs: () => apiClient.get('/activity-logs'),
+  getActivityLogs: (params) => apiClient.get('/activity-logs', { params }),
   
   deleteActivityLog: (id) => apiClient.delete(`/activity-logs/${id}`),
   
@@ -35,4 +35,7 @@ export const utilityService = {
 
   getExpensesReport: (year, excludeBillable) =>
     apiClient.get(`/reports/expenses?year=${year || new Date().getFullYear()}&excludeBillable=${excludeBillable || false}`),
+
+  getPurchaseReport: (period, fromDate, toDate) =>
+    apiClient.get(`/reports/purchase?period=${period || 'all_time'}&fromDate=${fromDate || ''}&toDate=${toDate || ''}`),
 };

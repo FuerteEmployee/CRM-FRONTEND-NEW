@@ -124,7 +124,7 @@ const SalarySettlementLedgerPage = () => {
 
   const handleAddToSettlement = async () => {
     if (!addEmployeeId) {
-      toast({ title: "Error", description: "Select an employee", variant: "destructive" });
+      toast({ title: "Error", description: "Select an employee"});
       return;
     }
 
@@ -258,12 +258,12 @@ const SalarySettlementLedgerPage = () => {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Salary Settlement Ledger</h1>
           <p className="text-sm text-muted-foreground">Track employee↔GE salary settlements</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button onClick={() => setIsAddOpen(true)} className="gap-2">
             <Plus className="h-4 w-4" /> Add to Settlement
           </Button>

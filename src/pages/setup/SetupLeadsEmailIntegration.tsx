@@ -24,7 +24,7 @@ export default function SetupLeadsEmailIntegration() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>IMAP Host</Label>
                 <Input placeholder="imap.example.com" />
@@ -34,7 +34,7 @@ export default function SetupLeadsEmailIntegration() {
                 <Input placeholder="993" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>Username</Label>
                 <Input placeholder="leads@example.com" />

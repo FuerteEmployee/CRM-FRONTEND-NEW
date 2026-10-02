@@ -102,9 +102,16 @@ export default function ExpensePage() {
   const filteredExpenses = useMemo(() => {
     return (expenses || []).filter(ex => {
       if (!ex) return false;
-      // Permission check: regular employees only see their own vouchers
+      // Permission check: regular employees only see their own vouchers.
+      // Compare by email (not just _id): a CRM-bridged login's user._id is the
+      // Staff document's id, while expense.createdBy is the linked HRMS User's
+      // id (see auth_middleware.js's `protect`, which resolves userId via a
+      // Staff→User email lookup) — two different ids for the same person.
       const creatorId = (ex.createdBy as any)?._id || (ex.createdBy as any)?.id || ex.createdBy;
-      const isOwner = creatorId === user?.id;
+      const creatorEmail = (ex.createdBy as any)?.email;
+      const myId = (user as any)?._id || (user as any)?.id;
+      const myEmail = (user as any)?.email;
+      const isOwner = (!!creatorEmail && !!myEmail && creatorEmail === myEmail) || (!!creatorId && !!myId && creatorId === myId);
       const canSee = isAdmin || isOwner;
       
       if (!canSee) return false;
@@ -166,12 +173,9 @@ export default function ExpensePage() {
     submitData.append("amount", formData.get("amount") as string);
     submitData.append("category", formData.get("category") as string);
     const storeId = formData.get("storeId");
-    if (!storeId || storeId === "null") {
-      toast({ title: "Validation Error", description: "Please select an associated store.", variant: "destructive" });
-      return;
+    if (storeId && storeId !== "null") {
+      submitData.append("storeId", storeId as string);
     }
-
-    submitData.append("storeId", storeId as string);
     submitData.append("paymentMethod", formData.get("paymentMethod") as string);
     submitData.append("notes", formData.get("notes") as string);
     submitData.append("date", formData.get("date") as string || new Date().toISOString());
@@ -184,14 +188,17 @@ export default function ExpensePage() {
 
     try {
       if (editingExpense) {
-        const updated = await expenseService.update(editingExpense.id, submitData as any);
-        setExpenses(expenses.map(ex => ex.id === editingExpense.id ? updated : ex));
+        await expenseService.update(editingExpense.id, submitData as any);
         toast({ title: "Expense Updated", description: "Expense has been modified." });
       } else {
-        const created = await expenseService.create(submitData as any);
-        setExpenses([created, ...expenses]);
+        await expenseService.create(submitData as any);
         toast({ title: "Expense Recorded", description: "New expense entry created." });
       }
+      // Refetch instead of splicing the raw response into state: the create/update
+      // response's createdBy is an unpopulated id, so the ownership check above
+      // (which needs createdBy.email) can't recognize it as "mine" until it comes
+      // back through fetchData()'s populated GET.
+      await fetchData();
       setIsDialogOpen(false);
       setEditingExpense(null);
       setSelectedFile(null);
@@ -332,7 +339,7 @@ export default function ExpensePage() {
                   Document business spending with proper category and store attribution.
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSave} className="space-y-5 pt-4">
+              <form key={editingExpense?.id || "new"} onSubmit={handleSave} className="space-y-5 pt-4">
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
@@ -347,7 +354,7 @@ export default function ExpensePage() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
                         Amount (₹)
@@ -376,16 +383,26 @@ export default function ExpensePage() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
-                        Associated Store <span className="text-destructive">*</span>
+                        Associated Store
                       </Label>
-                      <Select name="storeId" defaultValue={editingExpense?.storeId as string} required>
+                      <Select
+                        name="storeId"
+                        defaultValue={
+                          editingExpense
+                            ? ((typeof editingExpense.storeId === "object" && editingExpense.storeId !== null
+                                ? (editingExpense.storeId as any)._id || (editingExpense.storeId as any).id
+                                : editingExpense.storeId) || "null")
+                            : undefined
+                        }
+                      >
                         <SelectTrigger className="h-11 rounded-xl bg-background/30 border-0">
-                          <SelectValue placeholder="Select Store" />
+                          <SelectValue placeholder="Select Store (Optional)" />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl border-border/50">
+                          <SelectItem value="null">None / HQ Internal</SelectItem>
                           {stores.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                         </SelectContent>
                       </Select>
@@ -412,16 +429,14 @@ export default function ExpensePage() {
                       <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
                         Status
                       </Label>
-                      <Select name="status" defaultValue={editingExpense?.status}>
-                        <SelectTrigger className="h-11 rounded-xl bg-background/30 border-0">
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-border/50">
-                          {["Pending", "Approved", "Paid", "Rejected"].map(s => (
-                            <SelectItem key={s} value={s}>{s}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="h-11 rounded-xl bg-background/30 border-0 flex items-center px-3">
+                        <Badge className={`text-[10px] font-black rounded-lg px-2.5 py-1 ${STATUS_COLORS[editingExpense.status] || STATUS_COLORS.Pending}`}>
+                          {editingExpense.status}
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground ml-1">
+                        Use Approve / Reject / Process Payment on the list to change status.
+                      </p>
                     </div>
                   )}
 
@@ -627,12 +642,15 @@ export default function ExpensePage() {
             },
             {
               header: "Status",
-              accessorKey: (ex) => (
-                <Badge className={`text-[10px] font-black rounded-xl px-2.5 py-1 border shadow-sm ${STATUS_COLORS[ex.status]}`}>
-                  {ex.status === "Paid" ? <CheckCircle2 className="h-3 w-3 mr-1" /> : ex.status === "Pending" ? <Clock className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
-                  <span className="capitalize">{ex.status}</span>
-                </Badge>
-              ),
+              accessorKey: (ex) => {
+                const status = ex.status || "Pending";
+                return (
+                  <Badge className={`text-[10px] font-black rounded-xl px-2.5 py-1 border shadow-sm ${STATUS_COLORS[status] || STATUS_COLORS.Pending}`}>
+                    {status === "Paid" ? <CheckCircle2 className="h-3 w-3 mr-1" /> : status === "Pending" ? <Clock className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
+                    <span className="capitalize">{status}</span>
+                  </Badge>
+                );
+              },
             },
             {
               header: <div className="sticky right-0 bg-inherit px-3 z-20 text-right">Actions</div>,
@@ -687,10 +705,12 @@ export default function ExpensePage() {
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={ex.status !== "Pending"}
+                          title={ex.status !== "Pending" ? "Only pending expenses can be deleted" : "Delete"}
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all disabled:opacity-30 disabled:pointer-events-none"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>

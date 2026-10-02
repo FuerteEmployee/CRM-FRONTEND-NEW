@@ -76,6 +76,7 @@ const CollectionsPage = () => <UnderConstruction title="CollectionsPage" />;
 import AttendancePage from "./pages/staff/AttendancePage";
 import EnableTrackingSetup from "./pages/staff/EnableTrackingSetup";
 import MyLeavesPage from "./pages/staff/MyLeavesPage";
+import MySalaryPage from "./pages/staff/MySalaryPage";
 import ExpensePage from "./pages/staff/ExpensePage";
 import RolesPage from "./pages/staff/RolesPage";
 import UsersPage from "./pages/staff/UsersPage";
@@ -86,9 +87,12 @@ import DepartmentPage from "./pages/staff/DepartmentPage";
 import DesignationPage from "./pages/staff/DesignationPage";
 import AttendanceDashboardPage from "./pages/staff/AttendanceDashboardPage";
 import LiveTrackingPage from "./pages/staff/LiveTrackingPage";
+import GeofenceAuditPage from "./pages/staff/GeofenceAuditPage";
 import LeaveManagementPage from "./pages/staff/LeaveManagementPage";
+import HolidayCalendarPage from "./pages/staff/HolidayCalendarPage";
 import ExpenseManagementPage from "./pages/staff/ExpenseManagementPage";
 import TargetsManagementPage from "./pages/staff/TargetsManagementPage";
+import IncentiveSlabsPage from "./pages/staff/IncentiveSlabsPage";
 import PayrollManagementPage from "./pages/staff/PayrollManagementPage";
 import StaffBranchListPage from "./pages/staff/Branch/StaffBranchListPage";
 import StaffBranchFormPage from "./pages/staff/Branch/StaffBranchFormPage";
@@ -100,7 +104,6 @@ import SalarySettlementLedgerPage from "./pages/staff/SalarySettlementLedgerPage
 
 // Settings
 import ManagingCompaniesPage from "./pages/settings/ManagingCompaniesPage";
-import SettingsPage from "./pages/settings/SettingsPage";
 import ShortcutsPage from "./pages/settings/ShortcutsPage";
 import ProfilePage from "./pages/profile/ProfilePage";
 
@@ -406,10 +409,26 @@ export function AppRoutes() {
           }
         />
         <Route
+          path="staff/geofence-audit"
+          element={
+            <PermissionGuard requiredPermission="view_live_tracking" mode="message">
+              <GeofenceAuditPage />
+            </PermissionGuard>
+          }
+        />
+        <Route
           path="staff/leave-management"
           element={
             <PermissionGuard requiredPermission="view_leaves" mode="message">
               <LeaveManagementPage />
+            </PermissionGuard>
+          }
+        />
+        <Route
+          path="staff/holidays"
+          element={
+            <PermissionGuard requiredPermission="manage_holidays" mode="message">
+              <HolidayCalendarPage />
             </PermissionGuard>
           }
         />
@@ -424,8 +443,16 @@ export function AppRoutes() {
         <Route
           path="staff/targets"
           element={
-            <PermissionGuard requiredPermission="view_targets" mode="message">
+            <PermissionGuard requiredPermission="view_targets" hiddenFeatureKey="targets" mode="message">
               <TargetsManagementPage />
+            </PermissionGuard>
+          }
+        />
+        <Route
+          path="staff/incentive-slabs"
+          element={
+            <PermissionGuard requiredPermission="view_targets" hiddenFeatureKey="incentive_slabs" mode="message">
+              <IncentiveSlabsPage />
             </PermissionGuard>
           }
         />
@@ -454,6 +481,7 @@ export function AppRoutes() {
 
         <Route path="staff/expenses" element={<ExpensePage />} />
         <Route path="staff/leaves" element={<MyLeavesPage />} />
+        <Route path="staff/salary" element={<MySalaryPage />} />
         <Route
           path="staff/roles"
           element={
@@ -478,18 +506,16 @@ export function AppRoutes() {
             </PermissionGuard>
           }
         />
+        {/* Staff are created only via Setup > Staff (main CRM) now — send anyone
+            who reaches this URL directly there instead of a second create form. */}
         <Route
           path="staff/users/new"
-          element={
-            <PermissionGuard requiredPermission="manage_users" mode="message">
-              <StaffFormPage />
-            </PermissionGuard>
-          }
+          element={<Navigate to="/admin/setup/staff/new" replace />}
         />
         <Route
           path="staff/users/edit/:id"
           element={
-            <PermissionGuard requiredPermission="manage_users" mode="message">
+            <PermissionGuard requiredPermission="edit_staff" mode="message">
               <StaffFormPage />
             </PermissionGuard>
           }
@@ -737,18 +763,7 @@ export function AppRoutes() {
 
 
 
-        {/* Settings */}
-        <Route
-          path="settings"
-          element={
-            <PermissionGuard
-              requiredPermission="manage_settings"
-              mode="message"
-            >
-              <SettingsPage />
-            </PermissionGuard>
-          }
-        />
+        {/* Settings — removed; main CRM's Setup > Settings covers this now */}
         <Route
           path="settings/shortcuts"
           element={

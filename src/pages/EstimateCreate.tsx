@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,7 @@ import { financeService } from "@/api/services/finance.service";
 import { estimateService } from "@/api/services/estimate.service";
 import { itemService } from "@/api/services/item.service";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemSelect";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyContext";
 import { cn } from "@/lib/utils";
@@ -49,11 +50,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
 export default function EstimateCreate() {
   const { clientId, id } = useParams();
   const isEdit = !!id;
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { formatAmount, symbol } = useCurrency();
 
@@ -73,6 +79,10 @@ export default function EstimateCreate() {
     status: "draft",
     reference: "",
     sale_agent: "",
+    connectPerson: "",
+    phone: "",
+    mailId: "",
+    salesPerson: "",
     adminnote: "",
     notes: "",
     terms: "",
@@ -86,7 +96,9 @@ export default function EstimateCreate() {
     shipping_city: "",
     shipping_state: "",
     shipping_zip: "",
-    shipping_country: ""
+    shipping_country: "",
+    branch: "",
+    bank_detail: "",
   });
 
   const [showQtyAs, setShowQtyAs] = useState("qty");
@@ -97,6 +109,8 @@ export default function EstimateCreate() {
     long_description: "",
     qty: 1,
     rate: 0,
+    amount: 0,
+    amountOverridden: false,
     tax: "",
     tax2: "",
     unit: "",
@@ -105,6 +119,48 @@ export default function EstimateCreate() {
   const [discountValue, setDiscountValue] = useState(0);
   const [discountType, setDiscountType] = useState("percent");
   const [adjustmentValue, setAdjustmentValue] = useState(0);
+
+  // Set by EstimateRequest.tsx's "Convert to Estimate" button (navigate state),
+  // so the resulting Estimate can be linked back to it on save.
+  const [seededFromRequestId, setSeededFromRequestId] = useState<string | undefined>(undefined);
+
+  // Seed the form from an Estimate Request's "Convert to Estimate" action
+  // (navigate state), once on mount.
+  useEffect(() => {
+    if (isEdit) return;
+    const state = location.state as {
+      estimateRequestId?: string;
+      connectPerson?: string;
+      phone?: string;
+      email?: string;
+      salesPerson?: string;
+      seedItems?: any[];
+    } | null;
+    if (!state?.estimateRequestId) return;
+    setSeededFromRequestId(state.estimateRequestId);
+    setFormData(p => ({
+      ...p,
+      connectPerson: state.connectPerson || p.connectPerson,
+      phone: state.phone || p.phone,
+      mailId: state.email || p.mailId,
+      salesPerson: state.salesPerson || p.salesPerson,
+    }));
+    if (state.seedItems?.length) {
+      setItems(state.seedItems.map((it: any) => ({
+        description: it.description || "",
+        qty: it.qty || 1,
+        rate: it.rate || 0,
+        amount: it.amount || 0,
+        amountOverridden: false,
+        tax: "",
+        tax2: "",
+        unit: "",
+        item_group: "",
+        id: Math.random().toString(36).substr(2, 9),
+      })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
@@ -151,7 +207,8 @@ export default function EstimateCreate() {
         ...estimate,
         date: estimate.date ? new Date(estimate.date).toISOString().split('T')[0] : formData.date,
         expirydate: estimate.expirydate ? new Date(estimate.expirydate).toISOString().split('T')[0] : formData.expirydate,
-        discount_type: estimate.discount_percent > 0 ? "percent" : "no_discount"
+        discount_type: estimate.discount_percent > 0 ? "percent" : "no_discount",
+        bank_detail: (estimate.bank_detail?._id || estimate.bank_detail || "").toString(),
       });
 
       if (estimate.items) {
@@ -166,15 +223,84 @@ export default function EstimateCreate() {
     }
   }, [estimate, taxes]);
 
+  const { user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show/fetch it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+  const canUseBankDetails = canAccessBankDetails(user?.email);
+
+  const { data: bankDetailsList = [] } = useQuery<any[]>({
+    queryKey: ["bank-details"],
+    queryFn: () => financeService.getBankDetails().then((res: any) => res.data || res),
+    enabled: canUseBankDetails,
+  });
+  const activeBankDetailsList = bankDetailsList.filter((b: any) => b.active !== false);
+
+  const { data: branchesRaw = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
+
+  const filteredCustomers = useMemo(() => {
+    if (!canUseBranch) return customers;
+    if (!formData.branch) return [];
+    const targetBranch = formData.branch.toLowerCase().trim();
+    const branchObj = branches.find((b: any) => b.name && b.name.toLowerCase().trim() === targetBranch);
+    return customers.filter((c: any) => {
+      const cBranchName = typeof c.branch === "object" ? c.branch?.name : c.branch;
+      const cBranchId = typeof c.branch === "object" ? (c.branch?._id || c.branch?.id) : c.branch;
+      if (cBranchName && typeof cBranchName === "string" && cBranchName.toLowerCase().trim() === targetBranch) {
+        return true;
+      }
+      if (branchObj && cBranchId && String(cBranchId) === String(branchObj._id)) {
+        return true;
+      }
+      return false;
+    });
+  }, [customers, formData.branch, canUseBranch, branches]);
+
+  const isIntraState = () => {
+    const customer = customers.find((c: any) => c._id === formData.client);
+    if (!customer) return true; // default/fallback
+    const gstin = (customer.gst_number || "").trim();
+    if (/^\d{2}/.test(gstin)) {
+      return gstin.substring(0, 2) === "24"; // HOME_STATE_GST_CODE = "24"
+    }
+    const state = (formData.billing_state || customer.state || "").trim().toLowerCase();
+    if (state) {
+      return state === "gujarat";
+    }
+    // detectStateFromAddress
+    const address = `${formData.billing_street || ""} ${customer.address || ""}`.toLowerCase();
+    const INDIAN_STATES = [
+      "andhra pradesh", "arunachal pradesh", "assam", "bihar", "chhattisgarh",
+      "delhi", "goa", "gujarat", "haryana", "himachal pradesh", "jammu and kashmir",
+      "jharkhand", "karnataka", "kerala", "madhya pradesh", "maharashtra", "manipur",
+      "meghalaya", "mizoram", "nagaland", "odisha", "punjab", "rajasthan", "sikkim",
+      "tamil nadu", "telangana", "tripura", "uttar pradesh", "uttarakhand", "west bengal",
+    ];
+    const sorted = [...INDIAN_STATES].sort((x, y) => y.length - x.length);
+    const detected = sorted.find((s) => address.includes(s)) || "";
+    if (detected) {
+      return detected === "gujarat";
+    }
+    return true; // default
+  };
+
   const calculations = useMemo(() => {
-    const subTotal = items.reduce((acc, item) => acc + (item.qty * item.rate), 0);
+    const itemAmount = (item: any) => item.amount ?? (item.qty * item.rate);
+    const subTotal = items.reduce((acc, item) => acc + itemAmount(item), 0);
     const discountAmount = formData.discount_type === "no_discount" ? 0 :
       (discountType === "percent" ? (subTotal * (discountValue / 100)) : discountValue);
     // Tax is charged on the discounted amount, not the full pre-discount subtotal.
     const discountFactor = subTotal > 0 ? 1 - discountAmount / subTotal : 1;
     const totalTax = items.reduce((acc, item) => {
       const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || 0;
-      return acc + ((item.qty * item.rate) * discountFactor * (taxRate / 100));
+      return acc + (itemAmount(item) * discountFactor * (taxRate / 100));
     }, 0);
     const total = subTotal - discountAmount + totalTax + Number(adjustmentValue);
 
@@ -189,6 +315,8 @@ export default function EstimateCreate() {
       long_description: "",
       qty: 1,
       rate: 0,
+      amount: 0,
+      amountOverridden: false,
       tax: "",
       tax2: "",
       unit: "",
@@ -203,11 +331,22 @@ export default function EstimateCreate() {
 
   const mutation = useMutation({
     mutationFn: (payload: any) => isEdit ? estimateService.updateEstimate(id!, payload) : estimateService.createEstimate(payload),
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       toast({
         title: isEdit ? "Estimate Updated Successfully!" : "Estimate Created Successfully!",
         className: "bg-green-600 text-white font-bold rounded-2xl shadow-2xl border-none",
       });
+      if (seededFromRequestId) {
+        const newEstimateId = res?._id || res?.id || res?.data?._id;
+        if (newEstimateId) {
+          estimateService.updateRequest(seededFromRequestId, {
+            is_converted: true,
+            converted_to_estimate: newEstimateId,
+          }).catch(() => {
+            // Best-effort link-back — the estimate itself already saved fine.
+          });
+        }
+      }
       navigate(formData.client ? `/admin/customers/${formData.client}?tab=estimates` : "/admin/estimates");
     },
     onError: (error: any) => {
@@ -220,6 +359,10 @@ export default function EstimateCreate() {
   });
 
   const handleSave = (action: string = "save") => {
+    if (canUseBranch && !formData.branch) {
+      toast({ title: "Required Field", description: "Branch is mandatory.", variant: "destructive" });
+      return;
+    }
     if (!formData.client) {
       toast({ title: "Required Fields", description: "Customer is mandatory.", variant: "destructive" });
       return;
@@ -232,6 +375,7 @@ export default function EstimateCreate() {
         long_description: item.long_description,
         qty: Number(item.qty) || 0,
         rate: Number(item.rate) || 0,
+        amount: Number(item.amount ?? (item.qty * item.rate)) || 0,
         tax: Number(taxes.find((t: any) => t._id === item.tax)?.taxrate) || 0,
         tax_name: taxes.find((t: any) => t._id === item.tax)?.name || ""
       })),
@@ -268,14 +412,41 @@ export default function EstimateCreate() {
           {/* Left Column: Core Details */}
           <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
             <CardContent className="p-8 space-y-8">
+              {/* Branch — pilot-only, dynamically fetched from HRMS */}
+              {canUseBranch && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Branch</Label>
+                    <span className="text-destructive text-lg leading-none">*</span>
+                  </div>
+                  <Select
+                    value={formData.branch || "none"}
+                    onValueChange={(v) => {
+                      const val = v === "none" ? "" : v;
+                      setFormData(p => ({ ...p, branch: val, client: "" }));
+                    }}
+                  >
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50">
+                      <SelectValue placeholder="Select Branch" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="none">Select Branch</SelectItem>
+                      {branches.map((b) => (
+                        <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Customer</Label>
                   <span className="text-destructive text-lg leading-none">*</span>
                 </div>
                 <SearchableSelect
-                  placeholder="Select Customer"
-                  options={customers.map((c: any) => ({ value: c._id, label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email }))}
+                  placeholder={canUseBranch && !formData.branch ? "Please select a branch first..." : "Select Customer"}
+                  options={filteredCustomers.map((c: any) => ({ value: c._id, label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email }))}
                   value={formData.client}
                   onValueChange={(val) => {
                     const client = customers.find((c: any) => c._id === val);
@@ -297,7 +468,36 @@ export default function EstimateCreate() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-8 py-4 border-y border-border/30 border-dashed">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Connect Person</Label>
+                  <Input
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.connectPerson}
+                    onChange={(e) => setFormData(p => ({ ...p, connectPerson: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Phone Number</Label>
+                  <Input
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.phone}
+                    onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2.5">
+                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Mail Id</Label>
+                <Input
+                  type="email"
+                  className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                  value={formData.mailId}
+                  onChange={(e) => setFormData(p => ({ ...p, mailId: e.target.value }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 py-4 border-y border-border/30 border-dashed">
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 text-primary">
                     <Receipt className="h-3.5 w-3.5" />
@@ -338,7 +538,7 @@ export default function EstimateCreate() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Estimate Date</Label>
@@ -381,7 +581,7 @@ export default function EstimateCreate() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Currency</Label>
@@ -424,7 +624,38 @@ export default function EstimateCreate() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-2.5">
+                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Sales Person</Label>
+                <Input
+                  className="h-12 rounded-2xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                  value={formData.salesPerson}
+                  onChange={(e) => setFormData(p => ({ ...p, salesPerson: e.target.value }))}
+                />
+              </div>
+
+              {canUseBankDetails && (
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Bank Details</Label>
+                  <Select
+                    value={formData.bank_detail || "none"}
+                    onValueChange={(v) => setFormData(p => ({ ...p, bank_detail: v === "none" ? "" : v }))}
+                  >
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                      <SelectValue placeholder="Select Bank Account" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                      <SelectItem value="none">None</SelectItem>
+                      {activeBankDetailsList.map((bd: any) => (
+                        <SelectItem key={bd._id} value={bd._id}>
+                          {bd.bankName} — {bd.accountNumber}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Sale Agent</Label>
                   <Select value={formData.sale_agent} onValueChange={(v) => setFormData(p => ({ ...p, sale_agent: v }))}>
@@ -471,36 +702,30 @@ export default function EstimateCreate() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="flex items-center gap-2 flex-1 w-full md:w-auto">
                 <div className="flex-1 max-w-sm">
-                  <SearchableSelect
-                    placeholder="Add Item"
-                    options={availableItems.map((i: any) => ({ value: i._id, label: i.description }))}
-                    value=""
-                    onValueChange={(val) => {
-                      const item = availableItems.find((i: any) => i._id === val);
-                      if (item) {
-                        setNewItem({
-                          description: item.description,
-                          long_description: item.long_description || "",
-                          qty: 1,
-                          rate: item.rate,
-                          tax: item.tax?._id || "",
-                          tax2: "",
-                          unit: item.unit || "",
-                          item_group: item.group || ""
-                        });
-                        setIsAddItemModalOpen(true);
-                      }
+                  <ItemSelect
+                    placeholder="Select item to add..."
+                    onChange={(item: ItemRecord) => {
+                      const taxId = typeof item.tax === "object" && item.tax ? item.tax._id : (typeof item.tax === "string" ? item.tax : "");
+                      const tax2Id = typeof item.tax2 === "object" && item.tax2 ? item.tax2._id : (typeof item.tax2 === "string" ? item.tax2 : "");
+                      const qty = 1;
+                      const rate = item.rate || 0;
+                      // Prefill the editable draft row instead of committing straight to
+                      // the table — the user reviews/adjusts qty, rate, etc. and confirms
+                      // with the checkmark button before it becomes a final line.
+                      setNewItem((p: any) => ({
+                        ...p,
+                        description: item.name,
+                        long_description: item.long_description || "",
+                        qty,
+                        rate,
+                        tax: taxId,
+                        tax2: tax2Id,
+                        unit: item.unit || "",
+                        item_group: item.group || ""
+                      }));
                     }}
                   />
                 </div>
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="h-10 w-11 rounded-xl bg-white border-slate-200 shadow-sm"
-                  onClick={() => setIsAddItemModalOpen(true)}
-                >
-                  <Plus className="h-4 w-4 text-slate-600" />
-                </Button>
               </div>
 
               <div className="flex items-center gap-6">
@@ -535,8 +760,8 @@ export default function EstimateCreate() {
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-border/50 overflow-hidden shadow-sm">
-              <table className="w-full">
+            <div className="rounded-[2rem] border border-border/50 overflow-x-auto shadow-sm">
+              <table className="w-full min-w-[1200px]">
                 <thead>
                   <tr className="bg-primary text-white">
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -548,8 +773,9 @@ export default function EstimateCreate() {
                       {showQtyAs === "hours" ? "Hours" : "Qty"}
                     </th>
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-32">Rate</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-40">Tax</th>
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-32">Amount</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-40">Tax</th>
+                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-32">Total (w/ Tax)</th>
                     <th className="p-4 text-right">
                       <Settings className="h-4 w-4 ml-auto opacity-50" />
                     </th>
@@ -579,7 +805,10 @@ export default function EstimateCreate() {
                         <Input
                           type="number"
                           value={newItem.qty}
-                          onChange={(e) => setNewItem(p => ({ ...p, qty: Number(e.target.value) }))}
+                          onChange={(e) => {
+                            const qty = Number(e.target.value);
+                            setNewItem(p => ({ ...p, qty, amount: p.amountOverridden ? p.amount : qty * p.rate }));
+                          }}
                           className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                         />
                         <span className="text-[10px] font-black text-muted-foreground/50 uppercase tracking-tighter block text-center">Unit</span>
@@ -590,7 +819,19 @@ export default function EstimateCreate() {
                         placeholder="Rate"
                         type="number"
                         value={newItem.rate}
-                        onChange={(e) => setNewItem(p => ({ ...p, rate: Number(e.target.value) }))}
+                        onChange={(e) => {
+                          const rate = Number(e.target.value);
+                          setNewItem(p => ({ ...p, rate, amount: p.amountOverridden ? p.amount : p.qty * rate }));
+                        }}
+                        className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                      />
+                    </td>
+                    <td className="p-4 align-top w-[150px]">
+                      <Input
+                        placeholder="Amount"
+                        type="number"
+                        value={newItem.amount}
+                        onChange={(e) => setNewItem(p => ({ ...p, amount: Number(e.target.value), amountOverridden: true }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                       />
                     </td>
@@ -608,7 +849,7 @@ export default function EstimateCreate() {
                       </Select>
                     </td>
                     <td className="p-4 align-top text-sm font-black text-foreground">
-                      {formatDocAmount(newItem.qty * newItem.rate * (1 + (taxes.find(t => t._id === newItem.tax)?.taxrate || 0) / 100))}
+                      {formatDocAmount(newItem.amount * (1 + (taxes.find(t => t._id === newItem.tax)?.taxrate || 0) / 100))}
                     </td>
                     <td className="p-4 align-top text-right">
                       <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
@@ -623,10 +864,11 @@ export default function EstimateCreate() {
                       <td className="p-4 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
                       <td className="p-4 align-top text-xs font-bold">{item.qty}</td>
                       <td className="p-4 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
+                      <td className="p-4 align-top text-xs font-bold">{formatDocAmount(item.amount ?? item.qty * item.rate)}</td>
                       <td className="p-4 align-top text-[10px] font-black uppercase text-muted-foreground">
                         {taxes.find(t => t._id === item.tax)?.name || "No Tax"}
                       </td>
-                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.qty * item.rate * (1 + (taxes.find(t => t._id === item.tax)?.taxrate || 0) / 100))}</td>
+                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount((item.amount ?? item.qty * item.rate) * (1 + (taxes.find(t => t._id === item.tax)?.taxrate || 0) / 100))}</td>
                       <td className="p-4 align-top text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
@@ -690,12 +932,38 @@ export default function EstimateCreate() {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center py-2">
-                  <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
-                  <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
-                    {formatDocAmount(calculations.totalTax)}
-                  </span>
-                </div>
+                {isPilot ? (
+                  isIntraState() ? (
+                    <>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm font-bold text-muted-foreground">SGST/UTGST</span>
+                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                          {formatDocAmount(calculations.totalTax / 2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm font-bold text-muted-foreground">CGST</span>
+                        <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                          {formatDocAmount(calculations.totalTax / 2)}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between items-center py-2">
+                      <span className="text-sm font-bold text-muted-foreground">IGST</span>
+                      <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                        {formatDocAmount(calculations.totalTax)}
+                      </span>
+                    </div>
+                  )
+                ) : (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
+                    <span className="text-sm font-bold text-foreground min-w-[60px] text-right">
+                      {formatDocAmount(calculations.totalTax)}
+                    </span>
+                  </div>
+                )}
 
                 <div className="flex justify-between items-center py-2">
                   <span className="text-sm font-bold text-muted-foreground">Adjustment</span>
@@ -722,11 +990,11 @@ export default function EstimateCreate() {
         </Card>
 
         {/* Bottom Actions */}
-        <div className="flex items-center justify-end gap-4 pt-4">
+        <div className="flex items-center justify-end pt-4">
           <Button
             variant="outline"
             onClick={() => navigate(-1)}
-            className="rounded-xl px-6 h-10 text-xs font-bold border-border/50 bg-background/50 backdrop-blur-sm hover:bg-background transition-all shadow-sm"
+            className="rounded-l-xl rounded-r-none border-r-0 px-6 h-10 text-xs font-bold border-border/50 bg-background/50 backdrop-blur-sm hover:bg-background transition-all shadow-sm"
           >
             Cancel
           </Button>
@@ -734,13 +1002,13 @@ export default function EstimateCreate() {
           <div className="flex items-center">
             <Button
               onClick={() => handleSave("save")}
-              className="rounded-l-xl px-8 h-10 shadow-lg shadow-primary/20 font-black tracking-widest uppercase text-xs border-r border-white/10"
+              className="rounded-none px-8 h-10 shadow-lg shadow-primary/20 font-black tracking-widest uppercase text-xs border-r border-white/10"
             >
               Save
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="rounded-r-xl px-2 h-10 shadow-lg shadow-primary/20">
+                <Button className="rounded-r-xl rounded-l-none px-2 h-10 shadow-lg shadow-primary/20">
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -775,8 +1043,8 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
         <div className="bg-slate-50 dark:bg-slate-800/50 px-8 py-6 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-4 tracking-tight">
-              <div className="p-2.5 bg-primary/10 rounded-2xl">
-                <Plus className="h-6 w-6 text-primary" />
+              <div className="p-2.5 shrink-0 bg-primary/10 rounded-2xl">
+                <Plus className="h-6 w-6 shrink-0 text-primary" />
               </div>
               Add New Item
             </DialogTitle>
@@ -802,13 +1070,16 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
               className="min-h-[100px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium resize-none p-4 focus-visible:ring-1 focus-visible:ring-primary/30"
             />
           </div>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Qty</Label>
               <Input
                 type="number"
                 value={newItem.qty}
-                onChange={(e) => setNewItem((p: any) => ({ ...p, qty: Number(e.target.value) }))}
+                onChange={(e) => {
+                  const qty = Number(e.target.value);
+                  setNewItem((p: any) => ({ ...p, qty, amount: p.amountOverridden ? p.amount : qty * p.rate }));
+                }}
                 className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
               />
             </div>
@@ -817,7 +1088,19 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
               <Input
                 type="number"
                 value={newItem.rate}
-                onChange={(e) => setNewItem((p: any) => ({ ...p, rate: Number(e.target.value) }))}
+                onChange={(e) => {
+                  const rate = Number(e.target.value);
+                  setNewItem((p: any) => ({ ...p, rate, amount: p.amountOverridden ? p.amount : p.qty * rate }));
+                }}
+                className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Amount</Label>
+              <Input
+                type="number"
+                value={newItem.amount}
+                onChange={(e) => setNewItem((p: any) => ({ ...p, amount: Number(e.target.value), amountOverridden: true }))}
                 className="h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-bold focus-visible:ring-1 focus-visible:ring-primary/30"
               />
             </div>

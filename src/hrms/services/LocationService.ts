@@ -11,6 +11,16 @@ const MOVING_INTERVAL = 15_000;          // ms — upload every 15 s while movin
 const STATIONARY_HEARTBEAT = 60_000;          // ms — heartbeat every 60 s when stationary
 const ACCURACY_THRESHOLD = 50;              // metres — reject coarse cell-tower fixes
 const WEB_POLL_INTERVAL = 30_000;          // ms — backup poll every 30 s on web
+// metres — hard sanity ceiling for ALL fixes (forced or not). Was 150, which
+// silently dropped every fix on desktop/laptop browsers using WiFi-based
+// geolocation (commonly 150-1000m accuracy indoors, no GPS chip) — those
+// users' lastKnownLocation never got written, so they never showed "Live" in
+// Online Live Tracking even after logging in and punching in. Geofence-based
+// auto-punch-out is unaffected: the backend independently re-filters fixes at
+// a stricter 50m (MAX_PATH_ACCURACY_M in location_controller.js) before using
+// them for that decision, so this only widens what counts as "online enough
+// to show a Live badge", not what counts as "precisely at the branch".
+const MAX_ACCEPTABLE_ACCURACY = 1000;
 const SW_PATH = "/location-sw.js";
 
 // ── LocationService class ──────────────────────────────────────────────────
@@ -45,7 +55,28 @@ class LocationService {
       this.user = user;
       this.sessionId = `session_${userId}_${Date.now()}`;
       this.isTracking = true;
-      await this.initNativeTracking();
+      // Try native plugin first; fall back to Capacitor Geolocation if the
+      // BackgroundTracker plugin is not registered in this build.
+      try {
+        await this.initNativeTracking();
+        return; // Native plugin took over — done
+      } catch (err) {
+        console.warn("[LocationService] Native BackgroundTracker unavailable, using Capacitor Geolocation fallback:", err);
+        // Fall through to Capacitor-based JS tracking below
+      }
+
+      // ── Capacitor Geolocation fallback (no BackgroundTracker plugin) ────
+      try {
+        await this.captureInitialFix();
+      } catch { /* ignore */ }
+      // Heartbeat: push location every 60 s using Capacitor Geolocation
+      this.heartbeatInterval = setInterval(async () => {
+        if (!this.isTracking) return;
+        try {
+          const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10_000, maximumAge: 0 });
+          await this.handleNewLocation(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.coords.speed ?? 0, true);
+        } catch { /* silent */ }
+      }, STATIONARY_HEARTBEAT);
       return;
     }
 
@@ -152,49 +183,46 @@ class LocationService {
   // ── Native (Android) — drive the custom foreground-service plugin ──────────
 
   private async initNativeTracking() {
-    try {
-      // Ensure at least foreground location is granted before we start.
-      // On Android 14+ starting the location foreground service without this
-      // permission throws a SecurityException in the native service and
-      // crashes the app, so we must NOT proceed unless it's actually granted.
-      let perms = await BackgroundTracker.checkAllPermissions();
-      if (perms.location !== "granted") {
-        perms = await BackgroundTracker.requestForegroundPermissions();
-      }
-      if (perms.location !== "granted") {
-        console.warn(
-          "[LocationService] Location permission not granted — skipping native tracking start."
-        );
-        return;
-      }
+    // Check that the BackgroundTracker plugin is actually available on this
+    // build — registerPlugin() returns a proxy that only throws when called.
+    // We detect availability by calling a lightweight method first.
+    let perms: any;
+    perms = await BackgroundTracker.checkAllPermissions();
 
-      // Mint a long-lived tracking-scoped token so syncs survive app-kill even
-      // after the 1d login token would have expired. Fall back to the login
-      // token if the endpoint is unreachable (degraded, but tracking still runs).
-      let token: string | null = null;
-      try { token = await employeeApi.getTrackingToken(); }
-      catch { /* fall through to login token */ }
-      const finalToken = token || getAuthToken() || "";
-      if (!token) {
-        console.warn("[LocationService] tracking-token unavailable; using login token (may expire mid-shift)");
-      }
-
-      const userId = this.user?._id || this.user?.id || this.user?.userId || "";
-      await BackgroundTracker.startTracking({
-        token: finalToken,
-        apiBase: this.resolveApiBase(),
-        sessionId: this.sessionId || "",
-        userId: String(userId),
-        storeId: this.user?.storeId,
-        distanceFilter: MIN_DISTANCE,
-        heartbeatMs: STATIONARY_HEARTBEAT,
-      });
-      this.watcherId = "native-bg";
-      this.isTracking = true;
-      console.log("[LocationService] Native background tracking started");
-    } catch (err) {
-      console.error("[LocationService] Native init failed:", err);
+    if (perms.location !== "granted") {
+      perms = await BackgroundTracker.requestForegroundPermissions();
     }
+    if (perms.location !== "granted") {
+      console.warn(
+        "[LocationService] Location permission not granted — skipping native tracking start."
+      );
+      throw new Error("Location permission denied");
+    }
+
+    // Mint a long-lived tracking-scoped token so syncs survive app-kill even
+    // after the 1d login token would have expired. Fall back to the login
+    // token if the endpoint is unreachable (degraded, but tracking still runs).
+    let token: string | null = null;
+    try { token = await employeeApi.getTrackingToken(); }
+    catch { /* fall through to login token */ }
+    const finalToken = token || getAuthToken() || "";
+    if (!token) {
+      console.warn("[LocationService] tracking-token unavailable; using login token (may expire mid-shift)");
+    }
+
+    const userId = this.user?._id || this.user?.id || this.user?.userId || "";
+    await BackgroundTracker.startTracking({
+      token: finalToken,
+      apiBase: this.resolveApiBase(),
+      sessionId: this.sessionId || "",
+      userId: String(userId),
+      storeId: this.user?.storeId,
+      distanceFilter: MIN_DISTANCE,
+      heartbeatMs: STATIONARY_HEARTBEAT,
+    });
+    this.watcherId = "native-bg";
+    this.isTracking = true;
+    console.log("[LocationService] Native background tracking started");
   }
 
   // ── Web tracking ──────────────────────────────────────────────────────────
@@ -216,7 +244,14 @@ class LocationService {
         pos.coords.accuracy,
         pos.coords.speed ?? 0
       ),
-      (err) => console.warn("[LocationService] Web GPS error:", err.message),
+      (err) => {
+        if (err?.code === 1 || String(err?.message || "").toLowerCase().includes("denied")) {
+          console.warn("[LocationService] Geolocation permission denied by user. Stopping background location tracker.");
+          this.stopTracking();
+        } else {
+          console.warn("[LocationService] Web GPS error:", err.message);
+        }
+      },
       opts
     );
     this.watcherId = id.toString();
@@ -247,7 +282,15 @@ class LocationService {
   private async registerServiceWorker() {
     if (!("serviceWorker" in navigator)) return;
     try {
-      const reg = await navigator.serviceWorker.register(SW_PATH, { scope: "/" });
+      // Register on a DEDICATED scope, not "/" — the main app-shell service
+      // worker (vite-plugin-pwa's workbox output, registered in src/pwa.ts)
+      // already owns scope "/", and both it and this SW are configured with
+      // skipWaiting+clientsClaim. Two registrations fighting over the same
+      // scope forces a takeover on every single page load, which src/pwa.ts's
+      // onNeedRefresh reacts to with window.location.reload() — an infinite
+      // full-page reload loop. See webPush.ts's firebase-messaging-sw.js
+      // registration for the same pattern already used to avoid this.
+      const reg = await navigator.serviceWorker.register(SW_PATH, { scope: "/location-tracking-sw-scope" });
       this.swRegistration = reg;
       // Flush any IDB queue immediately
       reg.active?.postMessage({ type: "FLUSH_QUEUE" });
@@ -360,10 +403,11 @@ class LocationService {
   ) {
     // "force" bypasses the normal debounce (distance/time throttle) for
     // foreground/background transitions, but it must never bypass a basic
-    // sanity check on the fix itself — a cell-tower-grade fix (100s of
-    // metres off) forced straight through as authoritative is exactly what
-    // produces false "employee left the branch" signals downstream.
-    if (accuracy > 150) return;
+    // sanity check on the fix itself — a wildly-off fix (many km, e.g. a
+    // failed/placeholder IP-geolocation lookup) forced straight through as
+    // authoritative is exactly what produces false "employee left the
+    // branch" signals downstream.
+    if (accuracy > MAX_ACCEPTABLE_ACCURACY) return;
     if (!force) {
       if (accuracy > ACCURACY_THRESHOLD) return;
       const dist = this.lastLocation
@@ -432,8 +476,12 @@ class LocationService {
         pos.coords.speed ?? 0,
         true
       );
-    } catch (err) {
-      console.warn("[LocationService] Initial fix failed:", err);
+    } catch (err: any) {
+      if (err?.code === 1 || String(err?.message || "").toLowerCase().includes("denied")) {
+        console.warn("[LocationService] Geolocation permission denied by user.");
+      } else {
+        console.warn("[LocationService] Initial fix failed:", err?.message || err);
+      }
     }
   }
 

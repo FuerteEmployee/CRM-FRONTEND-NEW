@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Building2, Plus, Search, Activity, Trash2,
   Package, CheckCircle2, XCircle, Settings, Clock,
-  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell
+  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell, Globe, RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -32,6 +32,7 @@ interface Tenant {
   _id: string;
   company_name: string;
   subdomain?: string;
+  custom_domains?: string[];
   plan_id: SaasPlan | null;
   owner_id: Owner | null;
   status: "active" | "inactive" | "trial" | "expired";
@@ -48,15 +49,56 @@ const STATUS_CONFIG = {
   expired:  { label: "Expired",  icon: AlertTriangle, cls: "bg-orange-50 text-orange-700 border-orange-200" },
 };
 
-const DEFAULT_CREATE = { company_name: "", email: "", password: "", plan_id: "" };
-const DEFAULT_MANAGE = { company_name: "", email: "", password: "", plan_id: "", status: "trial" as Tenant["status"] };
+const DEFAULT_CREATE = { company_name: "", email: "", password: "", plan_id: "", custom_domains: "" };
+const DEFAULT_MANAGE = { company_name: "", email: "", password: "", plan_id: "", status: "trial" as Tenant["status"], custom_domains: "" };
+
+const parseDomains = (value: string) =>
+  value.split(",").map((d) => d.trim().toLowerCase()).filter(Boolean);
+
+// Days remaining until the tenant's plan expires, or null when there's no
+// meaningful expiry (e.g. an active lifetime plan). Mirrors the "Joined"
+// column's own date math so the Renew button lines up with what's displayed.
+const getDaysLeft = (tenant: Tenant): number | null => {
+  if (tenant.plan_id?.billing_cycle === "lifetime" && tenant.status === "active") return null;
+
+  let expiryDate: Date | null = null;
+  if (tenant.status === "trial") {
+    const trialDays = tenant.plan_id?.trial_days ?? 14;
+    expiryDate = tenant.trial_ends_at
+      ? new Date(tenant.trial_ends_at)
+      : new Date(new Date(tenant.createdAt).getTime() + trialDays * 86400000);
+  } else if (tenant.status === "active") {
+    const cycle = tenant.plan_id?.billing_cycle;
+    const cycleDays = cycle === "yearly" ? 365 : 30;
+    const startDate = tenant.billing_cycle_start || tenant.createdAt;
+    expiryDate = tenant.billing_cycle_end
+      ? new Date(tenant.billing_cycle_end)
+      : new Date(new Date(startDate).getTime() + cycleDays * 86400000);
+  } else if (tenant.billing_cycle_end || tenant.trial_ends_at) {
+    expiryDate = new Date(tenant.billing_cycle_end || tenant.trial_ends_at!);
+  } else {
+    return null;
+  }
+
+  return Math.ceil((expiryDate.getTime() - Date.now()) / 86400000);
+};
+
+const DEFAULT_COUNTS = { active: 0, inactive: 0, trial: 0, expired: 0 };
 
 export default function SuperAdminCompanies() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [plans, setPlans] = useState<SaasPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // Server-side pagination — mirrors the pattern used in Estimates.tsx.
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(25);
+  const [total, setTotal] = useState(0);
+  const [pages, setPages] = useState(1);
+  const [counts, setCounts] = useState<typeof DEFAULT_COUNTS>(DEFAULT_COUNTS);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isManageOpen, setIsManageOpen] = useState(false);
@@ -65,28 +107,71 @@ export default function SuperAdminCompanies() {
   const [manageForm, setManageForm] = useState(DEFAULT_MANAGE);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Debounce the search box the same way Estimates.tsx does (350ms) so we
+  // don't fire a request on every keystroke.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Jump back to page 1 whenever the search or status filter changes so we
+  // never end up requesting a page that no longer exists for the new filter.
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, statusFilter]);
+
+  // Only show the full-page skeleton on the very first load — page/search/
+  // status changes (and post-CRUD refreshes) should swap the table rows in
+  // place instead of blanking the whole page every time.
+  const isFirstLoad = useRef(true);
+
   const fetchData = async () => {
     try {
-      setLoading(true);
-      const [tenantsRes, plansRes] = await Promise.all([
-        api.get("/super-admin/tenants"),
-        api.get("/super-admin/plans"),
-      ]);
-      setTenants(tenantsRes);
-      setPlans(plansRes);
+      if (isFirstLoad.current) setLoading(true);
+      const res = await api.get("/super-admin/tenants", {
+        params: {
+          page: currentPage,
+          limit: itemsPerPage,
+          search: debouncedSearch || undefined,
+          status: statusFilter !== "all" ? statusFilter : undefined,
+        },
+      });
+      if (Array.isArray(res)) {
+        // Defensive fallback (e.g. the api client swallowed an error into
+        // `[]`) — still render something rather than crash.
+        setTenants(res);
+        setTotal(res.length);
+        setPages(1);
+        setCounts(DEFAULT_COUNTS);
+      } else {
+        setTenants(res?.data || []);
+        setTotal(res?.total || 0);
+        setPages(res?.pages || 1);
+        setCounts(res?.counts || DEFAULT_COUNTS);
+      }
     } catch (error: any) {
       toast.error(error.message || "Failed to load data");
     } finally {
-      setLoading(false);
+      if (isFirstLoad.current) {
+        setLoading(false);
+        isFirstLoad.current = false;
+      }
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [currentPage, itemsPerPage, debouncedSearch, statusFilter]);
+
+  // The plans list is unrelated to tenant pagination — fetch it once on
+  // mount instead of on every page/search/status change.
+  useEffect(() => {
+    api.get("/super-admin/plans").then(setPlans).catch(() => {});
+  }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post("/super-admin/tenants", createForm);
+      await api.post("/super-admin/tenants", {
+        ...createForm,
+        custom_domains: parseDomains(createForm.custom_domains),
+      });
       toast.success("Customer created successfully");
       setIsCreateOpen(false);
       setCreateForm(DEFAULT_CREATE);
@@ -100,12 +185,27 @@ export default function SuperAdminCompanies() {
     e.preventDefault();
     if (!selectedTenant) return;
     try {
-      await api.put(`/super-admin/tenants/${selectedTenant._id}`, manageForm);
+      await api.put(`/super-admin/tenants/${selectedTenant._id}`, {
+        ...manageForm,
+        custom_domains: parseDomains(manageForm.custom_domains),
+      });
       toast.success("Updated successfully");
       setIsManageOpen(false);
       fetchData();
     } catch (error: any) {
       toast.error(error.message || "Failed to update");
+    }
+  };
+
+  const handleRenew = async (tenant: Tenant) => {
+    if (!window.confirm(`Renew "${tenant.company_name}"'s plan starting today?`)) return;
+    try {
+      const updated = await api.put(`/super-admin/tenants/${tenant._id}/renew`);
+      const newExpiry = updated?.billing_cycle_end ? format(new Date(updated.billing_cycle_end), "MMM d, yyyy") : "";
+      toast.success(newExpiry ? `Plan renewed. New expiry: ${newExpiry}` : "Plan renewed");
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to renew plan");
     }
   };
 
@@ -128,25 +228,14 @@ export default function SuperAdminCompanies() {
       password: "",
       plan_id: tenant.plan_id?._id || "",
       status: tenant.status,
+      custom_domains: (tenant.custom_domains || []).join(", "),
     });
     setIsManageOpen(true);
   };
 
-  const filtered = tenants.filter((t) => {
-    const q = search.toLowerCase();
-    const matchSearch =
-      t.company_name.toLowerCase().includes(q) ||
-      (t.owner_id?.email || "").toLowerCase().includes(q);
-    const matchStatus = statusFilter === "all" || t.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
-
-  const counts = {
-    active:   tenants.filter((t) => t.status === "active").length,
-    inactive: tenants.filter((t) => t.status === "inactive").length,
-    trial:    tenants.filter((t) => t.status === "trial").length,
-    expired:  tenants.filter((t) => t.status === "expired").length,
-  };
+  // `tenants` is already the server-paginated, search/status-filtered page
+  // of rows, and `counts`/`total` come straight from the backend — no
+  // client-side filtering pass needed here anymore.
 
   const StatusBadge = ({ status }: { status: Tenant["status"] }) => {
     const cfg = STATUS_CONFIG[status];
@@ -222,10 +311,10 @@ export default function SuperAdminCompanies() {
               {STATUS_CONFIG[statusFilter as Tenant["status"]]?.label} <X className="h-3 w-3" />
             </button>
           )}
-          <span className="text-xs text-gray-400 ml-auto">{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
+          <span className="text-xs text-gray-400 ml-auto">{total} result{total !== 1 ? "s" : ""}</span>
         </div>
 
-        {filtered.length === 0 ? (
+        {tenants.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="p-4 bg-blue-50 rounded-full mb-4">
               <Building2 className="h-8 w-8 text-blue-400" />
@@ -236,21 +325,22 @@ export default function SuperAdminCompanies() {
             </p>
           </div>
         ) : (
+          <>
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
+            <table className="w-full min-w-[1180px] text-left">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Company Name</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email ID</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Plan</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Banner Shows</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Joined</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Company Name</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Email ID</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Plan</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Banner Shows</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Joined</th>
+                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filtered.map((tenant) => (
+                {tenants.map((tenant) => (
                   <tr key={tenant._id} className="hover:bg-gray-50 transition-colors group">
                     {/* Company */}
                     <td className="px-6 py-4">
@@ -292,13 +382,13 @@ export default function SuperAdminCompanies() {
                           ? "bg-amber-50 text-amber-600 border-amber-200"
                           : "bg-blue-50 text-blue-600 border-blue-200";
                         return (
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${cls}`}>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border whitespace-nowrap ${cls}`}>
                             <Bell className="h-3 w-3" />
                             {label} before expiry
                           </span>
                         );
                       })() : (
-                        <span className="text-xs text-gray-400 italic">Not set</span>
+                        <span className="text-xs text-gray-400 italic whitespace-nowrap">Not set</span>
                       )}
                     </td>
                     {/* Status */}
@@ -317,7 +407,10 @@ export default function SuperAdminCompanies() {
                         })()}
                         {tenant.status === "active" && (() => {
                           const cycle = tenant.plan_id?.billing_cycle;
-                          const cycleDays = cycle === "yearly" ? 365 : cycle === "lifetime" ? 99999 : 30;
+                          if (cycle === "lifetime") {
+                            return <span className="text-[11px] font-semibold text-emerald-600">Lifetime Plan</span>;
+                          }
+                          const cycleDays = cycle === "yearly" ? 365 : 30;
                           const startDate = tenant.billing_cycle_start || tenant.createdAt;
                           const billingEnd = tenant.billing_cycle_end
                             || new Date(new Date(startDate).getTime() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
@@ -337,21 +430,28 @@ export default function SuperAdminCompanies() {
                       {(() => {
                         const joinedDate = new Date(tenant.billing_cycle_start || tenant.createdAt);
 
-                        // Calculate expiry: prefer stored date, fallback to start + billing days
                         let expiryDate: Date | null = null;
-                        if (tenant.status === "trial") {
+                        if (tenant.plan_id?.billing_cycle === "lifetime" && tenant.status === "active") {
+                          // Lifetime plans do not expire
+                          expiryDate = null;
+                        } else if (tenant.status === "trial") {
                           const trialDays = tenant.plan_id?.trial_days ?? 14;
                           expiryDate = tenant.trial_ends_at
                             ? new Date(tenant.trial_ends_at)
                             : new Date(new Date(tenant.createdAt).getTime() + trialDays * 86400000);
                         } else if (tenant.status === "active") {
                           const cycle = tenant.plan_id?.billing_cycle;
-                          const cycleDays = cycle === "yearly" ? 365 : cycle === "lifetime" ? 36500 : 30;
+                          const cycleDays = cycle === "yearly" ? 365 : 30;
                           expiryDate = tenant.billing_cycle_end
                             ? new Date(tenant.billing_cycle_end)
                             : new Date(joinedDate.getTime() + cycleDays * 86400000);
                         } else if (tenant.billing_cycle_end || tenant.trial_ends_at) {
                           expiryDate = new Date(tenant.billing_cycle_end || tenant.trial_ends_at!);
+                        } else {
+                          // Fallback for expired/inactive without specific end dates
+                          const cycle = tenant.plan_id?.billing_cycle;
+                          const cycleDays = cycle === "yearly" ? 365 : 30;
+                          expiryDate = new Date(joinedDate.getTime() + cycleDays * 86400000);
                         }
 
                         const daysLeft = expiryDate
@@ -373,7 +473,9 @@ export default function SuperAdminCompanies() {
                             <span className="text-sm text-gray-700">
                               {format(joinedDate, "MMM d, yyyy")}
                             </span>
-                            {expiryDate && (
+                            {tenant.plan_id?.billing_cycle === "lifetime" && tenant.status === "active" ? (
+                              <span className="text-[11px] text-emerald-600 font-medium">No expiry (Lifetime)</span>
+                            ) : expiryDate && (
                               <span className={`text-[11px] ${expiryColor}`}>
                                 Expires: {format(expiryDate, "MMM d, yyyy")}
                                 {daysLeft !== null && daysLeft > 0 && (
@@ -389,8 +491,23 @@ export default function SuperAdminCompanies() {
                       })()}
                     </td>
                     {/* Actions */}
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
+                        {(() => {
+                          const daysLeft = getDaysLeft(tenant);
+                          if (daysLeft === null || daysLeft > 30) return null;
+                          return (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleRenew(tenant)}
+                              className="h-8 text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50 border-emerald-200 bg-emerald-50/50"
+                            >
+                              <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                              Renew
+                            </Button>
+                          );
+                        })()}
                         <Button
                           variant="outline"
                           size="sm"
@@ -415,15 +532,44 @@ export default function SuperAdminCompanies() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Footer */}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 px-6 py-4 border-t border-gray-200">
+            <p className="text-xs text-gray-500">
+              Showing {total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, total)} of {total} result{total !== 1 ? "s" : ""}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-4 text-xs font-medium"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={currentPage <= 1}
+              >
+                Previous
+              </Button>
+              <span className="text-xs text-gray-500 px-1">Page {currentPage} of {pages}</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-4 text-xs font-medium"
+                onClick={() => setCurrentPage((p) => Math.min(pages, p + 1))}
+                disabled={currentPage >= pages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+          </>
         )}
       </div>
     </div>
 
     {/* ── Add Customer Modal ── */}
     {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white border border-gray-200 rounded-xl w-full max-w-md shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
               <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-blue-600" />
                 Add New Customer
@@ -433,7 +579,7 @@ export default function SuperAdminCompanies() {
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
+            <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto">
               {/* Company Name */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Company Name</label>
@@ -448,6 +594,24 @@ export default function SuperAdminCompanies() {
                     placeholder="e.g. Acme Corp"
                   />
                 </div>
+              </div>
+
+              {/* Custom Domain */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Custom Domain (optional)</label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={createForm.custom_domains}
+                    onChange={(e) => setCreateForm({ ...createForm, custom_domains: e.target.value })}
+                    className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    placeholder="e.g. erp.trinetratechnoworld.com"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400">
+                  Locks login + branding to this customer on this domain. Leave blank for the shared multi-tenant domain.
+                </p>
               </div>
 
               {/* Email */}
@@ -527,9 +691,9 @@ export default function SuperAdminCompanies() {
 
       {/* ── Manage Subscription Modal ── */}
       {isManageOpen && selectedTenant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white border border-gray-200 rounded-xl w-full max-w-md shadow-2xl overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white border border-gray-200 rounded-xl w-full max-w-md shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
               <div>
                 <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
                   <Edit className="h-4 w-4 text-blue-600" />
@@ -546,7 +710,7 @@ export default function SuperAdminCompanies() {
               </button>
             </div>
 
-            <form onSubmit={handleManageSave} className="p-6 space-y-4">
+            <form onSubmit={handleManageSave} className="p-6 space-y-4 overflow-y-auto">
               {/* Company Name */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Company Name</label>
@@ -561,6 +725,24 @@ export default function SuperAdminCompanies() {
                     placeholder="e.g. Acme Corp"
                   />
                 </div>
+              </div>
+
+              {/* Custom Domain */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Custom Domain (optional)</label>
+                <div className="relative">
+                  <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={manageForm.custom_domains}
+                    onChange={(e) => setManageForm({ ...manageForm, custom_domains: e.target.value })}
+                    className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    placeholder="e.g. erp.trinetratechnoworld.com"
+                  />
+                </div>
+                <p className="text-[11px] text-gray-400">
+                  Locks login + branding to this customer on this domain. Leave blank for the shared multi-tenant domain.
+                </p>
               </div>
 
               {/* Email */}
@@ -631,7 +813,7 @@ export default function SuperAdminCompanies() {
               {/* Status */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Account Status</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {(["trial", "active", "inactive", "expired"] as const).map((s) => {
                     const cfg = STATUS_CONFIG[s];
                     const Icon = cfg.icon;

@@ -3,13 +3,20 @@ import { apiClient } from "../client";
 export const estimateService = {
   /** Fetch all estimates. Pass query params as needed: ?type=form_submission */
   getEstimates: (params = {}) => {
-    const query = new URLSearchParams(params).toString();
+    // Drop undefined/null so callers can pass optional filters without them
+    // literally becoming the string "undefined" in the query (URLSearchParams
+    // stringifies every value it's given, undefined included).
+    const cleaned = Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== "")
+    );
+    const query = new URLSearchParams(cleaned).toString();
     return apiClient.get(`/estimates${query ? `?${query}` : ""}`);
   },
   getEstimateById: (id) => apiClient.get(`/estimates/${id}`),
   createEstimate: (data) => apiClient.post("/estimates", data),
   updateEstimate: (id, data) => apiClient.put(`/estimates/${id}`, data),
   deleteEstimate: (id) => apiClient.delete(`/estimates/${id}`),
+  bulkDeleteEstimates: (ids) => apiClient.post("/estimates/bulk-delete", { ids }),
   getFormSubmissions: () => apiClient.get("/estimates"),
 
   // ─────────────────────────────────────────────
@@ -64,6 +71,9 @@ export const estimateService = {
 
   updateRequestStatus: (id, status) =>
     apiClient.patch(`/estimate-requests/${id}/status`, { status }),
+
+  updateRequest: (id, data) =>
+    apiClient.put(`/estimate-requests/${id}`, data),
 
   deleteRequest: (id) => apiClient.delete(`/estimate-requests/${id}`),
 

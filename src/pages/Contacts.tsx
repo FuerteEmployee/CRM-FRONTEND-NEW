@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import {
   Select,
   SelectContent,
@@ -49,7 +50,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/api/client";
 import { customerService } from "@/api/services/customer.service";
@@ -65,17 +66,69 @@ const Contacts = () => {
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const itemsPerPage = 25;
+  const [itemsPerPage, setItemsPerPage] = useState("25");
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const { data: allContacts = [], isLoading, refetch } = useQuery<any[]>({
-    queryKey: ["all-contacts"],
-    queryFn: () => apiClient.get("/clients/contacts/all").catch(() => []),
+  // Search + sort exactly as this page always has, applied over an
+  // unbounded fetch — used for "All" page-size mode and for exporting the
+  // full filtered set (independent of whatever page is on screen).
+  const filterAndSortContacts = (rows: any[]) => {
+    const q = search.toLowerCase();
+    return rows
+      .filter((contact: any) => {
+        const fullName = `${contact.firstname || ""} ${contact.lastname || ""}`.toLowerCase();
+        const companyName = (contact.userid?.company || "").toLowerCase();
+        return (
+          fullName.includes(q) ||
+          (contact.email || "").toLowerCase().includes(q) ||
+          companyName.includes(q) ||
+          (contact.title || "").toLowerCase().includes(q) ||
+          (contact.phonenumber || "").toLowerCase().includes(q)
+        );
+      })
+      .sort((a: any, b: any) => {
+        const companyA = (a.userid?.company || "").toLowerCase();
+        const companyB = (b.userid?.company || "").toLowerCase();
+
+        if (companyA !== companyB) {
+          return companyA.localeCompare(companyB);
+        }
+
+        const nameA = `${a.firstname || ""} ${a.lastname || ""}`.toLowerCase();
+        const nameB = `${b.firstname || ""} ${b.lastname || ""}`.toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+  };
+
+  interface ContactsPage { rows: any[]; total: number; pages: number }
+
+  // Paginated server-side once a finite page size is chosen; "All" keeps
+  // the legacy full fetch, filtered/sorted client-side exactly as this
+  // page always has.
+  const { data: contactsResult, isLoading, refetch } = useQuery<ContactsPage>({
+    queryKey: ["contacts", itemsPerPage, currentPage, search],
+    queryFn: async () => {
+      if (itemsPerPage === "All") {
+        const response = await customerService.getContactsPaginated().catch(() => []);
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        const rowsFiltered = filterAndSortContacts(rows);
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1 };
+      }
+
+      const res: any = await customerService
+        .getContactsPaginated({ page: currentPage, limit: itemsPerPage, search: search || undefined })
+        .catch(() => null);
+      if (!res || Array.isArray(res)) return { rows: [], total: 0, pages: 1 };
+      return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1 };
+    },
+    placeholderData: keepPreviousData,
   });
+  const allContacts: any[] = contactsResult?.rows ?? [];
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiClient.delete(`/clients/contacts/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
       toast({
         title: "Deleted",
         description: "Contact has been removed successfully.",
@@ -93,7 +146,7 @@ const Contacts = () => {
   const updateMutation = useMutation({
     mutationFn: (data: any) => apiClient.put(`/clients/contacts/${data._id}`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts"] });
       setEditContact(null);
       toast({
         title: "Updated",
@@ -114,8 +167,8 @@ const Contacts = () => {
   const importMutation = useMutation({
     mutationFn: (data: any) => customerService.importContacts(data),
     onSuccess: async (data: any) => {
-      await queryClient.invalidateQueries({ queryKey: ["all-contacts"] });
-      await queryClient.refetchQueries({ queryKey: ["all-contacts"] });
+      await queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      await queryClient.refetchQueries({ queryKey: ["contacts"] });
       toast({
         title: data.count === 0 ? "No New Contacts" : "Import Successful",
         description: data.message || "Contacts imported",
@@ -230,36 +283,35 @@ const Contacts = () => {
     });
   };
 
-  const filtered = allContacts.filter((contact) => {
-    const fullName = `${contact.firstname || ""} ${contact.lastname || ""}`.toLowerCase();
-    const companyName = (contact.userid?.company || "").toLowerCase();
-    return (
-      fullName.includes(search.toLowerCase()) ||
-      (contact.email || "").toLowerCase().includes(search.toLowerCase()) ||
-      companyName.includes(search.toLowerCase())
-    );
-  }).sort((a, b) => {
-    const companyA = (a.userid?.company || "").toLowerCase();
-    const companyB = (b.userid?.company || "").toLowerCase();
-    
-    if (companyA !== companyB) {
-      return companyA.localeCompare(companyB);
-    }
-    
-    const nameA = `${a.firstname || ""} ${a.lastname || ""}`.toLowerCase();
-    const nameB = `${b.firstname || ""} ${b.lastname || ""}`.toLowerCase();
-    return nameA.localeCompare(nameB);
-  });
+  // `allContacts` is already filtered/sorted (client-side via
+  // filterAndSortContacts in "All" mode, server-side otherwise) and —
+  // outside "All" mode — already scoped to just the current page, so no
+  // second filter/slice pass is needed here.
+  const filtered = allContacts;
+  const totalContactCount = contactsResult?.total ?? 0;
+  const contactPageSize = itemsPerPage === "All" ? (totalContactCount || 1) : parseInt(itemsPerPage);
+  const totalContactPages = contactsResult?.pages ?? 1;
+  const safeContactPage = Math.min(currentPage, totalContactPages);
+  const paginatedContacts = filtered;
 
-  const handleExport = (type: "xlsx" | "csv" | "pdf" | "print") => {
-    if (filtered.length === 0) {
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredContacts = async () => {
+    const response = await customerService.getContactsPaginated().catch(() => []);
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    return filterAndSortContacts(rows);
+  };
+
+  const handleExport = async (type: "xlsx" | "csv" | "pdf" | "print") => {
+    const exportRows = itemsPerPage === "All" ? filtered : await loadAllFilteredContacts();
+    if (exportRows.length === 0) {
       toast({ title: "Error", description: "No data to export", variant: "destructive" });
       return;
     }
 
     if (type === "csv" || type === "xlsx") {
       const headers = ["Full Name", "Customer/Company", "Email", "Position", "Phone", "Active", "Last Login"];
-      const rows = filtered.map((contact: any) => [
+      const rows = exportRows.map((contact: any) => [
         `${contact.firstname || ""} ${contact.lastname || ""}`.trim(),
         contact.userid?.company || "-",
         contact.email || "",
@@ -278,7 +330,7 @@ const Contacts = () => {
         XLSX.writeFile(wb, `${filenameBase}.xlsx`);
       } else {
         const csvData = [headers.join(","), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
-        const blob = new Blob(["﻿" + csvData], { type: "text/csv;charset=utf-8;" });
+        const blob = new Blob(["\uFEFF" + csvData], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);
@@ -306,18 +358,8 @@ const Contacts = () => {
         
         <Card>
           <CardContent className="p-0">
-            <div className="flex items-center justify-between p-3 border-b">
-              <div className="flex items-center gap-2">
-                <Select defaultValue="25">
-                  <SelectTrigger className="w-[70px] h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
+              <div className="flex flex-wrap items-center gap-2">
                 {/* Import contacts from Excel / CSV */}
                 <input ref={importFileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleImportFile} />
                 <Button
@@ -370,13 +412,13 @@ const Contacts = () => {
                   <RefreshCcw className="h-3.5 w-3.5" />
                 </Button>
               </div>
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search contacts..."
-                  className="pl-8 h-8 w-[200px] text-xs"
+                  className="pl-8 h-8 w-full sm:w-[200px] text-xs"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 />
               </div>
             </div>
@@ -411,7 +453,7 @@ const Contacts = () => {
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((contact) => (
+                    paginatedContacts.map((contact) => (
                       <tr
                         key={contact._id}
                         className="border-b last:border-0 hover:bg-muted/50 transition-colors group"
@@ -433,7 +475,12 @@ const Contacts = () => {
                           {contact.title || "developer"}
                         </td>
                         <td className="p-4 text-sm text-[#64748b]">
-                          {contact.phonenumber || "-"}
+                          {contact.phonenumber ? (
+                            <WhatsAppQuickChat
+                              phone={contact.phonenumber}
+                              data={{ customer_name: `${contact.firstname || ""} ${contact.lastname || ""}`.trim() }}
+                            />
+                          ) : "-"}
                         </td>
                         <td className="p-4">
                           <Switch
@@ -460,11 +507,42 @@ const Contacts = () => {
               </table>
             </div>
 
-            <div className="flex items-center justify-between p-3 border-t text-sm text-muted-foreground">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3 border-t text-sm text-muted-foreground">
               <span>
-                Showing 1 to {Math.min(itemsPerPage, filtered.length)} of{" "}
-                {filtered.length} entries
+                Showing {totalContactCount === 0 ? 0 : (safeContactPage - 1) * contactPageSize + 1} to {Math.min(safeContactPage * contactPageSize, totalContactCount)} of{" "}
+                {totalContactCount} entries
               </span>
+              <div className="flex items-center gap-2">
+                <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
+                  <SelectTrigger className="h-8 w-[80px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {["10", "25", "50", "100", "All"].map(v => (
+                      <SelectItem key={v} value={v}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safeContactPage <= 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-xs px-1">{safeContactPage} of {totalContactPages}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs"
+                  onClick={() => setCurrentPage(p => Math.min(totalContactPages, p + 1))}
+                  disabled={safeContactPage >= totalContactPages}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -477,7 +555,7 @@ const Contacts = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 py-4 overflow-y-auto max-h-[70vh] px-1">
               {/* Left Column */}
               <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="firstname" className="text-[11px] font-bold uppercase text-muted-foreground">First Name <span className="text-destructive">*</span></Label>
                     <Input
@@ -520,7 +598,9 @@ const Contacts = () => {
                   <Input
                     id="phonenumber"
                     value={editContact?.phonenumber || ""}
-                    onChange={(e) => setEditContact({ ...editContact, phonenumber: e.target.value })}
+                    onChange={(e) => setEditContact({ ...editContact, phonenumber: e.target.value.replace(/\D/g, "").slice(0, 10) })}
+                    maxLength={10}
+                    inputMode="numeric"
                   />
                 </div>
 
@@ -542,7 +622,8 @@ const Contacts = () => {
                       id="password"
                       value={editContact?.password || ""} 
                       onChange={(e) => setEditContact({ ...editContact, password: e.target.value })}
-                      type={showPassword ? "text" : "password"} 
+                      type={showPassword ? "text" : "password"}
+                      disableVoice
                     />
                     <button 
                       type="button"
@@ -598,7 +679,7 @@ const Contacts = () => {
                       </Tooltip>
                     </TooltipProvider>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
                     {["Invoices", "Estimates", "Contracts", "Proposals", "Support", "Projects"].map((p) => (
                       <div key={p} className="flex items-center gap-3">
                         <Checkbox 
@@ -616,7 +697,7 @@ const Contacts = () => {
                   <div className="flex items-center gap-2 mb-4">
                     <Label className="text-[11px] font-bold uppercase text-primary tracking-wider">Email Notifications</Label>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
                     {["Invoice", "Estimate", "Credit Note", "Project", "Tickets", "Task", "Contract"].map((n) => (
                       <div key={n} className="flex items-center gap-3">
                         <Checkbox 

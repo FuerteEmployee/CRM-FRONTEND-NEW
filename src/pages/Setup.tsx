@@ -32,7 +32,7 @@ const Setup = () => {
             <Card>
               <CardHeader><CardTitle className="text-base flex items-center gap-2"><Globe className="h-4 w-4" />General Settings</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Application Name</Label><Input defaultValue="CRMPro" /></div>
                   <div className="space-y-2"><Label>Language</Label>
                     <Select defaultValue="en"><SelectTrigger><SelectValue /></SelectTrigger>
@@ -40,7 +40,7 @@ const Setup = () => {
                     </Select>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Timezone</Label>
                     <Select defaultValue="utc-8"><SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent><SelectItem value="utc-8">PST (UTC-8)</SelectItem><SelectItem value="utc-5">EST (UTC-5)</SelectItem><SelectItem value="utc">UTC</SelectItem></SelectContent>
@@ -68,7 +68,7 @@ const Setup = () => {
               <CardContent className="space-y-4">
                 <div className="space-y-2"><Label>Company Name</Label><Input defaultValue="CRMPro Inc" /></div>
                 <div className="space-y-2"><Label>Address</Label><Textarea defaultValue="123 Business Ave, San Francisco, CA 94102" /></div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Phone</Label><Input defaultValue="+1 555-0100" /></div>
                   <div className="space-y-2"><Label>Website</Label><Input defaultValue="https://crmpro.com" /></div>
                 </div>
@@ -82,11 +82,11 @@ const Setup = () => {
             <Card>
               <CardHeader><CardTitle className="text-base flex items-center gap-2"><Mail className="h-4 w-4" />Email Configuration</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>SMTP Host</Label><Input placeholder="smtp.example.com" /></div>
                   <div className="space-y-2"><Label>SMTP Port</Label><Input placeholder="587" /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Username</Label><Input placeholder="user@example.com" /></div>
                   <div className="space-y-2"><Label>Password</Label><Input type="password" placeholder="••••••••" /></div>
                 </div>

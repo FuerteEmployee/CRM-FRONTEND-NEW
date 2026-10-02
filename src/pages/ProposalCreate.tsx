@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,13 +55,22 @@ import { financeService } from "@/api/services/finance.service";
 import { salesService } from "@/api/services/sales.service";
 import { itemService } from "@/api/services/item.service";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemSelect";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { COUNTRIES } from "@/constants/countries";
 import { useCurrency } from "@/context/CurrencyContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
 export default function ProposalCreate() {
   const { clientId, id } = useParams();
+  const [searchParams] = useSearchParams();
+  // A lead's Proposals tab links here with ?relType=lead so a proposal
+  // created from a lead is correctly tagged rel_type: "lead" instead of
+  // silently defaulting to "customer" with rel_id pointing at a Lead doc.
+  const initialRelType = searchParams.get("relType") === "lead" ? "lead" : "customer";
   const isEdit = !!id;
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -75,7 +84,7 @@ export default function ProposalCreate() {
 
   const [formData, setFormData] = useState({
     subject: "",
-    rel_type: "customer",
+    rel_type: initialRelType,
     rel_id: clientId || "",
     project: "",
     date: new Date().toISOString().split('T')[0],
@@ -93,7 +102,8 @@ export default function ProposalCreate() {
     zip: "",
     country: "United States",
     email: "",
-    phone: ""
+    phone: "",
+    branch: ""
   });
 
   const [items, setItems] = useState<any[]>([]);
@@ -112,6 +122,19 @@ export default function ProposalCreate() {
   const [discountType, setDiscountType] = useState("percent");
   const [adjustmentValue, setAdjustmentValue] = useState(0);
   const [showQtyAs, setShowQtyAs] = useState("qty");
+  const { user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show/fetch it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+
+  const { data: branchesRaw = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
 
   // Queries
   const { data: customers = [] } = useQuery({
@@ -121,8 +144,36 @@ export default function ProposalCreate() {
 
   const { data: leads = [] } = useQuery({
     queryKey: ["leads"],
-    queryFn: leadService.getAll
+    queryFn: () => leadService.getAll()
   });
+
+  const filteredCustomers = useMemo(() => {
+    if (!canUseBranch) return customers;
+    if (!formData.branch) return [];
+    const targetBranch = formData.branch.toLowerCase().trim();
+    const branchObj = branches.find((b: any) => b.name && b.name.toLowerCase().trim() === targetBranch);
+    return customers.filter((c: any) => {
+      const cBranchName = typeof c.branch === "object" ? c.branch?.name : c.branch;
+      const cBranchId = typeof c.branch === "object" ? (c.branch?._id || c.branch?.id) : c.branch;
+      if (cBranchName && typeof cBranchName === "string" && cBranchName.toLowerCase().trim() === targetBranch) {
+        return true;
+      }
+      if (branchObj && cBranchId && String(cBranchId) === String(branchObj._id)) {
+        return true;
+      }
+      return false;
+    });
+  }, [customers, formData.branch, canUseBranch, branches]);
+
+  const filteredLeads = useMemo(() => {
+    if (!canUseBranch) return leads;
+    if (!formData.branch) return [];
+    const targetBranch = formData.branch.toLowerCase().trim();
+    return leads.filter((l: any) => {
+      const bName = typeof l.branch === "object" ? l.branch?.name : l.branch;
+      return bName && typeof bName === "string" && bName.toLowerCase().trim() === targetBranch;
+    });
+  }, [leads, formData.branch, canUseBranch]);
 
   const { data: staff = [] } = useQuery({
     queryKey: ["staff"],
@@ -224,7 +275,8 @@ export default function ProposalCreate() {
         zip: proposal.zip || "",
         country: proposal.country || "United States",
         email: proposal.email || "",
-        phone: proposal.phone || ""
+        phone: proposal.phone || "",
+        branch: typeof proposal.branch === "object" ? (proposal.branch?.name || "") : (proposal.branch || "")
       });
       
       setItems(proposal.items.map((item: any) => ({
@@ -237,6 +289,34 @@ export default function ProposalCreate() {
       setAdjustmentValue(proposal.adjustment || 0);
     }
   }, [proposal, taxes]);
+
+  const isIntraState = () => {
+    const customer = customers.find((c: any) => c._id === formData.rel_id);
+    if (!customer) return true; // default/fallback
+    const gstin = (customer.gst_number || "").trim();
+    if (/^\d{2}/.test(gstin)) {
+      return gstin.substring(0, 2) === "24"; // HOME_STATE_GST_CODE = "24"
+    }
+    const state = (formData.state || customer.state || "").trim().toLowerCase();
+    if (state) {
+      return state === "gujarat";
+    }
+    // detectStateFromAddress
+    const address = `${formData.address || ""} ${customer.address || ""}`.toLowerCase();
+    const INDIAN_STATES = [
+      "andhra pradesh", "arunachal pradesh", "assam", "bihar", "chhattisgarh",
+      "delhi", "goa", "gujarat", "haryana", "himachal pradesh", "jammu and kashmir",
+      "jharkhand", "karnataka", "kerala", "madhya pradesh", "maharashtra", "manipur",
+      "meghalaya", "mizoram", "nagaland", "odisha", "punjab", "rajasthan", "sikkim",
+      "tamil nadu", "telangana", "tripura", "uttar pradesh", "uttarakhand", "west bengal",
+    ];
+    const sorted = [...INDIAN_STATES].sort((x, y) => y.length - x.length);
+    const detected = sorted.find((s) => address.includes(s)) || "";
+    if (detected) {
+      return detected === "gujarat";
+    }
+    return true; // default
+  };
 
   const calculations = useMemo(() => {
     const subTotal = items.reduce((acc, item) => acc + (item.qty * item.rate), 0);
@@ -282,6 +362,8 @@ export default function ProposalCreate() {
       });
       if (clientId && formData.rel_type === "customer") {
         navigate(`/admin/customers/${clientId}?tab=proposals`);
+      } else if (clientId && formData.rel_type === "lead") {
+        navigate(`/admin/leads?leadView=${clientId}&tab=proposals`);
       } else {
         navigate("/admin/proposals");
       }
@@ -296,6 +378,10 @@ export default function ProposalCreate() {
   });
 
   const handleSave = () => {
+    if (canUseBranch && !formData.branch) {
+      toast({ title: "Required Field", description: "Branch is mandatory.", variant: "destructive" });
+      return;
+    }
     if (!formData.subject || !formData.rel_id) {
       toast({ title: "Required Fields", description: "Subject and Related entity are mandatory.", variant: "destructive" });
       return;
@@ -342,6 +428,33 @@ export default function ProposalCreate() {
           {/* Left Column: Core Details */}
           <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
             <CardContent className="p-8 space-y-8">
+              {/* Branch — pilot-only, dynamically fetched from HRMS */}
+              {canUseBranch && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Branch</Label>
+                    <span className="text-destructive text-lg leading-none">*</span>
+                  </div>
+                  <Select
+                    value={formData.branch || "none"}
+                    onValueChange={(v) => {
+                      const val = v === "none" ? "" : v;
+                      setFormData(p => ({ ...p, branch: val, rel_id: "" }));
+                    }}
+                  >
+                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50">
+                      <SelectValue placeholder="Select Branch" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="none">Select Branch</SelectItem>
+                      {branches.map((b) => (
+                        <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
               {/* Subject */}
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
@@ -356,7 +469,7 @@ export default function ProposalCreate() {
               </div>
 
               {/* Related Entity */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Related</Label>
@@ -380,10 +493,10 @@ export default function ProposalCreate() {
                     <span className="text-destructive text-lg leading-none">*</span>
                   </div>
                   <SearchableSelect
-                    placeholder={`Select ${formData.rel_type}`}
+                    placeholder={canUseBranch && !formData.branch ? "Please select a branch first..." : `Select ${formData.rel_type}`}
                     options={formData.rel_type === "customer" 
-                      ? customers.map((c: any) => ({ value: c._id, label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email }))
-                      : leads.map((l: any) => ({ value: l._id, label: l.name }))
+                      ? filteredCustomers.map((c: any) => ({ value: c._id, label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email }))
+                      : filteredLeads.map((l: any) => ({ value: l._id, label: l.name }))
                     }
                     value={formData.rel_id}
                     onValueChange={(val) => setFormData(p => ({ ...p, rel_id: val }))}
@@ -410,7 +523,7 @@ export default function ProposalCreate() {
               )}
 
               {/* Dates */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Date</Label>
@@ -441,7 +554,7 @@ export default function ProposalCreate() {
               </div>
 
               {/* Currency & Discount */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Currency</Label>
@@ -501,7 +614,7 @@ export default function ProposalCreate() {
           <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
             <CardContent className="p-8 space-y-8">
               {/* Status & Assigned */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Status</Label>
                   <Select value={formData.status.toString()} onValueChange={(v) => setFormData(p => ({ ...p, status: parseInt(v) }))}>
@@ -555,7 +668,7 @@ export default function ProposalCreate() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2.5">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">City</Label>
                     <Input 
@@ -574,7 +687,7 @@ export default function ProposalCreate() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2.5">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Country</Label>
                     <SearchableSelect 
@@ -593,7 +706,7 @@ export default function ProposalCreate() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-2.5">
                     <div className="flex items-center gap-2">
                       <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Email</Label>
@@ -611,10 +724,12 @@ export default function ProposalCreate() {
                   <div className="space-y-2.5">
                     <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Phone</Label>
                     <div className="relative">
-                      <Input 
+                      <Input
                         className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold pl-10"
                         value={formData.phone}
-                        onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
+                        onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+                        maxLength={10}
+                        inputMode="numeric"
                       />
                       <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
                     </div>
@@ -631,37 +746,30 @@ export default function ProposalCreate() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="flex items-center gap-4 flex-1 w-full md:w-auto">
                 <div className="flex-1 max-w-sm">
-                  <SearchableSelect 
-                    placeholder="Add Item"
-                    options={availableItems.map((i: any) => ({ value: i._id, label: i.description }))}
-                    value=""
-                    onValueChange={(val) => {
-                      const item = availableItems.find((i: any) => i._id === val);
-                      if (item) {
-                        setNewItem({
-                          description: item.description,
+                  <ItemSelect
+                    placeholder="Select item to add..."
+                    onChange={(item: ItemRecord) => {
+                      const taxId = typeof item.tax === "object" && item.tax ? item.tax._id : (typeof item.tax === "string" ? item.tax : "");
+                      const tax2Id = typeof item.tax2 === "object" && item.tax2 ? item.tax2._id : (typeof item.tax2 === "string" ? item.tax2 : "");
+                      const qty = 1;
+                      const rate = item.rate || 0;
+                      setItems(prev => [
+                        ...prev,
+                        {
+                          id: Math.random().toString(36).substring(2, 9),
+                          description: item.name,
                           long_description: item.long_description || "",
-                          qty: 1,
-                          rate: item.rate,
-                          tax: item.tax?._id || "",
-                          tax2: "",
+                          qty,
+                          rate,
+                          tax: taxId,
+                          tax2: tax2Id,
                           unit: item.unit || "",
                           item_group: item.group || ""
-                        });
-                        setIsAddItemModalOpen(true);
-                      }
+                        }
+                      ]);
                     }}
                   />
                 </div>
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  className="rounded-xl h-10 gap-2 border-border/50 shadow-sm font-bold" 
-                  onClick={() => setIsAddItemModalOpen(true)}
-                >
-                  <Plus className="h-4 w-4" />
-                  New Item
-                </Button>
 
               </div>
               
@@ -697,8 +805,8 @@ export default function ProposalCreate() {
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-border/50 overflow-hidden shadow-sm">
-              <table className="w-full">
+            <div className="rounded-[2rem] border border-border/50 overflow-x-auto shadow-sm">
+              <table className="w-full min-w-[1200px]">
                 <thead>
                   <tr className="bg-primary text-white">
                     <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
@@ -829,10 +937,30 @@ export default function ProposalCreate() {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center py-2 border-t border-border/30 mt-4">
-                  <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
-                  <span className="text-sm font-bold text-foreground">{formatDocAmount(calculations.totalTax)}</span>
-                </div>
+                {isPilot ? (
+                  isIntraState() ? (
+                    <>
+                      <div className="flex justify-between items-center py-2 border-t border-border/30 mt-4">
+                        <span className="text-sm font-bold text-muted-foreground">SGST/UTGST</span>
+                        <span className="text-sm font-bold text-foreground">{formatDocAmount(calculations.totalTax / 2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2">
+                        <span className="text-sm font-bold text-muted-foreground">CGST</span>
+                        <span className="text-sm font-bold text-foreground">{formatDocAmount(calculations.totalTax / 2)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between items-center py-2 border-t border-border/30 mt-4">
+                      <span className="text-sm font-bold text-muted-foreground">IGST</span>
+                      <span className="text-sm font-bold text-foreground">{formatDocAmount(calculations.totalTax)}</span>
+                    </div>
+                  )
+                ) : (
+                  <div className="flex justify-between items-center py-2 border-t border-border/30 mt-4">
+                    <span className="text-sm font-bold text-muted-foreground">Total Tax</span>
+                    <span className="text-sm font-bold text-foreground">{formatDocAmount(calculations.totalTax)}</span>
+                  </div>
+                )}
 
                 <div className="flex justify-between items-center pt-6 border-t-2 border-primary/20">
                   <span className="text-lg font-black uppercase tracking-widest text-primary">Total :</span>
@@ -879,8 +1007,8 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
         <div className="bg-slate-50 dark:bg-slate-800/50 px-8 py-6 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-4 tracking-tight">
-              <div className="p-2.5 bg-primary/10 rounded-2xl">
-                <Plus className="h-6 w-6 text-primary" />
+              <div className="p-2.5 shrink-0 bg-primary/10 rounded-2xl">
+                <Plus className="h-6 w-6 shrink-0 text-primary" />
               </div>
               Add New Item
             </DialogTitle>
@@ -906,7 +1034,7 @@ function AddItemModal({ open, onOpenChange, newItem, setNewItem, onAdd, taxes }:
               className="min-h-[100px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl font-medium resize-none p-4 focus-visible:ring-1 focus-visible:ring-primary/30"
             />
           </div>
-          <div className="grid grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Qty</Label>
               <Input 

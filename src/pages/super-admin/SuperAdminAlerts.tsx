@@ -173,9 +173,13 @@ export default function SuperAdminAlerts() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await api.get("/super-admin/tenants");
-      setTenants(res);
-      setAlerts(generateAlerts(res));
+      const [tenantsRes, dismissedRes] = await Promise.all([
+        api.get("/super-admin/tenants"),
+        api.get("/super-admin/alerts/dismissed"),
+      ]);
+      setTenants(tenantsRes);
+      setAlerts(generateAlerts(tenantsRes));
+      setDismissed(new Set(dismissedRes));
     } catch (error: any) {
       toast.error(error.message || "Failed to load alerts");
     } finally {
@@ -185,8 +189,33 @@ export default function SuperAdminAlerts() {
 
   useEffect(() => { fetchData(); }, []);
 
-  const dismiss = (id: string) => setDismissed((prev) => new Set([...prev, id]));
-  const dismissAll = () => setDismissed(new Set(alerts.map((a) => a.id)));
+  // Optimistic: update locally right away, persist to the server so the
+  // dismissal survives a refresh; roll back and notify on failure.
+  const dismiss = (id: string) => {
+    setDismissed((prev) => new Set([...prev, id]));
+    api.post("/super-admin/alerts/dismiss", { alert_id: id }).catch(() => {
+      setDismissed((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      toast.error("Failed to save dismissal — please try again");
+    });
+  };
+
+  const dismissAll = () => {
+    const idsToMark = visible.map((a) => a.id);
+    if (idsToMark.length === 0) return;
+    setDismissed((prev) => new Set([...prev, ...idsToMark]));
+    api.post("/super-admin/alerts/dismiss-all", { alert_ids: idsToMark }).catch(() => {
+      setDismissed((prev) => {
+        const next = new Set(prev);
+        idsToMark.forEach((id) => next.delete(id));
+        return next;
+      });
+      toast.error("Failed to save dismissal — please try again");
+    });
+  };
 
   const visible = alerts.filter(
     (a) => !dismissed.has(a.id) && (filterType === "all" || a.type === filterType)

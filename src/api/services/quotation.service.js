@@ -13,6 +13,14 @@ class QuotationService {
     return apiClient.get(qs ? `/quotations?${qs}` : "/quotations");
   }
 
+  // Server-side paginated list — used by the Quotations "List" tab.
+  // Pass { page, limit, search, quotation_type }; returns { data, total, page, pages, limit }.
+  async getQuotationsList(params = {}) {
+    const cleaned = Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null && v !== ""));
+    const qs = new URLSearchParams(cleaned).toString();
+    return apiClient.get(qs ? `/quotations?${qs}` : "/quotations");
+  }
+
   async create(data) {
     return apiClient.post("/quotations", data);
   }

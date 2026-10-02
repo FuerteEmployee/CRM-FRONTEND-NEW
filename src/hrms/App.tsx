@@ -9,8 +9,13 @@ import { ThemeProvider } from "@/hrms/contexts/ThemeContext";
 import { ConfirmProvider } from "@/hrms/contexts/ConfirmContext";
 import { AppRoutes } from "./AppRoutes";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
-import { GlobalShortcuts } from "./components/common/GlobalShortcuts";
+import { useGlobalShortcuts } from "./hooks/useGlobalShortcuts";
 import { LiveTracker } from "./components/staff/LiveTracker";
+
+const GlobalShortcuts = () => {
+  useGlobalShortcuts();
+  return null;
+};
 import { useEffect, useState } from "react";
 import { SplashScreen as CapacitorSplashScreen } from "@capacitor/splash-screen";
 import { App as CapacitorApp } from "@capacitor/app";

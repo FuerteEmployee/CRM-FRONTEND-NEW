@@ -51,6 +51,13 @@ import { Tabs, TabsList, TabsTrigger } from "@/hrms/components/ui/tabs";
 type RequestType = "Advance Salary" | "Loan";
 type RequestStatus = "Pending" | "Approved" | "Rejected" | "Repaid";
 
+interface Installment {
+  month: number;
+  year: number;
+  amount: number;
+  deductedAt: string;
+}
+
 interface SalaryLoanRecord {
   _id: string;
   employeeId: any;
@@ -60,6 +67,11 @@ interface SalaryLoanRecord {
   requestDate: string;
   status: RequestStatus;
   notes?: string;
+  // Loan-only — set at approval time when repayment is spread over several
+  // months instead of deducted all at once (see payroll_controller.js).
+  monthlyInstallmentAmount?: number;
+  remainingAmount?: number;
+  installments?: Installment[];
 }
 
 const STATUS_BADGE: Record<RequestStatus, string> = {
@@ -128,8 +140,14 @@ const AdvanceSalaryPage = () => {
   const roleKey = String(
     typeof authUser?.role === "string" ? authUser.role : (authUser?.role as any)?.role || ""
   ).toLowerCase();
-  const isSuperAdmin = ["super_admin", "superadmin", "owner"].includes(roleKey);
-  const isAdmin     = roleKey === "admin";
+  // Tenant admins are commonly flagged via Staff.admin (a boolean, set at
+  // account creation) rather than via an assigned Role named "Admin" — a
+  // role-name-only check here misses them entirely, showing the self-service
+  // "My Advance Salary" view to someone who should see the management view.
+  // Mirrors the same boolean checks useResolvedHrmsPermissions.isAdmin uses.
+  const isSuperAdmin = !!authUser?.is_superadmin || ["super_admin", "superadmin", "owner"].includes(roleKey);
+  const isAdmin     = roleKey === "admin" ||
+    authUser?.admin === true || authUser?.admin === 1 || authUser?.admin === "1" || authUser?.admin === "true";
   const canManage   = isSuperAdmin || isAdmin;
   const isEmployee  = !canManage;
 
@@ -197,16 +215,14 @@ const AdvanceSalaryPage = () => {
         notes: "",
     });
 
-  /* ─── Filtered records ─── */
+  /* ─── Filtered records ───
+   * No client-side "is this mine" re-filter here — the backend's GET
+   * /advance-salary already scopes non-admins to their own records
+   * (query.employeeId = the JWT-derived id). Re-checking against
+   * authUser._id on the frontend used to silently drop every record for a
+   * Staff-portal login, because authUser._id there is the Staff document's
+   * id, not the linked HRMS User id that employeeId actually stores. */
   const visibleRecords = records.filter((r) => {
-    // Employees only see their own
-    if (isEmployee) {
-      const empId =
-        typeof r.employeeId === "object"
-          ? String(r.employeeId?._id || r.employeeId?.id || "")
-          : String(r.employeeId);
-      if (empId !== myId) return false;
-    }
     const matchTab = activeTab === "all" || r.type === activeTab;
     const name = getEmployeeName(r.employeeId).toLowerCase();
     const matchSearch =
@@ -218,18 +234,8 @@ const AdvanceSalaryPage = () => {
   });
 
   /* ─── Summary ─── */
-  const base = isEmployee
-    ? records.filter((r) => {
-        const empId =
-          typeof r.employeeId === "object"
-            ? String(r.employeeId?._id || r.employeeId?.id || "")
-            : String(r.employeeId);
-        return empId === myId;
-      })
-    : records;
-
   const sumBy = (status: RequestStatus) =>
-    base.filter((r) => r.status === status).reduce((s, r) => s + (r.amount || 0), 0);
+    records.filter((r) => r.status === status).reduce((s, r) => s + (r.amount || 0), 0);
 
   /* ─── Actions ─── */
   const handleSubmit = async () => {
@@ -259,15 +265,21 @@ const AdvanceSalaryPage = () => {
     }
   };
 
-  const handleStatusChange = async (id: string, status: RequestStatus) => {
+  const handleStatusChange = async (id: string, status: RequestStatus, extra?: { monthlyInstallmentAmount?: number }) => {
     try {
-      await apiClient.put(`/advance-salary/${id}`, { status });
-      setRecords((p) => p.map((r) => (r._id === id ? { ...r, status } : r)));
+      const res = await apiClient.put(`/advance-salary/${id}`, { status, ...extra });
+      const updated = res?.data ?? res;
+      setRecords((p) => p.map((r) => (r._id === id ? { ...r, ...updated } : r)));
       toast({ title: `Marked as ${status}` });
     } catch (err: any) {
       toast({ title: "Update failed", description: err.message, variant: "destructive" });
     }
   };
+
+  // Per-row draft value for the optional Loan installment amount, entered
+  // just before clicking Approve (Loan only — Advance Salary always deducts
+  // in full, see advance_salary_controller.js).
+  const [installmentDrafts, setInstallmentDrafts] = useState<Record<string, string>>({});
 
   const handleDelete = async (id: string) => {
     try {
@@ -489,17 +501,48 @@ const AdvanceSalaryPage = () => {
                     "{r.reason}"
                   </p>
 
+                  {/* Installment plan / repayment progress — Loan only, once approved */}
+                  {isLoan && r.status !== "Pending" && r.status !== "Rejected" && (Number(r.monthlyInstallmentAmount) > 0 || (r.installments && r.installments.length > 0)) && (
+                    <div className="text-[11px] text-slate-500 bg-violet-50/60 border border-violet-100 rounded-lg px-3 py-2 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                      <span>₹{(r.amount || 0).toLocaleString("en-IN")} total</span>
+                      <span className="text-violet-400">·</span>
+                      <span className="font-semibold text-violet-700">
+                        ₹{Number(r.remainingAmount ?? r.amount ?? 0).toLocaleString("en-IN")} remaining
+                      </span>
+                      {Number(r.monthlyInstallmentAmount) > 0 && (
+                        <>
+                          <span className="text-violet-400">·</span>
+                          <span>₹{Number(r.monthlyInstallmentAmount).toLocaleString("en-IN")}/month</span>
+                        </>
+                      )}
+                      <span className="text-violet-400">·</span>
+                      <span>{r.installments?.length || 0} installment(s) paid</span>
+                    </div>
+                  )}
+
                   {/* Footer */}
                   <div className="flex items-center justify-end">
                     {/* Admin actions */}
                     {canManage && (
-                      <div className="flex gap-1.5">
+                      <div className="flex gap-1.5 items-center flex-wrap justify-end">
                         {r.status === "Pending" && (
                           <>
+                            {isLoan && (
+                              <Input
+                                type="number"
+                                placeholder="Monthly installment (optional)"
+                                value={installmentDrafts[r._id] || ""}
+                                onChange={(e) => setInstallmentDrafts((p) => ({ ...p, [r._id]: e.target.value }))}
+                                className="h-7 w-44 text-[11px] rounded-lg"
+                              />
+                            )}
                             <Button
                               size="sm"
                               className="h-7 px-3 text-[11px] bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg"
-                              onClick={() => handleStatusChange(r._id, "Approved")}
+                              onClick={() => {
+                                const draft = Number(installmentDrafts[r._id]);
+                                handleStatusChange(r._id, "Approved", isLoan && draft > 0 ? { monthlyInstallmentAmount: draft } : undefined);
+                              }}
                             >
                               <CheckCircle2 className="h-3 w-3 mr-1" /> Approve
                             </Button>
@@ -555,7 +598,7 @@ const AdvanceSalaryPage = () => {
         <DialogContent className="max-w-md rounded-2xl border border-slate-200 shadow-2xl bg-white p-0 overflow-hidden flex flex-col max-h-[90vh]">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100 bg-gradient-to-r from-indigo-50/60 to-white shrink-0">
             <DialogTitle className="text-lg font-semibold flex items-center gap-2 text-slate-800">
-              <HandCoins className="h-5 w-5 text-indigo-500" />
+              <HandCoins className="h-5 w-5 shrink-0 text-indigo-500" />
               New Request
             </DialogTitle>
             <p className="text-sm text-slate-400 mt-0.5">
@@ -567,7 +610,7 @@ const AdvanceSalaryPage = () => {
             {/* Request type toggle */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-600">Request Type *</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {(["Advance Salary", "Loan"] as RequestType[]).map((t) => (
                   <button
                     key={t}

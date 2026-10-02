@@ -177,7 +177,7 @@ const BulkExport = () => {
       }
 
       const csvData = [headers.join(","), ...filteredRows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(","))].join("\n");
-      const blob = new Blob(["﻿" + csvData], { type: "text/csv;charset=utf-8;" });
+      const blob = new Blob(["\uFEFF" + csvData], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);

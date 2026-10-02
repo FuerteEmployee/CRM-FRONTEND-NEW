@@ -128,7 +128,7 @@ export default function SetupTicketPriority() {
 
   const handleBulkSave = () => {
     if (!bulkNames.trim()) {
-      toast({ title: "Error", variant: "destructive", description: "Please enter at least one item" });
+      toast.error("Please enter at least one item");
       return;
     }
     const names = bulkNames.split(/[\n,]+/).map(n => n.trim()).filter(n => n);

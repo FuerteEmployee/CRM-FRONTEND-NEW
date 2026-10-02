@@ -95,9 +95,14 @@ const KnowledgeBase = () => {
       ),
   });
 
-  const filtered = articles.filter((a: any) =>
-    (a.title || a.subject || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = articles.filter((a: any) => {
+    const term = search.toLowerCase();
+    const groupName = a.group_name || groups.find((g: any) => g._id === a.group)?.name || "General";
+    return (
+      (a.title || a.subject || "").toLowerCase().includes(term) ||
+      groupName.toLowerCase().includes(term)
+    );
+  });
 
   const totalEntries = filtered.length;
   const pageSize = itemsPerPage === "All" ? totalEntries : parseInt(itemsPerPage);
@@ -707,7 +712,7 @@ const KnowledgeBase = () => {
                 </div>
               </div>
               <div className="p-8 space-y-5 bg-white overflow-y-auto">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Group Name *</Label>
                     <Input
@@ -762,7 +767,7 @@ const KnowledgeBase = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Order</Label>
                     <Input
@@ -803,8 +808,8 @@ const KnowledgeBase = () => {
         <Card>
           <CardContent className="p-0">
             {/* Control Bar */}
-            <div className="flex items-center justify-between p-3 border-b">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
+              <div className="flex flex-wrap items-center gap-2">
                 <Select value={itemsPerPage} onValueChange={(val) => {
                   setItemsPerPage(val);
                   setCurrentPage(1);
@@ -888,11 +893,11 @@ const KnowledgeBase = () => {
                 </DropdownMenu>
               </div>
 
-              <div className="relative group">
+              <div className="relative group w-full sm:w-auto">
                 <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
                   placeholder="Search..."
-                  className="pl-8 h-8 w-[200px] text-xs"
+                  className="pl-8 h-8 w-full sm:w-[200px] text-xs"
                   value={search}
                   onChange={(e) => {
                     setSearch(e.target.value);

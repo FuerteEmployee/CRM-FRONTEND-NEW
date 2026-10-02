@@ -1,6 +1,7 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,20 +46,50 @@ import {
   ChevronDown,
   Wallet
 } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { creditNoteService } from "@/api/services/credit_note.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/ui/export-button";
-import { ImportButton } from "@/components/ui/import-button";
+import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { DocumentPreviewDialog } from "@/components/DocumentPreviewDialog";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
+import { useSettings } from "@/context/SettingsContext";
+import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
+import { isEkagraUser } from "@/lib/ekagraTenant";
+import { EKAGRA_COMPANY_INFO, getPlaceOfSupply, amountToWords, getDefaultTermsText } from "@/lib/ekagraTaxInvoice";
+
+const INVOICE_IMPORT_COLUMNS: ImportColumn[] = [
+  { key: "Voucher Number", sample: "INV-2201", core: true },
+  { key: "Bill Date", sample: "27-08-2026", core: true },
+  { key: "Voucher Type", sample: "Sales", core: true },
+  { key: "Party Name", sample: "Bright Solutions Pvt Ltd", required: true, core: true },
+  { key: "Party Address", sample: "12 MG Road, Bangalore", core: true },
+  { key: "Party Group", sample: "Retail", core: true },
+  { key: "GSTIN/UIN", sample: "29ABCDE1234F1Z5", core: true },
+  { key: "Item Name", sample: "Consulting Services", core: true },
+  { key: "Quantity", sample: 1, core: true },
+  { key: "Rate", sample: 25000, core: true },
+  { key: "Amount", sample: 25000, core: true },
+  { key: "Branch", sample: "Bangalore", core: true },
+  { key: "Terms of Payment", sample: "Net 30", core: false },
+  { key: "Item Group", sample: "Services", core: false },
+  { key: "Item HSN", sample: "9983", core: false },
+  { key: "GST percentage", sample: 18, core: false },
+  { key: "Freight %", sample: 1, core: false },
+  { key: "Item Batch", sample: "B-01", core: false },
+  { key: "Unit", sample: "Nos", core: false },
+  { key: "Due Date", sample: "26-09-2026", core: false },
+  { key: "Status", sample: "unpaid", core: false },
+];
 
 const statusMap: Record<string, { label: string; color: string }> = {
   unpaid: { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
@@ -107,6 +138,11 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = usePermissions();
+  const { getSetting } = useSettings();
+  const companyName = getSetting("companyName", "Fuerte Developers");
+  const compCity = getSetting("compCity", "");
+  const canUseBankDetails = canAccessBankDetails(user?.email);
 
   const updateStatusMutation = useMutation({
     mutationFn: (status: string) => salesService.updateInvoice(d._id || d.id, { status }),
@@ -231,6 +267,287 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
     return placement === "before" ? `${sym}${signed}` : `${signed}${sym}`;
   };
 
+  // Ekagra Engineering's Tax Invoice format — mirrors their existing
+  // Tally-printed invoice layout (GSTIN/PAN header, M/s buyer box, HSN-coded
+  // item table, CGST/SGST split, amount in words).
+  const generateEkagraTaxInvoiceHtml = () => {
+    const client = d.client || {};
+    const items = d.items || [];
+    const subtotal = Number(d.subtotal || 0);
+    const cgst = Number(d.total_cgst || 0);
+    const sgst = Number(d.total_sgst || 0);
+    const igst = Number(d.total_igst || 0);
+    const cgstPct = subtotal > 0 ? (cgst / subtotal) * 100 : 0;
+    const sgstPct = subtotal > 0 ? (sgst / subtotal) * 100 : 0;
+    const igstPct = subtotal > 0 ? (igst / subtotal) * 100 : 0;
+    const money = (n: number) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const na = (v: any) => (v === undefined || v === null || v === "" ? "-" : v);
+    const buyerAddressLine = d.partyAddress || [client.address, client.city].filter(Boolean).join(", ");
+    const buyerLocationLine = [client.state, client.zip].filter(Boolean).join(" ");
+    const bd = d.bank_detail;
+
+    return `
+      <html>
+        <head>
+          <title>Tax Invoice ${invoiceNumber}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { font-family: Arial, Helvetica, sans-serif; color: #111; padding: 24px; font-size: 12px; }
+            .frame { border: 1.5px solid #000; }
+            .row { display: flex; }
+            .cell { border: 1px solid #000; padding: 6px 10px; }
+            .no-border-top { border-top: none; }
+            .center { text-align: center; }
+            .right { text-align: right; }
+            .bold { font-weight: bold; }
+            table { width: 100%; border-collapse: collapse; }
+            table.items th, table.items td { border: 1px solid #000; padding: 5px 8px; font-size: 11.5px; }
+            table.items th { font-weight: bold; }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 1.2cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="frame">
+            <div class="cell center no-border-top" style="border-top: none;">
+              <div class="bold" style="font-size: 20px; letter-spacing: 0.5px;">${EKAGRA_COMPANY_INFO.name}</div>
+              ${EKAGRA_COMPANY_INFO.addressLines.map((l) => `<div style="font-size:11.5px;">${l}</div>`).join("")}
+            </div>
+            <div class="row">
+              <div class="cell" style="flex:1;">GSTIN No. : ${EKAGRA_COMPANY_INFO.gstin}</div>
+              <div class="cell" style="flex:1; border-left:none;">State : ${EKAGRA_COMPANY_INFO.state} &nbsp; State Code : ${EKAGRA_COMPANY_INFO.stateCode}</div>
+              <div class="cell" style="flex:1; border-left:none;">PAN No. : ${EKAGRA_COMPANY_INFO.pan}</div>
+            </div>
+
+            <div class="row">
+              <div class="cell bold" style="flex:1;">${d.voucherType || "Debit Memo"}</div>
+              <div class="cell bold center" style="flex:2; border-left:none; font-size:16px;">Tax Invoice</div>
+              <div class="cell right" style="flex:1; border-left:none;">ORIGINAL</div>
+            </div>
+
+            <div class="row">
+              <div class="cell" style="flex:2;">
+                <div class="bold">M/s.&nbsp;&nbsp;${na(client.company)}</div>
+                <div>${na(buyerAddressLine)}</div>
+                <div>${na(buyerLocationLine)}</div>
+                <div>${na(client.country)}</div>
+                <div style="margin-top:6px;">GSTIN No. : ${na(d.gstin || client.gst_number)}</div>
+                <div>Place of Supply : ${getPlaceOfSupply(client.state)}</div>
+                <div>PAN No. : ${na(client.pan_number)}</div>
+              </div>
+              <div class="cell" style="flex:1; border-left:none;">
+                <div><b>Invoice No.</b> &nbsp;: ${na(d.number)}</div>
+                <div><b>Invoice Date</b> : ${d.date ? formatDate(d.date) : "-"}</div>
+                <div><b>Party Group</b> &nbsp;: ${na(d.partyGroup)}</div>
+                <div><b>Terms of Payment</b> : ${na(d.termsOfPayment)}</div>
+                <div><b>Sales Person</b> : ${na(d.salesPerson)}</div>
+                <div><b>Branch</b> &nbsp;&nbsp;&nbsp;&nbsp;: ${na(typeof d.branch === "object" ? d.branch?.name : d.branch)}</div>
+              </div>
+            </div>
+
+            <table class="items">
+              <thead>
+                <tr>
+                  <th style="width:6%;">Sr.</th>
+                  <th>Particular</th>
+                  <th style="width:12%;">HSN Code</th>
+                  <th style="width:10%;">Quantity</th>
+                  <th style="width:8%;">Unit</th>
+                  <th style="width:12%;" class="right">Rate</th>
+                  <th style="width:14%;" class="right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${items.map((item: any, i: number) => `
+                  <tr>
+                    <td class="center">${i + 1}</td>
+                    <td>${na(item.description || item.name)}</td>
+                    <td class="center">${na(item.itemHSN)}</td>
+                    <td class="right">${Number(item.qty || item.quantity || 0).toLocaleString("en-IN")}</td>
+                    <td class="center">${na(item.unit)}</td>
+                    <td class="right">${money(item.rate || item.price || 0)}</td>
+                    <td class="right">${money(item.amount ?? ((item.qty || 0) * (item.rate || 0)))}</td>
+                  </tr>
+                `).join("")}
+                ${Array.from({ length: Math.max(0, 3 - items.length) }).map(() => `
+                  <tr><td class="center">&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+                `).join("")}
+              </tbody>
+            </table>
+
+            <div class="row">
+              <div class="cell" style="flex:2;">&nbsp;</div>
+              <div class="cell" style="flex:1; border-left:none; padding:0;">
+                <div class="row" style="border-bottom:1px solid #000;">
+                  <div class="cell" style="flex:1; border:none;">Sub Total</div>
+                  <div class="cell right" style="flex:1; border:none;">${money(subtotal)}</div>
+                </div>
+                ${igst > 0 ? `
+                  <div class="row" style="border-bottom:1px solid #000;">
+                    <div class="cell" style="flex:1; border:none;">IGST ${igstPct.toFixed(2)} %</div>
+                    <div class="cell right" style="flex:1; border:none;">${money(igst)}</div>
+                  </div>
+                ` : `
+                  <div class="row" style="border-bottom:1px solid #000;">
+                    <div class="cell" style="flex:1; border:none;">CGST ${cgstPct.toFixed(2)} %</div>
+                    <div class="cell right" style="flex:1; border:none;">${money(cgst)}</div>
+                  </div>
+                  <div class="row" style="border-bottom:1px solid #000;">
+                    <div class="cell" style="flex:1; border:none;">SGST ${sgstPct.toFixed(2)} %</div>
+                    <div class="cell right" style="flex:1; border:none;">${money(sgst)}</div>
+                  </div>
+                `}
+                <div class="row">
+                  <div class="cell bold" style="flex:1; border:none;">Grand Total</div>
+                  <div class="cell bold right" style="flex:1; border:none;">${money(d.total)}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="cell" style="border-top:none;">
+              <b>Rs. In Words</b> &nbsp;: ${amountToWords(Number(d.total || 0))}
+            </div>
+
+            <div class="cell" style="border-top:none;">
+              <b>Payment / Bank Details</b>
+              <div>${bd ? `${na(bd.accountHolderName)} — Bank: ${na(bd.bankName)}` : "-"}</div>
+              ${bd ? `<div>A/C No: ${na(bd.accountNumber)} &nbsp; IFSC: ${na(bd.ifscCode)}${bd.branch?.name ? ` · Branch: ${bd.branch.name}` : ""}</div>` : ""}
+            </div>
+
+            <div class="row">
+              <div class="cell" style="flex:1; border-top:none;">
+                <div class="bold">Terms &amp; Conditions</div>
+                <div>${d.notes || d.adminnote || getDefaultTermsText(compCity)}</div>
+              </div>
+              <div class="cell right" style="flex:1; border-top:none; border-left:none;">
+                <div class="bold">For, ${EKAGRA_COMPANY_INFO.name}</div>
+                <div style="margin-top:36px;">Authorised Signatory</div>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+  };
+
+  const generatePdfHtml = () => {
+    if (isEkagraUser(user?.email)) return generateEkagraTaxInvoiceHtml();
+    const bd = d.bank_detail;
+    const bankDetailsHtml = (canUseBankDetails && bd)
+      ? `
+          <div class="bank-details">
+            <div class="bank-details-title">Payment / Bank Details</div>
+            <div class="bank-details-row">
+              <b>${bd.accountHolderName || "—"}</b><br/>
+              Bank: ${bd.bankName || "—"}<br/>
+              A/C No: ${bd.accountNumber || "—"} &nbsp; IFSC: ${bd.ifscCode || "—"}
+              ${bd.branch?.name ? `<br/>Branch: ${bd.branch.name}` : ""}
+            </div>
+          </div>
+        `
+      : '';
+
+    return `
+      <html>
+        <head>
+          <title>Invoice ${invoiceNumber}</title>
+          <style>
+            body { font-family: system-ui, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: 0 auto; }
+            .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+            .title { font-size: 32px; font-weight: 800; color: #2563eb; margin-bottom: 10px; }
+            .company { font-weight: bold; font-size: 18px; color: #0f172a; }
+            .meta { font-size: 14px; color: #475569; line-height: 1.6; }
+            table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+            th { background: #dbeafe; color: #2563eb; padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+            td { padding: 12px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+            .totals { margin-top: 30px; width: 50%; float: right; }
+            .totals-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+            .totals-row.grand { font-weight: 800; font-size: 18px; color: #0f172a; border-bottom: none; }
+            .bank-details { clear: both; margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e8f0; font-size: 13px; }
+            .bank-details-title { font-weight: bold; color: #2563eb; margin-bottom: 8px; text-transform: uppercase; font-size: 12px; letter-spacing: 0.05em; }
+            .bank-details-row { color: #334155; line-height: 1.6; margin-bottom: 8px; }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 2cm; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="title">${invoiceNumber}</div>
+              <div class="company">${companyName}</div>
+            </div>
+            <div style="text-align: right">
+              <div style="margin-bottom: 15px;">
+                <div style="font-size: 12px; color: #64748b; font-weight: bold; margin-bottom: 5px;">BILL TO</div>
+                <div class="company" style="color: #2563eb;">${d.client?.company || 'Customer'}</div>
+              </div>
+              <div class="meta">
+                <b>Invoice Date:</b> ${d.date ? formatDate(d.date) : '-'}<br/>
+                <b>Status:</b> ${status.label}
+              </div>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Rate</th>
+                <th>Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${(d.items || []).map((item: any) => `
+                <tr>
+                  <td><b>${item.description || item.name || "—"}</b></td>
+                  <td>${item.qty || item.quantity || 1}</td>
+                  <td>${formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
+                  <td>${formatRowAmount(d, Number((item.qty || item.quantity || 1) * (item.rate || item.price || 0)))}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="totals">
+            ${d.subtotal !== undefined ? `
+              <div class="totals-row">
+                <span>Subtotal</span>
+                <span>${formatRowAmount(d, Number(d.subtotal))}</span>
+              </div>
+            ` : ''}
+            <div class="totals-row grand">
+              <span>Total</span>
+              <span>${formatRowAmount(d, Number(d.total || 0))}</span>
+            </div>
+          </div>
+
+          ${bankDetailsHtml}
+        </body>
+      </html>
+    `;
+  };
+
+  const handlePdfAction = (action: 'view' | 'new_tab' | 'download' | 'print') => {
+    const html = generatePdfHtml();
+    const blob = new Blob([action === 'print' ? html.replace('<body>', '<body onload="window.print()">') : html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+
+    if (action === 'download') {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Invoice_${invoiceNumber}.html`;
+      a.click();
+      toast({ title: "Download Started", description: "Your document is downloading." });
+    } else {
+      window.open(url, action === 'view' ? 'PDF_Viewer' : '_blank', action === 'view' ? 'width=800,height=900' : '');
+    }
+  };
+
   return (
     <>
       <input
@@ -331,10 +648,10 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>View PDF</DropdownMenuItem>
-                <DropdownMenuItem>View PDF in New Tab</DropdownMenuItem>
-                <DropdownMenuItem>Download</DropdownMenuItem>
-                <DropdownMenuItem>Print</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('view')}>View PDF</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('new_tab')}>View PDF in New Tab</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('download')}>Download</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handlePdfAction('print')}>Print</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
@@ -419,6 +736,11 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                         <p className="text-xs text-muted-foreground">{[d.client?.city, d.client?.state, d.client?.zip].filter(Boolean).join(" ")}</p>
                       )}
                       {d.client?.country && <p className="text-xs text-muted-foreground">{d.client?.country}</p>}
+                      {d.gstin && (
+                        <p className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5 mt-2 inline-block">
+                          GSTIN: {d.gstin}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-xs text-muted-foreground mb-0.5">To:</p>
@@ -426,6 +748,28 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                     </div>
                   </div>
                 </div>
+
+                {/* Invoice meta details grid */}
+                <div className="border border-border/40 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                  {[
+                    { label: "GSTIN / UIN",        value: d.gstin || "—" },
+                    { label: "Voucher Type",        value: d.voucherType || "—" },
+                    { label: "Bill Date",           value: d.date ? new Date(d.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
+                    { label: "Due Date",            value: d.duedate ? new Date(d.duedate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
+                    { label: "Terms of Payment",   value: d.termsOfPayment || "—" },
+                    { label: "Party Group",         value: d.partyGroup || "—" },
+                    { label: "Party Address",       value: d.partyAddress || "—" },
+                    { label: "Currency",            value: d.currency || "—" },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex flex-col gap-0.5">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{label}</span>
+                      <span className={`text-xs font-semibold text-foreground break-all ${label === "GSTIN / UIN" && value !== "—" ? "font-mono text-emerald-700" : ""}`}>
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
 
                 {/* Items breakdown */}
                 <div className="border border-border/40 rounded-xl p-5 min-h-[100px]">
@@ -701,8 +1045,15 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
 
 const Invoices = () => {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [branchFilter, setBranchFilter] = useState("all");
   const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [previewInvoice, setPreviewInvoice] = useState<any>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -710,13 +1061,82 @@ const Invoices = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show/fetch it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+  const canUseBankDetails = canAccessBankDetails(user?.email);
+
+  const { data: branchesRaw = [] } = useQuery({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  // Branch names that arrived via Excel import are free text, not HRMS branch
+  // records — without this they'd show correctly in the table but could never
+  // be picked from the filter dropdown (which only listed the HRMS master).
+  const { data: importedBranches = [] } = useQuery<string[]>({
+    queryKey: ["invoice-branches-list"],
+    queryFn: () => salesService.getInvoiceBranches().then((r: any) => r.data || r || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = useMemo(() => {
+    const seen = new Set<string>();
+    const merged: { _id: string; name: string }[] = [];
+    [...branchesRaw.map((b: any) => b.name), ...importedBranches].forEach((name) => {
+      if (!name || seen.has(name)) return;
+      seen.add(name);
+      merged.push({ _id: name, name });
+    });
+    return merged;
+  }, [branchesRaw, importedBranches]);
   const { symbol } = useCurrency();
   const { data: currencies = [] } = useQuery({
     queryKey: ["currencies"],
     queryFn: () => financeService.getCurrencies().then((res: any) => res.data || res),
     staleTime: 5 * 60 * 1000,
   });
+
+  const tableHeaders = useMemo(() => [
+    "Voucher Number", "Bill Date", "Voucher Type",
+    ...(isPilot ? ["Sales Person"] : []),
+    "Party Name", "Party Address", "Party Group", "Terms of Payment", "GSTIN/UIN",
+    "Item Name", "Item Group", "Item HSN", "GST percentage", "Item Batch",
+    "Quantity", "Rate", "Unit",
+    "Amount", "Freight", "Total",
+    ...(canUseBranch ? ["Branch"] : []),
+    ...(canUseBankDetails ? ["Bank Details"] : []),
+  ], [isPilot, canUseBranch, canUseBankDetails]);
+
+  const exportColumns = useMemo(() => [
+    { header: "Voucher Number", key: "voucherNumber" },
+    { header: "Bill Date", key: "billDate", type: "date" as const },
+    { header: "Voucher Type", key: "voucherType" },
+    ...(isPilot ? [{ header: "Sales Person", key: "salesPerson" }] : []),
+    { header: "Party Name", key: "partyName" },
+    { header: "Party Address", key: "partyAddress" },
+    { header: "Party Group", key: "partyGroup" },
+    { header: "Terms of Payment", key: "termsOfPayment" },
+    { header: "GSTIN/UIN", key: "gstin" },
+    { header: "Item Name", key: "itemName" },
+    { header: "Item Group", key: "itemGroup" },
+    { header: "Item HSN", key: "itemHSN" },
+    { header: "GST percentage", key: "gstPercentage", type: "number" as const },
+    { header: "Item Batch", key: "itemBatch" },
+    { header: "Quantity", key: "quantity", type: "number" as const },
+    { header: "Rate", key: "rate", type: "number" as const },
+    { header: "Unit", key: "unit" },
+    { header: "Amount", key: "amount", type: "number" as const },
+    { header: "Freight", key: "freight", type: "number" as const },
+    { header: "Total", key: "total", type: "number" as const },
+    ...(canUseBranch ? [{ header: "Branch", key: "branch" }] : []),
+    ...(canUseBankDetails ? [{ header: "Bank Details", key: "bankDetails" }] : []),
+  ], [isPilot, canUseBranch, canUseBankDetails]);
+
+  const TABLE_COLUMN_COUNT = 1 + tableHeaders.length + 1;
 
   const formatRowAmount = (row: any, value: number, fractionDigits = 2): string => {
     const cur = currencies.find((c: any) => c.name === row?.currency) || currencies.find((c: any) => c.isdefault) || null;
@@ -740,18 +1160,20 @@ const Invoices = () => {
   };
 
   const toggleSelectAll = (items: any[]) => {
-    setSelectedIds(prev => prev.length === items.length ? [] : items.map(i => i._id));
+    const pageIds = items.map(i => i._id);
+    const allSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.includes(id));
+    setSelectedIds(prev => allSelected ? prev.filter(id => !pageIds.includes(id)) : [...new Set([...prev, ...pageIds])]);
   };
 
   const handleBulkAction = async () => {
     if (selectedIds.length === 0) {
-      toast({ title: "Error", description: "No items selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No items selected."});
       return;
     }
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedIds.map(id => salesService.deleteInvoice(id)));
+        await salesService.bulkDeleteInvoices(selectedIds);
         toast({ title: "Success", description: `Deleted ${selectedIds.length} items.` });
       } else if (bulkState.status) {
         await Promise.all(selectedIds.map(id => salesService.updateInvoice(id, { status: bulkState.status })));
@@ -762,19 +1184,99 @@ const Invoices = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false, status: "" });
     } catch {
-      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to perform bulk action."});
     } finally {
       setIsBulkLoading(false);
     }
   };
 
-  const { data: invoices = [], isLoading } = useQuery<any[]>({
-    queryKey: ["invoices"],
+  const getInvoiceBranchName = (i: any) => (i.branch?.name || i.branch || "");
+
+  // Shared by both client-side fallback filters below ("All" page-size mode
+  // and the export-time refetch) so the two stay in sync — mirrors every
+  // field the backend's getInvoices search now also matches.
+  const invoiceMatchesSearch = (i: any, q: string): boolean => {
+    if (!q) return true;
+    if ((i.number || "").toLowerCase().includes(q)) return true;
+    if ((i.client?.company || "").toLowerCase().includes(q)) return true;
+    if ((i.salesPerson || "").toLowerCase().includes(q)) return true;
+    if ((i._id || "").toLowerCase().includes(q)) return true;
+    if (getInvoiceBranchName(i).toLowerCase().includes(q)) return true;
+    if ((i.voucherType || "").toLowerCase().includes(q)) return true;
+    if ((i.partyAddress || "").toLowerCase().includes(q)) return true;
+    if ((i.partyGroup || "").toLowerCase().includes(q)) return true;
+    if ((i.termsOfPayment || "").toLowerCase().includes(q)) return true;
+    if ((i.gstin || "").toLowerCase().includes(q)) return true;
+    if ((getStatus(i.status).label || "").toLowerCase().includes(q)) return true;
+    if ((i.items || []).some((item: any) =>
+      (item.description || "").toLowerCase().includes(q) ||
+      (item.itemGroup || "").toLowerCase().includes(q) ||
+      (item.itemHSN || "").toLowerCase().includes(q) ||
+      (item.itemBatch || "").toLowerCase().includes(q)
+    )) return true;
+    return false;
+  };
+
+  interface InvoicesPage {
+    rows: any[];
+    total: number;
+    pages: number;
+    statusAgg: { status: string; count: number; total: number }[];
+  }
+
+  // Paginated server-side once a finite page size is chosen; "All" keeps
+  // the legacy full fetch (also used by dashboard/report aggregation),
+  // filtered client-side exactly as this page always has.
+  const { data: invoicesResult, isLoading } = useQuery<InvoicesPage>({
+    queryKey: ["invoices", itemsPerPage, currentPage, debouncedSearch, statusFilter, branchFilter],
     queryFn: async () => {
-      const response = await salesService.getInvoices();
-      return Array.isArray(response) ? response : response?.data || [];
+      if (itemsPerPage === "All") {
+        const response = await salesService.getInvoices();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+
+        // Status-card counts/totals always reflect the whole tenant list,
+        // independent of the currently active filters — matches the
+        // paginated path's server-side aggregate below.
+        const bucketOf = (raw: string) =>
+          raw === "sent" || raw === "sent_later" ? "unpaid" : raw === "recorded" ? "paid" : (raw || "unpaid");
+        const aggMap = new Map<string, { count: number; total: number }>();
+        rows.forEach((inv: any) => {
+          const b = bucketOf(inv.status);
+          const cur = aggMap.get(b) || { count: 0, total: 0 };
+          cur.count++;
+          cur.total += inv.total || 0;
+          aggMap.set(b, cur);
+        });
+        const statusAgg = Array.from(aggMap.entries()).map(([status, v]) => ({ status, ...v }));
+
+        const q = debouncedSearch.toLowerCase();
+        const rowsFiltered = rows.filter((i: any) => {
+          const matchSearch = invoiceMatchesSearch(i, q);
+          const matchStatus = statusFilter === "all" || String(i.status) === statusFilter;
+          const matchBranch = branchFilter === "all" || getInvoiceBranchName(i) === branchFilter;
+          return matchSearch && matchStatus && matchBranch;
+        });
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1, statusAgg };
+      }
+
+      const res: any = await salesService.getInvoices({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        branch: branchFilter !== "all" ? branchFilter : undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, statusAgg: [] };
+      return {
+        rows: res?.data ?? [],
+        total: res?.total ?? 0,
+        pages: res?.pages ?? 1,
+        statusAgg: res?.statusAgg ?? [],
+      };
     },
+    placeholderData: keepPreviousData,
   });
+  const invoices: any[] = invoicesResult?.rows ?? [];
 
   const importMutation = useMutation({
     mutationFn: (rows: any[]) => salesService.importInvoices(rows),
@@ -788,8 +1290,8 @@ const Invoices = () => {
   });
 
   const handleImportData = (rows: Record<string, any>[]) => {
-    const valid = rows.filter(r => r["company"] || r["Company"] || r["number"] || r["Invoice #"] || r["total"] || r["Total"] || r["Amount"] || r["Customer"]);
-    if (!valid.length) { toast({ title: "No valid rows", description: "Rows need at least a company or invoice number column.", variant: "destructive" }); return; }
+    const valid = rows.filter(r => r["company"] || r["Company"] || r["number"] || r["Invoice #"] || r["Voucher Number"] || r["total"] || r["Total"] || r["Amount"] || r["Customer"] || r["Party Name"]);
+    if (!valid.length) { toast({ title: "No valid rows", description: "Rows need at least a company/party or invoice/voucher number column.", variant: "destructive" }); return; }
     importMutation.mutate(valid as any);
   };
 
@@ -815,67 +1317,76 @@ const Invoices = () => {
   const stats = useMemo(() => {
     const counts: Record<string, number> = { unpaid: 0, paid: 0, partially_paid: 0, overdue: 0, cancelled: 0 };
     const totals: Record<string, number> = { unpaid: 0, paid: 0, partially_paid: 0, overdue: 0, cancelled: 0 };
-    invoices.forEach((inv: any) => {
-      const status = inv.status === "sent" || inv.status === "sent_later" ? "unpaid" : inv.status === "recorded" ? "paid" : (inv.status || "unpaid");
-      if (counts[status] !== undefined) {
-        counts[status]++;
-        totals[status] += inv.total || 0;
+    (invoicesResult?.statusAgg ?? []).forEach((s) => {
+      if (counts[s.status] !== undefined) {
+        counts[s.status] = s.count;
+        totals[s.status] = s.total;
       }
     });
     return { counts, totals };
-  }, [invoices]);
+  }, [invoicesResult]);
 
-  const filtered = useMemo(() => {
-    return invoices.filter((i: any) => {
-      const matchSearch =
-        (i.number || "").toLowerCase().includes(search.toLowerCase()) ||
-        (i.client?.company || "").toLowerCase().includes(search.toLowerCase()) ||
-        (i._id || "").toLowerCase().includes(search.toLowerCase());
-      
-      const matchStatus =
-        statusFilter === "all" || String(i.status) === statusFilter;
-      
-      return matchSearch && matchStatus;
+  // Flatten invoices into one row per line item for export — invoice-level
+  // fields repeat across each of that invoice's item rows.
+  const buildExportRows = (invoiceList: any[]) => invoiceList.flatMap((inv: any) => {
+    const items = inv.items?.length > 0 ? inv.items : [{}];
+    return items.map((item: any, idx: number) => ({
+      voucherNumber: inv.number || `INV-${inv._id?.substring(0, 6)}`,
+      billDate: inv.date || null,
+      voucherType: inv.voucherType || "",
+      partyName: inv.client?.company || "N/A",
+      partyAddress: inv.partyAddress || "",
+      partyGroup: inv.partyGroup || "",
+      termsOfPayment: inv.termsOfPayment || "",
+      gstin: inv.gstin || "",
+      salesPerson: inv.salesPerson || "",
+      itemName: item.description || "",
+      itemGroup: item.itemGroup || "",
+      itemHSN: item.itemHSN || "",
+      gstPercentage: item.gstPercentage || 0,
+      itemBatch: item.itemBatch || "",
+      quantity: item.qty || 0,
+      rate: item.rate || 0,
+      unit: item.unit || "",
+      amount: item.amount ?? ((item.qty || 0) * (item.rate || 0)),
+      freight: item.freight_charge || 0,
+      // Invoice-level grand total (already includes freight + tax, same figure
+      // shown on the invoice detail/view panel) — repeats across every item
+      // row of the same invoice, same convention the Purchases register uses.
+      total: inv.total || 0,
+      // branch — resolved from branchId if populated as object, else use stored name string
+      branch: inv.branch?.name || inv.branch || "",
+      bankDetails: inv.bank_detail ? `${inv.bank_detail.bankName || ""} — ${inv.bank_detail.accountNumber || ""}` : "",
+      // Extra fields (ignored by ExportButton since it only reads the
+      // configured `columns` keys) used to render the on-screen table:
+      invoice: inv,
+      rowKey: `${inv._id || inv.id}-${idx}`,
+    }));
+  });
+
+  const totalInvoiceRows = invoicesResult?.total ?? 0;
+  const invoicePageSize = itemsPerPage === "All" ? (totalInvoiceRows || 1) : parseInt(itemsPerPage);
+  const totalInvoicePages = invoicesResult?.pages ?? 1;
+  const safeInvoicePage = Math.min(currentPage, totalInvoicePages);
+  const pageInvoices = invoices;
+
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredInvoices = async () => {
+    const response = await salesService.getInvoices();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    const q = debouncedSearch.toLowerCase();
+    return rows.filter((i: any) => {
+      const matchSearch = invoiceMatchesSearch(i, q);
+      const matchStatus = statusFilter === "all" || String(i.status) === statusFilter;
+      const matchBranch = branchFilter === "all" || getInvoiceBranchName(i) === branchFilter;
+      return matchSearch && matchStatus && matchBranch;
     });
-  }, [invoices, search, statusFilter]);
-
-  const handleExport = (type: "pdf" | "csv" | "print") => {
-    if (filtered.length === 0) {
-      toast({
-        title: "No data",
-        description: "There are no invoices to export.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (type === "csv") {
-      const headers = ["Invoice #", "Customer", "Amount", "Total Tax", "Date", "Due Date", "Status"];
-      const rows = filtered.map((inv: any) => [
-        inv.number || `INV-${inv._id?.substring(0, 6)}`,
-        inv.client?.company || "N/A",
-        formatRowAmount(inv, inv.total || 0),
-        formatRowAmount(inv, inv.total_tax || 0),
-        inv.date ? formatDate(inv.date) : "-",
-        inv.duedate ? formatDate(inv.duedate) : "-",
-        statusMap[inv.status]?.label || "Unpaid",
-      ]);
-
-      const csvData = [headers.join(","), ...rows.map((e) => e.map((val) => `"${val}"`).join(","))].join("\n");
-      const blob = new Blob([csvData], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", `invoices_export_${new Date().toISOString().split("T")[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      toast({ title: "Exported", description: "CSV exported successfully." });
-    } else {
-      window.print();
-    }
   };
+
+  // One row per line item for the on-screen table (mirrors buildExportRows),
+  // keeping a reference to the parent invoice for checkbox/actions handling.
+  const flatRows = useMemo(() => buildExportRows(pageInvoices), [pageInvoices]);
 
   return (
     <DashboardLayout>
@@ -919,7 +1430,7 @@ const Invoices = () => {
                   config.border,
                   statusFilter === String(config.statusId) ? "ring-2 ring-primary border-transparent" : ""
                 )}
-                onClick={() => setStatusFilter(statusFilter === String(config.statusId) ? "all" : String(config.statusId))}
+                onClick={() => { setStatusFilter(statusFilter === String(config.statusId) ? "all" : String(config.statusId)); setCurrentPage(1); }}
               >
                 <CardContent className="p-5">
                   <div className="flex flex-col gap-1">
@@ -941,8 +1452,8 @@ const Invoices = () => {
 
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
-          <div className="flex items-center gap-3">
-            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+          <div className="flex flex-wrap items-center gap-3">
+            <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -956,7 +1467,7 @@ const Invoices = () => {
             </Select>
             <Dialog open={bulkActionOpen} onOpenChange={(open) => {
               if (open && selectedIds.length === 0) {
-                toast({ title: "Error", description: "Please select at least one item first.", variant: "destructive" });
+                toast({ title: "Error", description: "Please select at least one item first."});
                 return;
               }
               setBulkActionOpen(open);
@@ -1007,19 +1518,33 @@ const Invoices = () => {
               </DialogContent>
             </Dialog>
             <ExportButton
-              data={filtered}
+              data={async () => buildExportRows(await loadAllFilteredInvoices())}
               filename="invoices"
-              columns={[
-                { header: "Invoice #", key: (inv) => inv.number || `INV-${inv._id?.substring(0, 6)}` },
-                { header: "Customer", key: (inv) => inv.client?.company || "N/A" },
-                { header: "Amount", key: "total" },
-                { header: "Total Tax", key: "total_tax" },
-                { header: "Date", key: "date" },
-                { header: "Due Date", key: "duedate" },
-                { header: "Status", key: (inv) => statusMap[inv.status]?.label || "Unpaid" }
-              ]}
+              columns={exportColumns}
             />
-            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            <ImportDialog
+              title="Import Invoices"
+              columns={INVOICE_IMPORT_COLUMNS}
+              onData={handleImportData}
+              loading={importMutation.isPending}
+              triggerLabel="Import"
+              templateFilename="invoices_sample_import.xlsx"
+              sheetName="Invoices"
+              mappingNote="Your Excel columns (Voucher Number, Bill Date, Party Name, GSTIN/UIN, Item Name, Quantity, Rate, Amount, Branch) will be automatically detected and mapped to invoices."
+            />
+            {canUseBranch && (
+              <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
+                <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                  <SelectValue placeholder="All Branches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Branches</SelectItem>
+                  {branches.map((b: any) => (
+                    <SelectItem key={b._id || b.id} value={b.name}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -1027,120 +1552,131 @@ const Invoices = () => {
               placeholder="Search invoices..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
 
         {/* Invoices Table */}
         <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
               <tr>
                 <th className="w-10 px-3 py-4">
-                  {(() => {
-                    const pageData = filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage));
-                    return (
-                      <Checkbox
-                        checked={selectedIds.length === pageData.length && pageData.length > 0}
-                        onCheckedChange={() => toggleSelectAll(pageData)}
-                      />
-                    );
-                  })()}
+                  <Checkbox
+                    checked={pageInvoices.length > 0 && pageInvoices.every((i: any) => selectedIds.includes(i._id))}
+                    onCheckedChange={() => toggleSelectAll(pageInvoices)}
+                  />
                 </th>
-                {["Invoice #", "Customer", "Amount", "Total Tax", "Date", "Due Date", "Status", "Actions"].map((h) => (
-                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
+                {tableHeaders.map((h) => (
+                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px] whitespace-nowrap">
                     {h}
                   </th>
                 ))}
+                <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {isLoading ? (
-                Array(3)
-                  .fill(0)
-                  .map((_, i) => (
-                    <tr key={i}>
-                      <td colSpan={9} className="p-4">
-                        <Skeleton className="h-10 w-full" />
-                      </td>
-                    </tr>
-                  ))
-              ) : filtered.length === 0 ? (
+                <SkeletonTableRows rows={6} colSpan={TABLE_COLUMN_COUNT} />
+              ) : flatRows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground italic">
+                  <td colSpan={TABLE_COLUMN_COUNT} className="px-6 py-12 text-center text-muted-foreground italic">
                     No invoices found.
                   </td>
                 </tr>
               ) : (
-                filtered
-                  .slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage))
-                  .map((inv: any) => {
-                    const status = statusMap[inv.status] || statusMap[1];
-                    return (
-                      <tr key={inv._id} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(inv._id) ? 'bg-primary/5' : ''}`}>
-                        <td className="px-3 py-2">
-                          <Checkbox
-                            checked={selectedIds.includes(inv._id)}
-                            onCheckedChange={() => toggleSelect(inv._id)}
-                          />
-                        </td>
-                        <td className="px-6 py-4">
+                flatRows.map((row: any) => {
+                  const inv = row.invoice;
+                  const status = statusMap[inv.status] || statusMap["unpaid"];
+                  return (
+                    <tr key={row.rowKey} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(inv._id) ? 'bg-primary/5' : ''}`}>
+                      <td className="px-3 py-2">
+                        <Checkbox
+                          checked={selectedIds.includes(inv._id)}
+                          onCheckedChange={() => toggleSelect(inv._id)}
+                        />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
                           <button
                             className="font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer text-left"
                             onClick={() => setSelectedInvoice(inv)}
                           >
-                            {inv.number || `INV-${inv._id?.substring(0, 6)}`}
+                            {row.voucherNumber}
                           </button>
-                        </td>
-                        <td className="px-6 py-4 font-medium text-foreground">
-                          {inv.client?.company || "N/A"}
-                        </td>
-                        <td className="px-6 py-4 font-black text-foreground">
-                          {formatRowAmount(inv, inv.total || 0)}
-                        </td>
-                        <td className="px-6 py-4 text-muted-foreground">
-                          {formatRowAmount(inv, inv.total_tax || 0)}
-                        </td>
-                        <td className="px-6 py-4 text-muted-foreground">
-                          {inv.date ? formatDate(inv.date) : "-"}
-                        </td>
-                        <td className="px-6 py-4 text-muted-foreground">
-                          {inv.duedate ? formatDate(inv.duedate) : "-"}
-                        </td>
-                        <td className="px-6 py-4">
-                          <Badge variant="outline" className={cn("text-[10px] font-black uppercase tracking-widest px-3 py-1", status.color)}>
+                          <Badge variant="outline" className={cn("text-[9px] font-black uppercase tracking-widest px-2 py-0.5", status.color)}>
                             {status.label}
                           </Badge>
-                        </td>
-                        <td className="px-6 py-4">
-                          <TableActions
-                            onView={() => setPreviewInvoice(inv)}
-                            onEdit={can("Invoices", "Edit") ? () => navigate(`/admin/invoices/edit/${inv._id}`) : undefined}
-                            onDelete={can("Invoices", "Delete") ? () => deleteMutation.mutate(inv._id) : undefined}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                        {row.billDate ? formatDate(row.billDate) : "-"}
+                      </td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.voucherType || "-"}</td>
+                      {isPilot && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.salesPerson || "-"}</td>}
+
+                      <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">{row.partyName}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.partyAddress || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.partyGroup || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.termsOfPayment || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.gstin || "-"}</td>
+                      <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">{row.itemName || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.itemGroup || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.itemHSN || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.gstPercentage || 0}%</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.itemBatch || "-"}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.quantity || 0}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.rate || 0)}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.unit || "-"}</td>
+                      <td className="px-6 py-4 font-black text-foreground whitespace-nowrap">{formatRowAmount(inv, row.amount || 0)}</td>
+                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.freight || 0)}</td>
+                      <td className="px-6 py-4 font-black text-primary whitespace-nowrap">{formatRowAmount(inv, row.total || 0)}</td>
+                      {canUseBranch && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.branch || "-"}</td>}
+                      {canUseBankDetails && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.bankDetails || "-"}</td>}
+                      <td className="px-6 py-4">
+                        <TableActions
+                          onView={() => setPreviewInvoice(inv)}
+                          onEdit={can("Invoices", "Edit") ? () => navigate(`/admin/invoices/edit/${inv._id}`) : undefined}
+                          onDelete={can("Invoices", "Delete") ? () => deleteMutation.mutate(inv._id) : undefined}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing 1 to {filtered.length} of {filtered.length} entries
+            Showing {totalInvoiceRows === 0 ? 0 : (safeInvoicePage - 1) * invoicePageSize + 1} to {Math.min(safeInvoicePage * invoicePageSize, totalInvoiceRows)} of {totalInvoiceRows} entries
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safeInvoicePage <= 1}
+            >
               Previous
             </Button>
             <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              1
+              {safeInvoicePage}
             </div>
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <span className="text-xs text-muted-foreground px-1">of {totalInvoicePages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalInvoicePages, p + 1))}
+              disabled={safeInvoicePage >= totalInvoicePages}
+            >
               Next
             </Button>
           </div>

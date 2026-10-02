@@ -28,7 +28,15 @@ export default function SuperAdminAdmins() {
   const [loading, setLoading] = useState(true);
   const showAdminsSkeleton = useMinimumLoading(loading);
   const [search, setSearch] = useState("");
-  
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce the search box (350ms) so we don't fire a request on every
+  // keystroke — mirrors the pattern used in SuperAdminCompanies.tsx.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null);
@@ -47,7 +55,9 @@ export default function SuperAdminAdmins() {
   const fetchData = async () => {
     try {
       const [adminsRes, tenantsRes] = await Promise.all([
-        api.get("/super-admin/admins"),
+        api.get("/super-admin/admins", {
+          params: { search: debouncedSearch || undefined },
+        }),
         api.get("/super-admin/tenants")
       ]);
       setAdmins(adminsRes);
@@ -61,7 +71,7 @@ export default function SuperAdminAdmins() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [debouncedSearch]);
 
   const openCreateModal = () => {
     setEditingAdmin(null);
@@ -127,12 +137,6 @@ export default function SuperAdminAdmins() {
     }
   };
 
-  const filteredAdmins = admins.filter(a => 
-    a.firstname.toLowerCase().includes(search.toLowerCase()) || 
-    a.lastname.toLowerCase().includes(search.toLowerCase()) ||
-    a.email.toLowerCase().includes(search.toLowerCase())
-  );
-
   return (
     <>
       <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -183,14 +187,14 @@ export default function SuperAdminAdmins() {
                     <td className="px-6 py-3.5"><div className="flex gap-2 justify-end"><Skeleton className="h-8 w-8 rounded-md" /><Skeleton className="h-8 w-8 rounded-md" /></div></td>
                   </tr>
                 ))
-              ) : filteredAdmins.length === 0 ? (
+              ) : admins.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-6 py-10 text-center text-gray-400">
                     No admins found.
                   </td>
                 </tr>
               ) : (
-                filteredAdmins.map((admin) => (
+                admins.map((admin) => (
                   <tr key={admin._id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -283,7 +287,7 @@ export default function SuperAdminAdmins() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">First Name</label>
                   <input

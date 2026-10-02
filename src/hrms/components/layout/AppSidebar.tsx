@@ -1,5 +1,7 @@
 import { useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useSettings } from "@/context/SettingsContext";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import {
   LayoutDashboard,
   UserPlus,
@@ -8,7 +10,6 @@ import {
   Package,
   BarChart3,
   Truck,
-  Settings,
   Wrench,
   Keyboard,
   PackageSearch,
@@ -55,6 +56,7 @@ import {
   Search,
   User2,
   RadioTower,
+  ShieldAlert,
   CalendarDays,
   AlarmClock,
   ShieldCheck,
@@ -211,17 +213,19 @@ const hrmsNav = [
   { title: "Session Logs", url: "/staff/session-logs", icon: Clock, permission: "view_attendance" },
   { title: "Attendance Dashboard", url: "/employees", icon: LayoutDashboard, permission: "view_attendance" },
   { title: "Live Tracking", url: "/staff/live-tracking", icon: RadioTower, permission: "view_live_tracking" },
+  { title: "Geofence Audit", url: "/staff/geofence-audit", icon: ShieldAlert, permission: "view_live_tracking" },
   { title: "Leave Management", url: "/staff/leave-management", icon: CalendarDays, permission: "view_leaves" },
+  { title: "Holiday Calendar", url: "/staff/holidays", icon: CalendarDays, permission: "manage_holidays" },
   { title: "Expense Management", url: "/staff/expense-management", icon: Wallet, permission: "manage_expenses" },
   // { title: "Targets", url: "/staff/targets", icon: Target, permission: "view_targets" },
   { title: "Salary Management", url: "/staff/payroll", icon: Landmark, permission: "view_payroll" },
   { title: "Salary Settlements", url: "/staff/salary-settlements", icon: ArrowLeftRight, permission: "manage_payroll" },
-  // { title: "Advance Salary", url: "/staff/advance-salary", icon: CreditCard, permission: "view_payroll" },
+  { title: "Advance Salary", url: "/staff/advance-salary", icon: CreditCard, permission: "view_payroll" },
   // { title: "User Roles", url: "/staff/roles", icon: Shield, permission: "manage_roles" },
   { title: "My Attendance", url: "/staff/attendance", icon: Clock },
   { title: "My Leaves", url: "/staff/leaves", icon: Briefcase },
   { title: "My Expenses", url: "/staff/expenses", icon: Wallet },
-  // { title: "My Advance Salary", url: "/staff/advance-salary", icon: CreditCard },
+  { title: "My Advance Salary", url: "/staff/advance-salary", icon: CreditCard },
   { title: "Branch Management", url: "/staff/branches", icon: Landmark, permission: "view_branches" },
 ];
 
@@ -283,7 +287,6 @@ const systemNav = [
     icon: ShieldCheck,
     permission: "view_warranty",
   },
-  { title: "Settings", url: "/settings", icon: Settings, permission: "manage_settings" },
   { title: "Keyboard Shortcuts", url: "/settings/shortcuts", icon: Keyboard, permission: "manage_settings" },
 ];
 
@@ -745,6 +748,8 @@ function AnimatedNavGroup({
 export function AppSidebar() {
   const { user, logout, hasPermission } = useAuth();
   const { logo } = useTheme();
+  const { settings } = useSettings();
+  const fallbackLogoUrl = resolveImageUrl(settings?.ogImage || settings?.compLogoDark || settings?.compLogoLight);
   const location = useLocation();
   const { state, isMobile, setOpenMobile, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed" && !isMobile;
@@ -1046,17 +1051,20 @@ export function AppSidebar() {
                   objectFit: "cover",
                 }}
               />
-            ) : (
+            ) : fallbackLogoUrl ? (
               <img
-                src="/logo-icon.png"
+                src={fallbackLogoUrl}
                 alt="Logo"
                 style={{
                   width: 24,
                   height: 24,
                   objectFit: "contain",
-                  filter: "brightness(0) invert(1)",
                 }}
               />
+            ) : (
+              <span style={{ color: "white", fontWeight: 700, fontSize: 15 }}>
+                {settings?.companyName?.charAt(0) || "C"}
+              </span>
             )}
           </button>
 

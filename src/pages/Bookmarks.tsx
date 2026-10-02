@@ -31,9 +31,11 @@ export default function Bookmarks() {
   });
 
   const filteredBookmarks = useMemo(() => {
+    const term = search.toLowerCase();
     return bookmarks.filter((b: any) =>
-      b.title?.toLowerCase().includes(search.toLowerCase()) ||
-      b.url?.toLowerCase().includes(search.toLowerCase())
+      b.title?.toLowerCase().includes(term) ||
+      b.url?.toLowerCase().includes(term) ||
+      (b.folder || "Uncategorized").toLowerCase().includes(term)
     );
   }, [bookmarks, search]);
 
@@ -92,6 +94,15 @@ export default function Bookmarks() {
             </h1>
             <p className="text-sm text-muted-foreground">Manage your synced Chrome bookmarks</p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => queryClient.invalidateQueries({ queryKey: ["bookmarks"] })}
+            className="self-start sm:self-auto gap-2"
+          >
+            <Search className="h-4 w-4 hidden" />
+            Refresh List
+          </Button>
         </div>
 
         <Card>

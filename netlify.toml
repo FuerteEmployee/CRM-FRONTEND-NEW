@@ -2,3 +2,14 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Rewrites OG/Twitter meta tags in the served HTML for known social-media
+# crawlers only, using the live Setup > Settings OG Image — see
+# netlify/edge-functions/og-meta.ts for why this can't be done client-side.
+[[edge_functions]]
+  path = "/"
+  function = "og-meta"
+
+[[edge_functions]]
+  path = "/welcome"
+  function = "og-meta"

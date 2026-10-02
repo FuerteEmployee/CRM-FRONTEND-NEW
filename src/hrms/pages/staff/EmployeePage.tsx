@@ -7,6 +7,7 @@ import {
   CardDescription,
 } from "@/hrms/components/ui/card";
 import { Badge } from "@/hrms/components/ui/badge";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { Skeleton } from "@/hrms/components/ui/skeleton";
 import { Button } from "@/hrms/components/ui/button";
 import {
@@ -72,6 +73,7 @@ import {
   format,
   isAfter,
 } from "date-fns";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { Input } from "@/hrms/components/ui/input";
 import {
   DropdownMenu,
@@ -308,6 +310,11 @@ const EmployeePage = () => {
   const [expenseStatusFilter, setExpenseStatusFilter] = useState("all");
   const [leaveStatusFilter, setLeaveStatusFilter] = useState("all");
 
+  // Server-side pagination for the Daily Attendance Record table
+  const [attCurrentPage, setAttCurrentPage] = useState(1);
+  const attPageSize = 25;
+  const [attTotalCount, setAttTotalCount] = useState(0);
+
   // ─── API helpers ─────────────────────────────────────────────────────────
 
   const fetchLocations = useCallback(async (manual = false) => {
@@ -500,12 +507,15 @@ const EmployeePage = () => {
   useEffect(() => {
     const fetchAttendance = async () => {
       try {
-        const data = await employeeApi.getAttendance({
+        const res = await employeeApi.getAttendancePage({
           date: format(selectedMonth, "yyyy-MM-dd"),
           storeId: selectedStore === "all" ? undefined : selectedStore,
+          page: attCurrentPage,
+          limit: attPageSize,
         });
-        setAttendance(Array.isArray(data) ? data : []);
-      } catch { setAttendance([]); }
+        setAttendance(res.data);
+        setAttTotalCount(res.total);
+      } catch { setAttendance([]); setAttTotalCount(0); }
     };
     const fetchPayroll = async () => {
       try {
@@ -519,6 +529,11 @@ const EmployeePage = () => {
     };
     fetchAttendance();
     fetchPayroll();
+  }, [selectedMonth, selectedStore, attCurrentPage]);
+
+  // Reset back to page 1 whenever the date/store filter changes.
+  useEffect(() => {
+    setAttCurrentPage(1);
   }, [selectedMonth, selectedStore]);
 
   // ─── Derived helpers ──────────────────────────────────────────────────────
@@ -605,7 +620,15 @@ const EmployeePage = () => {
     { id: "payroll", label: "Payroll", icon: Landmark, permission: "view_payroll" },
   ], []);
 
-  const allowedTabs = useMemo(() => tabs.filter((t) => hasPermission(t.permission)), [tabs, hasPermission]);
+  // Per-tenant override (set on the Tenant document, see Tenant.hidden_hrms_features) —
+  // hides the combined Targets/Incentive-Slabs tab for tenants that don't use it.
+  const hiddenHrmsFeatures: string[] = (user as any)?.tenant?.hidden_hrms_features || [];
+  const targetsTabHidden = hiddenHrmsFeatures.includes("targets") || hiddenHrmsFeatures.includes("incentive_slabs");
+
+  const allowedTabs = useMemo(
+    () => tabs.filter((t) => hasPermission(t.permission) && !(t.id === "targets" && targetsTabHidden)),
+    [tabs, hasPermission, targetsTabHidden]
+  );
 
   const activeTab = useMemo(() => {
     const p = searchParams.get("tab");
@@ -775,6 +798,10 @@ const EmployeePage = () => {
                   return name.includes(searchQuery.toLowerCase());
                 })}
                 isLoading={isLoading}
+                totalItems={attTotalCount}
+                currentPage={attCurrentPage}
+                onPageChange={setAttCurrentPage}
+                pageSize={attPageSize}
                 columns={[
                   {
                     header: "Employee",
@@ -811,7 +838,7 @@ const EmployeePage = () => {
                       const lunchOutTime = fmtTime(att.lunchOut?.time || att.lunchOut);
                       return (
                         <div className="space-y-1">
-                          <div className="grid grid-cols-2 gap-x-2 gap-y-1">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2 gap-y-1">
                             <Badge variant="outline" className="text-[10px] font-medium bg-emerald-50 text-emerald-600 border-emerald-100 justify-center">
                               ↑ {punchInTime || "--:--"}
                             </Badge>
@@ -840,40 +867,61 @@ const EmployeePage = () => {
                   },
                   {
                     header: "Selfie",
-                    accessorKey: (att: any) => (
-                      <div className="flex items-center gap-1.5">
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-[8px] font-bold text-emerald-500 uppercase tracking-wider">IN</span>
-                          <div className="h-8 w-8 rounded-lg overflow-hidden border border-emerald-100 cursor-pointer hover:scale-110 transition-transform"
-                            onClick={() => att.punchIn?.selfieUrl && window.open(att.punchIn.selfieUrl, "_blank")}>
-                            <img
-                              src={att.punchIn?.selfieUrl || att.selfieInUrl || `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`}
-                              alt="Punch In"
-                              className="h-full w-full object-cover"
-                              onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`)}
-                            />
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-[8px] font-bold text-blue-500 uppercase tracking-wider">OUT</span>
-                          <div className="h-8 w-8 rounded-lg overflow-hidden border border-blue-100 cursor-pointer hover:scale-110 transition-transform"
-                            onClick={() => att.punchOut?.selfieUrl && window.open(att.punchOut.selfieUrl, "_blank")}>
-                            {att.punchOut?.selfieUrl ? (
+                    accessorKey: (att: any) => {
+                      const punchInSelfie = resolveImageUrl(att.punchIn?.selfieUrl || att.selfieInUrl);
+                      const punchOutSelfie = resolveImageUrl(att.punchOut?.selfieUrl || att.selfieOutUrl);
+                      const punchInFailed = att.selfieVerificationStatus === "failed";
+                      return (
+                        <div className="flex items-center gap-1.5">
+                          <div className="relative group/selfie shrink-0">
+                            <button
+                              type="button"
+                              disabled={!punchInSelfie}
+                              onClick={() => punchInSelfie && window.open(punchInSelfie, "_blank")}
+                              className={`h-8 w-8 rounded-lg overflow-hidden border shadow-sm flex items-center justify-center bg-slate-50 transition active:scale-95 ${
+                                punchInFailed 
+                                  ? "border-red-500 ring-2 ring-red-500/20" 
+                                  : "border-slate-200 hover:border-slate-300"
+                              }`}
+                            >
                               <img
-                                src={att.punchOut.selfieUrl}
-                                alt="Punch Out"
+                                src={punchInSelfie || `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`}
+                                alt="Punch In"
                                 className="h-full w-full object-cover"
-                                onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=OUT&background=3b82f6&color=fff`)}
+                                onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=IN&background=10b981&color=fff`)}
                               />
-                            ) : (
-                              <div className="h-full w-full bg-slate-100 flex items-center justify-center">
-                                <span className="text-[7px] font-bold text-slate-400">—</span>
-                              </div>
-                            )}
+                            </button>
+                            <span className={`absolute -top-1.5 -right-1 px-1 rounded text-white font-black text-[7px] uppercase shadow-sm pointer-events-none ${
+                              punchInFailed ? "bg-red-500 animate-pulse" : "bg-emerald-500"
+                            }`}>
+                              {punchInFailed ? "Failed" : "IN"}
+                            </span>
                           </div>
+
+                          {punchOutSelfie ? (
+                            <div className="relative group/selfie shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => window.open(punchOutSelfie, "_blank")}
+                                className="h-8 w-8 rounded-lg overflow-hidden border border-slate-200 shadow-sm flex items-center justify-center bg-slate-50 transition hover:border-slate-300 active:scale-95"
+                              >
+                                <img
+                                  src={punchOutSelfie}
+                                  alt="Punch Out"
+                                  className="h-full w-full object-cover"
+                                  onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=OUT&background=3b82f6&color=fff`)}
+                                />
+                              </button>
+                              <span className="absolute -top-1.5 -right-1 px-1 rounded bg-rose-500 text-white font-black text-[7px] uppercase shadow-sm pointer-events-none">OUT</span>
+                            </div>
+                          ) : (
+                            <div className="h-8 w-8 rounded-lg border border-dashed border-slate-200 flex items-center justify-center text-[10px] font-bold text-slate-300 select-none shrink-0">
+                              OUT
+                            </div>
+                          )}
                         </div>
-                      </div>
-                    ),
+                      );
+                    },
                   },
                   {
                     header: "Status",
@@ -1011,7 +1059,11 @@ const EmployeePage = () => {
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-slate-700">{emp.name}</p>
-                          <p className="text-[10px] text-slate-400">{emp.mobile || "No contact"}</p>
+                          {emp.mobile ? (
+                            <WhatsAppQuickChat phone={emp.mobile} data={{ customer_name: emp.name }} />
+                          ) : (
+                            <p className="text-[10px] text-slate-400">No contact</p>
+                          )}
                         </div>
                       </div>
                       <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-lg border-slate-200 hover:bg-slate-50"
@@ -1276,7 +1328,7 @@ const EmployeePage = () => {
                             </div>
 
                             {/* Stats grid */}
-                            <div className="grid grid-cols-3 gap-3 mb-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                               <InfoPill icon={Wifi} label="Signal" value="Strong" color="emerald" />
                               <InfoPill icon={Activity} label="Speed" value={`${(selectedLocation?.location?.speed || 0).toFixed(1)} km/h`} color="indigo" />
                               <InfoPill icon={Crosshair} label="Accuracy" value={`±${selectedLocation?.location?.accuracy || 0}m`} color="blue" />
@@ -1535,7 +1587,7 @@ const EmployeePage = () => {
         {/* ════════════════════════════════════
             TARGETS TAB
         ════════════════════════════════════ */}
-        {hasPermission("view_targets") && (
+        {hasPermission("view_targets") && !targetsTabHidden && (
           <TabsContent value="targets" className="mt-6 space-y-5">
             <div className="grid lg:grid-cols-3 gap-5">
               <div className="lg:col-span-2">
@@ -1768,11 +1820,11 @@ const EmployeePage = () => {
       <Dialog open={!!viewingAttendance} onOpenChange={() => setViewingAttendance(null)}>
         <DialogContent className="max-w-2xl p-0 overflow-hidden border-0 shadow-2xl rounded-3xl">
           <DialogHeader className="p-6 bg-indigo-600">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <DialogTitle className="text-lg font-bold text-white flex items-center gap-2">
-                  <UserCheck className="h-5 w-5" />
-                  {viewingAttendance ? getEmployeeName((viewingAttendance.userId && typeof viewingAttendance.userId === "object" ? viewingAttendance.userId._id : viewingAttendance.userId) || viewingAttendance.employeeId) : ""}
+            <div className="flex items-start justify-between gap-4 min-w-0">
+              <div className="min-w-0">
+                <DialogTitle className="text-lg font-bold text-white flex items-center gap-2 truncate">
+                  <UserCheck className="h-5 w-5 shrink-0" />
+                  <span className="truncate">{viewingAttendance ? getEmployeeName((viewingAttendance.userId && typeof viewingAttendance.userId === "object" ? viewingAttendance.userId._id : viewingAttendance.userId) || viewingAttendance.employeeId) : ""}</span>
                 </DialogTitle>
                 <DialogDescription className="text-indigo-200 text-xs mt-1">
                   {viewingAttendance ? getEmployeeRole((viewingAttendance.userId && typeof viewingAttendance.userId === "object" ? viewingAttendance.userId._id : viewingAttendance.userId) || viewingAttendance.employeeId) : ""}
@@ -1787,24 +1839,28 @@ const EmployeePage = () => {
           {viewingAttendance && (
             <div className="p-6 space-y-6 bg-white">
               {/* Punch In / Punch Out selfies */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 {[
                   { key: "punchIn", label: "Punch In", color: "emerald", bgHex: "10b981" },
                   { key: "punchOut", label: "Punch Out", color: "blue", bgHex: "3b82f6" },
-                ].map(({ key, label, color, bgHex }) => (
-                  <div key={key} className="space-y-3">
-                    <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
-                      <Camera className="h-3 w-3" /> {label}
-                    </h4>
-                    {viewingAttendance[key]?.time || (key === "punchIn" && viewingAttendance[key]) ? (
-                      <div className="flex gap-3">
-                        <div className="h-20 w-20 rounded-xl overflow-hidden border border-slate-100 shrink-0">
-                          <img
-                            src={viewingAttendance[key]?.selfieUrl || `https://ui-avatars.com/api/?name=${label}&background=${bgHex}&color=fff`}
-                            className="w-full h-full object-cover"
-                            alt=""
-                          />
-                        </div>
+                ].map(({ key, label, color, bgHex }) => {
+                  const rawSelfie = viewingAttendance[key]?.selfieUrl || (key === "punchIn" ? viewingAttendance.selfieInUrl : viewingAttendance.selfieOutUrl);
+                  const selfieUrl = resolveImageUrl(rawSelfie);
+                  return (
+                    <div key={key} className="space-y-3">
+                      <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-400 flex items-center gap-1.5">
+                        <Camera className="h-3 w-3" /> {label}
+                      </h4>
+                      {viewingAttendance[key]?.time || (key === "punchIn" && viewingAttendance[key]) ? (
+                        <div className="flex gap-3">
+                          <div className="h-20 w-20 rounded-xl overflow-hidden border border-slate-100 shrink-0">
+                            <img
+                              src={selfieUrl || `https://ui-avatars.com/api/?name=${label}&background=${bgHex}&color=fff`}
+                              className="w-full h-full object-cover"
+                              alt=""
+                              onError={(e) => (e.currentTarget.src = `https://ui-avatars.com/api/?name=${label}&background=${bgHex}&color=fff`)}
+                            />
+                          </div>
                         <div className="space-y-2">
                           <div>
                             <p className="text-[9px] uppercase font-bold text-slate-400">Time</p>
@@ -1826,12 +1882,13 @@ const EmployeePage = () => {
                       </div>
                     )}
                   </div>
-                ))}
+                );
+                })}
               </div>
 
               {/* Lunch In / Lunch Out */}
               <div className={cn(
-                "grid grid-cols-2 gap-4 p-4 rounded-2xl border",
+                "grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 rounded-2xl border",
                 viewingAttendance.lunchOverLimit ? "bg-red-50/60 border-red-200" : "bg-amber-50/50 border-amber-100"
               )}>
                 {[
@@ -1861,7 +1918,7 @@ const EmployeePage = () => {
                 )}
               </div>
 
-              <div className="grid grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-100">
                 <div className="text-center">
                   <p className="text-[9px] uppercase font-bold text-slate-400 mb-1.5">Status</p>
                   <Badge className={cn("text-[10px] border-0", statusColor(viewingAttendance.status) === "emerald" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700")}>{viewingAttendance.status}</Badge>

@@ -71,11 +71,33 @@ const gdprTabs = [
   { id: "consent", label: "Consent" },
 ];
 
-const RichTextEditorMock = ({ placeholder }: { placeholder?: string }) => {
+const RichTextEditorMock = ({
+  placeholder,
+  value,
+  onChange,
+}: {
+  placeholder?: string;
+  value?: string;
+  onChange?: (html: string) => void;
+}) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const [activeFormats, setActiveFormats] = useState<Record<string, boolean>>({});
   const [currentFont, setCurrentFont] = useState("System Font");
   const [currentSize, setCurrentSize] = useState("12pt");
+  const hydratedRef = useRef(false);
+
+  // Loads the saved HTML into the (uncontrolled, contentEditable) editor once
+  // it arrives from the server. Only runs once — re-applying it on every
+  // `value` change would overwrite the DOM mid-keystroke and reset the cursor.
+  useEffect(() => {
+    if (hydratedRef.current || value === undefined || !editorRef.current) return;
+    editorRef.current.innerHTML = value;
+    hydratedRef.current = true;
+  }, [value]);
+
+  const handleBlur = () => {
+    onChange?.(editorRef.current?.innerHTML || "");
+  };
 
   const checkActiveFormats = () => {
     setActiveFormats({
@@ -275,7 +297,8 @@ const RichTextEditorMock = ({ placeholder }: { placeholder?: string }) => {
         contentEditable
         onKeyUp={checkActiveFormats}
         onMouseUp={checkActiveFormats}
-        className="min-h-[250px] p-4 text-sm outline-none w-full bg-background overflow-y-auto empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50" 
+        onBlur={handleBlur}
+        className="min-h-[250px] p-4 text-sm outline-none w-full bg-background overflow-y-auto empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
         data-placeholder={placeholder || "Enter the rich text content here..."}
       />
     </div>
@@ -289,6 +312,7 @@ export default function SetupGDPR() {
   const [enableGdpr, setEnableGdpr] = useState(true);
   const [showNav, setShowNav] = useState(true);
   const [showFooter, setShowFooter] = useState(true);
+  const [generalInfoHtml, setGeneralInfoHtml] = useState("");
 
   // State for Portability Settings
   const [exportContactJson, setExportContactJson] = useState(false);
@@ -312,6 +336,8 @@ export default function SetupGDPR() {
   const [enableTermsTicket, setEnableTermsTicket] = useState(false);
   const [showTermsFooter, setShowTermsFooter] = useState(false);
   const [enableTermsEstimate, setEnableTermsEstimate] = useState(false);
+  const [termsHtml, setTermsHtml] = useState("");
+  const [privacyHtml, setPrivacyHtml] = useState("");
 
   // Access State
   const [accessBilling, setAccessBilling] = useState(false);
@@ -323,6 +349,7 @@ export default function SetupGDPR() {
   // Consent State
   const [consentContacts, setConsentContacts] = useState(false);
   const [consentLeads, setConsentLeads] = useState(false);
+  const [consentInfoHtml, setConsentInfoHtml] = useState("");
 
   const toggleField = (setter: React.Dispatch<React.SetStateAction<string[]>>, field: string) => {
     setter(prev => prev.includes(field) ? prev.filter(f => f !== field) : [...prev, field]);
@@ -332,6 +359,68 @@ export default function SetupGDPR() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { can } = usePermissions();
+
+  // ── GDPR settings (General / Portability / Erasure / Informed / Access / Consent toggles) ──
+  const { data: gdprSettings } = useQuery<any>({
+    queryKey: ["gdpr-settings"],
+    queryFn: () => settingsService.getGdprSettings(),
+  });
+
+  const gdprHydratedRef = useRef(false);
+  useEffect(() => {
+    if (!gdprSettings || gdprHydratedRef.current) return;
+    gdprHydratedRef.current = true;
+    const s = gdprSettings;
+    if (s.enableGdpr !== undefined) setEnableGdpr(s.enableGdpr);
+    if (s.showNav !== undefined) setShowNav(s.showNav);
+    if (s.showFooter !== undefined) setShowFooter(s.showFooter);
+    if (s.generalInfoHtml !== undefined) setGeneralInfoHtml(s.generalInfoHtml);
+    if (s.exportContactJson !== undefined) setExportContactJson(s.exportContactJson);
+    if (s.contactFields !== undefined) setContactFields(s.contactFields);
+    if (s.exportLeadJson !== undefined) setExportLeadJson(s.exportLeadJson);
+    if (s.leadFields !== undefined) setLeadFields(s.leadFields);
+    if (s.enableContactRemoval !== undefined) setEnableContactRemoval(s.enableContactRemoval);
+    if (s.deleteInvoices !== undefined) setDeleteInvoices(s.deleteInvoices);
+    if (s.deleteEstimates !== undefined) setDeleteEstimates(s.deleteEstimates);
+    if (s.enableLeadRemoval !== undefined) setEnableLeadRemoval(s.enableLeadRemoval);
+    if (s.deleteLeadData !== undefined) setDeleteLeadData(s.deleteLeadData);
+    if (s.enableTermsReg !== undefined) setEnableTermsReg(s.enableTermsReg);
+    if (s.enableTermsLead !== undefined) setEnableTermsLead(s.enableTermsLead);
+    if (s.enableTermsTicket !== undefined) setEnableTermsTicket(s.enableTermsTicket);
+    if (s.showTermsFooter !== undefined) setShowTermsFooter(s.showTermsFooter);
+    if (s.enableTermsEstimate !== undefined) setEnableTermsEstimate(s.enableTermsEstimate);
+    if (s.termsHtml !== undefined) setTermsHtml(s.termsHtml);
+    if (s.privacyHtml !== undefined) setPrivacyHtml(s.privacyHtml);
+    if (s.accessBilling !== undefined) setAccessBilling(s.accessBilling);
+    if (s.accessDeleteFiles !== undefined) setAccessDeleteFiles(s.accessDeleteFiles);
+    if (s.accessLeadPublicForm !== undefined) setAccessLeadPublicForm(s.accessLeadPublicForm);
+    if (s.accessLeadCustomFields !== undefined) setAccessLeadCustomFields(s.accessLeadCustomFields);
+    if (s.accessLeadAttachments !== undefined) setAccessLeadAttachments(s.accessLeadAttachments);
+    if (s.consentContacts !== undefined) setConsentContacts(s.consentContacts);
+    if (s.consentLeads !== undefined) setConsentLeads(s.consentLeads);
+    if (s.consentInfoHtml !== undefined) setConsentInfoHtml(s.consentInfoHtml);
+  }, [gdprSettings]);
+
+  const saveGdprMutation = useMutation({
+    mutationFn: (data: any) => settingsService.updateGdprSettings(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gdpr-settings"] });
+      toast({ title: "Success", description: "GDPR settings saved" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.response?.data?.message || "Failed to save settings", variant: "destructive" }),
+  });
+
+  const handleSaveGdpr = () => {
+    saveGdprMutation.mutate({
+      enableGdpr, showNav, showFooter, generalInfoHtml,
+      exportContactJson, contactFields, exportLeadJson, leadFields,
+      enableContactRemoval, deleteInvoices, deleteEstimates, enableLeadRemoval, deleteLeadData,
+      enableTermsReg, enableTermsLead, enableTermsTicket, showTermsFooter, enableTermsEstimate, termsHtml, privacyHtml,
+      accessBilling, accessDeleteFiles, accessLeadPublicForm, accessLeadCustomFields, accessLeadAttachments,
+      consentContacts, consentLeads, consentInfoHtml,
+    });
+  };
+
   const [purposeSearch, setPurposeSearch] = useState("");
   const [purposePageSize, setPurposePageSize] = useState("10");
   const [isPurposeModalOpen, setIsPurposeModalOpen] = useState(false);
@@ -545,11 +634,13 @@ export default function SetupGDPR() {
                   {/* GDPR page top information block - Google Docs style */}
                   <div className="space-y-3 border-t pt-4">
                     <Label className="text-sm font-semibold">GDPR page top information block</Label>
-                    <RichTextEditorMock />
+                    <RichTextEditorMock value={generalInfoHtml} onChange={setGeneralInfoHtml} />
                   </div>
 
                   <div className="pt-2">
-                    <Button size="sm">Save Settings</Button>
+                    <Button size="sm" onClick={handleSaveGdpr} disabled={saveGdprMutation.isPending}>
+                      {saveGdprMutation.isPending ? "Saving..." : "Save Settings"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -722,7 +813,9 @@ export default function SetupGDPR() {
                 </Card>
                 
                 <div className="flex">
-                  <Button size="sm">Save Settings</Button>
+                  <Button size="sm" onClick={handleSaveGdpr} disabled={saveGdprMutation.isPending}>
+                    {saveGdprMutation.isPending ? "Saving..." : "Save Settings"}
+                  </Button>
                 </div>
               </div>
             )}
@@ -831,7 +924,9 @@ export default function SetupGDPR() {
                     </Card>
                     
                     <div className="flex">
-                      <Button size="sm">Save Settings</Button>
+                      <Button size="sm" onClick={handleSaveGdpr} disabled={saveGdprMutation.isPending}>
+                        {saveGdprMutation.isPending ? "Saving..." : "Save Settings"}
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -969,16 +1064,18 @@ export default function SetupGDPR() {
 
                   <div className="space-y-3 pt-6 border-t">
                     <Label className="text-sm font-semibold">Terms & Conditions</Label>
-                    <RichTextEditorMock placeholder="Enter Terms & Conditions here..." />
+                    <RichTextEditorMock placeholder="Enter Terms & Conditions here..." value={termsHtml} onChange={setTermsHtml} />
                   </div>
 
                   <div className="space-y-3 pt-4">
                     <Label className="text-sm font-semibold">Privacy Policy</Label>
-                    <RichTextEditorMock placeholder="Enter Privacy Policy here..." />
+                    <RichTextEditorMock placeholder="Enter Privacy Policy here..." value={privacyHtml} onChange={setPrivacyHtml} />
                   </div>
 
                   <div className="pt-2">
-                    <Button size="sm">Save Settings</Button>
+                    <Button size="sm" onClick={handleSaveGdpr} disabled={saveGdprMutation.isPending}>
+                      {saveGdprMutation.isPending ? "Saving..." : "Save Settings"}
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -1087,7 +1184,9 @@ export default function SetupGDPR() {
                 </Card>
 
                 <div className="flex">
-                  <Button size="sm">Save Settings</Button>
+                  <Button size="sm" onClick={handleSaveGdpr} disabled={saveGdprMutation.isPending}>
+                    {saveGdprMutation.isPending ? "Saving..." : "Save Settings"}
+                  </Button>
                 </div>
               </div>
             )}
@@ -1129,7 +1228,7 @@ export default function SetupGDPR() {
 
                     <div className="space-y-3 border-t pt-6">
                       <Label className="text-sm font-semibold">Public page consent information block</Label>
-                      <RichTextEditorMock placeholder="Enter consent information here..." />
+                      <RichTextEditorMock placeholder="Enter consent information here..." value={consentInfoHtml} onChange={setConsentInfoHtml} />
                     </div>
                   </CardContent>
                 </Card>
@@ -1231,7 +1330,9 @@ export default function SetupGDPR() {
                 </Card>
 
                 <div className="flex">
-                  <Button size="sm">Save Settings</Button>
+                  <Button size="sm" onClick={handleSaveGdpr} disabled={saveGdprMutation.isPending}>
+                    {saveGdprMutation.isPending ? "Saving..." : "Save Settings"}
+                  </Button>
                 </div>
               </div>
             )}

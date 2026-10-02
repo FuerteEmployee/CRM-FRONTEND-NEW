@@ -244,6 +244,39 @@ export default function PublicForm() {
                       </Select>
                     )}
 
+                    {/* ── branch ── */}
+                    {field.type === "branch" && (
+                      <Select
+                        value={selectValues[field.name] || ""}
+                        onValueChange={(v) => {
+                          setSelectValues((prev) => ({
+                            ...prev,
+                            [field.name]: v,
+                          }));
+                          setFieldErrors((prev) => {
+                            const n = { ...prev };
+                            delete n[field.name];
+                            return n;
+                          });
+                        }}
+                      >
+                        <SelectTrigger
+                          className={`h-12 rounded-xl border-slate-200 font-medium ${
+                            fieldErrors[field.name] ? "border-red-400" : ""
+                          }`}
+                        >
+                          <SelectValue placeholder={`Select ${field.label}`} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(form.branches || []).map((branch: any) => (
+                            <SelectItem key={branch._id} value={branch.name}>
+                              {branch.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+
                     {/* ── radio ── */}
                     {field.type === "radio" && (
                       <RadioGroup

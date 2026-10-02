@@ -589,7 +589,7 @@ const TargetsManagementPage = () => {
               </div>
 
               {/* Month & Year Selection */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="month" className="text-xs font-bold text-slate-500">Target Month</Label>
                   <Select
@@ -624,7 +624,7 @@ const TargetsManagementPage = () => {
               </div>
 
               {/* Revenue & Margin Targets */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="revenueTarget" className="text-xs font-bold text-slate-500">Revenue Goal (₹)</Label>
                   <Input

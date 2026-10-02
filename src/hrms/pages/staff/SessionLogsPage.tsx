@@ -17,6 +17,7 @@ import {
     LogIn,
     LogOut,
     User as UserIcon,
+    MapPin,
 } from "lucide-react";
 
 const PAGE_LIMIT = 10;
@@ -37,6 +38,9 @@ interface SessionLog {
     deviceName?: string;
     ipAddress?: string;
     userAgent?: string;
+    latitude?: number | null;
+    longitude?: number | null;
+    address?: string | null;
     createdAt: string;
 }
 
@@ -266,6 +270,19 @@ export default function SessionLogsPage() {
                                     <Globe className="h-3.5 w-3.5 text-slate-400" />
                                     {row.ipAddress || "127.0.0.1"}
                                 </div>
+                            ),
+                        },
+                        {
+                            header: "Location",
+                            accessorKey: (row) => (
+                                row.address ? (
+                                    <div className="flex items-center gap-1.5 text-slate-500 text-xs max-w-[200px]">
+                                        <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                                        <span className="truncate" title={row.address}>{row.address}</span>
+                                    </div>
+                                ) : (
+                                    <span className="text-slate-300 text-xs">—</span>
+                                )
                             ),
                         },
                     ]}

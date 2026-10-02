@@ -23,4 +23,14 @@ node_modules
 # Project specific
 backend/
 vite.config.ts.timestamp-*
-dist/ 
+
+# Build output
+dist.zip
+dev-dist/
+
+# Environment files
+.env
+.env.development
+.env.production
+.env.local
+.env.*.local

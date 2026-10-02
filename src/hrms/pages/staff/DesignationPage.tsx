@@ -204,11 +204,11 @@ export default function DesignationPage() {
           <DialogContent className="bg-white border-0 rounded-[2.5rem] max-w-lg shadow-2xl p-0 overflow-hidden flex flex-col">
             <DialogHeader className="p-8 pb-4">
               <div className="flex items-center gap-3 mb-2">
-                <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center text-white shadow-soft">
-                  <Briefcase className="h-6 w-6" />
+                <div className="h-10 w-10 shrink-0 rounded-xl gradient-primary flex items-center justify-center text-white shadow-soft">
+                  <Briefcase className="h-6 w-6 shrink-0" />
                 </div>
-                <div>
-                  <DialogTitle className="text-2xl font-bold">
+                <div className="min-w-0">
+                  <DialogTitle className="text-2xl font-bold truncate">
                     {editingDesg ? "Update Designation" : "New Designation"}
                   </DialogTitle>
                   <DialogDescription className="text-muted-foreground font-medium">
@@ -220,7 +220,7 @@ export default function DesignationPage() {
 
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onFormSubmit)} className="space-y-6 px-8 py-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
                     name="name"
@@ -279,7 +279,7 @@ export default function DesignationPage() {
       </div>
 
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-2xl gradient-primary flex items-center justify-center text-white shadow-soft">
               <Users className="h-5 w-5" />
@@ -291,7 +291,7 @@ export default function DesignationPage() {
               </p>
             </div>
           </div>
-          <div className="relative w-64">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
             <Input
               placeholder="Search designations..."

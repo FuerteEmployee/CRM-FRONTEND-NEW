@@ -7,6 +7,13 @@ export interface BranchTypeRef {
   isActive?: boolean;
 }
 
+export interface QuotationTypeRef {
+  _id: string;
+  id?: string;
+  name: string;
+  slug?: string;
+}
+
 export interface HRMSBranch {
   _id?: string;
   id?: string;
@@ -14,6 +21,8 @@ export interface HRMSBranch {
   code?: string;
   // branchType is an ObjectId ref — comes back populated as object, sent as string ID
   branchType?: BranchTypeRef | string | null;
+  // quotationTypes is an array of ObjectId refs — comes back populated as objects, sent as string IDs
+  quotationTypes?: (QuotationTypeRef | string)[];
   status: "Active" | "Inactive";
   addressLine1?: string;
   addressLine2?: string;
@@ -46,6 +55,12 @@ export function getBranchTypeName(bt: HRMSBranch["branchType"]): string {
   if (!bt) return "";
   if (typeof bt === "object") return bt.name || "";
   return bt;
+}
+
+/** Extract the string IDs from a quotationTypes field (populated objects or raw strings) */
+export function getQuotationTypeIds(qts: HRMSBranch["quotationTypes"]): string[] {
+  if (!Array.isArray(qts)) return [];
+  return qts.map(qt => (typeof qt === "string" ? qt : qt._id || qt.id || "")).filter(Boolean);
 }
 
 const mapBranch = (b: any): HRMSBranch => ({ ...b, id: b.id || b._id });

@@ -218,7 +218,7 @@ const MyLeavesPage = () => {
     }
 
     if (newLeave.leaveOption === "multiple_days" && !newLeave.toDate) {
-      toast({ title: "Missing Date", description: "Please select an end date.", variant: "destructive" });
+      toast({ title: "Missing Date", description: "Please select an end date."});
       return;
     }
 
@@ -476,7 +476,7 @@ const MyLeavesPage = () => {
         <DialogContent className="max-w-2xl rounded-2xl border border-border/40 shadow-2xl bg-background p-0 overflow-hidden flex flex-col max-h-[90vh]">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border/20 bg-gradient-to-r from-primary/5 to-transparent shrink-0">
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <ArrowLeftRight className="h-5 w-5 text-primary" /> Swap Weekly Off Days
+              <ArrowLeftRight className="h-5 w-5 shrink-0 text-primary" /> Swap Weekly Off Days
             </DialogTitle>
             <DialogDescription className="text-xs">
               Select an employee to swap your weekly off day with.
@@ -484,7 +484,7 @@ const MyLeavesPage = () => {
           </DialogHeader>
 
           <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* You (Employee A — read-only, pre-filled) */}
               <div className="space-y-3">
                 <Label className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground block">You</Label>
@@ -540,7 +540,7 @@ const MyLeavesPage = () => {
             {emp1OffDay && emp2OffDay && (
               emp1OffDay === emp2OffDay
                 ? <div className="p-3 rounded-xl bg-warning/10 border border-warning/20 text-xs text-warning font-medium text-center">Both employees selected the same day — please choose different days.</div>
-                : <div className="grid grid-cols-2 gap-3">
+                : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="p-3 rounded-xl border border-primary/10 bg-primary/5 space-y-1">
                       <p className="text-xs font-semibold">{emp1?.name}</p>
                       <p className="text-[11px] text-red-500 font-semibold flex items-center gap-1"><MoonStar className="h-3 w-3" /> Off on <b>{emp2OffDay}</b></p>
@@ -575,23 +575,23 @@ const MyLeavesPage = () => {
           <div className="gradient-primary h-1.5 w-full" />
           <DialogHeader className="px-6 pt-6 pb-4 bg-accent/40 border-b border-border/30">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
-                  <Briefcase className="h-5 w-5" />
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center text-primary border border-primary/20">
+                  <Briefcase className="h-5 w-5 shrink-0" />
                 </div>
-                <div>
-                  <DialogTitle className="text-xl font-bold tracking-tight">Apply for Leave</DialogTitle>
+                <div className="min-w-0">
+                  <DialogTitle className="text-xl font-bold tracking-tight truncate">Apply for Leave</DialogTitle>
                   <DialogDescription className="text-[10px]">New time-off request</DialogDescription>
                 </div>
               </div>
-              <Badge className="bg-primary/10 text-primary border-primary/20 px-3 py-1 rounded-lg font-bold text-xs">
+              <Badge className="shrink-0 bg-primary/10 text-primary border-primary/20 px-3 py-1 rounded-lg font-bold text-xs">
                 {calculateDays()} Days
               </Badge>
             </div>
           </DialogHeader>
 
           <div className="px-6 py-5 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Category</Label>
                 <Select 

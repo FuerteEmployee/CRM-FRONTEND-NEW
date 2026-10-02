@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSettings } from "@/context/SettingsContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,12 +51,13 @@ import {
   Link as LinkIcon,
   Image as ImageIcon,
 } from "lucide-react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { creditNoteService } from "@/api/services/credit_note.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/ui/export-button";
@@ -71,7 +73,13 @@ const statusMap: Record<number, { label: string; color: string }> = {
 
 const CreditNotes = () => {
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [currentPage, setCurrentPage] = useState(1);
   const [viewItem, setViewItem] = useState<any>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -79,14 +87,48 @@ const CreditNotes = () => {
   const { can } = usePermissions();
   const { symbol, formatAmount } = useCurrency();
 
-  const { data: creditNotes = [], isLoading, isError, error } = useQuery<any[]>({
-    queryKey: ["creditNotes"],
+  // Paginated server-side once a finite page size is chosen; "All" keeps
+  // the legacy full fetch, filtered client-side exactly as this page always has.
+  interface CreditNotesPage { rows: any[]; total: number; pages: number; creditsAvailable: number }
+  const { data: creditNotesResult, isLoading, isError, error } = useQuery<CreditNotesPage>({
+    queryKey: ["creditNotes", itemsPerPage, currentPage, debouncedSearch],
     queryFn: async () => {
-      const response = await creditNoteService.getAll();
-      return Array.isArray(response) ? response : response?.data || [];
+      const matchesSearch = (cn: any, q: string) =>
+        !q ||
+        (cn.number || "").toLowerCase().includes(q) ||
+        (cn.client?.company || "").toLowerCase().includes(q) ||
+        (cn._id || "").toLowerCase().includes(q) ||
+        (cn.reference || "").toLowerCase().includes(q) ||
+        (statusMap[cn.status]?.label || "").toLowerCase().includes(q);
+
+      if (itemsPerPage === "All") {
+        const response = await creditNoteService.getAll();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        const creditsAvailable = rows
+          .filter((cn: any) => cn.status === 1)
+          .reduce((acc: number, cn: any) => acc + (cn.remaining_amount ?? cn.total ?? 0), 0);
+        const q = debouncedSearch.toLowerCase();
+        const rowsFiltered = rows.filter((cn: any) => matchesSearch(cn, q));
+        return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1, creditsAvailable };
+      }
+
+      const res: any = await creditNoteService.getAll({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, creditsAvailable: 0 };
+      return {
+        rows: res?.data ?? [],
+        total: res?.total ?? 0,
+        pages: res?.pages ?? 1,
+        creditsAvailable: res?.creditsAvailable ?? 0,
+      };
     },
+    placeholderData: keepPreviousData,
     retry: false,
   });
+  const creditNotes: any[] = creditNotesResult?.rows ?? [];
 
   const { data: currencies = [] } = useQuery<any[]>({
     queryKey: ["currencies"],
@@ -143,60 +185,30 @@ const CreditNotes = () => {
     },
   });
 
-  const filtered = useMemo(() => {
-    return creditNotes.filter((cn: any) => {
-      const matchSearch =
-        (cn.number || "").toLowerCase().includes(search.toLowerCase()) ||
-        (cn.client?.company || "").toLowerCase().includes(search.toLowerCase()) ||
-        (cn._id || "").toLowerCase().includes(search.toLowerCase()) ||
-        (cn.reference || "").toLowerCase().includes(search.toLowerCase());
-      
-      return matchSearch;
-    });
-  }, [creditNotes, search]);
+  const totalCreditNotes = creditNotesResult?.total ?? 0;
+  const cnPageSize = itemsPerPage === "All" ? (totalCreditNotes || 1) : parseInt(itemsPerPage);
+  const totalCnPages = creditNotesResult?.pages ?? 1;
+  const safeCnPage = Math.min(currentPage, totalCnPages);
+  const paginatedCreditNotes = creditNotes;
 
-  const totalCreditsAvailable = useMemo(() => {
-    return creditNotes
-      .filter((cn: any) => cn.status === 1)
-      .reduce((acc: number, cn: any) => acc + (cn.remaining_amount ?? cn.total), 0);
-  }, [creditNotes]);
+  // Always the whole tenant's total, independent of the active search —
+  // computed server-side since only the current page is kept in memory.
+  const totalCreditsAvailable = creditNotesResult?.creditsAvailable ?? 0;
 
-  const handleExport = (type: "pdf" | "csv" | "print") => {
-    if (filtered.length === 0) {
-      toast({
-        title: "No data",
-        description: "There are no credit notes to export.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (type === "csv") {
-      const headers = ["Credit Note #", "Customer", "Date", "Status", "Reference", "Amount", "Remaining Amount"];
-      const rows = filtered.map((cn: any) => [
-        cn.number || `CN-${cn._id?.substring(0, 6)}`,
-        cn.client?.company || "N/A",
-        cn.date ? formatDate(cn.date) : "-",
-        statusMap[cn.status]?.label || "Open",
-        cn.reference || "-",
-        formatRowAmount(cn, cn.total || 0),
-        formatRowAmount(cn, cn.remaining_amount ?? cn.total ?? 0),
-      ]);
-
-      const csvContent =
-        "data:text/csv;charset=utf-8," +
-        [headers.join(","), ...rows.map((e) => e.map((val) => `"${val}"`).join(","))].join("\n");
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `credit_notes_export_${new Date().toISOString().split("T")[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast({ title: "Exported", description: "CSV exported successfully." });
-    } else {
-      window.print();
-    }
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredCreditNotes = async () => {
+    const response = await creditNoteService.getAll();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    const q = debouncedSearch.toLowerCase();
+    return rows.filter((cn: any) =>
+      !q ||
+      (cn.number || "").toLowerCase().includes(q) ||
+      (cn.client?.company || "").toLowerCase().includes(q) ||
+      (cn._id || "").toLowerCase().includes(q) ||
+      (cn.reference || "").toLowerCase().includes(q) ||
+      (statusMap[cn.status]?.label || "").toLowerCase().includes(q)
+    );
   };
 
   return (
@@ -245,8 +257,8 @@ const CreditNotes = () => {
 
         {/* Table Controls */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
-          <div className="flex items-center gap-3">
-            <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+          <div className="flex flex-wrap items-center gap-3">
+            <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
               <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
@@ -267,7 +279,7 @@ const CreditNotes = () => {
               Bulk Actions
             </Button>
             <ExportButton
-              data={filtered}
+              data={loadAllFilteredCreditNotes}
               filename="credit_notes"
               columns={[
                 { header: "Credit Note #", key: (cn) => cn.number || `CN-${cn._id?.substring(0, 6)}` },
@@ -287,7 +299,7 @@ const CreditNotes = () => {
               placeholder="Search credit notes..."
               className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             />
           </div>
         </div>
@@ -313,24 +325,15 @@ const CreditNotes = () => {
             </thead>
             <tbody className="divide-y divide-border/50">
               {isLoading ? (
-                Array(3)
-                  .fill(0)
-                  .map((_, i) => (
-                    <tr key={i}>
-                      <td colSpan={8} className="p-4">
-                        <Skeleton className="h-10 w-full" />
-                      </td>
-                    </tr>
-                  ))
-              ) : filtered.length === 0 ? (
+                <SkeletonTableRows rows={6} colSpan={8} />
+              ) : paginatedCreditNotes.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
                     No credit notes found.
                   </td>
                 </tr>
               ) : (
-                filtered
-                  .slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage))
+                paginatedCreditNotes
                   .map((note: any) => {
                     const status = statusMap[note.status] || statusMap[1];
                     return (
@@ -379,16 +382,29 @@ const CreditNotes = () => {
         {/* Pagination Footer */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
           <p className="text-xs font-bold text-muted-foreground italic">
-            Showing 1 to {filtered.length} of {filtered.length} entries
+            Showing {totalCreditNotes === 0 ? 0 : (safeCnPage - 1) * cnPageSize + 1} to {Math.min(safeCnPage * cnPageSize, totalCreditNotes)} of {totalCreditNotes} entries
           </p>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={safeCnPage <= 1}
+            >
               Previous
             </Button>
             <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              1
+              {safeCnPage}
             </div>
-            <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>
+            <span className="text-xs text-muted-foreground px-1">of {totalCnPages}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-4 rounded-lg font-bold text-xs"
+              onClick={() => setCurrentPage(p => Math.min(totalCnPages, p + 1))}
+              disabled={safeCnPage >= totalCnPages}
+            >
               Next
             </Button>
           </div>
@@ -428,6 +444,8 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
   const queryClient = useQueryClient();
   const [applyAmounts, setApplyAmounts] = useState<Record<string, string>>({});
   const [isApplying, setIsApplying] = useState(false);
+  const { getSetting } = useSettings();
+  const companyName = getSetting("companyName", "Fuerte Developers");
 
   const handleApplyCredits = async () => {
     setIsApplying(true);
@@ -546,8 +564,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
           <div class="header">
             <div>
               <div class="title">${item.number || `CN-${item._id?.substring(0, 6)}`}</div>
-              <div class="company">Fuerte Developers</div>
-              <div class="meta">405, The Spireee<br/>Rajkot Rajkot<br/>India 360007</div>
+              <div class="company">${companyName}</div>
             </div>
             <div style="text-align: right">
               <div style="margin-bottom: 15px;">
@@ -709,10 +726,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                       {item.number || `CN-${item._id?.substring(0, 6)}`}
                     </h2>
                     <div className="text-[13px] text-slate-600 space-y-1">
-                      <p className="font-bold text-slate-900 text-base">Fuerte Developers</p>
-                      <p>405, The Spireee</p>
-                      <p>Rajkot Rajkot</p>
-                      <p>India 360007</p>
+                      <p className="font-bold text-slate-900 text-base">{companyName}</p>
                     </div>
                   </div>
 

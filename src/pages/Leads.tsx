@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
+import { LeadDetailDialog } from "@/components/leads/LeadDetailDialog";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
-import { Plus, Search, ChevronDown, FileJson, MoreHorizontal, Filter, Phone, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon } from "lucide-react";
+import { Plus, Search, ChevronDown, MoreHorizontal, Filter, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon, KanbanSquare, List, StickyNote } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { LANGUAGE_NAMES } from "@/lib/languages";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { leadService } from "@/api/services/lead.service";
 import { formatDate } from "@/lib/dateFormat";
@@ -14,11 +17,19 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast as SonnerToast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { useCurrency } from "@/context/CurrencyContext";
 import { staffService } from "@/api/services/staff.service";
+import { customFieldService } from "@/api/services/custom-field.service";
+import { noteService } from "@/api/services/note.service";
+import { useSettings } from "@/context/SettingsContext";
 import { Textarea } from "@/components/ui/textarea";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
+import { MetaFormsFilterDropdown } from "@/components/leads/MetaFormsFilterDropdown";
+import { LeadColumnSettings } from "@/components/leads/LeadColumnSettings";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent, 
@@ -47,19 +58,64 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { LeadsKanban } from "@/pages/LeadsKanban";
+import { MetaAdsDialog } from "@/components/leads/MetaAdsDialog";
+import { metaIntegrationService } from "@/api/services/metaIntegration.service";
+import { WebsiteFormsDialog } from "@/components/leads/WebsiteFormsDialog";
+import { AdminTablePageSkeleton } from "@/components/ui/page-skeleton";
+import { useMinimumLoading } from "@/hooks/useMinimumLoading";
+
+const DATE_FILTER_OPTIONS = [
+  { value: "all", label: "All Time" },
+  { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
+  { value: "this_week", label: "This Week" },
+  { value: "this_month", label: "This Month" },
+  { value: "last_7_days", label: "Last 7 Days" },
+  { value: "last_30_days", label: "Last 30 Days" },
+  { value: "custom", label: "Custom Range" },
+];
 
 const Leads = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = searchParams.get("view") === "kanban" ? "kanban" : "list";
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [metaFormFilter, setMetaFormFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
+  const [customDateFrom, setCustomDateFrom] = useState("");
+  const [customDateTo, setCustomDateTo] = useState("");
+  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(25);
   const [currentPage, setCurrentPage] = useState(1);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, metaFormFilter, dateFilter, customDateFrom, customDateTo]);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [viewItem, setViewItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, user, isModuleEnabled } = usePermissions();
+  const { getSetting } = useSettings();
+  const isPilot = isTrinetraPilotUser(user?.email);
+  // Branch is sourced from the HRMS module — only show/fetch it when the
+  // tenant's plan actually includes HRMS, even for a pilot-flagged user.
+  const canUseBranch = isPilot && isModuleEnabled("hrms");
+  const { data: branchesRaw = [] } = useQuery<any[]>({
+    queryKey: ["hrms-branches-list"],
+    queryFn: () => hrmsbranchService.getAll().then((r) => r.data || []),
+    enabled: canUseBranch,
+    staleTime: 5 * 60 * 1000,
+  });
+  const branches: { _id: string; name: string }[] = branchesRaw;
   const { symbol, formatAmount } = useCurrency();
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
   useOpenCreateModal(() => setIsNewLeadOpen(true));
@@ -71,6 +127,7 @@ const Leads = () => {
     status: "",
     source: "",
     assigned: "",
+    salesPerson: "",
     tags: "",
     is_public: false,
     contacted_today: false,
@@ -83,15 +140,92 @@ const Leads = () => {
   const [isAddingSource, setIsAddingSource] = useState(false);
 
   const [leadForm, setLeadForm] = useState({
-    status: "", source: "", assigned: "", tags: "", name: "", position: "", email: "", website: "",
+    status: "", source: "", assigned: "", salesPerson: "", branch: "", tags: "", name: "", position: "", email: "", website: "",
     phonenumber: "", lead_value: "", company: "", address: "", city: "", state: "", country: "",
-    zip: "", default_language: "English", description: "", is_public: false, contacted_today: false
+    zip: "", default_language: "English", description: "", is_public: false, contacted_today: false,
+    followup_date: ""
   });
 
-  const { data: leads = [], isLoading } = useQuery<any[]>({
-    queryKey: ["leads"],
-    queryFn: leadService.getAll,
+  // Resolves the symbolic date-range filter into explicit boundaries using
+  // the BROWSER's local "now" (matching what this filter always compared
+  // against), so the server just does a plain range query instead of
+  // re-deriving "today" in its own timezone.
+  const resolveDateRange = (): { from?: Date; to?: Date } => {
+    if (dateFilter === "all") return {};
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    switch (dateFilter) {
+      case "today":
+        return { from: startOfToday };
+      case "yesterday": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - 1);
+        return { from: start, to: new Date(startOfToday.getTime() - 1) };
+      }
+      case "this_week": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - start.getDay());
+        return { from: start };
+      }
+      case "this_month":
+        return { from: new Date(now.getFullYear(), now.getMonth(), 1) };
+      case "last_7_days": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - 6);
+        return { from: start };
+      }
+      case "last_30_days": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - 29);
+        return { from: start };
+      }
+      case "custom":
+        return {
+          from: customDateFrom ? new Date(`${customDateFrom}T00:00:00`) : undefined,
+          to: customDateTo ? new Date(`${customDateTo}T23:59:59.999`) : undefined,
+        };
+      default:
+        return {};
+    }
+  };
+
+  interface LeadsPage { rows: any[]; total: number; pages: number; statusCounts: Record<string, number> }
+  const { data: leadsResult, isLoading } = useQuery<LeadsPage>({
+    queryKey: ["leads", itemsPerPage, currentPage, debouncedSearch, statusFilter, metaFormFilter, dateFilter, customDateFrom, customDateTo],
+    queryFn: async () => {
+      if (itemsPerPage === "all") {
+        const response = await leadService.getAll();
+        const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+        // Status-card counts always reflect the whole tenant, before any
+        // filters — matches the paginated path's server-side aggregate.
+        const statusCounts: Record<string, number> = {};
+        rows.forEach((l: any) => {
+          const id = String(typeof l.status === "object" ? l.status?._id : l.status);
+          statusCounts[id] = (statusCounts[id] || 0) + 1;
+        });
+        return { rows, total: rows.length, pages: 1, statusCounts };
+      }
+
+      const range = resolveDateRange();
+      const res: any = await leadService.getAll({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: debouncedSearch || undefined,
+        status: statusFilter !== "all" ? statusFilter : undefined,
+        metaForm: metaFormFilter !== "all" ? metaFormFilter : undefined,
+        dateFrom: range.from?.toISOString(),
+        dateTo: range.to?.toISOString(),
+      });
+      if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, statusCounts: {} };
+      const statusCounts: Record<string, number> = {};
+      (res?.statusCounts ?? []).forEach((s: any) => {
+        if (s.status) statusCounts[s.status] = s.count;
+      });
+      return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1, statusCounts };
+    },
+    placeholderData: keepPreviousData,
   });
+  const leads: any[] = leadsResult?.rows ?? [];
 
   const { data: statuses = [] } = useQuery<any[]>({
     queryKey: ["lead-statuses"],
@@ -108,14 +242,121 @@ const Leads = () => {
     queryFn: staffService.getAll,
   });
 
-  const openModal = (mode: "create" | "edit" | "view", lead: any = null) => {
+  // Shares the ["meta-integration"] cache with MetaAdsDialog — whichever
+  // fetches first populates it for both, so connected forms show up here
+  // without waiting on that dialog to be opened.
+  const { data: metaIntegrationData } = useQuery<any>({
+    queryKey: ["meta-integration"],
+    queryFn: () => metaIntegrationService.get(),
+  });
+
+  // Auto-sync Meta Lead Ads on page load, so staff never have to open the
+  // Meta Ads dialog and click Sync/Import manually — those buttons stay as
+  // a manual override, this just does the same two calls automatically.
+  // Cooldown-gated on `last_synced` (10 min) so repeated visits/refreshes to
+  // this page don't hammer Meta's Graph API and risk rate-limiting.
+  const metaAutoSyncedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const connections: any[] = metaIntegrationData?.connections || [];
+    if (connections.length === 0) return;
+
+    const COOLDOWN_MS = 10 * 60 * 1000;
+    const now = Date.now();
+
+    connections.forEach((integration: any) => {
+      const pageId = integration.page_id;
+      if (!pageId || metaAutoSyncedRef.current.has(pageId)) return;
+
+      const lastSynced = integration.last_synced ? new Date(integration.last_synced).getTime() : 0;
+      if (now - lastSynced < COOLDOWN_MS) return;
+
+      metaAutoSyncedRef.current.add(pageId);
+      (async () => {
+        try {
+          await metaIntegrationService.sync(pageId);
+          const data: any = await metaIntegrationService.importLeads(pageId);
+          queryClient.invalidateQueries({ queryKey: ["meta-integration"] });
+          queryClient.invalidateQueries({ queryKey: ["leads"] });
+          queryClient.invalidateQueries({ queryKey: ["custom-fields", "leads"] });
+
+          // Same toast copy as the manual "Import" button in MetaAdsDialog —
+          // only shown when something actually happened, so a page visit
+          // that finds nothing new to import stays silent (this can fire
+          // once every 10 min per connected page, so a toast every time
+          // would get noisy fast otherwise).
+          if (data?.imported > 0) {
+            const parts = [`${data.imported} new lead${data.imported === 1 ? "" : "s"} imported`];
+            if (data.skipped_duplicates) parts.push(`${data.skipped_duplicates} already in CRM (skipped)`);
+            if (data.truncated) parts.push("form has more leads than one import can pull — run Import again to continue");
+            toast({ title: "Import Complete", description: parts.join(", ") });
+          }
+        } catch (error) {
+          // Silent — this runs in the background on every page load, so it
+          // must never interrupt the user. The Sync/Import buttons in the
+          // Meta Ads dialog still surface real errors when clicked manually.
+          console.warn(`[Meta auto-sync] page ${pageId} failed:`, error);
+        }
+      })();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metaIntegrationData]);
+
+  const { data: customFieldsRaw = [] } = useQuery<any[]>({
+    queryKey: ["custom-fields", "leads"],
+    queryFn: async () => {
+      const response = await customFieldService.getAll("leads");
+      return Array.isArray(response) ? response : [];
+    },
+  });
+
+  const customFieldDefs = useMemo(
+    () => customFieldsRaw.filter((cf: any) => cf.active !== false),
+    [customFieldsRaw]
+  );
+
+  // Meta-sourced columns (auto-created per question, slug "meta_<key>") are
+  // kept separate from manually-defined ones — "All Leads" only shows the
+  // manual/shared columns, since mixing every ad's own questions into one
+  // view would be sparse and confusing. A specific ad's tab adds back just
+  // that ad's own questions.
+  const commonCustomFields = useMemo(
+    () => customFieldDefs.filter((cf: any) => cf.show_on_table && !cf.slug?.startsWith("meta_")),
+    [customFieldDefs]
+  );
+  const metaCustomFields = useMemo(
+    () => customFieldDefs.filter((cf: any) => cf.show_on_table && cf.slug?.startsWith("meta_")),
+    [customFieldDefs]
+  );
+  const formSpecificCustomFields = useMemo(() => {
+    if (metaFormFilter === "all" || metaCustomFields.length === 0) return [];
+    const slugsWithData = new Set<string>();
+    for (const l of leads) {
+      if (l.meta_form_id !== metaFormFilter) continue;
+      for (const cf of metaCustomFields) {
+        const val = l.custom_fields?.[cf.slug];
+        if (val !== undefined && val !== null && val !== "") slugsWithData.add(cf.slug);
+      }
+    }
+    return metaCustomFields.filter((cf: any) => slugsWithData.has(cf.slug));
+  }, [leads, metaFormFilter, metaCustomFields]);
+
+  const tableCustomFields = useMemo(
+    () => [...commonCustomFields, ...formSpecificCustomFields],
+    [commonCustomFields, formSpecificCustomFields]
+  );
+
+  const openModal = (mode: "create" | "edit" | "view", lead: any = null, initialTab?: string) => {
     setModalMode(mode);
     setSelectedLead(lead);
+    setIsAddingStatus(false);
+    setIsAddingSource(false);
     if (lead) {
       setLeadForm({
         status: lead.status?._id || lead.status?.id || (typeof lead.status === 'string' ? lead.status : ""),
         source: lead.source?._id || lead.source?.id || (typeof lead.source === 'string' ? lead.source : ""),
         assigned: lead.assigned?._id || lead.assigned?.id || (typeof lead.assigned === 'string' ? lead.assigned : ""),
+        salesPerson: lead.salesPerson || "",
+        branch: typeof lead.branch === "object" ? (lead.branch?.name || "") : (lead.branch || ""),
         tags: Array.isArray(lead.tags) ? lead.tags.join(", ") : (lead.tags || ""),
         name: lead.name || "",
         position: lead.position || lead.title || "",
@@ -132,24 +373,68 @@ const Leads = () => {
         default_language: lead.default_language || lead.defaultLanguage || "English",
         description: lead.description || "",
         is_public: !!(lead.is_public ?? lead.isPublic),
-        contacted_today: !!(lead.contacted_today ?? lead.contactedToday)
+        contacted_today: !!(lead.contacted_today ?? lead.contactedToday),
+        followup_date: lead.followup_date ? new Date(lead.followup_date).toISOString().split("T")[0] : ""
       });
     } else {
       setLeadForm({
-        status: "", source: "", assigned: "", tags: "", name: "", position: "", email: "", website: "",
+        status: "", source: "", assigned: "", salesPerson: "", branch: "", tags: "", name: "", position: "", email: "", website: "",
         phonenumber: "", lead_value: "", company: "", address: "", city: "", state: "", country: "",
-        zip: "", default_language: "English", description: "", is_public: false, contacted_today: false
+        zip: "", default_language: "English", description: "", is_public: false, contacted_today: false,
+        followup_date: ""
       });
     }
     setIsNewLeadOpen(true);
+
+    // Keep the tabbed detail view's lead + tab shareable/refreshable via the URL.
+    if (mode === "view" && lead) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set("leadView", lead._id);
+        if (initialTab) next.set("tab", initialTab);
+        else if (!next.get("tab")) next.set("tab", "profile");
+        return next;
+      }, { replace: true });
+    }
   };
+
+  const closeLeadModal = () => {
+    setIsNewLeadOpen(false);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("leadView");
+      next.delete("tab");
+      return next;
+    }, { replace: true });
+  };
+
+  // Deep link / refresh support: if the URL already points at a lead
+  // (?leadView=<id>), reopen the view modal for it — fetched directly by id
+  // rather than searched for in the loaded list, since that list is now a
+  // single page and the linked lead may not be on it.
+  useEffect(() => {
+    const leadViewId = searchParams.get("leadView");
+    if (!leadViewId || isNewLeadOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response: any = await leadService.getById(leadViewId);
+        const lead = response?.data ?? response;
+        if (!cancelled && lead?._id) openModal("view", lead);
+      } catch {
+        // Lead not found or inaccessible — leave the modal closed.
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const createLeadMutation = useMutation({
     mutationFn: leadService.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast({ title: "Success", description: "Lead created successfully" });
-      setIsNewLeadOpen(false);
+      closeLeadModal();
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
@@ -161,7 +446,18 @@ const Leads = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       toast({ title: "Success", description: "Lead updated successfully" });
-      setIsNewLeadOpen(false);
+      closeLeadModal();
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    }
+  });
+
+  const updateLeadStatusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => leadService.updateLeadStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      toast({ title: "Status Updated", description: "Lead status changed." });
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
@@ -184,7 +480,7 @@ const Leads = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       queryClient.invalidateQueries({ queryKey: ["clients"] });
-      setIsNewLeadOpen(false);
+      closeLeadModal();
       SonnerToast.success("Lead converted to customer successfully");
     },
     onError: (err: any) => {
@@ -196,7 +492,7 @@ const Leads = () => {
     mutationFn: (id: string) => leadService.markAsLost(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
-      setIsNewLeadOpen(false);
+      closeLeadModal();
       SonnerToast.success("Lead marked as lost");
     },
     onError: (err: any) => {
@@ -208,7 +504,7 @@ const Leads = () => {
     mutationFn: (id: string) => leadService.markAsJunk(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
-      setIsNewLeadOpen(false);
+      closeLeadModal();
       SonnerToast.success("Lead marked as junk");
     },
     onError: (err: any) => {
@@ -283,6 +579,14 @@ const Leads = () => {
 
   const handleSaveLead = () => {
     if (modalMode === "view") return;
+    if (canUseBranch && !leadForm.branch) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a branch",
+        variant: "destructive"
+      });
+      return;
+    }
     if (!leadForm.name || !leadForm.status || !leadForm.source) {
       toast({
         title: "Validation Error",
@@ -310,20 +614,21 @@ const Leads = () => {
 
   const handleBulkAction = async () => {
     if (selectedLeads.length === 0) {
-      toast({ title: "Error", description: "No leads selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No leads selected."});
       return;
     }
     setIsBulkLoading(true);
 
     try {
       if (bulkState.massDelete) {
-        await Promise.all(selectedLeads.map(id => leadService.delete(id)));
+        await leadService.bulkDelete(selectedLeads);
         toast({ title: "Success", description: `Deleted ${selectedLeads.length} leads.` });
       } else {
         const updates: any = {};
         if (bulkState.status) updates.status = bulkState.status;
         if (bulkState.source) updates.source = bulkState.source;
         if (bulkState.assigned) updates.assigned = bulkState.assigned;
+        if (bulkState.salesPerson) updates.salesPerson = bulkState.salesPerson;
         if (bulkState.tags) updates.tags = bulkState.tags.split(",").map(s => s.trim()).join(", ");
         if (bulkState.is_public) updates.is_public = bulkState.is_public;
         if (bulkState.contacted_today) updates.contacted_today = bulkState.contacted_today;
@@ -336,9 +641,9 @@ const Leads = () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       setSelectedLeads([]);
       setBulkActionOpen(false);
-      setBulkState({ massDelete: false, status: "", source: "", assigned: "", tags: "", is_public: false, contacted_today: false, mark_lost: false });
+      setBulkState({ massDelete: false, status: "", source: "", assigned: "", salesPerson: "", tags: "", is_public: false, contacted_today: false, mark_lost: false });
     } catch (err: any) {
-      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to perform bulk action."});
     } finally {
       setIsBulkLoading(false);
     }
@@ -355,58 +660,421 @@ const Leads = () => {
   const countries = ["United States", "United Kingdom", "Canada", "Australia", "India", "Germany", "France", "Japan", "China", "Brazil"];
   const languages = LANGUAGE_NAMES;
 
-  const getExportRows = () =>
-    filtered.map((l) => ({
-      Name: l.name || "",
-      Email: l.email || "",
-      Company: l.company || "",
-      Phone: l.phonenumber || "",
-      Status: typeof l.status === "object" ? l.status?.name : (statuses.find((s) => s._id === l.status)?.name || ""),
-      Source: sources.find((s) => s._id === l.source)?.name || "",
-      "Lead Value": l.lead_value || "",
-      Address: l.address || "",
-      City: l.city || "",
-      State: l.state || "",
-      Country: l.country || "",
-      Zip: l.zip || "",
-      Website: l.website || "",
-      "Created At": l.createdAt ? new Date(l.createdAt).toLocaleDateString() : "",
-    }));
+  // Every connected Meta form (same source as the Meta Ads dialog) — shown
+  // as soon as a Page is connected, even before any leads are imported from
+  // it — unioned with any distinct form a lead already carries, so a form
+  // that's since been renamed/disconnected from Meta still keeps its tab for
+  // leads that were already imported from it.
+  const adFormTabs = useMemo(() => {
+    const forms = new Map<string, string>();
+    for (const conn of metaIntegrationData?.connections || []) {
+      for (const f of conn.forms || []) {
+        forms.set(f.form_id, f.name || "Untitled Form");
+      }
+    }
+    for (const l of leads) {
+      if (l.meta_form_id && !forms.has(l.meta_form_id)) {
+        forms.set(l.meta_form_id, l.meta_form_name || "Untitled Form");
+      }
+    }
+    return Array.from(forms.entries()).map(([id, name]) => ({ id, name }));
+  }, [metaIntegrationData, leads]);
 
-  const handleExportJSON = () => {
-    const blob = new Blob([JSON.stringify(getExportRows(), null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "leads.json";
-    a.click();
-    URL.revokeObjectURL(url);
+  // "custom" compares against local-day boundaries so the picked from/to
+  // dates are inclusive regardless of what time of day the lead was created.
+  const matchesDateFilter = (createdAt: string) => {
+    if (dateFilter === "all") return true;
+    if (!createdAt) return false;
+    const d = new Date(createdAt);
+    if (isNaN(d.getTime())) return false;
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (dateFilter) {
+      case "today":
+        return d >= startOfToday;
+      case "yesterday": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - 1);
+        return d >= start && d < startOfToday;
+      }
+      case "this_week": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - start.getDay());
+        return d >= start;
+      }
+      case "this_month":
+        return d >= new Date(now.getFullYear(), now.getMonth(), 1);
+      case "last_7_days": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - 6);
+        return d >= start;
+      }
+      case "last_30_days": {
+        const start = new Date(startOfToday);
+        start.setDate(start.getDate() - 29);
+        return d >= start;
+      }
+      case "custom": {
+        if (customDateFrom && d < new Date(`${customDateFrom}T00:00:00`)) return false;
+        if (customDateTo && d > new Date(`${customDateTo}T23:59:59.999`)) return false;
+        return true;
+      }
+      default:
+        return true;
+    }
   };
 
-  const filtered = leads.filter((l) => {
-    const matchSearch =
-      (l.name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (l.company || "").toLowerCase().includes(search.toLowerCase()) ||
-      (l.email || "").toLowerCase().includes(search.toLowerCase());
-    const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
-    const lStatusName = (typeof l.status === 'object' ? l.status?.name : statuses.find(s => s._id === l.status)?.name) || "";
-    
-    const dbName = lStatusName.toLowerCase().replace(" lead", "").replace(" leads", "").trim();
-    const filterVal = statusFilter.toLowerCase();
-    
-    const matchStatus = statusFilter === "all" || 
-                        lStatusId === statusFilter || 
-                        dbName === filterVal ||
-                        dbName.includes(filterVal);
-    return matchSearch && matchStatus;
-  });
+  // Only needed in "all" mode: the server already applies this exact
+  // search/status/metaForm/date filtering when paginated, so `leads` there
+  // is already the correct (current-page) result.
+  const filterLeadsClientSide = (rows: any[], q: string) => {
+    return rows
+      .filter((l) => {
+        const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
+        const lStatusName = (typeof l.status === 'object' ? l.status?.name : statuses.find(s => s._id === l.status)?.name) || "";
+        const lSourceName = (typeof l.source === 'object' ? l.source?.name : sources.find((s: any) => s._id === l.source)?.name) || "";
+        const assignedObj = typeof l.assigned === 'object' ? l.assigned : staff.find((s: any) => s._id === l.assigned);
+        const lAssignedName = assignedObj ? `${assignedObj.firstname || ""} ${assignedObj.lastname || ""}` : "";
 
-  const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+        // Covers every field the table can show a lead by, not just name/company/email.
+        const matchSearch =
+          !q ||
+          (l.name || "").toLowerCase().includes(q) ||
+          (l.company || "").toLowerCase().includes(q) ||
+          (l.email || "").toLowerCase().includes(q) ||
+          (l.phonenumber || "").toLowerCase().includes(q) ||
+          (l.tags || "").toLowerCase().includes(q) ||
+          String(l.lead_value ?? "").toLowerCase().includes(q) ||
+          (l.salesPerson || "").toLowerCase().includes(q) ||
+          (l.branch || "").toLowerCase().includes(q) ||
+          lStatusName.toLowerCase().includes(q) ||
+          lSourceName.toLowerCase().includes(q) ||
+          lAssignedName.toLowerCase().includes(q);
+
+        const dbName = lStatusName.toLowerCase().replace(" lead", "").replace(" leads", "").trim();
+        const filterVal = statusFilter.toLowerCase();
+
+        const matchStatus = statusFilter === "all" ||
+                            lStatusId === statusFilter ||
+                            dbName === filterVal ||
+                            dbName.includes(filterVal);
+        const matchMetaForm = metaFormFilter === "all" || l.meta_form_id === metaFormFilter;
+        const matchDate = matchesDateFilter(l.createdAt);
+        return matchSearch && matchStatus && matchMetaForm && matchDate;
+      })
+      // Newest leads first by default.
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+  };
+
+  const filtered = useMemo(() => {
+    if (itemsPerPage !== "all") return leads;
+    return filterLeadsClientSide(leads, debouncedSearch.toLowerCase());
+  }, [leads, debouncedSearch, statusFilter, metaFormFilter, dateFilter, customDateFrom, customDateTo, statuses, itemsPerPage]);
+
+  const paginated = filtered;
+  const totalPages = itemsPerPage === "all" ? 1 : (leadsResult?.pages ?? 1);
+  const totalLeadsCount = itemsPerPage === "all" ? filtered.length : (leadsResult?.total ?? 0);
+  const itemsPerPageNum = itemsPerPage === "all" ? Math.max(totalLeadsCount, 1) : itemsPerPage;
+
+  // EngitechExpo-only: a small "has notes" icon next to the lead's name in
+  // the table, driven by a per-tenant Setting (name: "leadsNoteIndicator")
+  // rather than a hardcoded tenant check — off (and no extra request) for
+  // every other tenant, on for whichever tenant(s) that Setting is enabled for.
+  const showLeadNoteIndicator = !!getSetting("leadsNoteIndicator", false);
+  const paginatedLeadIds = useMemo(() => paginated.map((l: any) => l._id), [paginated]);
+  const { data: leadIdsWithNotes = [] } = useQuery<string[]>({
+    queryKey: ["lead-note-indicator", paginatedLeadIds],
+    queryFn: () => noteService.getRelIdsWithNotes(paginatedLeadIds, "lead"),
+    enabled: showLeadNoteIndicator && paginatedLeadIds.length > 0,
+    staleTime: 30 * 1000,
+  });
+  const leadIdsWithNotesSet = useMemo(() => new Set(leadIdsWithNotes), [leadIdsWithNotes]);
+
+  // Table column config: order + visibility, per-user (browser-local, keyed by account id).
+  const leadColumnDefs = useMemo(() => {
+    const cols: Array<{
+      id: string;
+      label: string;
+      thClassName?: string;
+      tdClassName?: string;
+      tdOnClick?: (e: React.MouseEvent) => void;
+      cell: (l: any) => React.ReactNode;
+    }> = [
+      {
+        id: "name",
+        label: "Name",
+        thClassName: "min-w-[200px]",
+        cell: (l) => (
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-xl bg-slate-100 flex items-center justify-center text-primary font-black text-[10px] uppercase shadow-inner">
+              {l.name?.charAt(0) || "L"}
+            </div>
+            <div className="flex flex-col">
+              <span className="flex items-center gap-1.5 font-black text-slate-900 group-hover:text-primary transition-colors cursor-pointer text-xs">
+                {l.name}
+                {showLeadNoteIndicator && leadIdsWithNotesSet.has(l._id) && (
+                  <button
+                    type="button"
+                    title="View notes"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openModal("view", l, "notes");
+                    }}
+                    className="shrink-0"
+                  >
+                    <StickyNote className="h-3 w-3 text-amber-500 hover:text-amber-600" aria-label="Has notes" />
+                  </button>
+                )}
+              </span>
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">{l.position || "Lead"}</span>
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "company",
+        label: "Company",
+        tdClassName: "font-bold text-slate-600 text-xs",
+        cell: (l) => l.company || "-",
+      },
+      {
+        id: "email",
+        label: "Email",
+        tdClassName: "text-slate-500 font-medium text-xs",
+        cell: (l) => (
+          <div className="flex items-center gap-1.5 group/email cursor-pointer">
+            <Mail className="h-3 w-3 text-slate-300 group-hover/email:text-primary transition-colors" />
+            <span className="group-hover/email:text-primary transition-colors">{l.email}</span>
+          </div>
+        ),
+      },
+      {
+        id: "phone",
+        label: "Phone",
+        tdClassName: "text-slate-500 font-medium text-xs",
+        cell: (l) => (l.phonenumber ? <WhatsAppQuickChat phone={l.phonenumber} data={{ customer_name: l.name, lead_id: l._id }} /> : "-"),
+      },
+      {
+        id: "value",
+        label: "Value",
+        tdClassName: "font-black text-slate-900 text-xs",
+        cell: (l) => formatAmount(l.lead_value || 0),
+      },
+      {
+        id: "tags",
+        label: "Tags",
+        cell: (l) => (
+          <div className="flex flex-wrap gap-1">
+            {l.tags ? l.tags.split(",").map((t: string) => (
+              <Badge key={t} className="bg-slate-50 text-slate-500 border-none rounded-md text-[8px] font-black uppercase px-1.5 h-4 tracking-tight">{t.trim()}</Badge>
+            )) : "-"}
+          </div>
+        ),
+      },
+      {
+        id: "assigned",
+        label: "Assigned",
+        cell: (l) => {
+          if (!l.assigned) {
+            return (
+              <div className="flex items-center gap-1.5">
+                <div className="h-5 w-5 rounded-md bg-slate-50 flex items-center justify-center"><User className="h-2.5 w-2.5 text-slate-400" /></div>
+                <span className="text-[10px] font-bold text-slate-400">Unassigned</span>
+              </div>
+            );
+          }
+          const assignedObj = typeof l.assigned === 'object' ? l.assigned : staff.find(s => s._id === l.assigned);
+          if (assignedObj) {
+            return (
+              <div className="flex items-center gap-1.5 group/assigned cursor-pointer">
+                <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center group-hover/assigned:bg-primary/20 transition-colors">
+                  <User className="h-2.5 w-2.5 text-primary" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-700 group-hover/assigned:text-primary transition-colors">
+                  {assignedObj.firstname} {assignedObj.lastname}
+                </span>
+              </div>
+            );
+          }
+          return (
+            <div className="flex items-center gap-1.5">
+              <div className="h-5 w-5 rounded-md bg-slate-50 flex items-center justify-center"><User className="h-2.5 w-2.5 text-slate-400" /></div>
+              <span className="text-[10px] font-bold text-slate-400">Unknown</span>
+            </div>
+          );
+        },
+      },
+      ...(isPilot ? [{
+        id: "salesPerson",
+        label: "Sales Person",
+        tdClassName: "text-xs font-bold text-slate-700",
+        cell: (l: any) => l.salesPerson || "-",
+      }] : []),
+      ...(canUseBranch ? [{
+        id: "branch",
+        label: "Branch",
+        tdClassName: "text-xs font-bold text-slate-700",
+        cell: (l: any) => (typeof l.branch === "object" ? (l.branch?.name || "-") : (l.branch || "-")),
+      }] : []),
+      {
+        id: "status",
+        label: "Status",
+        tdOnClick: (e) => e.stopPropagation(),
+        cell: (l) => (
+          <Select
+            value={typeof l.status === 'object' ? (l.status?._id || "") : (l.status || "")}
+            onValueChange={(value) => updateLeadStatusMutation.mutate({ id: l._id, status: value })}
+          >
+            <SelectTrigger className="h-7 w-auto min-w-[110px] rounded-lg border-none font-black text-[8px] uppercase tracking-wider px-2 bg-blue-50 text-blue-500 focus:ring-0 focus:ring-offset-0 gap-1">
+              <SelectValue placeholder="Pending" />
+            </SelectTrigger>
+            <SelectContent>
+              {statuses.map((s: any) => (
+                <SelectItem key={s._id} value={s._id} className="text-xs font-bold">{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ),
+      },
+      {
+        id: "source",
+        label: "Source",
+        tdClassName: "text-[10px] font-bold text-slate-400 uppercase",
+        cell: (l) => (typeof l.source === 'object' ? l.source?.name : (sources.find((s) => s._id === l.source)?.name || "-")),
+      },
+      {
+        id: "followup",
+        label: "Follow-Up",
+        tdClassName: "text-[10px] font-bold text-slate-400",
+        cell: (l) => (l.followup_date ? formatDate(l.followup_date) : "-"),
+      },
+      {
+        id: "lastContact",
+        label: "Last Contact",
+        tdClassName: "text-[10px] font-bold text-slate-400",
+        cell: () => "Never",
+      },
+      {
+        id: "created",
+        label: "Created",
+        tdClassName: "text-[10px] font-bold text-slate-400 italic",
+        cell: (l) => formatDate(l.createdAt),
+      },
+    ];
+    return cols;
+  }, [isPilot, canUseBranch, staff, statuses, sources, updateLeadStatusMutation, formatAmount, showLeadNoteIndicator, leadIdsWithNotesSet]);
+
+  const customFieldColumnDefs = useMemo(
+    () => tableCustomFields.map((cf: any) => ({
+      id: `cf_${cf._id}`,
+      label: cf.name,
+      tdClassName: "text-xs font-bold text-slate-600",
+      cell: (l: any) => l.custom_fields?.[cf.slug] ?? "-",
+    })),
+    [tableCustomFields]
+  );
+
+  const allLeadColumns = useMemo(
+    () => [...leadColumnDefs, ...customFieldColumnDefs],
+    [leadColumnDefs, customFieldColumnDefs]
+  );
+
+  // Custom-field columns are excluded from the "default" order on purpose — they always load
+  // asynchronously, so pinning them here would make "Reset" depend on load timing. They still
+  // show (appended at the end) via the fallback logic in orderedLeadColumns below.
+  const DEFAULT_LEAD_COLUMN_ORDER = useMemo(() => leadColumnDefs.map((c) => c.id), [leadColumnDefs]);
+  const leadColumnSettingsKey = user?._id ? `leads_columns_v1_${user._id}` : null;
+  const [columnOrder, setColumnOrder] = useState<string[]>(DEFAULT_LEAD_COLUMN_ORDER);
+  const [hiddenColumns, setHiddenColumns] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (!leadColumnSettingsKey) return;
+    try {
+      const raw = window.localStorage.getItem(leadColumnSettingsKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.order)) setColumnOrder(parsed.order);
+        if (Array.isArray(parsed?.hidden)) setHiddenColumns(parsed.hidden);
+      }
+    } catch {
+      // ignore malformed local storage value
+    }
+  }, [leadColumnSettingsKey]);
+
+  useEffect(() => {
+    if (!leadColumnSettingsKey) return;
+    window.localStorage.setItem(leadColumnSettingsKey, JSON.stringify({ order: columnOrder, hidden: hiddenColumns }));
+  }, [leadColumnSettingsKey, columnOrder, hiddenColumns]);
+
+  // All defined columns (incl. hidden ones), in the user's chosen order — newly-added columns
+  // (e.g. a custom field just enabled for the table) are appended at the end automatically.
+  const orderedLeadColumns = useMemo(() => {
+    const byId = new Map(allLeadColumns.map((c) => [c.id, c]));
+    const seen = new Set<string>();
+    const ordered: typeof allLeadColumns = [];
+    for (const id of columnOrder) {
+      const col = byId.get(id);
+      if (col && !seen.has(id)) {
+        ordered.push(col);
+        seen.add(id);
+      }
+    }
+    for (const col of allLeadColumns) {
+      if (!seen.has(col.id)) {
+        ordered.push(col);
+        seen.add(col.id);
+      }
+    }
+    return ordered;
+  }, [allLeadColumns, columnOrder]);
+
+  const visibleLeadColumns = useMemo(
+    () => orderedLeadColumns.filter((c) => !hiddenColumns.includes(c.id)),
+    [orderedLeadColumns, hiddenColumns]
+  );
+
+  const toggleLeadColumnVisibility = (id: string) => {
+    setHiddenColumns((prev) => {
+      const isHidden = prev.includes(id);
+      if (!isHidden && visibleLeadColumns.length <= 1) {
+        toast({ title: "At least one column must stay visible", variant: "destructive" });
+        return prev;
+      }
+      return isHidden ? prev.filter((x) => x !== id) : [...prev, id];
+    });
+  };
+
+  const resetLeadColumns = () => {
+    setColumnOrder(DEFAULT_LEAD_COLUMN_ORDER);
+    setHiddenColumns([]);
+  };
+
+  // Export needs the full filtered set, not just the current page — fetched
+  // on demand only when the user actually exports.
+  const loadAllFilteredLeads = async () => {
+    const response = await leadService.getAll();
+    const rows: any[] = Array.isArray(response) ? response : response?.data || [];
+    return filterLeadsClientSide(rows, debouncedSearch.toLowerCase());
+  };
 
   const statusCards = [...statuses]
     .sort((a: any, b: any) => (a.statusorder ?? 0) - (b.statusorder ?? 0))
     .map((s: any) => ({ id: s._id, label: s.name, color: s.color || "#757575" }));
+
+  // Full-page skeleton only on the very first load — `keepPreviousData` on the
+  // leads query means `isLoading` stays false on filter/pagination changes
+  // (previous page's rows stay visible while the new page fetches), so this
+  // never flashes over the table while the user is just filtering.
+  const showPageSkeleton = useMinimumLoading(isLoading);
+  if (showPageSkeleton) {
+    return (
+      <DashboardLayout>
+        <AdminTablePageSkeleton />
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -417,15 +1085,37 @@ const Leads = () => {
             <h1 className="text-3xl font-black text-slate-900 tracking-tight">Leads</h1>
             <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">Management Pipeline</p>
           </div>
+          <div className="flex gap-2 items-center">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-11 w-11 rounded-xl border-slate-200"
+                  onClick={() => setSearchParams(prev => {
+                    const next = new URLSearchParams(prev);
+                    next.set("view", view === "kanban" ? "list" : "kanban");
+                    return next;
+                  })}
+                  aria-label={view === "kanban" ? "Switch to List view" : "Switch to Kanban view"}
+                >
+                  {view === "kanban" ? <List className="h-4 w-4" /> : <KanbanSquare className="h-4 w-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{view === "kanban" ? "Switch to List view" : "Switch to Kanban view"}</TooltipContent>
+            </Tooltip>
           {can("Leads", "Create") && (
-            <div className="flex gap-2 items-center">
+            <div className="flex flex-wrap gap-2 items-center">
+              <MetaAdsDialog />
+              {/* Temporarily hidden — uncomment to bring the "Website Forms" button back. */}
+              {/* <WebsiteFormsDialog /> */}
               <ImportButton onData={processLeadRows} loading={importLeadsMutation.isPending} label="Import Leads" />
-              <Dialog open={isNewLeadOpen} onOpenChange={setIsNewLeadOpen}>
+              <Dialog open={isNewLeadOpen} onOpenChange={(open) => open ? setIsNewLeadOpen(true) : closeLeadModal()}>
                   <Button onClick={() => openModal("create")} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest transition-all hover:scale-105">
                     <Plus className="h-4 w-4 stroke-[3]" />
                     New Lead
                   </Button>
-              <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white">
+              <DialogContent className={cn("p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white", modalMode === "view" ? "max-w-5xl" : "max-w-4xl")}>
                 <div className="bg-white px-8 py-5 flex items-center justify-between border-b border-slate-300 shrink-0">
                   <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                     <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -435,9 +1125,29 @@ const Leads = () => {
                   </DialogTitle>
                 </div>
                 <div className="p-8 max-h-[75vh] overflow-y-auto no-scrollbar">
+                  {modalMode === "view" ? (
+                    <LeadDetailDialog lead={selectedLead} customFieldDefs={customFieldDefs} onEditClick={() => openModal("edit", selectedLead)} />
+                  ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {/* Left Column */}
                     <div className="space-y-6">
+                      {canUseBranch && (
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Branch *</Label>
+                          <Select disabled={modalMode === "view"} value={leadForm.branch || "none"} onValueChange={(v) => setLeadForm(prev => ({ ...prev, branch: v === "none" ? "" : v }))}>
+                            <SelectTrigger className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white">
+                              <SelectValue placeholder="Select Branch" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Select Branch</SelectItem>
+                              {branches.map((b) => (
+                                <SelectItem key={b._id} value={b.name}>{b.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1 flex justify-between">
                           Status *
@@ -502,6 +1212,24 @@ const Leads = () => {
                         </Select>
                       </div>
 
+                      {isPilot && (
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Sales Person</Label>
+                          <Select disabled={modalMode === "view"} value={leadForm.salesPerson || "none"} onValueChange={(v) => setLeadForm(prev => ({ ...prev, salesPerson: v === "none" ? "" : v }))}>
+                            <SelectTrigger className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white">
+                              <SelectValue placeholder="Select Sales Person" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {staff.map(s => {
+                                const name = `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.name || s.email;
+                                return <SelectItem key={s._id || s.id} value={name}>{name}</SelectItem>;
+                              })}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Tags</Label>
                         <Input readOnly={modalMode === "view"} value={leadForm.tags} onChange={(e) => setLeadForm(prev => ({ ...prev, tags: e.target.value }))} className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white" placeholder="tag1, tag2" />
@@ -529,7 +1257,7 @@ const Leads = () => {
 
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Phone</Label>
-                        <Input readOnly={modalMode === "view"} value={leadForm.phonenumber} onChange={(e) => setLeadForm(prev => ({ ...prev, phonenumber: e.target.value }))} className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white" />
+                        <Input readOnly={modalMode === "view"} value={leadForm.phonenumber} onChange={(e) => setLeadForm(prev => ({ ...prev, phonenumber: e.target.value.replace(/\D/g, "").slice(0, 10) }))} maxLength={10} inputMode="numeric" className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white" />
                       </div>
                     </div>
 
@@ -550,7 +1278,7 @@ const Leads = () => {
                         <Input readOnly={modalMode === "view"} value={leadForm.address} onChange={(e) => setLeadForm(prev => ({ ...prev, address: e.target.value }))} className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white" />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">City</Label>
                           <Input readOnly={modalMode === "view"} value={leadForm.city} onChange={(e) => setLeadForm(prev => ({ ...prev, city: e.target.value }))} className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white" />
@@ -561,7 +1289,7 @@ const Leads = () => {
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Country</Label>
                           <Select disabled={modalMode === "view"} value={leadForm.country} onValueChange={(v) => setLeadForm(prev => ({ ...prev, country: v }))}>
@@ -596,6 +1324,35 @@ const Leads = () => {
                         <Textarea readOnly={modalMode === "view"} value={leadForm.description} onChange={(e) => setLeadForm(prev => ({ ...prev, description: e.target.value }))} className="rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white min-h-[100px]" />
                       </div>
 
+                      {selectedLead && customFieldDefs.length > 0 && (
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">
+                            Custom Fields
+                          </Label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {customFieldDefs.map((cf: any) => (
+                              <div key={cf._id} className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{cf.name}</p>
+                                <p className="text-xs font-bold text-slate-800 mt-0.5">
+                                  {selectedLead.custom_fields?.[cf.slug] ?? "-"}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-700 ml-1">Follow-Up Date</Label>
+                        <Input
+                          type="date"
+                          readOnly={modalMode === "view"}
+                          value={leadForm.followup_date}
+                          onChange={(e) => setLeadForm(prev => ({ ...prev, followup_date: e.target.value }))}
+                          className="h-11 rounded-xl bg-slate-50/50 border-slate-300 px-4 text-slate-950 font-bold transition-all focus:bg-white"
+                        />
+                      </div>
+
                       <div className="flex gap-6">
                         <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-300 flex-1">
                           <Checkbox disabled={modalMode === "view"} id="is_public" checked={leadForm.is_public} onCheckedChange={(c) => setLeadForm(prev => ({ ...prev, is_public: !!c }))} />
@@ -608,6 +1365,7 @@ const Leads = () => {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   {/* Footer buttons moved inside the scrollable area to prevent cutoff */}
                   <div className="mt-8 flex items-center justify-between gap-3 pt-6 border-t border-slate-100">
@@ -662,7 +1420,7 @@ const Leads = () => {
                                   if (!selectedLead) return;
                                   if (window.confirm("Delete this lead? This cannot be undone.")) {
                                     deleteLeadMutation.mutate(selectedLead._id);
-                                    setIsNewLeadOpen(false);
+                                    closeLeadModal();
                                   }
                                 }}
                                 disabled={deleteLeadMutation.isPending}
@@ -703,15 +1461,27 @@ const Leads = () => {
             </Dialog>
             </div>
           )}
+          </div>
         </div>
+
+        {/* Ads-wise view — only shows once at least one lead has been imported from a Meta form */}
+        {adFormTabs.length > 0 && (
+          <Tabs value={metaFormFilter} onValueChange={setMetaFormFilter}>
+            <div className="overflow-x-auto no-scrollbar w-full">
+            <TabsList className="flex w-max h-auto min-w-full">
+              <TabsTrigger value="all" className="shrink-0 whitespace-nowrap">All Leads</TabsTrigger>
+              {adFormTabs.map((form) => (
+                <TabsTrigger key={form.id} value={form.id} className="shrink-0 whitespace-nowrap">{form.name}</TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
+          </Tabs>
+        )}
 
         {/* Status Cards - Filters */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-11 gap-2">
           {statusCards.map((card) => {
-            const count = leads.filter(l => {
-                const lStatusId = typeof l.status === 'object' ? l.status?._id : l.status;
-                return String(lStatusId) === String(card.id);
-            }).length;
+            const count = leadsResult?.statusCounts?.[String(card.id)] ?? 0;
             const isActive = statusFilter === card.id;
 
             return (
@@ -734,12 +1504,15 @@ const Leads = () => {
           })}
         </div>
 
+        {view === "kanban" ? (
+          <LeadsKanban leads={filtered} statuses={statuses} staff={staff} isLoading={isLoading} />
+        ) : (
         <Card className="border shadow-sm rounded-xl overflow-hidden bg-white">
           <CardContent className="p-0">
             {/* Table Controls */}
             <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-slate-50/30">
               <div className="flex flex-wrap items-center gap-4">
-                <Select value={itemsPerPage.toString()} onValueChange={(v) => setItemsPerPage(v === "all" ? 1000 : parseInt(v))}>
+                <Select value={itemsPerPage.toString()} onValueChange={(v) => { setItemsPerPage(v === "all" ? "all" : parseInt(v)); setCurrentPage(1); }}>
                   <SelectTrigger className="w-[80px] h-10 bg-white border-slate-200 rounded-xl font-bold text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -753,7 +1526,7 @@ const Leads = () => {
                 </Select>
 
                 <ExportButton
-                  data={filtered}
+                  data={loadAllFilteredLeads}
                   filename="leads"
                   columns={[
                     { header: "Name", key: "name" },
@@ -761,7 +1534,7 @@ const Leads = () => {
                     { header: "Company", key: "company" },
                     { header: "Phone", key: "phonenumber" },
                     { header: "Status", key: (l) => typeof l.status === "object" ? l.status?.name : (statuses.find((s) => s._id === l.status)?.name || "") },
-                    { header: "Source", key: (l) => sources.find((s) => s._id === l.source)?.name || "" },
+                    { header: "Source", key: (l) => typeof l.source === "object" ? l.source?.name : (sources.find((s) => s._id === l.source)?.name || "") },
                     { header: "Lead Value", key: "lead_value" },
                     { header: "Address", key: "address" },
                     { header: "City", key: "city" },
@@ -770,17 +1543,22 @@ const Leads = () => {
                     { header: "Zip", key: "zip" },
                     { header: "Website", key: "website" },
                     { header: "Created At", key: (l) => l.createdAt ? new Date(l.createdAt).toLocaleDateString() : "" },
+                    ...(isPilot ? [
+                      { header: "Sales Person", key: (l: any) => l.salesPerson || "" },
+                    ] : []),
+                    ...(canUseBranch ? [
+                      { header: "Branch", key: (l: any) => typeof l.branch === "object" ? (l.branch?.name || "") : (l.branch || "") },
+                    ] : []),
                   ]}
                 />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-10 w-10 rounded-xl border-slate-200 bg-white"
-                  title="Export as JSON"
-                  onClick={handleExportJSON}
-                >
-                  <FileJson className="h-4 w-4 text-blue-600" />
-                </Button>
+                <LeadColumnSettings
+                  columns={orderedLeadColumns.map((c) => ({ id: c.id, label: c.label }))}
+                  hiddenColumns={hiddenColumns}
+                  onReorder={setColumnOrder}
+                  onToggle={toggleLeadColumnVisibility}
+                  onReset={resetLeadColumns}
+                />
+                <MetaFormsFilterDropdown forms={adFormTabs} value={metaFormFilter} onChange={setMetaFormFilter} />
 
                 {/* Bulk Actions Modal */}
                 <Dialog open={bulkActionOpen} onOpenChange={setBulkActionOpen}>
@@ -847,6 +1625,22 @@ const Leads = () => {
                             </Select>
                         </div>
 
+                        {isPilot && (
+                          <div className="space-y-2">
+                              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Sales Person</Label>
+                              <Select value={bulkState.salesPerson || "none"} onValueChange={(v) => setBulkState({...bulkState, salesPerson: v === "none" ? "" : v})} disabled={bulkState.massDelete}>
+                                  <SelectTrigger className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4"><SelectValue placeholder="Select Sales Person" /></SelectTrigger>
+                                  <SelectContent>
+                                      <SelectItem value="none">None</SelectItem>
+                                      {staff.map(s => {
+                                        const name = `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.name || s.email;
+                                        return <SelectItem key={s._id || s.id} value={name}>{name}</SelectItem>;
+                                      })}
+                                  </SelectContent>
+                              </Select>
+                          </div>
+                        )}
+
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Tags</Label>
                             <Input 
@@ -898,14 +1692,67 @@ const Leads = () => {
                 </Dialog>
               </div>
 
-              <div className="relative w-full lg:w-80">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 stroke-[3]" />
-                <Input
-                  placeholder="Search leads..."
-                  className="pl-12 h-11 bg-white border-slate-200 rounded-2xl text-xs font-bold transition-all focus:ring-4 focus:ring-primary/5"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Filter leads by date"
+                      className="h-11 w-11 shrink-0 bg-white border-slate-200 rounded-2xl"
+                    >
+                      <Filter className={cn("h-4 w-4", dateFilter !== "all" ? "text-primary" : "text-slate-400")} />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-64 max-w-[calc(100vw-2rem)] rounded-2xl p-2 space-y-1">
+                    {DATE_FILTER_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setDateFilter(opt.value)}
+                        className={cn(
+                          "w-full text-left rounded-xl px-3 py-2 text-xs font-bold transition-colors",
+                          dateFilter === opt.value ? "bg-primary/10 text-primary" : "text-slate-600 hover:bg-slate-50"
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                    {dateFilter === "custom" && (
+                      <div className="space-y-2 mt-1 pt-2 border-t border-slate-100">
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400 ml-1">From</Label>
+                          <Input
+                            type="date"
+                            className="h-9 w-full text-xs"
+                            value={customDateFrom}
+                            onChange={(e) => setCustomDateFrom(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400 ml-1">To</Label>
+                          <Input
+                            type="date"
+                            className="h-9 w-full text-xs"
+                            value={customDateTo}
+                            onChange={(e) => setCustomDateTo(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
+
+                <div className="relative w-full lg:w-80">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 stroke-[3]" />
+                  <Input
+                    placeholder="Search leads..."
+                    className="pl-12 h-11 bg-white border-slate-200 rounded-2xl text-xs font-bold transition-all focus:ring-4 focus:ring-primary/5"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
@@ -917,17 +1764,9 @@ const Leads = () => {
                       <Checkbox className="border-slate-300 rounded-md" checked={selectedLeads.length === paginated.length && paginated.length > 0} onCheckedChange={handleSelectAll} />
                     </th>
                     <th className="p-4 w-12 text-center bg-slate-50/50">#</th>
-                    <th className="p-4 min-w-[200px] bg-slate-50/50">Name</th>
-                    <th className="p-4 bg-slate-50/50">Company</th>
-                    <th className="p-4 bg-slate-50/50">Email</th>
-                    <th className="p-4 bg-slate-50/50">Phone</th>
-                    <th className="p-4 bg-slate-50/50">Value</th>
-                    <th className="p-4 bg-slate-50/50">Tags</th>
-                    <th className="p-4 bg-slate-50/50">Assigned</th>
-                    <th className="p-4 bg-slate-50/50">Status</th>
-                    <th className="p-4 bg-slate-50/50">Source</th>
-                    <th className="p-4 bg-slate-50/50">Last Contact</th>
-                    <th className="p-4 bg-slate-50/50">Created</th>
+                    {visibleLeadColumns.map((col) => (
+                      <th key={col.id} className={cn("p-4 bg-slate-50/50", col.thClassName)}>{col.label}</th>
+                    ))}
                     <th className="p-4 text-center bg-slate-50/50">Actions</th>
                   </tr>
                 </thead>
@@ -935,12 +1774,12 @@ const Leads = () => {
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i} className="border-b border-slate-50">
-                        <td colSpan={14} className="p-10"><Skeleton className="h-12 w-full rounded-2xl" /></td>
+                        <td colSpan={visibleLeadColumns.length + 3} className="p-10"><Skeleton className="h-12 w-full rounded-2xl" /></td>
                       </tr>
                     ))
                   ) : paginated.length === 0 ? (
                     <tr>
-                      <td colSpan={14} className="p-20 text-center"><div className="flex flex-col items-center gap-3"><Users className="h-12 w-12 text-slate-100" /><p className="text-slate-400 font-black uppercase tracking-widest text-xs">No leads found in the pipeline</p></div></td>
+                      <td colSpan={visibleLeadColumns.length + 3} className="p-20 text-center"><div className="flex flex-col items-center gap-3"><Users className="h-12 w-12 text-slate-100" /><p className="text-slate-400 font-black uppercase tracking-widest text-xs">No leads found in the pipeline</p></div></td>
                     </tr>
                   ) : (
                     paginated.map((l, index) => (
@@ -961,79 +1800,14 @@ const Leads = () => {
                             }} 
                           />
                         </td>
-                        <td className="p-4 text-center text-[10px] font-black text-slate-300">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                        <td className="p-4 text-center text-[10px] font-black text-slate-300">{(currentPage - 1) * itemsPerPageNum + index + 1}</td>
+                        {visibleLeadColumns.map((col) => (
+                          <td key={col.id} className={cn("p-4", col.tdClassName)} onClick={col.tdOnClick}>
+                            {col.cell(l)}
+                          </td>
+                        ))}
                         <td className="p-4">
-                            <div className="flex items-center gap-2">
-                                <div className="h-8 w-8 rounded-xl bg-slate-100 flex items-center justify-center text-primary font-black text-[10px] uppercase shadow-inner">
-                                    {l.name?.charAt(0) || "L"}
-                                </div>
-                                <div className="flex flex-col">
-                                    <span className="font-black text-slate-900 group-hover:text-primary transition-colors cursor-pointer text-xs">{l.name}</span>
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">{l.position || "Lead"}</span>
-                                </div>
-                            </div>
-                        </td>
-                        <td className="p-4 font-bold text-slate-600 text-xs">{l.company || "-"}</td>
-                        <td className="p-4 text-slate-500 font-medium text-xs">
-                            <div className="flex items-center gap-1.5 group/email cursor-pointer">
-                                <Mail className="h-3 w-3 text-slate-300 group-hover/email:text-primary transition-colors" />
-                                <span className="group-hover/email:text-primary transition-colors">{l.email}</span>
-                            </div>
-                        </td>
-                        <td className="p-4 text-slate-500 font-medium text-xs">
-                            {l.phonenumber ? (
-                                <div className="flex items-center gap-1.5 group/phone cursor-pointer">
-                                    <Phone className="h-3 w-3 text-slate-300 group-hover/phone:text-primary transition-colors" />
-                                    <span className="group-hover/phone:text-primary transition-colors">{l.phonenumber}</span>
-                                </div>
-                            ) : "-"}
-                        </td>
-                        <td className="p-4 font-black text-slate-900 text-xs">{formatAmount(l.lead_value || 0)}</td>
-                        <td className="p-4">
-                            <div className="flex flex-wrap gap-1">
-                                {l.tags ? l.tags.split(",").map((t: string) => <Badge key={t} className="bg-slate-50 text-slate-500 border-none rounded-md text-[8px] font-black uppercase px-1.5 h-4 tracking-tight">{t.trim()}</Badge>) : "-"}
-                            </div>
-                        </td>
-                        <td className="p-4">
-                            {l.assigned ? (
-                                (() => {
-                                    const assignedObj = typeof l.assigned === 'object' ? l.assigned : staff.find(s => s._id === l.assigned);
-                                    if (assignedObj) {
-                                        return (
-                                            <div className="flex items-center gap-1.5 group/assigned cursor-pointer">
-                                                <div className="h-5 w-5 rounded-md bg-primary/10 flex items-center justify-center group-hover/assigned:bg-primary/20 transition-colors">
-                                                    <User className="h-2.5 w-2.5 text-primary" />
-                                                </div>
-                                                <span className="text-[10px] font-bold text-slate-700 group-hover/assigned:text-primary transition-colors">
-                                                    {assignedObj.firstname} {assignedObj.lastname}
-                                                </span>
-                                            </div>
-                                        );
-                                    }
-                                    return (
-                                        <div className="flex items-center gap-1.5">
-                                            <div className="h-5 w-5 rounded-md bg-slate-50 flex items-center justify-center"><User className="h-2.5 w-2.5 text-slate-400" /></div>
-                                            <span className="text-[10px] font-bold text-slate-400">Unknown</span>
-                                        </div>
-                                    );
-                                })()
-                            ) : (
-                                <div className="flex items-center gap-1.5">
-                                    <div className="h-5 w-5 rounded-md bg-slate-50 flex items-center justify-center"><User className="h-2.5 w-2.5 text-slate-400" /></div>
-                                    <span className="text-[10px] font-bold text-slate-400">Unassigned</span>
-                                </div>
-                            )}
-                        </td>
-                        <td className="p-4">
-                            <Badge className="rounded-lg border-none font-black text-[8px] uppercase tracking-wider px-2 h-5 bg-blue-50 text-blue-500">
-                                {typeof l.status === 'object' ? l.status?.name : (statuses.find(s => s._id === l.status)?.name || String(l.status || "Pending"))}
-                            </Badge>
-                        </td>
-                        <td className="p-4 text-[10px] font-bold text-slate-400 uppercase">{sources.find(s => s._id === l.source)?.name || "-"}</td>
-                        <td className="p-4 text-[10px] font-bold text-slate-400">Never</td>
-                        <td className="p-4 text-[10px] font-bold text-slate-400 italic">{formatDate(l.createdAt)}</td>
-                        <td className="p-4">
-                           <TableActions 
+                           <TableActions
                              onView={() => openModal("view", l)}
                              onEdit={() => openModal("edit", l)}
                              onDelete={() => {
@@ -1051,10 +1825,10 @@ const Leads = () => {
             </div>
 
             {/* Pagination */}
-            {!isLoading && filtered.length > 0 && (
+            {!isLoading && totalLeadsCount > 0 && (
               <div className="p-6 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
                 <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-                  Showing <span className="text-slate-900">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-slate-900">{Math.min(currentPage * itemsPerPage, filtered.length)}</span> of <span className="text-slate-900">{filtered.length}</span> entries
+                  Showing <span className="text-slate-900">{(currentPage - 1) * itemsPerPageNum + 1}</span> to <span className="text-slate-900">{Math.min(currentPage * itemsPerPageNum, totalLeadsCount)}</span> of <span className="text-slate-900">{totalLeadsCount}</span> entries
                 </p>
                 <div className="flex items-center gap-2">
                   <Button
@@ -1085,6 +1859,7 @@ const Leads = () => {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
     </DashboardLayout>
   );

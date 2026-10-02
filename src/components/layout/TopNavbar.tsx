@@ -50,25 +50,35 @@ import { useNavigate } from "react-router-dom";
 import { useNotificationContext } from "@/context/NotificationContext";
 import { useToast } from "@/hooks/use-toast";
 import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
+import { useTranslation } from "react-i18next";
+import i18n from "@/i18n/config";
+
 
 export function TopNavbar() {
   const [search, setSearch] = useState("");
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
-  const { user, logout, isStaff } = usePermissionContext();
+
+  const { user, logout, isStaff, canView, isModuleEnabled } = usePermissionContext();
   const { refreshSettings } = useSettings();
   const base = isStaff ? "/staff" : "/admin";
+  // permission/moduleKey mirror AppSidebar's dynamic-nav gating for these same
+  // modules (mainsidebar_controller.js defaults + AppSidebar's URL_MODULE_MAP)
+  // so Quick Create never offers a module the user can't see or the tenant's
+  // plan doesn't include. Customer has no moduleKey — it's a core module the
+  // sidebar never plan-gates either.
   const quickCreateItems = [
-    { label: "Estimate", icon: ClipboardList, path: `${base}/estimates/create`, color: "text-violet-500 bg-violet-50 dark:bg-violet-500/10" },
-    { label: "Proposal", icon: FileText, path: `${base}/proposals/create`, color: "text-blue-500 bg-blue-50 dark:bg-blue-500/10" },
-    { label: "Customer", icon: Users, path: `${base}/customers`, color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10" },
-    { label: "Task", icon: CheckSquare, path: `${base}/tasks`, color: "text-amber-500 bg-amber-50 dark:bg-amber-500/10" },
-    { label: "Expense", icon: Receipt, path: `${base}/expenses/create`, color: "text-rose-500 bg-rose-50 dark:bg-rose-500/10" },
-    { label: "Goal", icon: Target, path: `${base}/goals/new`, color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10" },
-    { label: "Ticket", icon: Headphones, path: `${base}/support/create`, color: "text-pink-500 bg-pink-50 dark:bg-pink-500/10" },
-    { label: "Event", icon: CalendarPlus, path: `${base}/calendar`, color: "text-teal-500 bg-teal-50 dark:bg-teal-500/10" },
-  ];
+    { label: "Estimate", icon: ClipboardList, path: `${base}/estimates/create`, color: "text-violet-500 bg-violet-50 dark:bg-violet-500/10", permission: "Estimates", moduleKey: "estimates" },
+    { label: "Proposal", icon: FileText, path: `${base}/proposals/create`, color: "text-blue-500 bg-blue-50 dark:bg-blue-500/10", permission: "Proposals", moduleKey: "proposals" },
+    { label: "Customer", icon: Users, path: `${base}/customers`, color: "text-emerald-500 bg-emerald-50 dark:bg-emerald-500/10", permission: "Customers" },
+    { label: "Task", icon: CheckSquare, path: `${base}/tasks`, color: "text-amber-500 bg-amber-50 dark:bg-amber-500/10", permission: "Tasks", moduleKey: "tasks" },
+    { label: "Expense", icon: Receipt, path: `${base}/expenses/create`, color: "text-rose-500 bg-rose-50 dark:bg-rose-500/10", permission: "Expenses", moduleKey: "expenses" },
+    { label: "Goal", icon: Target, path: `${base}/goals/new`, color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10", permission: "Goals", moduleKey: "goals" },
+    { label: "Ticket", icon: Headphones, path: `${base}/support/create`, color: "text-pink-500 bg-pink-50 dark:bg-pink-500/10", permission: "Support", moduleKey: "support" },
+    { label: "Event", icon: CalendarPlus, path: `${base}/calendar`, color: "text-teal-500 bg-teal-50 dark:bg-teal-500/10", permission: "Calendar", moduleKey: "calendar" },
+  ].filter((item) => canView(item.permission) && (!item.moduleKey || isModuleEnabled(item.moduleKey)));
   const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotificationContext();
   const { toast } = useToast();
 
@@ -105,15 +115,16 @@ export function TopNavbar() {
   };
 
   const handleLanguageChange = (langCode: string) => {
-    if (langCode === 'en') {
-      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-      document.cookie = "googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; domain=" + window.location.hostname + "; path=/;";
-    } else {
-      document.cookie = `googtrans=/en/${langCode}; path=/`;
-      document.cookie = `googtrans=/en/${langCode}; domain=` + window.location.hostname + `; path=/`;
-    }
-    window.location.reload();
+    // i18next: instant switch — no page reload, no Google Translate cookie,
+    // no root-domain cookie, no DOM removeChild errors.
+    i18n.changeLanguage(langCode);
+    // Persist in localStorage so it survives refresh
+    localStorage.setItem("crm_language", langCode);
+    // Also set a scoped cookie (exact domain only, no leading dot)
+    const hostname = window.location.hostname;
+    document.cookie = `crm_lang=${langCode}; domain=${hostname}; path=/; max-age=31536000`;
   };
+
 
   const languages = [
     { code: "ar", name: "Arabic" },
@@ -126,6 +137,7 @@ export function TopNavbar() {
     { code: "fr", name: "French" },
     { code: "de", name: "German" },
     { code: "el", name: "Greek" },
+    { code: "gu", name: "Gujarati" },
     { code: "hi", name: "Hindi" },
     { code: "id", name: "Indonesia" },
     { code: "it", name: "Italian" },
@@ -318,7 +330,10 @@ export function TopNavbar() {
                 notifications.map((n) => (
                   <div
                     key={n.id}
-                    onClick={() => markAsRead(n.id)}
+                    onClick={() => {
+                      markAsRead(n.id);
+                      if (n.link) navigate(n.link);
+                    }}
                     className={`flex gap-3 p-3 border-b last:border-0 transition-colors cursor-pointer hover:bg-muted/50 ${!n.read ? "bg-primary/5" : ""}`}
                   >
                     <div className="flex-1 min-w-0">

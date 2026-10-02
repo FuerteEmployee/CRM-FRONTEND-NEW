@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Bell, ChevronDown, ArrowLeft } from "lucide-react";
+import { useSettings } from "@/context/SettingsContext";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { SidebarTrigger } from "@/hrms/components/ui/sidebar";
 import { Button } from "@/hrms/components/ui/button";
 import {
@@ -99,6 +101,8 @@ export function AppHeader() {
   const { user, logout } = useAuth();
   const { stores, selectedStoreId, setSelectedStoreId } = useStore();
   const { navbarBgColor, navbarTextColor } = useTheme();
+  const { settings } = useSettings();
+  const headerLogoUrl = resolveImageUrl(settings?.ogImage || settings?.compLogoDark || settings?.compLogoLight);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
@@ -220,7 +224,7 @@ export function AppHeader() {
       <div className="flex-1 min-w-0 flex justify-center px-1 lg:hidden">
         <div className="flex flex-col items-center max-w-full">
           <div className="flex items-center gap-1.5 mb-0.5">
-            <img src="/logo-icon.png" className="h-4 w-4 sm:hidden" alt="" />
+            {headerLogoUrl && <img src={headerLogoUrl} className="h-4 w-4 sm:hidden" alt="" />}
             <p className="text-[10px] sm:text-[11px] font-bold text-indigo-600 uppercase tracking-widest leading-none truncate max-w-[120px] sm:max-w-none text-center">
               {currentStore?.name || "ScreenTime"}
             </p>

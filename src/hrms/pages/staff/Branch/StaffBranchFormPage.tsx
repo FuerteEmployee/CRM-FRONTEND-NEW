@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams, useLocation, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   Save,
@@ -23,10 +23,13 @@ import {
 } from "@/hrms/components/ui/select";
 import { Switch } from "@/hrms/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/hrms/components/ui/tabs";
-import { hrmsbranchService, getBranchTypeId, type HRMSBranch } from "@/hrms/services/hrmsbranchService";
+import { hrmsbranchService, getBranchTypeId, getQuotationTypeIds, type HRMSBranch } from "@/hrms/services/hrmsbranchService";
 import { branchTypeService, type BranchType } from "@/hrms/services/branchTypeService";
 import { toast } from "sonner";
 import { StateSelect, CitySelect } from "@/hrms/components/common/LocationSelector";
+import { MultiSelect } from "@/hrms/components/common/MultiSelect";
+import { quotationTypeService } from "@/api/services/quotationType.service";
+import { customerService } from "@/api/services/customer.service";
 
 const RADIUS_PRESETS = [
   { label: "100 m",  value: 100   },
@@ -55,6 +58,11 @@ export default function StaffBranchFormPage() {
   const location = useLocation();
   const { id } = useParams();
   const isEdit = !!id;
+  // When opened via "+ Add new branch" from another page (e.g. Quotation Maker),
+  // returnTo sends the user straight back there instead of the branches list.
+  const [searchParams] = useSearchParams();
+  const returnTo = searchParams.get("returnTo");
+  const backDestination = () => returnTo || `${location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms"}/staff/branches`;
 
   const [loading, setLoading]         = useState(false);
   const [branchTypes, setBranchTypes] = useState<BranchType[]>([]);
@@ -79,6 +87,13 @@ export default function StaffBranchFormPage() {
   // branchType stored as ObjectId string in form (sent to backend as-is)
   const [selectedBranchTypeId, setSelectedBranchTypeId] = useState<string>("");
 
+  // Quotation Maker type(s) this branch serves, and the customers assigned to it
+  const [quotationTypeOptions, setQuotationTypeOptions] = useState<{ value: string; label: string }[]>([]);
+  const [customerOptions, setCustomerOptions] = useState<{ value: string; label: string }[]>([]);
+  const [selectedQuotationTypeIds, setSelectedQuotationTypeIds] = useState<string[]>([]);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
+  const [initialCustomerIds, setInitialCustomerIds] = useState<string[]>([]);
+
   const [formData, setFormData] = useState<Partial<HRMSBranch>>({
     name: "",
     status: "Active",
@@ -102,8 +117,15 @@ export default function StaffBranchFormPage() {
   useEffect(() => {
     (async () => {
       try {
-        const types = await branchTypeService.getAll();
+        const [types, quotationTypes, customers] = await Promise.all([
+          branchTypeService.getAll(),
+          quotationTypeService.getQuotationTypes(true),
+          customerService.getAll(),
+        ]);
         setBranchTypes(types.filter(t => t.isActive));
+        setQuotationTypeOptions((quotationTypes || []).map((t: any) => ({ value: t._id, label: t.name })));
+        setCustomerOptions((customers || []).map((c: any) => ({ value: c._id, label: c.company || "Unnamed customer" })));
+
         if (isEdit) {
           setLoading(true);
           const res = await hrmsbranchService.getById(id);
@@ -111,12 +133,20 @@ export default function StaffBranchFormPage() {
             setFormData(res);
             // Resolve branchType ObjectId from populated object or raw string
             setSelectedBranchTypeId(getBranchTypeId(res.branchType));
+            setSelectedQuotationTypeIds(getQuotationTypeIds(res.quotationTypes));
             setRadiusUnit((res.radiusUnit as "m" | "km") || "m");
             const r = Number(res.radius);
             const preset = RADIUS_PRESETS.find(p => p.value === r && p.value !== -1);
             if (preset) setRadiusPreset(String(preset.value));
             else { setRadiusPreset("-1"); setCustomRadius(String(r)); }
             if (res.locationName) setLocationSearch(res.locationName.split(",").slice(0, 2).join(","));
+
+            // Customers currently assigned to this branch (via their `branch` field)
+            const assigned = (customers || [])
+              .filter((c: any) => (typeof c.branch === "object" ? c.branch?._id : c.branch) === id)
+              .map((c: any) => c._id);
+            setSelectedCustomerIds(assigned);
+            setInitialCustomerIds(assigned);
           }
         }
       } catch { toast.error("Failed to load data"); }
@@ -184,11 +214,19 @@ export default function StaffBranchFormPage() {
 
   const selectPlace = (place: any) => {
     const displayLabel = formatPlaceName(place);
+    const a = place.address || {};
+    const city = a.city || a.town || a.village || a.district || "";
+    const state = a.state || "";
     setFormData(prev => ({
       ...prev,
       locationName: place.display_name,
       latitude:  parseFloat(place.lat).toFixed(6),
       longitude: parseFloat(place.lon).toFixed(6),
+      // The geofence search already resolves city/state via Nominatim — carry it
+      // into the plain address fields too, so picking a location here is enough
+      // (previously these stayed blank unless picked again in the City/State selects).
+      ...(city ? { city } : {}),
+      ...(state ? { state } : {}),
     }));
     setLocationSearch(displayLabel);
     setShowDropdown(false);
@@ -206,7 +244,15 @@ export default function StaffBranchFormPage() {
       );
       const data = await res.json();
       if (!data?.display_name) throw new Error("no result");
-      setFormData(prev => ({ ...prev, locationName: data.display_name }));
+      const a = data.address || {};
+      const city = a.city || a.town || a.village || a.district || "";
+      const state = a.state || "";
+      setFormData(prev => ({
+        ...prev,
+        locationName: data.display_name,
+        ...(city ? { city } : {}),
+        ...(state ? { state } : {}),
+      }));
       setLocationSearch(formatPlaceName(data));
     } catch {
       const fallback = `${lat}, ${lng}`;
@@ -296,6 +342,7 @@ export default function StaffBranchFormPage() {
       const payload = {
         ...formData,
         branchType: selectedBranchTypeId || null,
+        quotationTypes: selectedQuotationTypeIds,
         radius: effectiveRadiusMeters(),
         radiusUnit,
       };
@@ -303,9 +350,20 @@ export default function StaffBranchFormPage() {
         ? await hrmsbranchService.update(id, payload)
         : await hrmsbranchService.create(payload);
       if (res?.success !== false) {
+        const branchId = isEdit ? id! : (res?.data?._id || res?.data?.id);
+        const added = selectedCustomerIds.filter(cid => !initialCustomerIds.includes(cid));
+        const removed = initialCustomerIds.filter(cid => !selectedCustomerIds.includes(cid));
+        await Promise.all([
+          ...added.map(cid => customerService.update(cid, { branch: branchId })),
+          ...removed.map(cid => customerService.update(cid, { branch: null })),
+        ]);
         toast.success(`Branch ${isEdit ? "updated" : "created"} successfully`);
-        const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
-        navigate(`${basePath}/staff/branches`);
+        if (returnTo && branchId) {
+          const sep = returnTo.includes("?") ? "&" : "?";
+          navigate(`${returnTo}${sep}newBranchId=${branchId}`);
+        } else {
+          navigate(backDestination());
+        }
       }
     } catch { toast.error("Failed to save branch"); }
     finally { setLoading(false); }
@@ -339,10 +397,7 @@ export default function StaffBranchFormPage() {
       <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 bg-white sticky top-0 z-20 shadow-sm">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-slate-100 text-slate-500"
-            onClick={() => {
-              const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
-              navigate(`${basePath}/staff/branches`);
-            }}>
+            onClick={() => navigate(backDestination())}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -353,10 +408,7 @@ export default function StaffBranchFormPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => {
-            const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
-            navigate(`${basePath}/staff/branches`);
-          }}
+          <Button variant="ghost" size="sm" onClick={() => navigate(backDestination())}
             className="h-9 px-4 rounded-md text-slate-500 text-xs font-semibold hover:bg-slate-100">
             Discard
           </Button>
@@ -409,6 +461,34 @@ export default function StaffBranchFormPage() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        </div>
+
+        {/* Row 1b: Quotation Types + Customers */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-5 gap-y-4">
+          <div className="col-span-2 space-y-1.5">
+            <Label className={lbl}>Quotation Types</Label>
+            <MultiSelect
+              options={quotationTypeOptions}
+              selected={selectedQuotationTypeIds}
+              onChange={setSelectedQuotationTypeIds}
+              placeholder="*None"
+              className={inp}
+            />
+          </div>
+
+          <div className="col-span-2 space-y-1.5">
+            <Label className={lbl}>Customers</Label>
+            <MultiSelect
+              options={customerOptions}
+              selected={selectedCustomerIds}
+              onChange={setSelectedCustomerIds}
+              placeholder="No customers assigned"
+              className={inp}
+            />
+            <p className="text-[10px] text-muted-foreground">
+              These customers will be selectable in Quotation Maker for this branch's quotation type(s).
+            </p>
           </div>
         </div>
 
@@ -608,7 +688,7 @@ export default function StaffBranchFormPage() {
                   </div>
 
                   {/* Lat / Lng */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label className={lbl}>Latitude</Label>
                       <Input value={String(formData.latitude ?? "")} onChange={e => onManualCoord("latitude", e.target.value)}

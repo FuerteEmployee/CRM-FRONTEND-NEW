@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -38,6 +39,7 @@ import {
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService } from "@/api/services/customer.service";
 import { financeService } from "@/api/services/finance.service";
+import { hrmsbranchService, type HRMSBranch } from "@/hrms/services/hrmsbranchService";
 import { staffService } from "@/api/services/staff.service";
 import { noteService } from "@/api/services/note.service";
 import { salesService } from "@/api/services/sales.service";
@@ -398,7 +400,11 @@ export function VoiceInput({ value, onChange, className, placeholder, name, type
 
 export default function CustomerView() {
   const { getSetting } = useSettings();
-  const companyName = getSetting("companyName", "Fuerte CRM");
+  // Mirrors SettingsContext.tsx's own host-based default — only Trinetra
+  // domains (trinetratechnoworld.com, erp.*) get a different fallback here;
+  // every other tenant keeps seeing "Fuerte CRM" exactly as before.
+  const isTrinetraHost = window.location.hostname.includes("trinetratechnoworld") || window.location.hostname.includes("erp.");
+  const companyName = getSetting("companyName", isTrinetraHost ? "Trinetra TechnoWorld" : "Fuerte CRM");
   const { formatAmount } = useCurrency();
   const { data: currencies = [] } = useQuery<any[]>({
     queryKey: ["currencies"],
@@ -629,9 +635,20 @@ export default function CustomerView() {
     queryFn: customerService.getGroups,
   });
 
+  const { data: branches = [] } = useQuery<HRMSBranch[]>({
+    queryKey: ["hrms-branches-for-customer"],
+    queryFn: async () => (await hrmsbranchService.getAll()).data,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const branchesForFormCity = useMemo(
+    () => branches.filter((b) => b.city === formData.city),
+    [branches, formData.city]
+  );
+
   const { data: staff = [] } = useQuery({
-    queryKey: ["staff"],
-    queryFn: staffService.getAll,
+    queryKey: ["staff", "assignable"],
+    queryFn: staffService.getAssignable,
   });
 
   const staffOptions = useMemo(() =>
@@ -1673,7 +1690,8 @@ export default function CustomerView() {
     if (customer) {
       setFormData({
         ...customer,
-        groups: customer.groups?.map((g: any) => g._id || g) || []
+        groups: customer.groups?.map((g: any) => g._id || g) || [],
+        branch: (customer as any).branch?._id || (customer as any).branch || "",
       });
     }
   }, [customer]);
@@ -1816,7 +1834,11 @@ export default function CustomerView() {
                   {customer.active ? "Active" : "Inactive"}
                 </Badge>
                 <span>•</span>
-                <span>{customer.phonenumber || "No phone"}</span>
+                {customer.phonenumber ? (
+                  <WhatsAppQuickChat phone={customer.phonenumber} data={{ customer_name: customer.company }} />
+                ) : (
+                  <span>No phone</span>
+                )}
               </div>
             </div>
           </div>
@@ -1895,7 +1917,7 @@ export default function CustomerView() {
                                 </div>
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground uppercase">Phone</Label>
-                                  <Input name="phonenumber" value={formData.phonenumber || ""} onChange={handleFormChange} placeholder="Phone Number" className="h-9" />
+                                  <Input name="phonenumber" value={formData.phonenumber || ""} onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10); handleFormChange(e); }} maxLength={10} inputMode="numeric" placeholder="Phone Number" className="h-9" />
                                 </div>
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground uppercase">Website</Label>
@@ -1916,7 +1938,7 @@ export default function CustomerView() {
                             <section className="space-y-4">
                               <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-primary mb-4 p-1 bg-primary/5 rounded inline-block">Local Settings</h3>
                               <div className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div className="space-y-1.5">
                                     <Label className="text-xs text-muted-foreground uppercase">Currency</Label>
                                     <Select value={formData.currency} onValueChange={(v) => handleSelectChange("currency", v)}>
@@ -1942,7 +1964,33 @@ export default function CustomerView() {
                                   <Label className="text-xs text-muted-foreground uppercase">Address</Label>
                                   <VoiceTextarea name="address" value={formData.address || ""} onChange={handleFormChange} placeholder="Address" className="h-20" />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs text-muted-foreground uppercase">Branch</Label>
+                                    <Select
+                                      value={formData.branch || "none"}
+                                      onValueChange={(v) => {
+                                        const val = v === "none" ? "" : v;
+                                        handleSelectChange("branch", val);
+                                        const selectedB = branches.find((b: any) => (b._id || b.id) === val || b.name === val);
+                                        if (selectedB?.city && !formData.city) {
+                                          handleSelectChange("city", selectedB.city);
+                                        }
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="Select branch" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">None</SelectItem>
+                                        {branches.map((b) => (
+                                          <SelectItem key={b._id || b.id} value={(b._id || b.id) as string}>{b.name}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div className="space-y-1.5">
                                     <Label className="text-xs text-muted-foreground uppercase">City</Label>
                                     <Input name="city" value={formData.city || ""} onChange={handleFormChange} placeholder="City" className="h-9" />
@@ -1977,7 +2025,7 @@ export default function CustomerView() {
                                   <Label className="text-xs text-muted-foreground uppercase">Street</Label>
                                   <VoiceTextarea name="billing_street" value={formData.billing_street || ""} onChange={handleFormChange} placeholder="Street" className="h-20" />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div className="space-y-1.5">
                                     <Label className="text-xs text-muted-foreground uppercase">City</Label>
                                     <Input name="billing_city" value={formData.billing_city || ""} onChange={handleFormChange} placeholder="City" className="h-9" />
@@ -1987,7 +2035,7 @@ export default function CustomerView() {
                                     <Input name="billing_state" value={formData.billing_state || ""} onChange={handleFormChange} placeholder="State" className="h-9" />
                                   </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div className="space-y-1.5">
                                     <Label className="text-xs text-muted-foreground uppercase">Zip Code</Label>
                                     <Input name="billing_zip" value={formData.billing_zip || ""} onChange={handleFormChange} placeholder="Zip Code" className="h-9" />
@@ -2011,7 +2059,7 @@ export default function CustomerView() {
                                   <Label className="text-xs text-muted-foreground uppercase">Street</Label>
                                   <VoiceTextarea name="shipping_street" value={formData.shipping_street || ""} onChange={handleFormChange} placeholder="Street" className="h-20" />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div className="space-y-1.5">
                                     <Label className="text-xs text-muted-foreground uppercase">City</Label>
                                     <Input name="shipping_city" value={formData.shipping_city || ""} onChange={handleFormChange} placeholder="City" className="h-9" />
@@ -2021,7 +2069,7 @@ export default function CustomerView() {
                                     <Input name="shipping_state" value={formData.shipping_state || ""} onChange={handleFormChange} placeholder="State" className="h-9" />
                                   </div>
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div className="space-y-1.5">
                                     <Label className="text-xs text-muted-foreground uppercase">Zip Code</Label>
                                     <Input name="shipping_zip" value={formData.shipping_zip || ""} onChange={handleFormChange} placeholder="Zip Code" className="h-9" />
@@ -2265,7 +2313,7 @@ export default function CustomerView() {
                                     </div>
                                     <div className="space-y-1.5">
                                       <Label className="text-xs font-bold uppercase text-muted-foreground">Phone</Label>
-                                      <Input name="phonenumber" value={contactForm.phonenumber} onChange={handleContactFormChange} placeholder="Phone Number" />
+                                      <Input name="phonenumber" value={contactForm.phonenumber} onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10); handleContactFormChange(e); }} maxLength={10} inputMode="numeric" placeholder="Phone Number" />
                                     </div>
                                     <div className="space-y-1.5">
                                       <Label className="text-xs font-bold uppercase text-muted-foreground">Direction</Label>
@@ -2285,6 +2333,7 @@ export default function CustomerView() {
                                           value={contactForm.password}
                                           onChange={handleContactFormChange}
                                           type={showPassword ? "text" : "password"}
+                                          disableVoice
                                           placeholder="Password"
                                         />
                                         <button
@@ -2336,7 +2385,7 @@ export default function CustomerView() {
                                           </Tooltip>
                                         </TooltipProvider>
                                       </div>
-                                      <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
                                         {["Invoices", "Estimates", "Contracts", "Proposals", "Support", "Projects"].map((p) => (
                                           <div key={p} className="flex items-center gap-3">
                                             <Checkbox
@@ -2354,7 +2403,7 @@ export default function CustomerView() {
                                       <div className="flex items-center gap-2 mb-4">
                                         <Label className="text-[11px] font-bold uppercase text-primary tracking-wider">Email Notifications</Label>
                                       </div>
-                                      <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
                                         {["Invoice", "Estimate", "Credit Note", "Project", "Tickets", "Task", "Contract"].map((n) => (
                                           <div key={n} className="flex items-center gap-3">
                                             <Checkbox
@@ -2504,7 +2553,12 @@ export default function CustomerView() {
                                     {contact.title || "-"}
                                   </td>
                                   <td className="px-6 py-4 text-muted-foreground">
-                                    {contact.phonenumber || "-"}
+                                    {contact.phonenumber ? (
+                                      <WhatsAppQuickChat
+                                        phone={contact.phonenumber}
+                                        data={{ customer_name: `${contact.firstname || ""} ${contact.lastname || ""}`.trim() }}
+                                      />
+                                    ) : "-"}
                                   </td>
                                   <td className="px-6 py-4">
                                     <Switch
@@ -4051,7 +4105,7 @@ export default function CustomerView() {
                                 <Label>Subject *</Label>
                                 <Input placeholder="Contract subject" value={contractFormData.subject} onChange={(e) => setContractFormData({ ...contractFormData, subject: e.target.value })} />
                               </div>
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                   <Label>Contract Value</Label>
                                   <Input type="number" placeholder="0.00" value={contractFormData.contract_value} onChange={(e) => setContractFormData({ ...contractFormData, contract_value: e.target.value })} />
@@ -4070,7 +4124,7 @@ export default function CustomerView() {
                                   </Select>
                                 </div>
                               </div>
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div className="space-y-2">
                                   <Label>Start Date</Label>
                                   <Input type="date" value={contractFormData.datestart} onChange={(e) => setContractFormData({ ...contractFormData, datestart: e.target.value })} />
@@ -4418,7 +4472,7 @@ export default function CustomerView() {
                                     </div>
                                   )}
                                 </div>
-                                <div className="grid grid-cols-2 gap-6">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                                   <div className="col-span-2 space-y-1">
                                     <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1"><span className="text-red-500">*</span> Subject</Label>
                                     <Input id="name" value={taskFormData.name} onChange={handleTaskInputChange} className="h-12 bg-white rounded-xl border-slate-200 font-medium" />
@@ -6295,8 +6349,8 @@ function ZipCreditNotesModal({ open, onOpenChange, formData, setFormData }: any)
         <div className="bg-zinc-950 px-6 py-5 flex items-center justify-between border-b border-white/5">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-white flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-xl">
-                <Receipt className="h-5 w-5 text-primary" />
+              <div className="p-2 shrink-0 bg-primary/10 rounded-xl">
+                <Receipt className="h-5 w-5 shrink-0 text-primary" />
               </div>
               ZIP Credit Notes
             </DialogTitle>
@@ -6356,8 +6410,8 @@ function ZipPaymentsModal({ open, onOpenChange, formData, setFormData }: any) {
         <div className="bg-zinc-950 px-6 py-5 flex items-center justify-between border-b border-white/5">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold text-white flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-xl">
-                <CreditCard className="h-5 w-5 text-primary" />
+              <div className="p-2 shrink-0 bg-primary/10 rounded-xl">
+                <CreditCard className="h-5 w-5 shrink-0 text-primary" />
               </div>
               ZIP Payments
             </DialogTitle>
@@ -6384,7 +6438,7 @@ function ZipPaymentsModal({ open, onOpenChange, formData, setFormData }: any) {
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">From Date</Label>
               <Input
@@ -6436,8 +6490,8 @@ function ReminderModal({ open, onOpenChange, formData, setFormData, staff, onSav
         <div className="bg-primary/5 px-8 py-6 border-b border-primary/10">
           <DialogHeader>
             <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-xl">
-                <Bell className="h-5 w-5 text-primary" />
+              <div className="p-2 shrink-0 bg-primary/10 rounded-xl">
+                <Bell className="h-5 w-5 shrink-0 text-primary" />
               </div>
               Set Reminder
             </DialogTitle>
@@ -6531,8 +6585,8 @@ function VaultEntryModal({ open, onOpenChange, formData, setFormData, onSave, is
         <div className="bg-primary/5 px-8 py-6 border-b border-primary/10">
           <DialogHeader>
             <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-xl">
-                <Lock className="h-5 w-5 text-primary" />
+              <div className="p-2 shrink-0 bg-primary/10 rounded-xl">
+                <Lock className="h-5 w-5 shrink-0 text-primary" />
               </div>
               New Vault Entry
             </DialogTitle>
@@ -6582,6 +6636,7 @@ function VaultEntryModal({ open, onOpenChange, formData, setFormData, onSave, is
               <div className="relative">
                 <Input
                   type={formData.showPassword ? "text" : "password"}
+                  disableVoice
                   placeholder="Password"
                   value={formData.password}
                   onChange={(e) => setFormData((p: any) => ({ ...p, password: e.target.value }))}
@@ -6756,7 +6811,9 @@ function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPen
                 <Input
                   placeholder="+1 (555) 000-0000"
                   value={formData.phonenumber || ""}
-                  onChange={(e) => setFormData((p: any) => ({ ...p, phonenumber: e.target.value }))}
+                  onChange={(e) => setFormData((p: any) => ({ ...p, phonenumber: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+                  maxLength={10}
+                  inputMode="numeric"
                   className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
                 />
               </div>
@@ -6779,6 +6836,7 @@ function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPen
                 <div className="relative">
                   <Input
                     type={formData.showPassword ? "text" : "password"}
+                    disableVoice
                     placeholder="••••••••"
                     value={formData.password || ""}
                     onChange={(e) => setFormData((p: any) => ({ ...p, password: e.target.value }))}

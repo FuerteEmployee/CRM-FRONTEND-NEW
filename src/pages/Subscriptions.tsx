@@ -40,6 +40,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 const Subscriptions = () => {
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState("25");
+  const [currentPage, setCurrentPage] = useState(1);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
   const [bulkState, setBulkState] = useState({ massDelete: false });
@@ -56,12 +57,18 @@ const Subscriptions = () => {
 
   const filtered = subscriptions.filter((s: any) =>
     (s.name || "").toLowerCase().includes(search.toLowerCase()) ||
-    (s.client?.company || "").toLowerCase().includes(search.toLowerCase())
+    (s.client?.company || "").toLowerCase().includes(search.toLowerCase()) ||
+    (s.status || "").toLowerCase().includes(search.toLowerCase())
   );
+
+  const subPageSize = itemsPerPage === "All" ? (filtered.length || 1) : parseInt(itemsPerPage);
+  const totalSubPages = Math.max(1, Math.ceil(filtered.length / subPageSize));
+  const safeSubPage = Math.min(currentPage, totalSubPages);
+  const paginatedSubs = itemsPerPage === "All" ? filtered : filtered.slice((safeSubPage - 1) * subPageSize, safeSubPage * subPageSize);
 
   const handleBulkAction = async () => {
     if (selectedItems.length === 0) {
-      toast({ title: "Error", description: "No items selected.", variant: "destructive" });
+      toast({ title: "Error", description: "No items selected."});
       return;
     }
     setIsBulkLoading(true);
@@ -76,17 +83,20 @@ const Subscriptions = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false });
     } catch (err: any) {
-      toast({ title: "Error", description: "Failed to perform bulk action.", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to perform bulk action."});
     } finally {
       setIsBulkLoading(false);
     }
   };
 
+  const allSubPageSelected = paginatedSubs.length > 0 && paginatedSubs.every((s: any) => selectedItems.includes(s._id));
+
   const handleSelectAll = (checked: boolean) => {
+    const pageIds = paginatedSubs.map((s: any) => s._id);
     if (checked) {
-      setSelectedItems(filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage)).map((s: any) => s._id));
+      setSelectedItems(prev => [...new Set([...prev, ...pageIds])]);
     } else {
-      setSelectedItems([]);
+      setSelectedItems(prev => prev.filter((id: string) => !pageIds.includes(id)));
     }
   };
 
@@ -161,7 +171,7 @@ const Subscriptions = () => {
             {/* Table Controls */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="flex items-center gap-3 w-full md:w-auto">
-                <Select value={itemsPerPage} onValueChange={setItemsPerPage}>
+                <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
                   <SelectTrigger className="h-10 w-[80px] rounded-xl bg-white border-slate-200 shadow-sm font-bold text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -176,7 +186,7 @@ const Subscriptions = () => {
 
                 <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                   if (open && selectedItems.length === 0) {
-                    toast({ title: "Error", description: "Please select at least one item first.", variant: "destructive" });
+                    toast({ title: "Error", description: "Please select at least one item first."});
                     return;
                   }
                   setBulkActionOpen(open);
@@ -246,7 +256,7 @@ const Subscriptions = () => {
                   placeholder="Search subscriptions..."
                   className="pl-10 h-10 rounded-xl bg-white border-slate-200 shadow-sm focus-visible:ring-primary/20 transition-all text-sm font-medium"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
                 />
               </div>
             </div>
@@ -257,8 +267,8 @@ const Subscriptions = () => {
                 <thead>
                   <tr className="bg-slate-50/50 border-b border-slate-100">
                     <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500 w-12 text-center">
-                      <Checkbox 
-                        checked={selectedItems.length > 0 && selectedItems.length === filtered.slice(0, itemsPerPage === "All" ? filtered.length : parseInt(itemsPerPage)).length}
+                      <Checkbox
+                        checked={allSubPageSelected}
                         onCheckedChange={handleSelectAll}
                       />
                     </th>
@@ -294,7 +304,7 @@ const Subscriptions = () => {
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((s: any, index: number) => {
+                    paginatedSubs.map((s: any, index: number) => {
                       const status = statusMap[s.status] || statusMap.active;
                       return (
                         <tr
@@ -356,15 +366,28 @@ const Subscriptions = () => {
             {/* Pagination Footer */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4">
               <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest italic">
-                Showing 1 to {filtered.length} of {filtered.length} entries
+                Showing {filtered.length === 0 ? 0 : (safeSubPage - 1) * subPageSize + 1} to {Math.min(safeSubPage * subPageSize, filtered.length)} of {filtered.length} entries
               </p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-9 px-4 rounded-xl font-bold text-xs border-slate-200 hover:bg-slate-50 group disabled:opacity-50" disabled>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-4 rounded-xl font-bold text-xs border-slate-200 hover:bg-slate-50 group disabled:opacity-50"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safeSubPage <= 1}
+                >
                   <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-0.5 transition-transform" />
                   Previous
                 </Button>
-                <div className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary text-white font-black text-xs shadow-lg shadow-primary/20 scale-110">1</div>
-                <Button variant="outline" size="sm" className="h-9 px-4 rounded-xl font-bold text-xs border-slate-200 hover:bg-slate-50 group disabled:opacity-50" disabled>
+                <div className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary text-white font-black text-xs shadow-lg shadow-primary/20 scale-110">{safeSubPage}</div>
+                <span className="text-[11px] text-slate-400 font-black px-1">of {totalSubPages}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-4 rounded-xl font-bold text-xs border-slate-200 hover:bg-slate-50 group disabled:opacity-50"
+                  onClick={() => setCurrentPage(p => Math.min(totalSubPages, p + 1))}
+                  disabled={safeSubPage >= totalSubPages}
+                >
                   Next
                   <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
                 </Button>

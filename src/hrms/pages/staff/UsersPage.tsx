@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import * as XLSX from "xlsx";
 import { Badge } from "@/hrms/components/ui/badge";
+import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { PageHeader } from "@/hrms/components/common/PageHeader";
 import { DataTable } from "@/hrms/components/common/DataTable";
 import { Button } from "@/hrms/components/ui/button";
@@ -17,7 +18,6 @@ import {
   Info,
   Shield,
   ArrowUpDown,
-  UserPlus,
   Building2,
   Import,
   Download,
@@ -42,7 +42,7 @@ import { designationService, type Designation } from "@/hrms/services/designatio
 import { shiftService, type Shift } from "@/hrms/services/shiftService";
 import { API_BASE_URL } from "@/hrms/services/apiClient";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/hrms/contexts/AuthContext";
+import { usePermission } from "@/hrms/hooks/usePermission";
 import { toast } from "@/hrms/hooks/use-toast";
 import {
   AlertDialog,
@@ -90,7 +90,7 @@ const getFileUrl = (url?: string) => {
 export default function UsersPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { hasPermission } = useAuth();
+  const { hasPermission } = usePermission();
   const confirm = useConfirm();
   const [users, setUsers] = useState<User[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
@@ -104,16 +104,32 @@ export default function UsersPage() {
   // Filters state
   const [roleFilter, setRoleFilter] = useState<string>("all");
   const [branchFilter, setBranchFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("active");
 
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
 
+  // Server-side pagination for the Staff Directory table. `role` and
+  // `isActive` are real backend filters (see getUsers) so they're sent
+  // through; free-text search and the Branch filter aren't supported
+  // server-side, so they keep filtering client-side over whatever page is
+  // currently loaded (see filteredUsers below).
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(25);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   const fetchAllData = async () => {
     setIsLoading(true);
     try {
-      const [usersData, branchesData, rolesData, deptsData, desigsData, shiftsData] = await Promise.all([
-        staffService.getAll(),
+      const [usersRes, branchesData, rolesData, deptsData, desigsData, shiftsData] = await Promise.all([
+        staffService.getPage({
+          page: currentPage,
+          limit: itemsPerPage,
+          search: searchQuery || undefined,
+          role: roleFilter === "all" ? undefined : roleFilter,
+          isActive: statusFilter === "all" ? undefined : statusFilter === "active",
+        }),
         hrmsbranchService.getAll(),
         roleService.getAll(),
         departmentService.getAll(),
@@ -121,7 +137,9 @@ export default function UsersPage() {
         shiftService.getAll()
       ]);
 
-      setUsers(usersData);
+      setUsers(usersRes.data);
+      setTotalUsers(usersRes.total);
+      setTotalPages(usersRes.totalPages);
       setBranches(branchesData.data || []);
 
       const mappedRoles: RoleDefinition[] = rolesData.map((r: any) => ({
@@ -148,8 +166,16 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchAllData();
-  }, []);
+  }, [currentPage, roleFilter, statusFilter]);
 
+  // Reset back to page 1 whenever role/status filters change, since they're
+  // now server params and a stale page could point past the new result set.
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [roleFilter, statusFilter]);
+
+  // role/status are already filtered server-side (see fetchAllData); search
+  // and branch still filter client-side, scoped to the currently loaded page.
   const filteredUsers = useMemo(() => {
     let result = users.filter((u) => {
       const roleStr = typeof u.role === "string" ? u.role : u.role?.role || "";
@@ -158,12 +184,9 @@ export default function UsersPage() {
         u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
         roleStr.replace("_", " ").toLowerCase().includes(searchQuery.toLowerCase());
 
-      const roleId = (u.role && typeof u.role === "object") ? u.role.id : (u.role as string || "");
-      const matchesRole = roleFilter === "all" || roleId === roleFilter;
       const matchesStore = branchFilter === "all" || (u as any).hrmsBranchId === branchFilter;
-      const matchesStatus = statusFilter === "all" || u.status === statusFilter;
 
-      return matchesSearch && matchesRole && matchesStore && matchesStatus;
+      return matchesSearch && matchesStore;
     });
 
     if (sortConfig) {
@@ -190,11 +213,10 @@ export default function UsersPage() {
   const toggleUserStatus = (user: User) => {
     const newStatus = user.status === "active" ? "inactive" : "active";
     staffService.update(user.id, { isActive: newStatus === "active" }).then(() => {
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === user.id ? { ...u, status: newStatus } : u,
-        ),
-      );
+      // Re-fetch rather than splice locally: with server-side pagination +
+      // an active status filter, a locally-toggled row can now fall outside
+      // the filter (e.g. "Active Only") and needs to actually leave the page.
+      fetchAllData();
       toast({
         title: "Status Updated",
         description: `${user.name}'s account is now ${newStatus}.`,
@@ -206,7 +228,10 @@ export default function UsersPage() {
     const ok = await confirm({ title: "Remove Staff Member", description: "This employee record will be permanently deleted. This action cannot be undone.", variant: "danger" });
     if (!ok) return;
     staffService.delete(id).then(() => {
-      setUsers(users.filter((u) => u.id !== id));
+      // Re-fetch rather than splice locally: with server-side pagination the
+      // next page's row needs to slide up to fill the gap left behind, and
+      // totalUsers/totalPages need to reflect the real remaining count.
+      fetchAllData();
       toast({
         title: "Staff Removed",
         description: "The employee record has been deleted.",
@@ -217,8 +242,34 @@ export default function UsersPage() {
 
 
 
-  const exportToExcel = () => {
-    const dataToExport = filteredUsers.map((u) => {
+  // `users`/`filteredUsers` now only hold the current (paginated) page, but
+  // Export has always meant "export the full filtered staff list" — so this
+  // pulls the complete unpaginated list via getAll() and re-applies the same
+  // search/role/branch/status criteria as filteredUsers, instead of silently
+  // truncating the export to whatever page happens to be on screen.
+  const exportToExcel = async () => {
+    let sourceUsers: User[] = users;
+    try {
+      const all = await staffService.getAll();
+      if (Array.isArray(all)) sourceUsers = all;
+    } catch {
+      // fall back to the currently loaded page if the full-list fetch fails
+    }
+
+    const exportFiltered = sourceUsers.filter((u) => {
+      const roleStr = typeof u.role === "string" ? u.role : u.role?.role || "";
+      const matchesSearch =
+        u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        roleStr.replace("_", " ").toLowerCase().includes(searchQuery.toLowerCase());
+      const roleId = (u.role && typeof u.role === "object") ? u.role.id : (u.role as string || "");
+      const matchesRole = roleFilter === "all" || roleId === roleFilter;
+      const matchesStore = branchFilter === "all" || (u as any).hrmsBranchId === branchFilter;
+      const matchesStatus = statusFilter === "all" || u.status === statusFilter;
+      return matchesSearch && matchesRole && matchesStore && matchesStatus;
+    });
+
+    const dataToExport = exportFiltered.map((u) => {
       const role = (u.role && typeof u.role === "object") ? u.role.label : (u.role || "");
       const branchId = (u as any).hrmsBranchId?._id || (u as any).hrmsBranchId;
       const branch = branches.find(s => (s._id || s.id) === branchId)?.name || "Unassigned";
@@ -346,14 +397,8 @@ export default function UsersPage() {
             </Button>
           </div>
           */}
-          {hasPermission("manage_users") && (
-            <Button size="sm" className="rounded-md h-9 px-4 gradient-primary font-medium shadow-sm flex items-center gap-2" onClick={() => {
-              const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
-              navigate(`${basePath}/staff/users/new`);
-            }}>
-              <UserPlus className="h-4 w-4" /> Add Staff
-            </Button>
-          )}
+          {/* Staff are created only via Setup > Staff (main CRM) — no create
+              entry point here, this directory only views/edits/deletes them. */}
         </div>
       </div>
 
@@ -366,7 +411,7 @@ export default function UsersPage() {
             </div>
             <div>
               <h2 className="text-base font-semibold text-slate-800 tracking-tight">Active Staff Directory</h2>
-              <p className="text-[11px] font-medium text-slate-500 tracking-wide">{filteredUsers.length} Employees Registered</p>
+              <p className="text-[11px] font-medium text-slate-500 tracking-wide">{totalUsers} Employees Registered</p>
             </div>
           </div>
 
@@ -425,6 +470,10 @@ export default function UsersPage() {
             data={filteredUsers}
             isLoading={isLoading}
             emptyMessage="No staff members matching your criteria"
+            totalItems={totalUsers}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            pageSize={itemsPerPage}
             columns={[
               {
                 header: (
@@ -453,13 +502,7 @@ export default function UsersPage() {
               {
                 header: "Phone Number",
                 accessorKey: (u) => u.mobile ? (
-                  <a
-                    href={`tel:${u.mobile}`}
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1.5 text-[12px] font-semibold text-primary hover:underline"
-                  >
-                    <Phone className="h-3.5 w-3.5" /> {u.mobile}
-                  </a>
+                  <WhatsAppQuickChat phone={u.mobile} data={{ customer_name: u.name }} />
                 ) : (
                   <div className="flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground">
                     <Phone className="h-3.5 w-3.5 text-muted-foreground/50" /> —
@@ -491,8 +534,8 @@ export default function UsersPage() {
                 accessorKey: (u) => (
                   <Badge
                     variant="outline"
-                    className={`text-[10px] font-semibold rounded-md px-2 py-0.5 border transition-all ${hasPermission("manage_users") ? "cursor-pointer" : "cursor-default opacity-80"} ${u.status === "active" ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"}`}
-                    onClick={() => hasPermission("manage_users") && toggleUserStatus(u)}
+                    className={`text-[10px] font-semibold rounded-md px-2 py-0.5 border transition-all ${hasPermission("edit_staff") ? "cursor-pointer" : "cursor-default opacity-80"} ${u.status === "active" ? "bg-emerald-50 text-emerald-600 border-emerald-200" : "bg-slate-100 text-slate-500 border-slate-200"}`}
+                    onClick={() => hasPermission("edit_staff") && toggleUserStatus(u)}
                   >
                     <span className="capitalize">{u.status}</span>
                   </Badge>
@@ -509,18 +552,18 @@ export default function UsersPage() {
                     }}>
                       <Eye className="h-4 w-4" />
                     </Button>
-                    {hasPermission("manage_users") && (
-                      <>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-amber-600 hover:bg-amber-50 transition-all" onClick={() => {
-                          const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
-                          navigate(`${basePath}/staff/users/edit/${u.id}`);
-                        }}>
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 transition-all" onClick={() => handleDeleteUser(u.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </>
+                    {hasPermission("edit_staff") && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-amber-600 hover:bg-amber-50 transition-all" onClick={() => {
+                        const basePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
+                        navigate(`${basePath}/staff/users/edit/${u.id}`);
+                      }}>
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {hasPermission("delete_staff") && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 transition-all" onClick={() => handleDeleteUser(u.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     )}
                   </div>
                 ),
@@ -546,7 +589,7 @@ export default function UsersPage() {
           <DialogHeader><DialogTitle className="text-lg font-semibold">Import Field Mapping</DialogTitle></DialogHeader>
           <div className="p-4 space-y-6">
             <p className="text-sm text-muted-foreground font-medium">Map your Excel columns to the system fields. We've tried to auto-match them for you.</p>
-            <div className="grid grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-2">
               {SYSTEM_FIELDS.map(field => (
                 <div key={field.key} className="space-y-1">
                   <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{field.label}</Label>

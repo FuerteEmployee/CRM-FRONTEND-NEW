@@ -15,8 +15,11 @@ interface User {
   // Backend returns this as boolean, 0/1, or "0"/"1"/"true" depending on version
   admin: any;
   is_superadmin?: boolean;
+  is_hrms_staff?: boolean;
   role?: any;
   tenant?: any;
+  phonenumber?: string;
+  notification_sound?: string;
 }
 
 interface PermissionContextType {
@@ -38,26 +41,43 @@ const PermissionContext = createContext<PermissionContextType | undefined>(
   undefined,
 );
 
+// A corrupted/partial value here (e.g. a browser extension, a crashed write,
+// or a race between tabs) would otherwise throw synchronously during the
+// very first render of PermissionProvider — which wraps the whole app and
+// has no error boundary above it — permanently blanking #root. Falling back
+// to `fallback` and dropping the bad key lets the app mount instead of
+// getting stuck forever.
+const readCachedJson = <T,>(key: string, fallback: T): T => {
+  const cached = localStorage.getItem(key);
+  if (!cached) return fallback;
+  try {
+    return JSON.parse(cached);
+  } catch {
+    localStorage.removeItem(key);
+    return fallback;
+  }
+};
+
 export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
-  const [user, setUser] = useState<User | null>(() => {
-    const cached = localStorage.getItem("crm_user");
-    return cached ? JSON.parse(cached) : null;
-  });
+  const [user, setUser] = useState<User | null>(() => readCachedJson("crm_user", null));
   const [permissions, setPermissions] = useState<
     Record<string, Record<string, boolean>>
-  >(() => {
-    const cached = localStorage.getItem("crm_permissions");
-    return cached ? JSON.parse(cached) : {};
-  });
-  const [planModules, setPlanModules] = useState<Record<string, boolean> | null>(() => {
-    const cached = localStorage.getItem("crm_plan_modules");
-    return cached ? JSON.parse(cached) : null;
-  });
+  >(() => readCachedJson("crm_permissions", {}));
+  const [planModules, setPlanModules] = useState<Record<string, boolean> | null>(
+    () => readCachedJson("crm_plan_modules", null)
+  );
   const [loading, setLoading] = useState(true);
 
   const syncPermissions = async () => {
+    // No token yet (e.g. on the public login page) — nothing to sync, and
+    // calling /auth/me here would just be a guaranteed 401.
+    if (!localStorage.getItem("crm_token")) {
+      setLoading(false);
+      return;
+    }
+
     // Only set loading if we don't have cached data to show
     if (!user) setLoading(true);
 
@@ -162,7 +182,6 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
   };
 
   const isModuleEnabled = (moduleKey: string): boolean => {
-    if (moduleKey === "hrms") return true;
     if (!planModules) return true; // no plan restriction → show everything
     return planModules[moduleKey] !== false;
   };

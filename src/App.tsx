@@ -5,9 +5,11 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PermissionProvider, usePermissionContext } from "@/context/PermissionContext";
+import { getLandingPath } from "@/lib/landingPath";
 import { Loader2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import Login from "./pages/Login";
+import LandingPage from "./pages/LandingPage";
 import StaffLogin from "./pages/staff/StaffLogin";
 import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
@@ -20,6 +22,8 @@ import Invoices from "./pages/Invoices";
 import Contacts from "./pages/Contacts";
 import Expenses from "./pages/Expenses";
 import Purchases from "./pages/Purchases";
+import Vendors from "./pages/Vendors";
+import VendorView from "./pages/VendorView";
 import ExpenseCreate from "./pages/ExpenseCreate";
 
 import Profile from "./pages/Profile";
@@ -29,6 +33,10 @@ import TicketCreate from "./pages/TicketCreate";
 import TicketView from "./pages/TicketView";
 import Calendar from "./pages/Calendar";
 import Leads from "./pages/Leads";
+import LeadView from "./pages/LeadView";
+import CallingAgent from "./pages/CallingAgent";
+import WebsiteForms from "./pages/WebsiteForms";
+import WhatsAppMarketing from "./pages/WhatsAppMarketing";
 import Subscriptions from "./pages/Subscriptions";
 import SubscriptionCreate from "./pages/SubscriptionCreate";
 import SubscriptionWebsite from "./pages/SubscriptionWebsite";
@@ -59,7 +67,7 @@ import GoalCreate from "./pages/GoalCreate";
 import Meetings from "./pages/Meetings";
 import MeetingRoom from "./pages/MeetingRoom";
 import Bookmarks from "./pages/Bookmarks";
-import { ReportSales, ReportExpenses, ReportExpensesVsIncome, ReportLeads, ReportTimesheets, ReportKBArticles } from "./pages/ReportPages";
+import { ReportSales, ReportExpenses, ReportExpensesVsIncome, ReportLeads, ReportTimesheets, ReportKBArticles, ReportPurchase } from "./pages/ReportPages";
 import CustomerView from "./pages/CustomerView";
 import InvoiceCreate from "./pages/InvoiceCreate";
 import QuotationModule from "./pages/quotations/QuotationModule";
@@ -83,6 +91,7 @@ import SetupTaxRates from "./pages/setup/SetupTaxRates";
 import SetupCurrencies from "./pages/setup/SetupCurrencies";
 import SetupPaymentModes from "./pages/setup/SetupPaymentModes";
 import SetupExpensesCategories from "./pages/setup/SetupExpensesCategories";
+import SetupBankDetails from "./pages/setup/SetupBankDetails";
 import SetupContractTypes from "./pages/setup/SetupContractTypes";
 import SetupEstimateRequestFormFields from "./pages/setup/SetupEstimateRequestFormFields";
 import SetupEstimateStatus from "./pages/setup/SetupEstimateStatus";
@@ -127,19 +136,19 @@ import { HRMSEntry } from "./hrms/HRMSEntry";
 
 // Admin Route Protection
 const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isAdmin, loading } = usePermissionContext();
+  const { user, isAdmin, isStaff, permissions, loading } = usePermissionContext();
   if (loading) return null;
   if (!user) return <Navigate to="/admin/login" replace />;
-  if (!isAdmin && !user.is_superadmin) return <Navigate to="/staff/dashboard" replace />;
+  if (!isAdmin && !user.is_superadmin) return <Navigate to={getLandingPath(user, permissions, isStaff)} replace />;
   return <>{children}</>;
 };
 
 // Staff Route Protection
 const StaffProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isStaff, loading } = usePermissionContext();
+  const { user, isStaff, permissions, loading } = usePermissionContext();
   if (loading) return null;
   if (!user) return <Navigate to="/staff/login" replace />;
-  if (!isStaff) return <Navigate to="/admin/dashboard" replace />;
+  if (!isStaff) return <Navigate to={getLandingPath(user, permissions, false)} replace />;
   return <>{children}</>;
 };
 
@@ -161,31 +170,36 @@ const SuperAdminProtectedRoute = ({ children }: { children: React.ReactNode }) =
   return <>{children}</>;
 };
 
-// Redirect already-logged-in users away from the login pages
+// Login pages are always shown, even with a cached session — a stale session
+// must never let someone in without submitting valid credentials for the
+// account they typed. AlreadyLoggedInBanner (rendered by the login pages
+// themselves) gives an already-logged-in user an explicit way to continue
+// to their dashboard or log out, instead of silently bouncing them there.
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, loading, isStaff } = usePermissionContext();
+  const { loading } = usePermissionContext();
   if (loading) return null;
-  if (user) {
-    if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
-    if (isStaff) return <Navigate to="/staff/dashboard" replace />;
-    return <Navigate to="/admin/dashboard" replace />;
-  }
   return <>{children}</>;
 };
+
+// Dedicated/white-labeled instances (no self-service signup) — visitors
+// should land on login, never the generic Fuerte CRM pricing/signup page.
+// "localhost"/"127.0.0.1" included so this is testable from a local dev
+// server too — remove before deploying if you need to see the signup page locally.
+const isWhiteLabelHost = () =>
+  ["rudraverse.trinetratechnoworld.com", "crm.beontimeofficial.com", "localhost", "127.0.0.1"].includes(
+    window.location.hostname
+  );
 
 // Smart root: checks who is logged in and sends them to the right place
 //  - Admin logged in  → /admin/dashboard
 //  - Client logged in → /dashboard (client dashboard)
 //  - Nobody           → /admin/login
 const SmartRoot = () => {
-  const { user, loading } = usePermissionContext();
+  const { user, permissions, isStaff, loading } = usePermissionContext();
   if (loading) return null; // wait for admin session check
 
-  const { isStaff } = usePermissionContext();
   if (user) {
-    if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
-    if (isStaff) return <Navigate to="/staff/dashboard" replace />;
-    return <Navigate to="/admin/dashboard" replace />;
+    return <Navigate to={getLandingPath(user, permissions, isStaff)} replace />;
   }
 
   const clientSession = localStorage.getItem("crm_client");
@@ -194,8 +208,12 @@ const SmartRoot = () => {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Nobody is logged in — go to Admin login
-  return <Navigate to="/admin/login" replace />;
+  if (isWhiteLabelHost()) {
+    return <Navigate to="/admin/login" replace />;
+  }
+
+  // Nobody is logged in — show the public landing page (pricing + signup)
+  return <Navigate to="/welcome" replace />;
 };
 
 
@@ -215,6 +233,8 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="invoices/edit/:id" element={<Wrapper><InvoiceCreate /></Wrapper>} />
     <Route path="quotations" element={<Wrapper><QuotationModule /></Wrapper>} />
     <Route path="purchases" element={<Wrapper><Purchases /></Wrapper>} />
+    <Route path="vendors" element={<Wrapper><Vendors /></Wrapper>} />
+    <Route path="vendors/:id" element={<Wrapper><VendorView /></Wrapper>} />
     <Route path="expenses" element={<Wrapper><Expenses /></Wrapper>} />
     <Route path="expenses/create" element={<Wrapper><ExpenseCreate /></Wrapper>} />
     <Route path="expenses/edit/:id" element={<Wrapper><ExpenseCreate /></Wrapper>} />
@@ -223,6 +243,10 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="ticket-pipe-log" element={<Wrapper><TicketPipeLog /></Wrapper>} />
     <Route path="calendar" element={<Wrapper><Calendar /></Wrapper>} />
     <Route path="leads" element={<Wrapper><Leads /></Wrapper>} />
+    <Route path="leads/:id" element={<Wrapper><LeadView /></Wrapper>} />
+    <Route path="calling-agent" element={<Wrapper><CallingAgent /></Wrapper>} />
+    <Route path="website-forms" element={<Wrapper><WebsiteForms /></Wrapper>} />
+    <Route path="whatsapp" element={<Wrapper><WhatsAppMarketing /></Wrapper>} />
     <Route path="subscriptions" element={<Wrapper><Subscriptions /></Wrapper>} />
     <Route path="subscriptions/create" element={<Wrapper><SubscriptionCreate /></Wrapper>} />
     <Route path="subscriptions/create/:clientId" element={<Wrapper><SubscriptionCreate /></Wrapper>} />
@@ -268,6 +292,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="reports/sales" element={<Wrapper><ReportSales /></Wrapper>} />
     <Route path="reports/expenses" element={<Wrapper><ReportExpenses /></Wrapper>} />
     <Route path="reports/expenses-vs-income" element={<Wrapper><ReportExpensesVsIncome /></Wrapper>} />
+    <Route path="reports/purchase" element={<Wrapper><ReportPurchase /></Wrapper>} />
     <Route path="reports/leads" element={<Wrapper><ReportLeads /></Wrapper>} />
     <Route path="reports/timesheets" element={<Wrapper><ReportTimesheets /></Wrapper>} />
     <Route path="reports/kb-articles" element={<Wrapper><ReportKBArticles /></Wrapper>} />
@@ -290,6 +315,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="setup/finance/currencies" element={<Wrapper><SetupCurrencies /></Wrapper>} />
     <Route path="setup/finance/payment-modes" element={<Wrapper><SetupPaymentModes /></Wrapper>} />
     <Route path="setup/finance/expense-categories" element={<Wrapper><SetupExpensesCategories /></Wrapper>} />
+    <Route path="setup/finance/bank-details" element={<Wrapper><SetupBankDetails /></Wrapper>} />
     <Route path="setup/contracts/contract-types" element={<Wrapper><SetupContractTypes /></Wrapper>} />
     <Route path="setup/estimate-request/statuses" element={<Wrapper><SetupEstimateStatus /></Wrapper>} />
     <Route path="setup/estimate-request/forms" element={<Wrapper><SetupEstimateRequestForms /></Wrapper>} />
@@ -381,10 +407,17 @@ const MainApp = () => {
   }
 
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Routes>
         {/* Root → smart redirect based on who is logged in */}
         <Route path="/" element={<SmartRoot />} />
+
+        {/* Public landing page — pricing plans + self-service signup.
+            Not shown on white-labeled instances (no self-signup). */}
+        <Route
+          path="/welcome"
+          element={isWhiteLabelHost() ? <Navigate to="/admin/login" replace /> : <LandingPage />}
+        />
 
         {/* Client Side Routes */}
         <Route path="/client/login" element={<ClientLogin />} />
