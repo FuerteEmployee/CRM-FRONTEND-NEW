@@ -52,13 +52,8 @@ export const staffService = {
     await apiClient.delete(`/users/${id}`);
   },
 
-  bulkImport: async (formData: FormData): Promise<{ message: string; data: any }> => {
+  bulkImport: async (formData: FormData): Promise<{ success: number; failed: number; errors: string[] }> => {
     const res = await apiClient.post("/import/bulk", formData);
-    return res.data;
-  },
-
-  importStaff: async (data: any[]): Promise<{ count: number; message: string }> => {
-    const res = await apiClient.post("/users/import", { staff: data });
     return res.data;
   },
 

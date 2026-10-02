@@ -94,6 +94,10 @@ export interface User {
   shiftId?: string;
   weeklyHolidays?: string[];
   attendanceExceptions?: string[];
+  hrmsBranchId?: any;
+  // Branches this staff member supervises — scopes their Staff Directory
+  // visibility to only these branches instead of the whole organization.
+  supervisorBranchIds?: string[];
 
   // Payroll Configuration
   salaryConfig?: {
@@ -103,7 +107,7 @@ export interface User {
     hra: { value: number; type: "amount" | "percent"; isIncluded: boolean };
     da: { value: number; type: "amount" | "percent"; isIncluded: boolean };
     conveyanceAllowance: { value: number; type: "amount" | "percent"; isIncluded: boolean };
-    pf: { value: number; type: "amount" | "percent"; isIncluded: boolean };
+    pf: { value: number; type: "amount" | "percent"; isIncluded: boolean; calcMode?: "fixed_monthly" | "per_day" };
     esic: { value: number; type: "amount" | "percent"; isIncluded: boolean };
     epf: { value: number; type: "amount" | "percent"; isIncluded: boolean };
     retention: { value: number; type: "amount" | "percent"; isIncluded: boolean };

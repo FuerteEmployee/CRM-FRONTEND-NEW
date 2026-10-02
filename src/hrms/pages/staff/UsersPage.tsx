@@ -43,6 +43,7 @@ import { shiftService, type Shift } from "@/hrms/services/shiftService";
 import { API_BASE_URL } from "@/hrms/services/apiClient";
 import { useNavigate, useLocation } from "react-router-dom";
 import { usePermission } from "@/hrms/hooks/usePermission";
+import { useAuth } from "@/hrms/contexts/AuthContext";
 import { toast } from "@/hrms/hooks/use-toast";
 import {
   AlertDialog,
@@ -90,7 +91,14 @@ const getFileUrl = (url?: string) => {
 export default function UsersPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { hasPermission } = usePermission();
+  const { hasPermission, isAdmin } = usePermission();
+  const { user: currentUser } = useAuth();
+  // Branch-wise supervisor scoping: a non-admin staff member with
+  // supervisorBranchIds set only sees staff belonging to those branches.
+  const supervisorBranchIds: string[] = useMemo(
+    () => (!isAdmin && currentUser?.supervisorBranchIds?.length) ? currentUser.supervisorBranchIds : [],
+    [isAdmin, currentUser?.supervisorBranchIds]
+  );
   const confirm = useConfirm();
   const [users, setUsers] = useState<User[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
@@ -186,7 +194,10 @@ export default function UsersPage() {
 
       const matchesStore = branchFilter === "all" || (u as any).hrmsBranchId === branchFilter;
 
-      return matchesSearch && matchesStore;
+      const userBranchId = (u as any).hrmsBranchId;
+      const matchesSupervisorScope = supervisorBranchIds.length === 0 || supervisorBranchIds.includes(userBranchId);
+
+      return matchesSearch && matchesStore && matchesSupervisorScope;
     });
 
     if (sortConfig) {
@@ -200,7 +211,7 @@ export default function UsersPage() {
     }
 
     return result;
-  }, [users, searchQuery, roleFilter, branchFilter, statusFilter, sortConfig]);
+  }, [users, searchQuery, roleFilter, branchFilter, statusFilter, sortConfig, supervisorBranchIds]);
 
   const requestSort = (key: string) => {
     let direction: "asc" | "desc" = "asc";
@@ -294,6 +305,7 @@ export default function UsersPage() {
   const [excelHeaders, setExcelHeaders] = useState<string[]>([]);
   const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
 
   const SYSTEM_FIELDS = [
     { key: "employeeCode", label: "Employee Code", default: "Code*" },
@@ -339,6 +351,7 @@ export default function UsersPage() {
           if (match) initialMapping[field.key] = match;
         });
         setFieldMapping(initialMapping);
+        setImportResult(null);
         setIsMappingOpen(true);
       } catch (err) {
         toast({ title: "Error", description: "Failed to parse Excel file", variant: "destructive" });
@@ -347,29 +360,34 @@ export default function UsersPage() {
     reader.readAsBinaryString(file);
   };
 
+  // The backend's bulk-import endpoint (import_employees_controller.js) reads
+  // the branch column under the system key "storeId", not "hrmsBranchId" —
+  // translate just that one key when building the mapping payload it expects.
+  const FRONTEND_TO_BACKEND_FIELD_KEY: Record<string, string> = {
+    hrmsBranchId: "storeId",
+  };
+
   const handleImport = async () => {
     if (!pendingFile) return;
     setIsLoading(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (evt) => {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: "binary" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rawData: any[] = XLSX.utils.sheet_to_json(ws);
-        const mappedData = rawData.map(row => {
-          const entry: any = {};
-          Object.entries(fieldMapping).forEach(([sysKey, excelKey]) => {
-            entry[sysKey] = row[excelKey];
-          });
-          return entry;
-        });
-        const res = await staffService.importStaff(mappedData);
-        toast({ title: "Import Successful", description: `${res.count} staff members added.` });
-        setIsMappingOpen(false);
-        fetchAllData();
-      };
-      reader.readAsBinaryString(pendingFile);
+      const backendMapping: Record<string, string> = {};
+      Object.entries(fieldMapping).forEach(([sysKey, excelKey]) => {
+        backendMapping[FRONTEND_TO_BACKEND_FIELD_KEY[sysKey] || sysKey] = excelKey;
+      });
+
+      const formData = new FormData();
+      formData.append("file", pendingFile);
+      formData.append("mapping", JSON.stringify(backendMapping));
+
+      const result = await staffService.bulkImport(formData);
+      toast({ title: "Import Complete", description: `${result.success} staff added, ${result.failed} failed.` });
+      setImportResult(result);
+      // Keep the dialog open when something failed so the per-row reasons
+      // (e.g. "email already exists") are visible — only auto-close on a
+      // clean, fully-successful import.
+      if (!result.failed) setIsMappingOpen(false);
+      fetchAllData();
     } catch (err: any) {
       toast({ title: "Import Failed", description: err.message, variant: "destructive" });
     } finally {
@@ -389,14 +407,12 @@ export default function UsersPage() {
           <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={exportToExcel}>
             <Download className="h-3.5 w-3.5" /> Export
           </Button>
-          {/* Import Excel hidden — endpoint not available
           <div className="relative">
             <input type="file" id="import-excel" className="hidden" accept=".xlsx, .xls" onChange={handleFileSelect} />
             <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={() => document.getElementById('import-excel')?.click()}>
-              <FileSpreadsheet className="h-3.5 w-3.5" /> Import Excel
+              <FileSpreadsheet className="h-3.5 w-3.5" /> Bulk Add (Excel)
             </Button>
           </div>
-          */}
           {/* Staff are created only via Setup > Staff (main CRM) — no create
               entry point here, this directory only views/edits/deletes them. */}
         </div>
@@ -605,6 +621,22 @@ export default function UsersPage() {
                 </div>
               ))}
             </div>
+
+            {importResult && (
+              <div className="space-y-2 rounded-md border border-slate-200 p-3 bg-slate-50">
+                <p className="text-xs font-bold text-slate-700">
+                  {importResult.success} succeeded, {importResult.failed} failed
+                </p>
+                {importResult.errors.length > 0 && (
+                  <div className="max-h-[120px] overflow-y-auto space-y-1 pr-2">
+                    {importResult.errors.map((err, idx) => (
+                      <p key={idx} className="text-[11px] text-rose-600 font-medium">{err}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
               <Button variant="ghost" onClick={() => setIsMappingOpen(false)} className="rounded-md font-semibold">Cancel</Button>
               <Button onClick={handleImport} disabled={isLoading} className="rounded-md gradient-primary font-semibold shadow-sm px-8">Complete Import</Button>

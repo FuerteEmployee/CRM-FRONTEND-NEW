@@ -274,6 +274,10 @@ const staffSchema = z.object({
   // Employment
   role: z.string().optional(),
   hrmsBranchId: z.string().optional(),
+  // Branches this staff member supervises (scopes their visibility of the
+  // staff directory to only these branches instead of the full org) —
+  // separate from hrmsBranchId, which is the branch they themselves belong to.
+  supervisorBranchIds: z.array(z.string()).default([]),
   department: z.string().optional(),
   employmentType: z.string().optional(),
   payType: z.string().optional(),
@@ -329,6 +333,7 @@ const staffSchema = z.object({
       value: z.coerce.number().min(0, "Value cannot be negative").default(0),
       type: z.enum(["amount", "percent"]).default("amount"),
       isIncluded: z.boolean().default(true),
+      calcMode: z.enum(["fixed_monthly", "per_day"]).default("fixed_monthly"),
     }).optional(),
     esic: z.object({
       value: z.coerce.number().min(0, "Value cannot be negative").default(0),
@@ -439,6 +444,7 @@ export default function StaffFormPage() {
       legalDocuments: { panNumber: "", panUrl: "", aadhaarNumber: "", aadhaarUrl: "", passportPhotoUrl: "" },
       role: "",
       hrmsBranchId: "",
+      supervisorBranchIds: [],
       department: "",
       designation: "",
       employmentType: "permanent",
@@ -468,7 +474,7 @@ export default function StaffFormPage() {
         hra: { value: 0, type: "amount", isIncluded: true },
         da: { value: 0, type: "amount", isIncluded: true },
         conveyanceAllowance: { value: 0, type: "amount", isIncluded: true },
-        pf: { value: 0, type: "amount", isIncluded: true },
+        pf: { value: 0, type: "amount", isIncluded: true, calcMode: "fixed_monthly" },
         esic: { value: 0, type: "amount", isIncluded: true },
         epf: { value: 0, type: "amount", isIncluded: true },
         retention: { value: 0, type: "amount", isIncluded: true },
@@ -580,6 +586,9 @@ export default function StaffFormPage() {
               hrmsBranchId: ((user as any).hrmsBranchId && typeof (user as any).hrmsBranchId === "object")
                 ? ((user as any).hrmsBranchId._id || (user as any).hrmsBranchId.id || "")
                 : ((user as any).hrmsBranchId as string || ""),
+              supervisorBranchIds: Array.isArray((user as any).supervisorBranchIds)
+                ? (user as any).supervisorBranchIds.map((b: any) => (b && typeof b === "object") ? (b._id || b.id) : b)
+                : [],
               department: (user.department && typeof user.department === "object") ? ((user.department as any)._id || (user.department as any).id) : (user.department as string || ""),
               designation: (user.designation && typeof user.designation === "object") ? ((user.designation as any)._id || (user.designation as any).id) : (user.designation as string || ""),
               shiftId: (user.shiftId && typeof user.shiftId === "object") ? ((user.shiftId as any)._id || (user.shiftId as any).id) : (user.shiftId as string || ""),
@@ -655,7 +664,7 @@ export default function StaffFormPage() {
                 hra: user.salaryConfig?.hra || { value: 0, type: "amount", isIncluded: true },
                 da: user.salaryConfig?.da || { value: 0, type: "amount", isIncluded: true },
                 conveyanceAllowance: user.salaryConfig?.conveyanceAllowance || { value: 0, type: "amount", isIncluded: true },
-                pf: user.salaryConfig?.pf || { value: 0, type: "amount", isIncluded: true },
+                pf: { value: 0, type: "amount", isIncluded: true, calcMode: "fixed_monthly", ...(user.salaryConfig?.pf || {}) },
                 esic: user.salaryConfig?.esic || { value: 0, type: "amount", isIncluded: true },
                 epf: user.salaryConfig?.epf || { value: 0, type: "amount", isIncluded: true },
                 retention: user.salaryConfig?.retention || { value: 0, type: "amount", isIncluded: true },
@@ -1227,6 +1236,36 @@ export default function StaffFormPage() {
                       )} />
                     </div>
 
+                    <div className="space-y-3">
+                      <Label className={labelClass}>Supervisor For Branches</Label>
+                      <p className="text-[11px] text-slate-500">If set, this staff member only sees staff/data for the selected branches in the Staff Directory (branch-wise supervisor scoping), instead of the whole organization.</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {branches.map((b) => (
+                          <FormField
+                            key={b._id || b.id}
+                            control={form.control}
+                            name="supervisorBranchIds"
+                            render={({ field }) => {
+                              const branchId = b._id || b.id;
+                              return (
+                                <FormItem className="flex items-center gap-2 space-y-0 p-2 rounded-md border border-slate-200 bg-white">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value?.includes(branchId)}
+                                      onCheckedChange={(checked) => {
+                                        const current = field.value || [];
+                                        field.onChange(checked ? [...current, branchId] : current.filter((id: string) => id !== branchId));
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <span className="text-xs font-medium text-slate-600">{b.name}</span>
+                                </FormItem>
+                              );
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
 
                     <div className="p-6 rounded-xl bg-slate-50 border border-slate-200 space-y-4">
                       <div className="flex items-center gap-3">
@@ -1412,10 +1451,39 @@ export default function StaffFormPage() {
                                 name="salaryConfig.pf.value"
                                 render={({ field }) => (
                                   <FormItem>
-                                    <FormLabel className="text-[11px] font-bold text-slate-500 uppercase">PF (Employee)</FormLabel>
+                                    <div className="flex items-center justify-between">
+                                      <FormLabel className="text-[11px] font-bold text-slate-500 uppercase">PF (Employee)</FormLabel>
+                                      <FormField
+                                        control={form.control}
+                                        name="salaryConfig.pf.isIncluded"
+                                        render={({ field: pfEnabledField }) => (
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-[10px] text-slate-400">{pfEnabledField.value ? "Yes" : "No"}</span>
+                                            <Switch checked={pfEnabledField.value} onCheckedChange={pfEnabledField.onChange} />
+                                          </div>
+                                        )}
+                                      />
+                                    </div>
                                     <FormControl>
-                                      <Input type="number" className={inputClass} {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
+                                      <Input type="number" className={inputClass} disabled={!form.watch("salaryConfig.pf.isIncluded")} {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
                                     </FormControl>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                              <FormField
+                                control={form.control}
+                                name="salaryConfig.pf.calcMode"
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel className="text-[11px] font-bold text-slate-500 uppercase">PF Calculation</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value} disabled={!form.watch("salaryConfig.pf.isIncluded")}>
+                                      <FormControl><SelectTrigger className={inputClass}><SelectValue placeholder="Select Mode" /></SelectTrigger></FormControl>
+                                      <SelectContent className="rounded-md">
+                                        <SelectItem value="fixed_monthly">Fixed Monthly</SelectItem>
+                                        <SelectItem value="per_day">Per Day</SelectItem>
+                                      </SelectContent>
+                                    </Select>
                                     <FormMessage />
                                   </FormItem>
                                 )}
