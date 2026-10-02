@@ -7,6 +7,7 @@ import { usePermissionContext } from "@/context/PermissionContext";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
 import { assistantService } from "@/api/services/assistant.service";
+import { logVoiceEvent, voiceLogMeta } from "@/lib/voiceLog";
 import { speak, stopSpeaking, isVoiceReplyEnabled, setVoiceReplyEnabled, speechSupported } from "@/lib/speak";
 
 // Wake phrase is English ("Hey CRM") instead of the Spanish brand name
@@ -243,6 +244,7 @@ useEffect(() => {
     if (speechErrorRef.current === code) return; // already shown
     speechErrorRef.current = code;
     setSpeechError(code);
+    logVoiceEvent("speech_error", { detail: code });
     toast({
       title: "Fuerte AI — voice not working",
       description: SPEECH_ERROR_MESSAGES[code] || `Speech recognition error: ${code}`,
@@ -283,6 +285,7 @@ useEffect(() => {
 // flip to false even though everything works fine on localhost.
 useEffect(() => {
   if (!isMicrophoneAvailable && aiStateRef.current !== "sleeping") {
+    logVoiceEvent("speech_error", { detail: "microphone-unavailable" });
     changeState("sleeping");
     setTooltip(false);
     resetTranscript();
@@ -305,6 +308,7 @@ useEffect(() => {
 useEffect(() => {
   if (!browserSupportsSpeechRecognition || !autoListen) return;
   if (!isSecureCtx) {
+    logVoiceEvent("speech_error", { detail: "insecure-context (page not on https)" });
     toast({
       title: "Fuerte AI",
       description: "Voice control needs a secure (https) connection. This page is loaded over plain http, so the browser won't allow microphone access here.",
@@ -354,6 +358,7 @@ const toggleListening = () => {
     consumedRef.current = 0;
     setTooltip(false);
     if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
+    logVoiceEvent("mic_off");
     toast({ title: "Fuerte AI", description: "Microphone off. AI is sleeping." });
   } else if (!isSecureCtx) {
     toast({
@@ -377,6 +382,7 @@ const toggleListening = () => {
     consumedRef.current = 0;
     SpeechRecognition.startListening({ continuous: true, language: "en-US" });
 
+    logVoiceEvent("mic_on");
     // Start directly in "awake" state when button is clicked manually
     changeState("awake");
     setTooltip(true);
@@ -385,6 +391,7 @@ const toggleListening = () => {
       changeState("listening");
       resetTranscript();
       consumedRef.current = 0;
+      logVoiceEvent("timeout");
       toast({ title: "Fuerte AI", description: "No command heard. Back to listening…" });
     }, 30000);
     toast({ title: "Fuerte AI", description: 'Awake! Say your command (e.g. "open Task")' });
@@ -397,13 +404,13 @@ const matchCommand = resolveCommand;
 // ─── Claude fallback — anything the local keyword matcher can't resolve ───
 // (free-form questions, "show me overdue invoices from Acme", "create a task
 // to call John tomorrow", etc.) Runs server-side against real CRM data.
-const askFuerteAI = async (text: string) => {
+const askFuerteAI = async (text: string, source: "voice" | "typed" = "voice") => {
   if (!text || !text.trim()) return;
   setIsThinking(true);
   setChatMessages((prev) => [...prev, { role: "user", text }]);
   try {
     // Conversation context lives server-side per user (Phase 6)
-    const result = await assistantService.chat(text);
+    const result = await assistantService.chat(text, voiceLogMeta(source));
 
     if (result?.navigateTo) {
       if (!canAccessRoute(result.navigateTo)) {
@@ -444,6 +451,7 @@ const handleTranscript = (cmd: string) => {
     // Extract anything said AFTER the wake word in the same utterance
     const afterWake = wakeCmd.slice(wakeCmd.indexOf(wakeWord) + wakeWord.length).trim();
 
+    logVoiceEvent("wake", { heard: wakeCmd });
     changeState("awake");
     setTooltip(true); // pop the panel open so the wake is visible, not just a toast
     // Mark consumed WITHOUT calling resetTranscript() — that would abort/restart
@@ -458,11 +466,13 @@ const handleTranscript = (cmd: string) => {
       const match = matchCommand(afterWake);
       if (match) {
         if (!canAccessRoute(match.route)) {
+          logVoiceEvent("no_access", { heard: afterWake, result: match.label });
           toast({ title: "Fuerte AI", description: `You don't have access to ${match.label}.`, variant: "destructive" });
           speakReply(`You don't have access to ${match.label}.`);
           changeState("listening");
           return;
         }
+        logVoiceEvent("command", { heard: afterWake, result: match.label });
         toast({ title: "Fuerte AI", description: `Opening ${match.label}…` });
         speakReply(`Opening ${match.label}`);
         if (match.section) {
@@ -482,6 +492,7 @@ const handleTranscript = (cmd: string) => {
       changeState("listening");
       resetTranscript();
       consumedRef.current = 0;
+      logVoiceEvent("timeout");
       toast({ title: "Fuerte AI", description: "No command heard. Back to listening…" });
     }, 30000);
     toast({ title: "Fuerte AI", description: 'Listening for your command… (e.g. "open Task")' });
@@ -495,6 +506,7 @@ const handleTranscript = (cmd: string) => {
   const match = matchCommand(cmd);
   if (match) {
     if (!canAccessRoute(match.route)) {
+      logVoiceEvent("no_access", { heard: cmd, result: match.label });
       toast({ title: "Fuerte AI", description: `You don't have access to ${match.label}.`, variant: "destructive" });
       speakReply(`You don't have access to ${match.label}.`);
       changeState("listening");
@@ -504,6 +516,7 @@ const handleTranscript = (cmd: string) => {
       if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
       return;
     }
+    logVoiceEvent("command", { heard: cmd, result: match.label });
     toast({ title: "Fuerte AI", description: `Opening ${match.label}…` });
     speakReply(`Opening ${match.label}`);
     if (match.section) {
@@ -534,6 +547,7 @@ const handleTranscript = (cmd: string) => {
     if (heard) {
       askFuerteAI(heard);
     } else {
+      logVoiceEvent("timeout");
       toast({ title: "Fuerte AI", description: "No command heard. Back to listening…" });
     }
   }, 3000);
@@ -703,7 +717,7 @@ return (
             const text = typedCommand.trim();
             if (!text) return;
             setTypedCommand("");
-            askFuerteAI(text);
+            askFuerteAI(text, "typed");
           }}
           className="flex items-center gap-2 mb-3"
         >

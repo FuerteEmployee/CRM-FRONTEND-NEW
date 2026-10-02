@@ -43,6 +43,7 @@ import {
   ArrowLeft,
   Bookmark,
   Menu,
+  AudioLines,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -196,6 +197,7 @@ const setupMenuItems = [
     permission: "Staff Roles",
   },
   { title: "Theme Style", url: "/admin/setup/theme", icon: Palette },
+  { title: "FuerteAI Logs", url: "/admin/setup/fuerte-ai-logs", icon: AudioLines },
   {
     title: "Settings",
     url: "/admin/setup/settings",

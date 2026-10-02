@@ -105,6 +105,7 @@ import SetupCustomFields from "./pages/setup/SetupCustomFields";
 import SetupGDPR from "./pages/setup/SetupGDPR";
 import SetupRoles from "./pages/setup/SetupRoles";
 import SetupThemeStyle from "./pages/setup/SetupThemeStyle";
+import SetupFuerteAILogs from "./pages/setup/SetupFuerteAILogs";
 import SetupSettings from "./pages/setup/SetupSettings";
 import SetupHelp from "./pages/setup/SetupHelp";
 import SetupStaffForm from "./pages/setup/SetupStaffForm";
@@ -330,6 +331,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="setup/gdpr" element={<Wrapper><SetupGDPR /></Wrapper>} />
     <Route path="setup/roles" element={<Wrapper><SetupRoles /></Wrapper>} />
     <Route path="setup/theme" element={<Wrapper><SetupThemeStyle /></Wrapper>} />
+    <Route path="setup/fuerte-ai-logs" element={<Wrapper><SetupFuerteAILogs /></Wrapper>} />
     <Route path="setup/settings" element={<Wrapper><SetupSettings /></Wrapper>} />
     <Route path="setup/help" element={<Wrapper><SetupHelp /></Wrapper>} />
     <Route path="setup/mainsidebar" element={<Wrapper><SetupMainSidebar /></Wrapper>} />

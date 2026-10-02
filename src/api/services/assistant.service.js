@@ -2,8 +2,13 @@ import { apiClient } from "../client";
 
 class AssistantService {
   // History is kept server-side per user (Phase 6) — only the message is sent.
-  async chat(message) {
-    return apiClient.post("/assistant/chat", { message });
+  // `log` = { source, page, browser, session_id } for Setup → FuerteAI Logs.
+  async chat(message, log) {
+    return apiClient.post("/assistant/chat", { message, ...(log ? { log } : {}) });
+  }
+
+  async getVoiceLogs(params) {
+    return apiClient.get("/assistant/voice-logs", { params });
   }
 
   async getHistory() {
