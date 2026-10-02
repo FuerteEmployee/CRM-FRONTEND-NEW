@@ -1,10 +1,11 @@
 import { apiClient } from "../client";
+import { setTokens } from "@/lib/session";
 
 export const authService = {
   login: async (data) => {
     const response = await apiClient.post("/auth/login", data);
     if (response.token) {
-      localStorage.setItem("crm_token", response.token);
+      setTokens(response.token, response.refreshToken);
     }
     return response;
   },
@@ -12,7 +13,7 @@ export const authService = {
   verify2FA: async (data) => {
     const response = await apiClient.post("/auth/verify-2fa", data);
     if (response.token) {
-      localStorage.setItem("crm_token", response.token);
+      setTokens(response.token, response.refreshToken);
     }
     return response;
   },

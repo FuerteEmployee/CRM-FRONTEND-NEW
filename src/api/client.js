@@ -1,9 +1,30 @@
+import {
+  getAccessToken,
+  getRefreshToken,
+  isTokenExpired,
+  refreshAccessToken,
+  handleSessionExpired,
+} from "@/lib/session";
+
 const BASE_URL = import.meta.env.VITE_API_URL;
 
+// Endpoints where a 401 means "wrong credentials", not "session expired".
+const AUTH_ENDPOINTS = ["/auth/login", "/auth/verify-2fa", "/auth/refresh", "/auth/logout"];
+
 class ApiClient {
-  async request(endpoint, options = {}) {
+  async request(endpoint, options = {}, _retried = false) {
     const isFormData = options.body && typeof options.body.append === 'function';
-    const token = localStorage.getItem("crm_token");
+    const isAuthEndpoint = AUTH_ENDPOINTS.some((p) => endpoint.startsWith(p));
+
+    // Pre-flight: renew a token that is expired / about to expire before using it.
+    if (!isAuthEndpoint && !_retried) {
+      const current = getAccessToken();
+      if (current && isTokenExpired(current) && getRefreshToken()) {
+        await refreshAccessToken();
+      }
+    }
+
+    const token = getAccessToken();
     const userStr = localStorage.getItem("crm_user");
     const currentUser = userStr ? JSON.parse(userStr) : null;
     const headers = {
@@ -26,10 +47,29 @@ class ApiClient {
       credentials: "include",
     });
 
+    // Expired / invalid token: renew once and replay the request; if that fails,
+    // clear the session and show the "session expired" page instead of leaving
+    // the user on a blank screen.
+    if (response.status === 401 && !isAuthEndpoint) {
+      if (!_retried && getRefreshToken() && (await refreshAccessToken())) {
+        return this.request(endpoint, options, true);
+      }
+      if (token || getRefreshToken()) handleSessionExpired();
+    }
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       const error = new Error(errorData.message || `HTTP error! status: ${response.status}`);
-      error.response = { ...response, data: errorData };
+      // NB: spreading a fetch Response does NOT copy `status`/`statusText` (they
+      // are prototype getters), which made every status check downstream
+      // (`error.response.status === 401`, `>= 500`, ...) silently false.
+      error.response = {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+        data: errorData,
+      };
+      error.status = response.status;
       throw error;
     }
 
@@ -73,6 +113,10 @@ class ApiClient {
       // connected yet" during cold start) so React Query sees a real failure and
       // retries once the DB is up, instead of caching an empty [] forever.
       if (status >= 500) throw error;
+      // Other 4xx (400/422/etc.) are real failures too — returning [] made a
+      // failed request look like "no data" (blank lists). Only a plain 404
+      // ("nothing here") is treated as empty.
+      if (status && status !== 404) throw error;
       return [];
     }
   }

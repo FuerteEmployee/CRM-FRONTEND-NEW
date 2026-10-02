@@ -109,6 +109,7 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
         setPermissions({});
         setPlanModules(null);
         localStorage.removeItem("crm_token");
+        localStorage.removeItem("crm_refresh_token");
         localStorage.removeItem("crm_user");
         localStorage.removeItem("crm_permissions");
         localStorage.removeItem("crm_plan_modules");
@@ -174,6 +175,7 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
       setPermissions({});
       setPlanModules(null);
       localStorage.removeItem("crm_token");
+      localStorage.removeItem("crm_refresh_token");
       localStorage.removeItem("crm_user");
       localStorage.removeItem("crm_permissions");
       localStorage.removeItem("crm_plan_modules");

@@ -73,6 +73,7 @@ import InvoiceCreate from "./pages/InvoiceCreate";
 import QuotationModule from "./pages/quotations/QuotationModule";
 import FAQ from "./pages/FAQ";
 import NotFound from "./pages/NotFound";
+import SessionExpired from "./pages/SessionExpired";
 import Setup from "./pages/Setup";
 // Setup sub-pages
 import SetupStaff from "./pages/setup/SetupStaff";
@@ -469,6 +470,7 @@ const MainApp = () => {
         <Route path="/staff/hrms/*" element={<AuthProtectedRoute><HRMSEntry /></AuthProtectedRoute>} />
 
         <Route path="/forms/quote/:id" element={<PublicForm />} />
+        <Route path="/session-expired" element={<SessionExpired />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

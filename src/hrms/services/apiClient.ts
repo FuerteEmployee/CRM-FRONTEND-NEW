@@ -1,4 +1,5 @@
 import { toast } from "@/hrms/hooks/use-toast";
+import { getAccessToken, refreshAccessToken, handleSessionExpired, isTokenExpired } from "@/lib/session";
 
 export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5000/api";
 
@@ -11,12 +12,14 @@ interface FetchOptions extends RequestInit {
 }
 
 // ─── Token helpers ────────────────────────────────────────────────────────────
+// A CRM login keeps its tokens in crm_token / crm_refresh_token; the standalone
+// HRMS login keeps them in std_user. Both are supported, and a refreshed token
+// is always written back to whichever store it came from.
 
 export const getAuthToken = (): string | null => {
+  const crmToken = getAccessToken();
+  if (crmToken) return crmToken;
   try {
-    const crmToken = localStorage.getItem("crm_token");
-    if (crmToken) return crmToken;
-
     const userStr = localStorage.getItem("std_user");
     if (userStr) {
       const user = JSON.parse(userStr);
@@ -28,49 +31,26 @@ export const getAuthToken = (): string | null => {
   return null;
 };
 
-const updateStoredToken = (token: string) => {
+const updateStdUserToken = (token: string): boolean => {
   try {
     const userStr = localStorage.getItem("std_user");
-    if (userStr) {
-      const u = JSON.parse(userStr);
-      u.token = token;
-      localStorage.setItem("std_user", JSON.stringify(u));
-    }
-  } catch { /* ignore */ }
-};
-
-/** Decode JWT exp claim client-side (no signature verification needed). */
-const getTokenExpiry = (token: string): number | null => {
-  try {
-    const payload = token.split(".")[1];
-    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
-    return typeof decoded.exp === "number" ? decoded.exp : null;
+    if (!userStr) return false;
+    const u = JSON.parse(userStr);
+    u.token = token;
+    localStorage.setItem("std_user", JSON.stringify(u));
+    return true;
   } catch {
-    return null;
+    return false;
   }
-};
-
-/** True when the token is expired or within 60 seconds of expiring. */
-const isTokenExpired = (token: string): boolean => {
-  const exp = getTokenExpiry(token);
-  if (exp === null) return false;
-  return exp * 1000 < Date.now() + 60_000;
 };
 
 // ─── Refresh + logout ─────────────────────────────────────────────────────────
 
-let _loggingOut = false;
 const forceLogout = () => {
-  if (_loggingOut) return;
-  _loggingOut = true;
-  localStorage.removeItem("std_user");
-  localStorage.removeItem("crm_token");
-  toast({ title: "Session Expired", description: "Please log in again.", variant: "destructive" });
-  setTimeout(() => { window.location.href = "/login"; }, 1200);
+  handleSessionExpired();
 };
 
-// One shared promise so every concurrent request waits for the same refresh call
-// instead of each firing its own, which would rotate the refresh token multiple times.
+// One shared promise so every concurrent request waits for the same refresh call.
 let _refreshPromise: Promise<boolean> | null = null;
 
 const attemptRefresh = (): Promise<boolean> => {
@@ -78,6 +58,12 @@ const attemptRefresh = (): Promise<boolean> => {
 
   _refreshPromise = (async () => {
     try {
+      // CRM session → use the CRM refresh token.
+      if (getAccessToken()) {
+        return await refreshAccessToken();
+      }
+
+      // Standalone HRMS session → legacy /users/refresh using the std_user token.
       const currentToken = getAuthToken();
       if (!currentToken) return false;
 
@@ -85,15 +71,12 @@ const attemptRefresh = (): Promise<boolean> => {
         method: "POST",
         headers: { "Authorization": `Bearer ${currentToken}` },
       });
-
       if (!res.ok) return false;
 
       const data = await res.json();
-      if (data.token) {
-        updateStoredToken(data.token);
-        return true;
-      }
-      return false;
+      // Only report success if the new token was really stored — otherwise the
+      // caller would retry with the same stale token forever.
+      return !!(data.token && updateStdUserToken(data.token));
     } catch {
       return false;
     } finally {
@@ -106,12 +89,12 @@ const attemptRefresh = (): Promise<boolean> => {
 
 // ─── Core request ─────────────────────────────────────────────────────────────
 
-const _request = async (endpoint: string, method: HttpMethod, options: FetchOptions = {}): Promise<any> => {
+const _request = async (endpoint: string, method: HttpMethod, options: FetchOptions = {}, _retried = false): Promise<any> => {
   const { data, headers, ...rest } = options;
   let token = getAuthToken();
 
   // Pre-flight: if the token is expired, try to refresh silently before sending
-  if (token && isTokenExpired(token)) {
+  if (token && !_retried && isTokenExpired(token)) {
     const refreshed = await attemptRefresh();
     if (!refreshed) {
       forceLogout();
@@ -162,10 +145,11 @@ const _request = async (endpoint: string, method: HttpMethod, options: FetchOpti
 
   // 401 received from server — try refresh once, then retry the original request
   if (response.status === 401 && token) {
-    const refreshed = await attemptRefresh();
+    // Retry at most once — a second 401 means the session is really gone.
+    const refreshed = _retried ? false : await attemptRefresh();
     if (refreshed) {
       // Retry with the new access token (will re-read from localStorage)
-      return _request(endpoint, method, options);
+      return _request(endpoint, method, options, true);
     }
     forceLogout();
     throw new Error("Unauthorized");
