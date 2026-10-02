@@ -212,6 +212,59 @@ const changeState = (s: AIState) => {
   aiStateRef.current = s;
 };
 
+// ─── Speech engine errors ────────────────────────────────────────────────
+// react-speech-recognition swallows the browser's recognition errors, so a
+// blocked mic or an unreachable speech service (Chrome streams audio to
+// Google) used to look like "nothing happens". Listen on the native
+// recognition object and surface each distinct error once.
+const [speechError, setSpeechError] = useState<string | null>(null);
+const speechErrorRef = useRef<string | null>(null);
+// Last thing the mic actually recognised — kept after it's acted on so the
+// user can always see whether their voice is being picked up at all.
+const [lastHeard, setLastHeard] = useState("");
+
+const SPEECH_ERROR_MESSAGES: Record<string, string> = {
+  "not-allowed": "Microphone is blocked for this site. Click the lock icon in the address bar → Microphone → Allow, then reload.",
+  "service-not-allowed": "This browser doesn't allow speech recognition here. Use Google Chrome or Microsoft Edge on a computer.",
+  "audio-capture": "No working microphone found. Check that a mic is connected and selected in Windows Sound settings → Input.",
+  "network": "Can't reach the browser's speech service. Brave, VPNs, office firewalls or antivirus web filtering can block it — try plain Chrome or another network.",
+  "language-not-supported": "Speech language not supported by this browser.",
+};
+// Errors that won't fix themselves by retrying — stop the watchdog restart loop.
+const FATAL_SPEECH_ERRORS = ["not-allowed", "service-not-allowed", "audio-capture", "language-not-supported"];
+
+useEffect(() => {
+  const recognition: any = SpeechRecognition.getRecognition?.();
+  if (!recognition?.addEventListener) return;
+  const onError = (e: any) => {
+    const code: string = e?.error || "unknown";
+    // "no-speech" (silence) and "aborted" (our own stop/restart) are normal.
+    if (code === "no-speech" || code === "aborted") return;
+    if (speechErrorRef.current === code) return; // already shown
+    speechErrorRef.current = code;
+    setSpeechError(code);
+    toast({
+      title: "Fuerte AI — voice not working",
+      description: SPEECH_ERROR_MESSAGES[code] || `Speech recognition error: ${code}`,
+      variant: "destructive",
+    });
+  };
+  const onResult = () => {
+    // Speech is coming through — clear any earlier error.
+    if (speechErrorRef.current) {
+      speechErrorRef.current = null;
+      setSpeechError(null);
+    }
+  };
+  recognition.addEventListener("error", onError);
+  recognition.addEventListener("result", onResult);
+  return () => {
+    recognition.removeEventListener("error", onError);
+    recognition.removeEventListener("result", onResult);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
+
 // ─── Process transcript on every change ─────────────────────────────────
 // Only hand the NEW portion (since consumedRef) to the matcher — the mic
 // itself never gets restarted here, so it keeps listening straight through.
@@ -219,6 +272,7 @@ useEffect(() => {
   if (!transcript) return;
   const unread = transcript.slice(consumedRef.current);
   if (!unread.trim()) return;
+  setLastHeard(unread.trim());
   handleTranscript(unread.toLowerCase());
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [transcript]);
@@ -271,20 +325,28 @@ useEffect(() => {
   if (listening || isSpeaking) return;
   if (aiState === "sleeping") return;
   if (isMicrophoneAvailable === false) return;
+  // A blocked/missing mic won't recover by itself — don't spin restarting it.
+  if (speechError && FATAL_SPEECH_ERRORS.includes(speechError)) return;
+  // Back off on network errors instead of hammering the speech service.
+  const delay = speechError === "network" ? 5000 : 800;
   const t = setTimeout(() => {
     if (aiStateRef.current !== "sleeping") {
       SpeechRecognition.startListening({ continuous: true, language: "en-US" });
     }
-  }, 800);
+  }, delay);
   return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [listening, aiState, isSpeaking, isMicrophoneAvailable]);
+}, [listening, aiState, isSpeaking, isMicrophoneAvailable, speechError]);
 
 if (!browserSupportsSpeechRecognition) return null;
 
 // ─── FAB toggle ──────────────────────────────────────────────────────────
+// Keyed on aiState, not the raw `listening` flag: with hands-free on, the mic
+// is already running in "listening" (waiting for "Hey CRM"), and a click there
+// used to switch the mic OFF when the user meant "wake up". Now a click wakes
+// it; a second click while awake turns it off.
 const toggleListening = () => {
-  if (listening) {
+  if (aiState === "awake") {
     SpeechRecognition.stopListening();
     stopSpeaking();
     changeState("sleeping");
@@ -307,6 +369,10 @@ const toggleListening = () => {
     // permission in their browser's site settings. If it's still genuinely
     // blocked, the isMicrophoneAvailable effect below reacts and shows the
     // "blocked" toast once the failed attempt comes back.
+    // A manual click is a fresh attempt — the user may have just fixed the
+    // permission / mic, so let the engine retry and report again.
+    speechErrorRef.current = null;
+    setSpeechError(null);
     resetTranscript();
     consumedRef.current = 0;
     SpeechRecognition.startListening({ continuous: true, language: "en-US" });
@@ -569,7 +635,30 @@ return (
         </div>
 
         {/* Status */}
-        <p className="text-xs text-gray-500 mb-3">{statusLabel}</p>
+        <p className="text-xs text-gray-500 mb-2">{statusLabel}</p>
+
+        {/* Voice diagnostics — makes "nothing happens" visible: is the mic
+            engine actually running, what did it last hear, and did the
+            browser report an error. */}
+        <div className="mb-3 space-y-1 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2 text-[11px] leading-snug">
+          <p className="text-gray-500">
+            Mic:{" "}
+            <span className={listening ? "font-semibold text-green-600" : "font-semibold text-gray-500"}>
+              {listening ? "on — listening" : "not listening"}
+            </span>
+          </p>
+          <p className="text-gray-500">
+            Heard:{" "}
+            <span className="font-medium text-gray-700">
+              {lastHeard ? `"${lastHeard}"` : "nothing yet — try speaking"}
+            </span>
+          </p>
+          {speechError && (
+            <p className="font-medium text-red-600">
+              {SPEECH_ERROR_MESSAGES[speechError] || `Voice error: ${speechError}`}
+            </p>
+          )}
+        </div>
 
         {/* Chat thread — persisted per user on the server (Phase 6) */}
         {(chatMessages.length > 0 || isThinking) && (
@@ -655,7 +744,7 @@ return (
     {/* ── FAB button — CRM-styled pill that expands on hover ── */}
     <button
       onClick={toggleListening}
-      title={listening ? "Stop Fuerte AI" : "Start Fuerte AI"}
+      title={aiState === "awake" ? "Stop Fuerte AI" : "Wake Fuerte AI"}
       className="group relative"
     >
       {/* Soft ping ring while the mic is live */}
