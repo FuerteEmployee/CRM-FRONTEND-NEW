@@ -92,6 +92,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { computeReorderPayload } from "@/lib/sidebarReorder";
 import { toast } from "sonner";
 import { mainSidebarService } from "@/api/services/mainsidebar.service";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { quotationTypeService } from "@/api/services/quotationType.service";
 import { settingsService } from "@/api/services/settings.service";
 import * as Icons from "lucide-react";
@@ -362,6 +363,17 @@ export function AppSidebar() {
     queryFn: mainSidebarService.getSidebarItems,
   });
 
+  // Branch supervisors (non-admins listed on an HRMS branch) also get the HRMS
+  // management pages their role allows — the backend scopes those pages to
+  // their own branches (CRM-BACKEND/src/hrms/utils/branchScope.js).
+  const { data: branchScope } = useQuery({
+    queryKey: ["hrms-my-branch-scope", user?._id],
+    queryFn: hrmsbranchService.getMyScope,
+    enabled: !!user && !isAdmin,
+    staleTime: 5 * 60 * 1000,
+  });
+  const isBranchSupervisor = !!branchScope?.isSupervisor;
+
   // Dynamically admin-defined quotation types — each renders as its own
   // sidebar link under "Quotation Maker" (not nested under "Sales").
   const { data: quotationTypes = [] as any[] } = useQuery<any[]>({
@@ -460,8 +472,11 @@ export function AppSidebar() {
         item.title !== "My Advance Salary"
       );
     } else {
-      // Non-admins see "My ..." personal views, hide management items
-      filteredHrms = filteredHrms.filter(item => 
+      // Non-admins see "My ..." personal views, hide management items —
+      // except branch supervisors, who also see management items their role
+      // grants (canView is applied again when the group renders).
+      filteredHrms = filteredHrms.filter(item =>
+        (isBranchSupervisor && !!item.permission && canView(item.permission)) ||
         item.title.startsWith("My ") ||
         item.title === "My Attendance" ||
         item.title === "My Leaves" ||

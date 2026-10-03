@@ -228,7 +228,7 @@ const emptyHrmsProfile = () => ({
   salaryConfig: {
     basic: { value: 0 },
     hra: { value: 0 },
-    pf: { value: 0 },
+    pf: { value: 0, isIncluded: false, mode: "per_day" as "fixed_monthly" | "per_day" },
     esic: { value: 0 },
   },
   legalDocuments: { panNumber: "", aadhaarNumber: "" },
@@ -1642,14 +1642,45 @@ export default function SetupStaffForm() {
                           className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-[11px] font-bold text-slate-500 uppercase">PF (Employee)</label>
-                        <Input
-                          type="number"
-                          value={formData.salaryConfig.pf.value}
-                          onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, pf: { value: e.target.value } } })}
-                          className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
-                        />
+                      <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr] gap-4 p-3 rounded-md border border-slate-200 bg-slate-50/60">
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase">PF Applicable</label>
+                          <div className="flex items-center gap-2 h-10">
+                            <Switch
+                              checked={!!formData.salaryConfig.pf.isIncluded}
+                              onCheckedChange={(checked) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, pf: { ...formData.salaryConfig.pf, isIncluded: checked } } })}
+                            />
+                            <span className="text-sm text-slate-600">{formData.salaryConfig.pf.isIncluded ? "Yes" : "No"}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase">PF Calculation</label>
+                          <select
+                            value={formData.salaryConfig.pf.mode || "per_day"}
+                            disabled={!formData.salaryConfig.pf.isIncluded}
+                            onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, pf: { ...formData.salaryConfig.pf, mode: e.target.value as "fixed_monthly" | "per_day" } } })}
+                            className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-[#333333] disabled:opacity-50"
+                          >
+                            <option value="fixed_monthly">Fixed monthly</option>
+                            <option value="per_day">Per day</option>
+                          </select>
+                          <p className="text-[10px] text-slate-500">
+                            {formData.salaryConfig.pf.mode === "fixed_monthly"
+                              ? "Full amount every month, regardless of attendance."
+                              : "Scaled by payable days in the month."}
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-bold text-slate-500 uppercase">PF (Employee) / month</label>
+                          <Input
+                            type="number"
+                            value={formData.salaryConfig.pf.value}
+                            disabled={!formData.salaryConfig.pf.isIncluded}
+                            onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, pf: { ...formData.salaryConfig.pf, value: e.target.value } } })}
+                            className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
+                          />
+                          <p className="text-[10px] text-slate-500">Leave 0 to use 12% of Basic.</p>
+                        </div>
                       </div>
                       <div className="space-y-2">
                         <label className="text-[11px] font-bold text-slate-500 uppercase">ESIC</label>

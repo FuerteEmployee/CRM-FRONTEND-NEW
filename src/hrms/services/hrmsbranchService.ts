@@ -39,8 +39,21 @@ export interface HRMSBranch {
   radius?: number | string;
   radiusUnit?: "m" | "km";
   geoFenceEnabled?: boolean;
+  // Branch-wise supervisors (HRMS employee ids) — populated as {_id, name, email} on read.
+  supervisorIds?: ({ _id: string; name: string; email?: string } | string)[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+/** Extract the string IDs from a supervisorIds field (populated objects or raw strings) */
+export function getSupervisorIds(s: HRMSBranch["supervisorIds"]): string[] {
+  if (!Array.isArray(s)) return [];
+  return s.map((x) => (typeof x === "string" ? x : x._id)).filter(Boolean);
+}
+
+export interface MyBranchScope {
+  isSupervisor: boolean;
+  branches: { _id: string; name: string }[];
 }
 
 /** Extract the string ID from a branchType field (populated object or raw string) */
@@ -101,5 +114,15 @@ export const hrmsbranchService = {
 
   delete: async (id: string): Promise<any> => {
     return await apiClient.delete(`/hrms-branches/${id}`);
+  },
+
+  // Whether the logged-in user is a branch supervisor (non-admin listed on a branch).
+  getMyScope: async (): Promise<MyBranchScope> => {
+    try {
+      const res = await apiClient.get("/hrms-branches/my-scope", { silent: true });
+      return (res.data as any) || { isSupervisor: false, branches: [] };
+    } catch {
+      return { isSupervisor: false, branches: [] };
+    }
   },
 };

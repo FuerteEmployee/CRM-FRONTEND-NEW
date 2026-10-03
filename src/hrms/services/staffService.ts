@@ -2,6 +2,24 @@ import { apiClient } from "./apiClient";
 import type { User } from "@/hrms/types";
 import { mapUser } from "./apiUtils";
 
+export interface BulkResult {
+  message?: string;
+  success: number;
+  updated?: number;
+  failed: number;
+  errors: string[];
+}
+
+export interface BulkStaffUpdates {
+  hrmsBranchId?: string | null;
+  shiftId?: string | null;
+  department?: string | null;
+  designation?: string | null;
+  payType?: string;
+  isActive?: boolean;
+  pf?: { isIncluded?: boolean; mode?: "fixed_monthly" | "per_day"; value?: number };
+}
+
 
 export const staffService = {
   getAll: async (): Promise<User[]> => {
@@ -14,7 +32,7 @@ export const staffService = {
   // Server-paginated variant of getAll — for a genuine staff-directory TABLE
   // view, not for the dropdown/lookup call sites that need the full list
   // (those keep using getAll() unchanged).
-  getPage: async (params?: { page?: number; limit?: number; search?: string; role?: string; isActive?: boolean }): Promise<{ data: User[]; total: number; page: number; totalPages: number }> => {
+  getPage: async (params?: { page?: number; limit?: number; search?: string; hrmsBranchId?: string; role?: string; isActive?: boolean }): Promise<{ data: User[]; total: number; page: number; totalPages: number }> => {
     // apiClient returns the raw JSON body directly: { success, data: [...], total, page, totalPages }
     const res = await apiClient.get("/users", { params });
     return {
@@ -52,9 +70,22 @@ export const staffService = {
     await apiClient.delete(`/users/${id}`);
   },
 
-  bulkImport: async (formData: FormData): Promise<{ message: string; data: any }> => {
+  // Excel import: formData = { file, mapping? (JSON {systemKey: excelColumn}) }
+  bulkImport: async (formData: FormData): Promise<BulkResult> => {
     const res = await apiClient.post("/import/bulk", formData);
-    return res.data;
+    return { message: (res as any).message, ...(res.data as any) };
+  },
+
+  // In-app "Bulk Add Staff" grid — rows keyed by system field names.
+  bulkCreate: async (rows: Record<string, any>[]): Promise<BulkResult> => {
+    const res = await apiClient.post("/users/bulk-create", { rows });
+    return { message: (res as any).message, ...(res.data as any) };
+  },
+
+  // Staff Directory "Bulk Edit" — only the fields present in `updates` change.
+  bulkUpdate: async (userIds: string[], updates: BulkStaffUpdates): Promise<{ message: string }> => {
+    const res = await apiClient.patch("/users/bulk-update", { userIds, updates });
+    return { message: (res as any).message };
   },
 
   importStaff: async (data: any[]): Promise<{ count: number; message: string }> => {

@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { useDebounce } from "@/hrms/hooks/use-debounce";
 import * as XLSX from "xlsx";
 import { Badge } from "@/hrms/components/ui/badge";
 import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
@@ -33,7 +34,9 @@ import {
   Trash2,
   X
 } from "lucide-react";
-import { staffService } from "@/hrms/services/staffService";
+import { staffService, type BulkResult } from "@/hrms/services/staffService";
+import { Checkbox } from "@/hrms/components/ui/checkbox";
+import { BulkEditStaffDialog } from "@/hrms/components/staff/BulkEditStaffDialog";
 import { useConfirm } from "@/hrms/contexts/ConfirmContext";
 import { roleService } from "@/hrms/services/roleService";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
@@ -79,6 +82,45 @@ import { RoleDefinition, User, Store as StoreType } from "@/hrms/types";
 import { cn } from "@/hrms/lib/utils";
 import { ScrollArea } from "@/hrms/components/ui/scroll-area";
 
+// Other column names commonly used in company payroll / employee-master sheets,
+// so the import's column mapping is filled in automatically (matched ignoring
+// case, spaces and punctuation — "D.O.B" = "dob", "A/C No." = "acno").
+const FIELD_ALIASES: Record<string, string[]> = {
+  employeeCode: ["Emp Code", "Emp ID", "Employee ID", "Emp No", "Employee No", "Staff ID", "Code", "ID No"],
+  name: ["Name", "Emp Name", "Staff Name", "Name of Employee", "Employee Full Name"],
+  email: ["Email ID", "E-mail", "Mail ID", "Email Address", "Mail"],
+  mobile: ["Mobile", "Mobile Number", "Phone", "Phone No", "Contact", "Contact No", "Contact Number", "Mob No", "Cell No"],
+  gender: ["Sex", "M/F"],
+  department: ["Dept", "Department Name", "Dept Name"],
+  designation: ["Post", "Position", "Designation Name", "Job Title"],
+  hrmsBranchId: ["Branch Name", "Location", "Site", "Work Location", "Office"],
+  shiftId: ["Shift Name", "Shift Timing", "Shift Time"],
+  employmentType: ["Emp Type", "Employee Type", "Type of Employment", "Employment"],
+  payType: ["Pay Type", "Pay Cycle", "Payment Type", "Salary Type"],
+  salaryAmount: ["Gross Salary", "Gross", "CTC", "Monthly Salary", "Fixed Salary", "Total Salary", "Salary/CTC", "Monthly CTC"],
+  basic: ["Basic Salary", "Basic Pay"],
+  hra: ["House Rent Allowance"],
+  pfApplicable: ["PF Applicable", "PF (Y/N)", "PF Yes/No", "PF Y/N"],
+  pfMode: ["PF Type", "PF Calculation"],
+  pfRate: ["PF Interest Rate", "PF Rate", "PF %", "PF Percentage", "PF Rate %"],
+  pfAmount: ["PF", "PF Deduction", "Employee PF", "PF (Employee)", "EPF"],
+  esicAmount: ["ESIC", "ESI", "ESIC Deduction"],
+  joiningDate: ["DOJ", "Joining Date", "Date of Join"],
+  dob: ["DOB", "Birth Date", "Birthday"],
+  bankName: ["Bank"],
+  accountName: ["Account Holder", "Account Name", "Beneficiary Name", "Name as per Bank"],
+  accountNumber: ["Account Number", "A/C No", "A/C Number", "Bank Account No", "Bank A/C No", "Account No."],
+  ifscCode: ["IFSC", "IFSC No"],
+  branchCity: ["Bank Branch Name", "Bank City"],
+  currentAddress: ["Address", "Present Address", "Local Address", "Residential Address"],
+  permanentAddress: ["Native Address", "Permanent Add"],
+  panNumber: ["PAN", "PAN No", "PAN Card", "PAN Card No", "PAN Card Number"],
+  aadhaarNumber: ["Aadhaar", "Aadhar", "Aadhar No", "Aadhaar No", "Aadhar Card No", "Aadhaar Card No", "Aadhar Number", "Aadhaar Card Number", "UID", "UID No"],
+  emergencyName: ["Emergency Contact", "Emergency Name"],
+  emergencyPhone: ["Emergency No", "Emergency Phone", "Emergency Contact No", "Emergency Number"],
+  emergencyRelation: ["Relation", "Emergency Relation", "Relationship"],
+};
+
 const getFileUrl = (url?: string) => {
   if (!url) return "";
   if (url.startsWith("http") || url.startsWith("data:")) return url;
@@ -99,6 +141,8 @@ export default function UsersPage() {
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [shifts, setShifts] = useState<Shift[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  // Search runs on the server, so wait for a short pause in typing.
+  const debouncedSearch = useDebounce(searchQuery, 350);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters state
@@ -126,7 +170,8 @@ export default function UsersPage() {
         staffService.getPage({
           page: currentPage,
           limit: itemsPerPage,
-          search: searchQuery || undefined,
+          search: debouncedSearch.trim() || undefined,
+          hrmsBranchId: branchFilter === "all" ? undefined : branchFilter,
           role: roleFilter === "all" ? undefined : roleFilter,
           isActive: statusFilter === "all" ? undefined : statusFilter === "active",
         }),
@@ -166,28 +211,19 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchAllData();
-  }, [currentPage, roleFilter, statusFilter]);
+  }, [currentPage, roleFilter, statusFilter, debouncedSearch, branchFilter]);
 
-  // Reset back to page 1 whenever role/status filters change, since they're
-  // now server params and a stale page could point past the new result set.
+  // Reset back to page 1 whenever a filter changes, since they're all server
+  // params now and a stale page could point past the new result set.
   useEffect(() => {
     setCurrentPage(1);
-  }, [roleFilter, statusFilter]);
+  }, [roleFilter, statusFilter, debouncedSearch, branchFilter]);
 
-  // role/status are already filtered server-side (see fetchAllData); search
-  // and branch still filter client-side, scoped to the currently loaded page.
+  // Search (name / email / mobile / code), branch, role and status are all
+  // filtered server-side across ALL employees — searching used to look only at
+  // the 25 rows of the current page, so e.g. a second "Anjali" never showed.
   const filteredUsers = useMemo(() => {
-    let result = users.filter((u) => {
-      const roleStr = typeof u.role === "string" ? u.role : u.role?.role || "";
-      const matchesSearch =
-        u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        roleStr.replace("_", " ").toLowerCase().includes(searchQuery.toLowerCase());
-
-      const matchesStore = branchFilter === "all" || (u as any).hrmsBranchId === branchFilter;
-
-      return matchesSearch && matchesStore;
-    });
+    let result = [...users];
 
     if (sortConfig) {
       result.sort((a, b) => {
@@ -200,7 +236,7 @@ export default function UsersPage() {
     }
 
     return result;
-  }, [users, searchQuery, roleFilter, branchFilter, statusFilter, sortConfig]);
+  }, [users, sortConfig]);
 
   const requestSort = (key: string) => {
     let direction: "asc" | "desc" = "asc";
@@ -269,24 +305,69 @@ export default function UsersPage() {
       return matchesSearch && matchesRole && matchesStore && matchesStatus;
     });
 
-    const dataToExport = exportFiltered.map((u) => {
+    // Same column headers as the Import template (SYSTEM_FIELDS.default), so the
+    // file can be edited and re-imported with "Update existing staff" ticked.
+    // Numbers like account no / Aadhaar are written as text so Excel doesn't
+    // turn them into 1.23E+11; dates as DD/MM/YYYY.
+    const idOf = (v: any) => (v && typeof v === "object" ? v._id || v.id : v) || "";
+    const nameOf = (v: any) => (v && typeof v === "object" ? v.name || "" : "");
+    const fmtDate = (d: any) => {
+      if (!d) return "";
+      const dt = new Date(d);
+      return isNaN(dt.getTime()) ? "" : `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}/${dt.getFullYear()}`;
+    };
+    const txt = (v: any) => (v === undefined || v === null ? "" : String(v));
+
+    const dataToExport = exportFiltered.map((u: any) => {
       const role = (u.role && typeof u.role === "object") ? u.role.label : (u.role || "");
-      const branchId = (u as any).hrmsBranchId?._id || (u as any).hrmsBranchId;
-      const branch = branches.find(s => (s._id || s.id) === branchId)?.name || "Unassigned";
+      const branch = branches.find(s => (s._id || s.id) === idOf(u.hrmsBranchId))?.name || "";
+      const shift = shifts.find(s => s._id === idOf(u.shiftId))?.name || "";
+      const sc = u.salaryConfig || {};
+      const hasStructure = !!u.salaryStructureId;
       return {
-        "Full Name": u.name,
-        "Email": u.email,
-        "Mobile": u.mobile,
-        "Role": role,
+        "Employee Code": txt(u.employeeCode),
+        "Employee Name": txt(u.name),
+        "Email": txt(u.email),
+        "Mobile No": txt(u.mobile),
+        "Gender": txt(u.gender),
+        "Department": nameOf(u.department),
+        "Designation": nameOf(u.designation),
         "Branch": branch,
-        "Status": u.status,
+        "Shift": shift,
+        "Role": txt(role),
+        "Status": txt(u.status),
+        "Employment Type": txt(u.employmentType),
+        "Salary Type": txt(u.payType),
+        "Salary": txt(u.salaryAmount),
+        "Basic": hasStructure ? txt(sc.basic?.value) : "",
+        "HRA": hasStructure ? txt(sc.hra?.value) : "",
+        "PF Applicable": hasStructure ? (sc.pf?.isIncluded ? "Yes" : "No") : "",
+        "PF Mode": hasStructure && sc.pf?.isIncluded ? (sc.pf?.mode === "fixed_monthly" ? "Fixed monthly" : "Per day") : "",
+        "PF Amount": hasStructure && sc.pf?.isIncluded ? txt(sc.pf?.value) : "",
+        "PF Rate (%)": hasStructure && sc.pf?.isIncluded ? txt(sc.pf?.rate ?? 12) : "",
+        "ESIC Amount": hasStructure && sc.esic?.value ? txt(sc.esic.value) : "",
+        "Date of Joining": fmtDate(u.joiningDate),
+        "Date of Birth": fmtDate(u.dob),
+        "Bank Name": txt(u.bankInfo?.bankName),
+        "Account Holder Name": txt(u.bankInfo?.accountName),
+        "Account No": txt(u.bankInfo?.accountNumber),
+        "IFSC Code": txt(u.bankInfo?.ifscCode),
+        "Bank Branch": txt(u.bankInfo?.branchCity),
+        "Current Address": txt(u.address?.current),
+        "Permanent Address": txt(u.address?.permanent),
+        "PAN Number": txt(u.legalDocuments?.panNumber),
+        "Aadhaar Number": txt(u.legalDocuments?.aadhaarNumber),
+        "Emergency Contact Name": txt(u.emergencyContact?.name),
+        "Emergency Mobile": txt(u.emergencyContact?.phone),
+        "Emergency Contact Relation": txt(u.emergencyContact?.relation),
       };
     });
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    worksheet["!cols"] = Object.keys(dataToExport[0] || {}).map((h) => ({ wch: Math.max(12, h.length + 2) }));
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Staff List");
-    XLSX.writeFile(workbook, `Staff_Directory_${new Date().toLocaleDateString()}.xlsx`);
+    XLSX.writeFile(workbook, `Staff_Directory_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   // Import related logic
@@ -294,25 +375,51 @@ export default function UsersPage() {
   const [excelHeaders, setExcelHeaders] = useState<string[]>([]);
   const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
+  // `key` = backend import field (import_employees_controller.js), `default` =
+  // the column header used by Template, Export and Import alike — so an
+  // exported file can be edited and imported straight back. Older sheets
+  // ("Code*", "Employee Name*"...) still match via the loose second pass.
+  const [updateExisting, setUpdateExisting] = useState(false);
+  // Row (0-based) holding the column headers — rows above it (sheet titles)
+  // are ignored by both the mapping screen and the backend import.
+  const [headerRowIndex, setHeaderRowIndex] = useState(0);
   const SYSTEM_FIELDS = [
-    { key: "employeeCode", label: "Employee Code", default: "Code*" },
-    { key: "name", label: "Full Name", default: "Employee Name*" },
+    { key: "employeeCode", label: "Employee Code", default: "Employee Code" },
+    { key: "name", label: "Full Name", default: "Employee Name" },
     { key: "email", label: "Email Address", default: "Email" },
-    { key: "mobile", label: "Mobile Number", default: "Mobile No*" },
-    { key: "gender", label: "Gender", default: "Gender*" },
-    { key: "department", label: "Department", default: "Department Name*" },
-    { key: "designation", label: "Designation", default: "Designation Name*" },
+    { key: "mobile", label: "Mobile Number", default: "Mobile No" },
+    { key: "gender", label: "Gender", default: "Gender" },
+    { key: "department", label: "Department", default: "Department" },
+    { key: "designation", label: "Designation", default: "Designation" },
     { key: "hrmsBranchId", label: "Branch", default: "Branch" },
+    { key: "shiftId", label: "Shift", default: "Shift" },
+    { key: "password", label: "Password", default: "Password" },
     { key: "employmentType", label: "Employment Type", default: "Employment Type" },
-    { key: "payType", label: "Pay Type", default: "Salary Type*" },
+    { key: "payType", label: "Pay Type", default: "Salary Type" },
     { key: "salaryAmount", label: "Salary/CTC", default: "Salary" },
+    { key: "basic", label: "Basic", default: "Basic" },
+    { key: "hra", label: "HRA", default: "HRA" },
+    { key: "pfApplicable", label: "PF Applicable (Yes/No)", default: "PF Applicable" },
+    { key: "pfMode", label: "PF Mode (Fixed monthly/Per day)", default: "PF Mode" },
+    { key: "pfAmount", label: "PF Amount", default: "PF Amount" },
+    { key: "pfRate", label: "PF Rate (%)", default: "PF Rate (%)" },
+    { key: "esicAmount", label: "ESIC Amount", default: "ESIC Amount" },
     { key: "joiningDate", label: "Date of Joining", default: "Date of Joining" },
     { key: "dob", label: "Date of Birth", default: "Date of Birth" },
     { key: "bankName", label: "Bank Name", default: "Bank Name" },
+    { key: "accountName", label: "Account Holder Name", default: "Account Holder Name" },
     { key: "accountNumber", label: "Account Number", default: "Account No" },
     { key: "ifscCode", label: "IFSC Code", default: "IFSC Code" },
     { key: "branchCity", label: "Bank Branch/City", default: "Bank Branch" },
+    { key: "currentAddress", label: "Current Address", default: "Current Address" },
+    { key: "permanentAddress", label: "Permanent Address", default: "Permanent Address" },
+    { key: "panNumber", label: "PAN Number", default: "PAN Number" },
+    { key: "aadhaarNumber", label: "Aadhaar Number", default: "Aadhaar Number" },
+    { key: "emergencyName", label: "Emergency Contact Name", default: "Emergency Contact Name" },
+    { key: "emergencyPhone", label: "Emergency Mobile", default: "Emergency Mobile" },
+    { key: "emergencyRelation", label: "Emergency Contact Relation", default: "Emergency Contact Relation" },
   ];
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -326,17 +433,63 @@ export default function UsersPage() {
         const wb = XLSX.read(bstr, { type: "binary" });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-        const headers = data[0] as string[];
+        // blankrows: true keeps blank rows so indices line up with real sheet
+        // rows — the backend re-reads the sheet starting at this exact row.
+        const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, blankrows: true, defval: "" });
+        const firstSheetRow = XLSX.utils.decode_range(ws["!ref"] || "A1").s.r;
+
+        // "D.O.B" → "dob", "A/C No." → "acno", "Employee Name*" → "employeename"
+        const norm = (s: any) => String(s ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const knownNames = new Set(
+          SYSTEM_FIELDS.flatMap((f) => [f.default, f.label, ...(FIELD_ALIASES[f.key] || [])]).map(norm)
+        );
+
+        // Many company sheets start with a title row ("EMPLOYEE MASTER DATABASE
+        // AND PAYROLL - <site>") or blank rows — pick the row in the first 15 that
+        // looks most like a header row instead of always using row 1.
+        let headerRow = 0;
+        let bestScore = -1;
+        data.slice(0, 15).forEach((row, idx) => {
+          const cells = (row || []).map((c) => String(c ?? "").trim()).filter(Boolean);
+          if (cells.length < 2) return;
+          const known = cells.filter((c) => knownNames.has(norm(c))).length;
+          const score = known * 10 + cells.length;
+          if (score > bestScore) { bestScore = score; headerRow = idx; }
+        });
+
+        // Same column names the backend's sheet_to_json will use: duplicates get
+        // "_1", "_2"; blank header cells are skipped.
+        const seen: Record<string, number> = {};
+        const headers: string[] = [];
+        (data[headerRow] || []).forEach((cell) => {
+          const h = String(cell ?? "").trim();
+          if (!h) return;
+          const n = seen[h] ?? 0;
+          seen[h] = n + 1;
+          headers.push(n ? `${h}_${n}` : h);
+        });
+        setHeaderRowIndex(firstSheetRow + headerRow); // absolute sheet row (0-based)
         setExcelHeaders(headers);
+
         const initialMapping: Record<string, string> = {};
+        const used = new Set<string>();
+        // Pass 1 — exact matches (field name, label or a known alias) for every
+        // field, so e.g. "Branch" doesn't grab "Bank Branch".
         SYSTEM_FIELDS.forEach(field => {
+          const names = [field.default, field.label, ...(FIELD_ALIASES[field.key] || [])].map(norm);
+          const match = headers.find(h => !used.has(h) && names.includes(norm(h)));
+          if (match) { initialMapping[field.key] = match; used.add(match); }
+        });
+        // Pass 2 — loose matches only for fields still unmapped, and never reusing
+        // a column already taken (a "Salary" column used to land in Pay Type too,
+        // since "salary type" contains "salary" → "25000 is not a valid payType").
+        SYSTEM_FIELDS.forEach(field => {
+          if (initialMapping[field.key]) return;
           const match = headers.find(h =>
-            h.toLowerCase().includes(field.label.toLowerCase()) ||
-            h.toLowerCase() === field.default.toLowerCase().replace("*", "") ||
-            field.default.toLowerCase().includes(h.toLowerCase())
+            !used.has(h) && norm(h).length > 2 &&
+            (norm(h).includes(norm(field.label)) || norm(field.default).includes(norm(h)))
           );
-          if (match) initialMapping[field.key] = match;
+          if (match) { initialMapping[field.key] = match; used.add(match); }
         });
         setFieldMapping(initialMapping);
         setIsMappingOpen(true);
@@ -347,35 +500,72 @@ export default function UsersPage() {
     reader.readAsBinaryString(file);
   };
 
+  // Per-row outcome of the last import, shown in a dialog so failed rows can be fixed.
+  const [importResult, setImportResult] = useState<BulkResult | null>(null);
+
+  // Sends the file + column mapping to POST /import/bulk, which creates each
+  // employee plus their linked CRM Staff login (import_employees_controller.js).
   const handleImport = async () => {
     if (!pendingFile) return;
-    setIsLoading(true);
+    setIsImporting(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (evt) => {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: "binary" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rawData: any[] = XLSX.utils.sheet_to_json(ws);
-        const mappedData = rawData.map(row => {
-          const entry: any = {};
-          Object.entries(fieldMapping).forEach(([sysKey, excelKey]) => {
-            entry[sysKey] = row[excelKey];
-          });
-          return entry;
-        });
-        const res = await staffService.importStaff(mappedData);
-        toast({ title: "Import Successful", description: `${res.count} staff members added.` });
-        setIsMappingOpen(false);
-        fetchAllData();
-      };
-      reader.readAsBinaryString(pendingFile);
+      const mapping = Object.fromEntries(Object.entries(fieldMapping).filter(([, col]) => col && col !== "skip"));
+      const formData = new FormData();
+      formData.append("file", pendingFile);
+      formData.append("mapping", JSON.stringify(mapping));
+      formData.append("updateExisting", String(updateExisting));
+      formData.append("headerRow", String(headerRowIndex));
+      const res = await staffService.bulkImport(formData);
+      setIsMappingOpen(false);
+      setPendingFile(null);
+      setImportResult(res);
+      fetchAllData();
     } catch (err: any) {
       toast({ title: "Import Failed", description: err.message, variant: "destructive" });
     } finally {
-      setIsLoading(false);
+      setIsImporting(false);
     }
   };
+
+  // Blank sheet with every importable column, header row = the default column names.
+  const downloadTemplate = () => {
+    const headers = SYSTEM_FIELDS.map((f) => f.default);
+    const sample: Record<string, string> = {
+      "Employee Code": "EMP001", "Employee Name": "Ravi Kumar", "Email": "ravi@example.com", "Mobile No": "9876543210",
+      "Gender": "Male", "Department": "Sales", "Designation": "Executive",
+      "Branch": branches[0]?.name || "", "Shift": shifts[0]?.name || "", "Password": "",
+      "Employment Type": "permanent", "Salary Type": "Monthly", "Salary": "25000", "Basic": "15000", "HRA": "5000",
+      "PF Applicable": "Yes", "PF Mode": "Fixed monthly", "PF Amount": "", "PF Rate (%)": "12", "ESIC Amount": "",
+      "Date of Joining": "01/04/2026", "Date of Birth": "15/08/1995",
+      "Bank Name": "HDFC Bank", "Account Holder Name": "Ravi Kumar", "Account No": "50100123456789", "IFSC Code": "HDFC0001234", "Bank Branch": "Ahmedabad",
+      "Current Address": "12, MG Road, Ahmedabad", "Permanent Address": "12, MG Road, Ahmedabad",
+      "PAN Number": "ABCDE1234F", "Aadhaar Number": "123412341234",
+      "Emergency Contact Name": "Sita Kumar", "Emergency Mobile": "9876500000", "Emergency Contact Relation": "Mother",
+    };
+    const ws = XLSX.utils.json_to_sheet([Object.fromEntries(headers.map((h) => [h, sample[h] ?? ""]))], { header: headers });
+    ws["!cols"] = headers.map((h) => ({ wch: Math.max(12, h.length + 2) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Staff");
+    XLSX.writeFile(wb, "Staff_Import_Demo.xlsx");
+  };
+
+  /* ── Selection + Bulk Edit ── */
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
+  const pageAllSelected = filteredUsers.length > 0 && filteredUsers.every((u) => selectedIds.has(u.id));
+  const toggleSelected = (id: string) =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const togglePage = () =>
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      filteredUsers.forEach((u) => (pageAllSelected ? next.delete(u.id) : next.add(u.id)));
+      return next;
+    });
+  const hrmsBasePath = location.pathname.includes("/staff/hrms") ? "/staff/hrms" : "/admin/hrms";
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -389,16 +579,29 @@ export default function UsersPage() {
           <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={exportToExcel}>
             <Download className="h-3.5 w-3.5" /> Export
           </Button>
-          {/* Import Excel hidden — endpoint not available
-          <div className="relative">
-            <input type="file" id="import-excel" className="hidden" accept=".xlsx, .xls" onChange={handleFileSelect} />
-            <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={() => document.getElementById('import-excel')?.click()}>
-              <FileSpreadsheet className="h-3.5 w-3.5" /> Import Excel
+          {hasPermission("edit_staff") && selectedIds.size > 0 && (
+            <Button size="sm" className="rounded-md h-9 px-4 font-medium gradient-primary text-white border-0 shadow-sm flex items-center gap-2" onClick={() => setIsBulkEditOpen(true)}>
+              <Edit2 className="h-3.5 w-3.5" /> Bulk Edit ({selectedIds.size})
             </Button>
-          </div>
-          */}
-          {/* Staff are created only via Setup > Staff (main CRM) — no create
-              entry point here, this directory only views/edits/deletes them. */}
+          )}
+          {/* Single staff are still created via Setup > Staff (main CRM); these
+              are the bulk onboarding paths — both also create the CRM Staff login. */}
+          {(hasPermission("create_staff") || hasPermission("manage_users")) && (
+            <>
+              <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={downloadTemplate}>
+                <FileIcon className="h-3.5 w-3.5" /> Demo
+              </Button>
+              <div className="relative">
+                <input type="file" id="import-excel" className="hidden" accept=".xlsx, .xls" onChange={(e) => { handleFileSelect(e); e.target.value = ""; }} />
+                <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={() => document.getElementById('import-excel')?.click()}>
+                  <FileSpreadsheet className="h-3.5 w-3.5" /> Import Excel
+                </Button>
+              </div>
+              <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={() => navigate(`${hrmsBasePath}/staff/users/bulk-add`)}>
+                <Plus className="h-3.5 w-3.5" /> Bulk Add
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -475,6 +678,15 @@ export default function UsersPage() {
             onPageChange={setCurrentPage}
             pageSize={itemsPerPage}
             columns={[
+              ...(hasPermission("edit_staff") ? [{
+                header: <Checkbox checked={pageAllSelected} onCheckedChange={togglePage} aria-label="Select all on this page" />,
+                accessorKey: (u: User) => (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Checkbox checked={selectedIds.has(u.id)} onCheckedChange={() => toggleSelected(u.id)} aria-label={`Select ${u.name}`} />
+                  </div>
+                ),
+                className: "w-10",
+              }] : []),
               {
                 header: (
                   <div className="flex items-center gap-2 cursor-pointer select-none hover:text-primary transition-colors font-bold text-foreground/70" onClick={() => requestSort("name")}>
@@ -589,6 +801,14 @@ export default function UsersPage() {
           <DialogHeader><DialogTitle className="text-lg font-semibold">Import Field Mapping</DialogTitle></DialogHeader>
           <div className="p-4 space-y-6">
             <p className="text-sm text-muted-foreground font-medium">Map your Excel columns to the system fields. We've tried to auto-match them for you.</p>
+            <label className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 cursor-pointer">
+              <Checkbox checked={updateExisting} onCheckedChange={(v) => setUpdateExisting(!!v)} className="mt-0.5" />
+              <span className="text-xs text-slate-600">
+                <span className="font-semibold text-slate-800">Update existing staff (matched by Email)</span><br />
+                Rows whose email already exists update that employee — only the cells you filled in change, blank cells keep the current value.
+                Leave unticked to only add new staff (existing emails are reported as errors).
+              </span>
+            </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-2">
               {SYSTEM_FIELDS.map(field => (
                 <div key={field.key} className="space-y-1">
@@ -607,11 +827,50 @@ export default function UsersPage() {
             </div>
             <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
               <Button variant="ghost" onClick={() => setIsMappingOpen(false)} className="rounded-md font-semibold">Cancel</Button>
-              <Button onClick={handleImport} disabled={isLoading} className="rounded-md gradient-primary font-semibold shadow-sm px-8">Complete Import</Button>
+              <Button onClick={handleImport} disabled={isImporting} className="rounded-md gradient-primary font-semibold shadow-sm px-8">
+                {isImporting ? "Importing..." : "Complete Import"}
+              </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Import result — which rows failed and why */}
+      <Dialog open={!!importResult} onOpenChange={(o) => !o && setImportResult(null)}>
+        <DialogContent className="max-w-lg rounded-lg bg-white">
+          <DialogHeader><DialogTitle className="text-lg font-semibold">Import Result</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-3">
+              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">{importResult?.success ?? 0} added</Badge>
+              {!!importResult?.updated && (
+                <Badge className="bg-sky-50 text-sky-700 border-sky-200">{importResult.updated} updated</Badge>
+              )}
+              <Badge className={cn("border", (importResult?.failed ?? 0) > 0 ? "bg-red-50 text-red-700 border-red-200" : "bg-slate-50 text-slate-500 border-slate-200")}>
+                {importResult?.failed ?? 0} failed
+              </Badge>
+            </div>
+            {!!importResult?.errors?.length && (
+              <ScrollArea className="max-h-64 rounded-md border border-red-100 bg-red-50/40 p-3">
+                <ul className="space-y-1 text-xs text-red-700">
+                  {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
+              </ScrollArea>
+            )}
+            <p className="text-xs text-slate-500">Imported staff can log in with their email and the Password column (default 12345678).</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <BulkEditStaffDialog
+        open={isBulkEditOpen}
+        userIds={[...selectedIds]}
+        branches={branches}
+        shifts={shifts as any}
+        departments={departments}
+        designations={designations as any}
+        onClose={() => setIsBulkEditOpen(false)}
+        onUpdated={() => { setSelectedIds(new Set()); fetchAllData(); }}
+      />
 
 
     </div>

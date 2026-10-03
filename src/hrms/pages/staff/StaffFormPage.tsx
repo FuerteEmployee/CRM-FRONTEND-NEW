@@ -329,6 +329,7 @@ const staffSchema = z.object({
       value: z.coerce.number().min(0, "Value cannot be negative").default(0),
       type: z.enum(["amount", "percent"]).default("amount"),
       isIncluded: z.boolean().default(true),
+      mode: z.enum(["fixed_monthly", "per_day"]).default("per_day"),
     }).optional(),
     esic: z.object({
       value: z.coerce.number().min(0, "Value cannot be negative").default(0),
@@ -468,7 +469,7 @@ export default function StaffFormPage() {
         hra: { value: 0, type: "amount", isIncluded: true },
         da: { value: 0, type: "amount", isIncluded: true },
         conveyanceAllowance: { value: 0, type: "amount", isIncluded: true },
-        pf: { value: 0, type: "amount", isIncluded: true },
+        pf: { value: 0, type: "amount", isIncluded: true, mode: "per_day" },
         esic: { value: 0, type: "amount", isIncluded: true },
         epf: { value: 0, type: "amount", isIncluded: true },
         retention: { value: 0, type: "amount", isIncluded: true },
@@ -655,7 +656,7 @@ export default function StaffFormPage() {
                 hra: user.salaryConfig?.hra || { value: 0, type: "amount", isIncluded: true },
                 da: user.salaryConfig?.da || { value: 0, type: "amount", isIncluded: true },
                 conveyanceAllowance: user.salaryConfig?.conveyanceAllowance || { value: 0, type: "amount", isIncluded: true },
-                pf: user.salaryConfig?.pf || { value: 0, type: "amount", isIncluded: true },
+                pf: { mode: "per_day", ...(user.salaryConfig?.pf || { value: 0, type: "amount", isIncluded: true }) },
                 esic: user.salaryConfig?.esic || { value: 0, type: "amount", isIncluded: true },
                 epf: user.salaryConfig?.epf || { value: 0, type: "amount", isIncluded: true },
                 retention: user.salaryConfig?.retention || { value: 0, type: "amount", isIncluded: true },
@@ -1407,19 +1408,58 @@ export default function StaffFormPage() {
                                   </FormItem>
                                 )}
                               />
-                              <FormField
-                                control={form.control}
-                                name="salaryConfig.pf.value"
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormLabel className="text-[11px] font-bold text-slate-500 uppercase">PF (Employee)</FormLabel>
-                                    <FormControl>
-                                      <Input type="number" className={inputClass} {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
+                              <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-[auto_1fr_1fr] gap-4 p-3 rounded-md border border-slate-200 bg-slate-50/60">
+                                <FormField
+                                  control={form.control}
+                                  name="salaryConfig.pf.isIncluded"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-[11px] font-bold text-slate-500 uppercase">PF Applicable</FormLabel>
+                                      <div className="flex items-center gap-2 h-10">
+                                        <FormControl>
+                                          <Switch checked={!!field.value} onCheckedChange={field.onChange} />
+                                        </FormControl>
+                                        <span className="text-sm text-slate-600">{field.value ? "Yes" : "No"}</span>
+                                      </div>
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="salaryConfig.pf.mode"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-[11px] font-bold text-slate-500 uppercase">PF Calculation</FormLabel>
+                                      <Select onValueChange={field.onChange} value={field.value || "per_day"} disabled={!form.watch("salaryConfig.pf.isIncluded")}>
+                                        <FormControl><SelectTrigger className={inputClass}><SelectValue /></SelectTrigger></FormControl>
+                                        <SelectContent className="rounded-md">
+                                          <SelectItem value="fixed_monthly">Fixed monthly</SelectItem>
+                                          <SelectItem value="per_day">Per day</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                      <p className="text-[10px] text-slate-500">
+                                        {form.watch("salaryConfig.pf.mode") === "fixed_monthly"
+                                          ? "Full amount every month, regardless of attendance."
+                                          : "Scaled by payable days in the month."}
+                                      </p>
+                                    </FormItem>
+                                  )}
+                                />
+                                <FormField
+                                  control={form.control}
+                                  name="salaryConfig.pf.value"
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormLabel className="text-[11px] font-bold text-slate-500 uppercase">PF (Employee) / month</FormLabel>
+                                      <FormControl>
+                                        <Input type="number" className={inputClass} disabled={!form.watch("salaryConfig.pf.isIncluded")} {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
+                                      </FormControl>
+                                      <p className="text-[10px] text-slate-500">Leave 0 to use 12% of Basic.</p>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
                               <FormField
                                 control={form.control}
                                 name="salaryConfig.esic.value"

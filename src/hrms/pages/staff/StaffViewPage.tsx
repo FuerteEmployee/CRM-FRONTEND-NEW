@@ -28,7 +28,9 @@ import {
   Coffee,
   LayoutGrid,
   List,
+  HandCoins,
 } from "lucide-react";
+import { AdvanceLoanSummary } from "@/hrms/components/staff/AdvanceLoanSummary";
 import { Button } from "@/hrms/components/ui/button";
 import { Badge } from "@/hrms/components/ui/badge";
 import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
@@ -104,7 +106,7 @@ export default function StaffViewPage() {
   const [stores, setStores] = useState<StoreType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"profile" | "attendance">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "attendance" | "advances">("profile");
   const [attMonth, setAttMonth] = useState(new Date());
   const [attHistory, setAttHistory] = useState<any[]>([]);
   const [attLoading, setAttLoading] = useState(false);
@@ -283,6 +285,7 @@ export default function StaffViewPage() {
         {([
           { key: "profile",    label: "Profile",    icon: <Users className="h-3.5 w-3.5" /> },
           { key: "attendance", label: "Attendance", icon: <Calendar className="h-3.5 w-3.5" /> },
+          { key: "advances",   label: "Advance & Loans", icon: <HandCoins className="h-3.5 w-3.5" /> },
         ] as const).map(tab => (
           <button
             key={tab.key}
@@ -506,6 +509,8 @@ export default function StaffViewPage() {
         </div>
       </div>
       )}
+
+      {activeTab === "advances" && id && <AdvanceLoanSummary employeeId={id} />}
 
       {activeTab === "attendance" && (
       <div className="space-y-6">

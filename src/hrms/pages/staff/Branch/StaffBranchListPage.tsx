@@ -259,6 +259,14 @@ export default function StaffBranchListPage() {
     { header: "S.No", accessorKey: "sNo", minWidth: 70 },
     { header: "Branch Name", accessorKey: "name", minWidth: 220, className: "font-bold text-[#1a1a1a]" },
     { header: "Branch Type", accessorKey: (b: HRMSBranch) => getBranchTypeName(b.branchType) || "—", minWidth: 140 },
+    {
+      header: "Supervisors",
+      minWidth: 180,
+      accessorKey: (b: HRMSBranch) => {
+        const names = (b.supervisorIds || []).map((s) => (typeof s === "string" ? "" : s.name)).filter(Boolean);
+        return names.length ? <span className="text-xs font-medium text-slate-700">{names.join(", ")}</span> : <span className="text-slate-400">—</span>;
+      },
+    },
     { header: "City", accessorKey: "city", minWidth: 150 },
     { header: "State", accessorKey: "state", minWidth: 150 },
     { header: "Phone", accessorKey: "phone", minWidth: 140 },

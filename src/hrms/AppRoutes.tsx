@@ -97,6 +97,8 @@ import PayrollManagementPage from "./pages/staff/PayrollManagementPage";
 import StaffBranchListPage from "./pages/staff/Branch/StaffBranchListPage";
 import StaffBranchFormPage from "./pages/staff/Branch/StaffBranchFormPage";
 import AdvanceSalaryPage from "./pages/staff/AdvanceSalaryPage";
+import BulkAddStaffPage from "./pages/staff/BulkAddStaffPage";
+import PFRecordsPage from "./pages/staff/PFRecordsPage";
 import ShiftManagementPage from "./pages/staff/ShiftManagementPage";
 import DeviceApprovalsPage from "./pages/staff/DeviceApprovalsPage";
 import SessionLogsPage from "./pages/staff/SessionLogsPage";
@@ -474,8 +476,21 @@ export function AppRoutes() {
         />
         <Route
           path="staff/advance-salary"
-          element={<AdvanceSalaryPage />}
+          element={<AdvanceSalaryPage only="Advance Salary" />}
         />
+        <Route
+          path="staff/loans"
+          element={<AdvanceSalaryPage only="Loan" />}
+        />
+        <Route
+          path="staff/pf-records"
+          element={
+            <PermissionGuard requiredPermission="view_payroll" mode="message">
+              <PFRecordsPage />
+            </PermissionGuard>
+          }
+        />
+        <Route path="staff/my-pf" element={<PFRecordsPage mine />} />
         <Route path="staff/attendance" element={<AttendancePage />} />
         <Route path="staff/enable-tracking" element={<EnableTrackingSetup />} />
 
@@ -511,6 +526,14 @@ export function AppRoutes() {
         <Route
           path="staff/users/new"
           element={<Navigate to="/admin/setup/staff/new" replace />}
+        />
+        <Route
+          path="staff/users/bulk-add"
+          element={
+            <PermissionGuard requiredPermission="manage_users" mode="message">
+              <BulkAddStaffPage />
+            </PermissionGuard>
+          }
         />
         <Route
           path="staff/users/edit/:id"
