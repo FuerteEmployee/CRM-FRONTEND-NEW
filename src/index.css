@@ -776,8 +776,11 @@ html, body {
     overflow: visible !important;
   }
 
-  /* Table styles for print */
-  table {
+  /* Table styles for print — skip tables marked .printable-table, same as
+     the checkbox/actions-column rule above: those render a finished
+     document (e.g. an invoice PDF layout) that must print exactly as
+     authored, not as a generic app data-table. */
+  table:not(.printable-table) {
     width: 100% !important;
     max-width: 100% !important;
     border-collapse: collapse !important;
@@ -785,17 +788,17 @@ html, body {
     page-break-inside: auto !important;
   }
 
-  tr {
+  table:not(.printable-table) tr {
     page-break-inside: avoid !important;
     page-break-after: auto !important;
   }
 
-  thead {
+  table:not(.printable-table) thead {
     display: table-header-group !important;
   }
 
-  table th,
-  table td {
+  table:not(.printable-table) th,
+  table:not(.printable-table) td {
     border: 1px solid #aaa !important;
     padding: 8px 10px !important;
     text-align: left !important;
@@ -804,7 +807,7 @@ html, body {
     background: transparent !important;
   }
 
-  table th {
+  table:not(.printable-table) th {
     font-weight: bold !important;
     text-transform: uppercase !important;
     background-color: #f5f5f5 !important;

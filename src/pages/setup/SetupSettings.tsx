@@ -19,6 +19,7 @@ import { DataTable } from "@/components/shared/DataTable";
 import { DEFAULT_WHATSAPP_QC_TEMPLATES, type WhatsappQcTemplateEntry } from "@/lib/whatsappQuickChat";
 import { WhatsappQuickChatSettingsTab } from "./WhatsappQuickChatSettingsTab";
 import { usePermissions } from "@/hooks/usePermissions";
+import { getAvailableInvoicePdfFormats, DEFAULT_INVOICE_PDF_FORMAT } from "@/lib/invoicePdfFormats";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { settingsService } from "@/api/services/settings.service";
@@ -242,6 +243,7 @@ export default function SetupSettings() {
   const [invNumberFormat, setInvNumberFormat] = useState(() => getInit("invNumberFormat", "number_based"));
   const [invClientNote, setInvClientNote] = useState(() => getInit("invClientNote", ""));
   const [invTerms, setInvTerms] = useState(() => getInit("invTerms", ""));
+  const [invPdfFormat, setInvPdfFormat] = useState(() => getInit("invPdfFormat", DEFAULT_INVOICE_PDF_FORMAT));
   const [propPrefix, setPropPrefix] = useState(() => getInit("propPrefix", "PROP-"));
   const [propDueAfter, setPropDueAfter] = useState(() => getInit("propDueAfter", "7"));
   const [propPipelineLimit, setPropPipelineLimit] = useState(() => getInit("propPipelineLimit", "50"));
@@ -826,6 +828,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
     invNumberFormat: [invNumberFormat, setInvNumberFormat],
     invClientNote: [invClientNote, setInvClientNote],
     invTerms: [invTerms, setInvTerms],
+    invPdfFormat: [invPdfFormat, setInvPdfFormat],
     propPrefix: [propPrefix, setPropPrefix],
     propDueAfter: [propDueAfter, setPropDueAfter],
     propPipelineLimit: [propPipelineLimit, setPropPipelineLimit],
@@ -2458,6 +2461,21 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  {/* PDF Format Section */}
+                  <div className="space-y-2 pt-6 border-t">
+                    <Label className="text-sm font-semibold">Invoice PDF Format</Label>
+                    <Select value={invPdfFormat} onValueChange={setInvPdfFormat}>
+                      <SelectTrigger className="max-w-md">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getAvailableInvoicePdfFormats(currentUser?.email).map((f) => (
+                          <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Format Section */}
