@@ -29,6 +29,7 @@ import { projectService } from "@/api/services/project.service";
 import { staffService } from "@/api/services/staff.service";
 import { formatDate } from "@/lib/dateFormat";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 
 const taskStatusConfig = [
   { id: 1, label: "Not Started", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" },
@@ -189,7 +190,7 @@ const TaskOverview = () => {
         </Card>
 
         {/* Main Table Card */}
-        <Card className="border-none shadow-sm overflow-hidden bg-white">
+        <Card className="overflow-hidden">
           <CardContent className="p-0">
             {/* Table Header Controls */}
             <div className="p-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/50">
@@ -234,115 +235,87 @@ const TaskOverview = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1200px]">
-                <thead>
-                  <tr className="border-b text-left text-[11px] text-slate-500 uppercase tracking-widest bg-slate-50/80">
-                    <th className="p-4 font-bold min-w-[200px]">Name</th>
-                    <th className="p-4 font-bold">Start Date</th>
-                    <th className="p-4 font-bold">Due Date</th>
-                    <th className="p-4 font-bold">Status</th>
-                    <th className="p-4 font-bold">Attachments</th>
-                    <th className="p-4 font-bold">Comments</th>
-                    <th className="p-4 font-bold">Checklist</th>
-                    <th className="p-4 font-bold">Logged Time</th>
-                    <th className="p-4 font-bold">On Time?</th>
-                    <th className="p-4 font-bold">Assigned to</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm">
+              <Table className="min-w-[1200px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="min-w-[200px]">Name</TableHead>
+                    <TableHead>Start Date</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Attachments</TableHead>
+                    <TableHead>Comments</TableHead>
+                    <TableHead>Checklist</TableHead>
+                    <TableHead>Logged Time</TableHead>
+                    <TableHead>On Time?</TableHead>
+                    <TableHead>Assigned to</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {tasksLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="border-b">
-                        <td colSpan={10} className="p-4">
+                      <TableRow key={i}>
+                        <TableCell colSpan={10}>
                           <Skeleton className="h-10 w-full" />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   ) : paginatedTasks.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="p-10 text-center text-slate-500 font-medium">
-                        No entries found
-                      </td>
-                    </tr>
+                    <TableEmpty colSpan={10}>No entries found</TableEmpty>
                   ) : (
                     paginatedTasks.map((task) => {
                       const status = taskStatusConfig.find(s => s.id === task.status) || taskStatusConfig[0];
                       const isOnTime = !task.duedate || !task.datefinished || new Date(task.datefinished) <= new Date(task.duedate);
                       
                       return (
-                        <tr key={task._id} className="border-b last:border-0 hover:bg-slate-50/50 transition-colors group">
-                          <td className="p-4">
+                        <TableRow key={task._id} className="group">
+                          <TableCell>
                             <span className="font-semibold text-primary hover:underline cursor-pointer">
                               {task.name}
                             </span>
-                          </td>
-                          <td className="p-4 text-xs text-slate-600 font-medium">
+                          </TableCell>
+                          <TableCell>
                             {task.startdate ? formatDate(task.startdate) : "-"}
-                          </td>
-                          <td className="p-4 text-xs text-slate-600 font-medium">
+                          </TableCell>
+                          <TableCell>
                             {task.duedate ? formatDate(task.duedate) : "-"}
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell>
                             <Badge variant="outline" className={`${status.bg} ${status.text} ${status.border} border text-[10px] uppercase font-bold tracking-wider rounded-md px-2 py-1`}>
                               {status.label}
                             </Badge>
-                          </td>
-                          <td className="p-4 text-xs text-slate-500 font-bold">0</td>
-                          <td className="p-4 text-xs text-slate-500 font-bold">0</td>
-                          <td className="p-4 text-xs text-slate-500 font-bold">0 / 0</td>
-                          <td className="p-4 text-xs text-slate-500 font-bold">00:00</td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell>0</TableCell>
+                          <TableCell>0</TableCell>
+                          <TableCell>0 / 0</TableCell>
+                          <TableCell>00:00</TableCell>
+                          <TableCell>
                             <Badge variant="outline" className={isOnTime ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}>
                               {isOnTime ? "Yes" : "No"}
                             </Badge>
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell>
                             <div className="flex -space-x-2">
                               <Avatar className="h-7 w-7 border-2 border-white shadow-sm">
                                 <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">TM</AvatarFallback>
                               </Avatar>
                             </div>
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       );
                     })
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
             {/* Pagination */}
             {!tasksLoading && filteredTasks.length > 0 && (
-              <div className="flex items-center justify-between p-4 border-t bg-slate-50/50">
-                <div className="text-xs font-medium text-slate-500">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-8 text-xs font-bold"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <div className="flex items-center gap-1 mx-2">
-                    <div className="h-8 w-8 rounded-lg bg-primary text-white flex items-center justify-center text-xs font-bold">
-                      {currentPage}
-                    </div>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-8 text-xs font-bold"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+              <TablePagination
+                page={currentPage}
+                pageSize={itemsPerPage}
+                total={totalItems}
+                onPageChange={(p) => setCurrentPage(Math.min(Math.max(1, p), Math.max(totalPages, 1)))}
+              />
             )}
           </CardContent>
         </Card>

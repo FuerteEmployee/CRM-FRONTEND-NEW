@@ -59,6 +59,7 @@ import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCurrency } from "@/context/CurrencyContext";
 import { ExportButton } from "@/components/ui/export-button";
@@ -533,108 +534,74 @@ const Payments = () => {
         </div>
 
         {/* Payments Table */}
-        <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-              <tr>
-                <th className="w-10 px-3 py-4">
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10">
                   <Checkbox
                     checked={paginatedPayments.length > 0 && paginatedPayments.every((p: any) => selectedIds.includes(p._id))}
                     onCheckedChange={() => toggleSelectAll(paginatedPayments)}
                   />
-                </th>
+                </TableHead>
                 {["Company Name", "Voucher Number", "Bill Date", "Payment Mode", "Journal", "Amount", "Transaction ID", "Actions"].map((h) => (
-                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
+                  <TableHead key={h}>
                     {h}
-                  </th>
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {isLoading ? (
                 <SkeletonTableRows rows={6} colSpan={9} />
               ) : paginatedPayments.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground italic">
-                    No payments found.
-                  </td>
-                </tr>
+                <TableEmpty colSpan={9}>No payments found.</TableEmpty>
               ) : (
                 paginatedPayments
                   .map((p: any) => (
-                    <tr key={p._id} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(p._id) ? 'bg-primary/5' : ''}`}>
-                      <td className="px-3 py-2">
+                    <TableRow key={p._id} className={`${selectedIds.includes(p._id) ? 'bg-primary/5' : ''}`}>
+                      <TableCell>
                         <Checkbox
                           checked={selectedIds.includes(p._id)}
                           onCheckedChange={() => toggleSelect(p._id)}
                         />
-                      </td>
-                      <td
-                        className="px-6 py-4 font-bold text-primary cursor-pointer hover:underline"
+                      </TableCell>
+                      <TableCell
+                        className="font-bold text-primary cursor-pointer hover:underline"
                         onClick={() => openView(p)}
                       >
                         {p.companyName || p.invoice?.client?.company || "-"}
-                      </td>
-                      <td className="px-6 py-4 font-medium text-foreground">
+                      </TableCell>
+                      <TableCell className="font-medium text-foreground">
                         {p.voucherNumber || "-"}
-                      </td>
-                      <td className="px-6 py-4 text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
                         {p.billDate ? formatDate(p.billDate) : "-"}
-                      </td>
-                      <td className="px-6 py-4 uppercase text-[10px] font-black tracking-widest text-muted-foreground">
-                        {p.paymentmode || "Bank Transfer"}
-                      </td>
-                      <td className="px-6 py-4 font-medium text-foreground">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        <span className="uppercase text-[10px] font-black tracking-widest">{p.paymentmode || "Bank Transfer"}</span>
+                      </TableCell>
+                      <TableCell className="font-medium text-foreground">
                         {p.journal || "-"}
-                      </td>
-                      <td className="px-6 py-4 font-black text-emerald-600">
+                      </TableCell>
+                      <TableCell className="font-black text-emerald-600">
                         ₹{(p.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="px-6 py-4 font-mono text-[11px] text-foreground">
+                      </TableCell>
+                      <TableCell className="text-foreground">
                         {p.transactionid || "-"}
-                      </td>
-                      <td className="px-6 py-4">
+                      </TableCell>
+                      <TableCell>
                         <TableActions
                           onView={() => openView(p)}
                         />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))
               )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination Footer */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-          <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {totalPayments === 0 ? 0 : (safePaymentPage - 1) * paymentPageSize + 1} to {Math.min(safePaymentPage * paymentPageSize, totalPayments)} of {totalPayments} entries
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={safePaymentPage <= 1}
-            >
-              Previous
-            </Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              {safePaymentPage}
-            </div>
-            <span className="text-xs text-muted-foreground px-1">of {totalPaymentPages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.min(totalPaymentPages, p + 1))}
-              disabled={safePaymentPage >= totalPaymentPages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+            </TableBody>
+          </Table>
+          <TablePagination page={safePaymentPage} pageSize={paymentPageSize} total={totalPayments} onPageChange={setCurrentPage} />
+        </TableContainer>
       </div>
 
       {/* View Dialog */}
@@ -769,26 +736,26 @@ const Payments = () => {
 
                     <div>
                       <p className="text-sm font-bold text-slate-900 mb-2">Payment For</p>
-                      <div className="border border-slate-200 rounded-xl overflow-hidden">
-                        <table className="w-full text-xs">
-                          <thead className="bg-slate-50 text-slate-500">
-                            <tr>
-                              <th className="px-3 py-2 text-left font-bold">Invoice Number</th>
-                              <th className="px-3 py-2 text-left font-bold">Invoice Date</th>
-                              <th className="px-3 py-2 text-left font-bold">Invoice Amount</th>
-                              <th className="px-3 py-2 text-left font-bold">Payment Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr className="border-t border-slate-100">
-                              <td className="px-3 py-2 text-primary font-bold">{viewItem.invoice?.number || "N/A"}</td>
-                              <td className="px-3 py-2 text-slate-700">{viewItem.invoice?.date ? formatDate(viewItem.invoice.date) : "-"}</td>
-                              <td className="px-3 py-2 text-slate-700">₹{(viewItem.invoice?.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                              <td className="px-3 py-2 font-bold text-slate-900">₹{(viewItem.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-left">Invoice Number</TableHead>
+                              <TableHead className="text-left">Invoice Date</TableHead>
+                              <TableHead className="text-left">Invoice Amount</TableHead>
+                              <TableHead className="text-left">Payment Amount</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            <TableRow>
+                              <TableCell className="text-primary font-bold">{viewItem.invoice?.number || "N/A"}</TableCell>
+                              <TableCell className="text-slate-700">{viewItem.invoice?.date ? formatDate(viewItem.invoice.date) : "-"}</TableCell>
+                              <TableCell className="text-slate-700">₹{(viewItem.invoice?.total || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                              <TableCell className="font-bold text-slate-900">₹{(viewItem.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </TableContainer>
                     </div>
 
                     {viewItem.note && (

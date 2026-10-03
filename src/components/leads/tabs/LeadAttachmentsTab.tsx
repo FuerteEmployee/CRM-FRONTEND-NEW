@@ -7,6 +7,7 @@ import { formatDateTime } from "@/lib/dateFormat";
 import { fileService } from "@/api/services/file.service";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { toast } from "sonner";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 const ALLOWED_TYPES = [
   "application/pdf",
@@ -111,34 +112,34 @@ export function LeadAttachmentsTab({ lead }: { lead: any }) {
           <p className="text-sm text-slate-400 font-medium">No attachments yet for this lead</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500">
-              <tr>
-                <th className="text-left px-4 py-3">File</th>
-                <th className="text-left px-4 py-3">Uploaded By</th>
-                <th className="text-left px-4 py-3">Date</th>
-                <th className="text-left px-4 py-3">Size</th>
-                <th className="text-right px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>File</TableHead>
+                <TableHead>Uploaded By</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Size</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {files.map((f: any) => {
                 const uploaderName = f.addedfrom
                   ? [f.addedfrom.firstname, f.addedfrom.lastname].filter(Boolean).join(" ")
                   : "—";
                 return (
-                  <tr key={f._id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 font-bold text-slate-800">
+                  <TableRow key={f._id}>
+                    <TableCell>
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4 text-slate-400 shrink-0" />
-                        <span className="truncate max-w-xs">{f.file_name}</span>
+                        <span className="truncate max-w-xs font-semibold">{f.file_name}</span>
                       </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{uploaderName}</td>
-                    <td className="px-4 py-3 text-slate-600">{formatDateTime(f.dateadded)}</td>
-                    <td className="px-4 py-3 text-slate-600">{formatSize(f.size)}</td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell>{uploaderName}</TableCell>
+                    <TableCell>{formatDateTime(f.dateadded)}</TableCell>
+                    <TableCell>{formatSize(f.size)}</TableCell>
+                    <TableCell>
                       <div className="flex items-center justify-end gap-1">
                         <a
                           href={resolveImageUrl(`uploads/${f.attachment_key}`)}
@@ -158,13 +159,13 @@ export function LeadAttachmentsTab({ lead }: { lead: any }) {
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
     </div>
   );

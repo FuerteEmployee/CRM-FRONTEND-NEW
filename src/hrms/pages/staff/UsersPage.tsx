@@ -46,6 +46,7 @@ import { shiftService, type Shift } from "@/hrms/services/shiftService";
 import { API_BASE_URL } from "@/hrms/services/apiClient";
 import { useNavigate, useLocation } from "react-router-dom";
 import { usePermission } from "@/hrms/hooks/usePermission";
+import { useAuth } from "@/hrms/contexts/AuthContext";
 import { toast } from "@/hrms/hooks/use-toast";
 import {
   AlertDialog,
@@ -132,7 +133,14 @@ const getFileUrl = (url?: string) => {
 export default function UsersPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { hasPermission } = usePermission();
+  const { hasPermission, isAdmin } = usePermission();
+  const { user: currentUser } = useAuth();
+  // Branch-wise supervisor scoping: a non-admin staff member with
+  // supervisorBranchIds set only sees staff belonging to those branches.
+  const supervisorBranchIds: string[] = useMemo(
+    () => (!isAdmin && currentUser?.supervisorBranchIds?.length) ? currentUser.supervisorBranchIds : [],
+    [isAdmin, currentUser?.supervisorBranchIds]
+  );
   const confirm = useConfirm();
   const [users, setUsers] = useState<User[]>([]);
   const [branches, setBranches] = useState<any[]>([]);
@@ -223,7 +231,12 @@ export default function UsersPage() {
   // filtered server-side across ALL employees — searching used to look only at
   // the 25 rows of the current page, so e.g. a second "Anjali" never showed.
   const filteredUsers = useMemo(() => {
-    let result = [...users];
+    // A supervisor (supervisorBranchIds set) only sees staff of their branches.
+    let result = users.filter((u) => {
+      const b = (u as any).hrmsBranchId;
+      const userBranchId = String((b && typeof b === "object" ? b._id || b.id : b) || "");
+      return supervisorBranchIds.length === 0 || supervisorBranchIds.includes(userBranchId);
+    });
 
     if (sortConfig) {
       result.sort((a, b) => {
@@ -236,7 +249,7 @@ export default function UsersPage() {
     }
 
     return result;
-  }, [users, sortConfig]);
+  }, [users, sortConfig, supervisorBranchIds]);
 
   const requestSort = (key: string) => {
     let direction: "asc" | "desc" = "asc";
@@ -492,6 +505,7 @@ export default function UsersPage() {
           if (match) { initialMapping[field.key] = match; used.add(match); }
         });
         setFieldMapping(initialMapping);
+        setImportResult(null);
         setIsMappingOpen(true);
       } catch (err) {
         toast({ title: "Error", description: "Failed to parse Excel file", variant: "destructive" });
@@ -505,6 +519,7 @@ export default function UsersPage() {
 
   // Sends the file + column mapping to POST /import/bulk, which creates each
   // employee plus their linked CRM Staff login (import_employees_controller.js).
+  // The backend reads the HRMS branch under "hrmsBranchId" (not "storeId").
   const handleImport = async () => {
     if (!pendingFile) return;
     setIsImporting(true);
@@ -825,6 +840,22 @@ export default function UsersPage() {
                 </div>
               ))}
             </div>
+
+            {importResult && (
+              <div className="space-y-2 rounded-md border border-slate-200 p-3 bg-slate-50">
+                <p className="text-xs font-bold text-slate-700">
+                  {importResult.success} succeeded, {importResult.failed} failed
+                </p>
+                {importResult.errors.length > 0 && (
+                  <div className="max-h-[120px] overflow-y-auto space-y-1 pr-2">
+                    {importResult.errors.map((err, idx) => (
+                      <p key={idx} className="text-[11px] text-rose-600 font-medium">{err}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
               <Button variant="ghost" onClick={() => setIsMappingOpen(false)} className="rounded-md font-semibold">Cancel</Button>
               <Button onClick={handleImport} disabled={isImporting} className="rounded-md gradient-primary font-semibold shadow-sm px-8">

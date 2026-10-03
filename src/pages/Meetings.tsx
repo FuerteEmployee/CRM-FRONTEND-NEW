@@ -33,6 +33,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 
 const memberLabel = (m: any) =>
   typeof m === "string" ? m : [m?.firstname, m?.lastname].filter(Boolean).join(" ") || m?.email || m?._id;
@@ -757,7 +758,7 @@ export default function Meetings() {
           </div>
         </div>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardContent className="p-0">
             <div className="p-4 border-b bg-slate-50/50 flex items-center justify-between">
               <div className="relative w-full max-w-sm">
@@ -771,32 +772,30 @@ export default function Meetings() {
               </div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b">
-                  <tr>
-                    <th className="px-6 py-4 font-bold">Topic</th>
-                    <th className="px-6 py-4 font-bold">Date & Time</th>
-                    <th className="px-6 py-4 font-bold">Members</th>
-                    <th className="px-6 py-4 font-bold">Status</th>
-                    <th className="px-6 py-4 font-bold">Summary</th>
-                    <th className="px-6 py-4 font-bold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Topic</TableHead>
+                    <TableHead>Date & Time</TableHead>
+                    <TableHead>Members</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Summary</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading ? (
                     Array.from({ length: 3 }).map((_, i) => (
-                      <tr key={i} className="border-b">
-                        <td colSpan={5} className="p-4"><Skeleton className="h-12 w-full" /></td>
-                      </tr>
+                      <TableRow key={i}>
+                        <TableCell colSpan={6}><Skeleton className="h-12 w-full" /></TableCell>
+                      </TableRow>
                     ))
                   ) : filteredMeetings.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-muted-foreground">No meetings found.</td>
-                    </tr>
+                    <TableEmpty colSpan={6}>No meetings found.</TableEmpty>
                   ) : (
                     filteredMeetings.map((meeting: any) => (
-                      <tr key={meeting._id} className="border-b hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4 font-medium text-slate-900">
+                      <TableRow key={meeting._id}>
+                        <TableCell>
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold">{meeting.topic}</span>
                             {canUseBranch && meeting.branch && (
@@ -806,8 +805,8 @@ export default function Meetings() {
                             )}
                           </div>
                           <div className="text-xs text-muted-foreground line-clamp-1">{meeting.agenda}</div>
-                        </td>
-                        <td className="px-6 py-4">
+                        </TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-1.5 font-medium">
                             <Calendar className="h-3.5 w-3.5 text-blue-500" />
                             {meeting.date ? formatDate(meeting.date) : "N/A"}
@@ -818,24 +817,24 @@ export default function Meetings() {
                               {meeting.time}
                             </div>
                           )}
-                        </td>
-                        <td className="px-6 py-4">
+                        </TableCell>
+                        <TableCell>
                           <div className="flex items-center gap-1.5">
                             <Users className="h-4 w-4 text-slate-400" />
                             <span>{meeting.members && meeting.members.length > 0 ? meeting.members.map(memberLabel).join(", ") : "None"}</span>
                           </div>
-                        </td>
-                        <td className="px-6 py-4">
+                        </TableCell>
+                        <TableCell>
                           <Badge variant={meeting.status === 'Completed' ? 'default' : meeting.status === 'Cancelled' ? 'destructive' : 'secondary'} className="font-bold uppercase text-[10px]">
                             {meeting.status}
                           </Badge>
-                        </td>
-                        <td className="px-6 py-4">
+                        </TableCell>
+                        <TableCell>
                           <div className="text-xs text-slate-600 line-clamp-2 max-w-xs italic">
                             {meeting.summary || <span className="text-slate-400">No summary yet</span>}
                           </div>
-                        </td>
-                        <td className="px-6 py-4 text-right">
+                        </TableCell>
+                        <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-2">
                             <Button variant="outline" size="sm" className="h-8 gap-1.5 text-green-600 border-green-200 hover:bg-green-50" onClick={() => handleJoinAndScribe(meeting)}>
                               <Video className="h-3.5 w-3.5" />
@@ -870,12 +869,12 @@ export default function Meetings() {
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>

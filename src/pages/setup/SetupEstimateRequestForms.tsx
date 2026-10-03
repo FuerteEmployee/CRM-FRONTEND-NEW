@@ -19,6 +19,7 @@ import { ExportButton } from "@/components/ui/export-button";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/dateFormat";
 import { usePermissions } from "@/hooks/usePermissions";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 
 export default function SetupEstimateRequestForms() {
   const navigate = useNavigate();
@@ -112,87 +113,55 @@ export default function SetupEstimateRequestForms() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-              <tr>
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
                 {["ID", "Form Name", "Total Submissions", "Created", "Actions"].map((h) => (
-                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                  <TableHead key={h}>{h}</TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {isLoading ? (
                 Array(3).fill(0).map((_, i) => (
-                  <tr key={i}>
-                    <td colSpan={5} className="p-4"><Skeleton className="h-10 w-full" /></td>
-                  </tr>
+                  <TableRow key={i}>
+                    <TableCell colSpan={5}><Skeleton className="h-10 w-full" /></TableCell>
+                  </TableRow>
                 ))
               ) : pageData.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground italic">
-                    No estimate request forms found.
-                  </td>
-                </tr>
+                <TableEmpty colSpan={5}>No estimate request forms found.</TableEmpty>
               ) : (
                 pageData.map((form: any, index: number) => (
-                  <tr key={form._id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{index + 1}</td>
-                    <td className="px-6 py-4">
+                  <TableRow key={form._id}>
+                    <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+                    <TableCell>
                       <button
                         className="font-bold text-primary hover:underline cursor-pointer text-left"
                         onClick={() => navigate(`/admin/setup/estimate-request/forms/${form._id}/preview`)}
                       >
                         {form.name}
                       </button>
-                    </td>
-                    <td className="px-6 py-4 font-bold text-foreground">{form.totalSubmissions ?? 0}</td>
-                    <td className="px-6 py-4 text-muted-foreground">
+                    </TableCell>
+                    <TableCell><span className="font-bold">{form.totalSubmissions ?? 0}</span></TableCell>
+                    <TableCell className="text-muted-foreground">
                       {form.createdAt ? formatDate(form.createdAt) : "-"}
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell>
                       <TableActions
                         onView={() => navigate(`/admin/setup/estimate-request/forms/${form._id}/preview`)}
                         onEdit={can("Estimate Request", "Edit") ? () => navigate(`/admin/setup/estimate-request/form-fields/${form._id}`) : undefined}
                         onDelete={can("Estimate Request", "Delete") ? () => deleteMutation.mutate(form._id) : undefined}
                       />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+          <TablePagination page={safeFormPage} pageSize={formPageSize} total={filtered.length} onPageChange={setCurrentPage} />
+        </TableContainer>
 
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4">
-          <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {filtered.length === 0 ? 0 : (safeFormPage - 1) * formPageSize + 1} to {Math.min(safeFormPage * formPageSize, filtered.length)} of {filtered.length} entries
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={safeFormPage <= 1}
-            >
-              Previous
-            </Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              {safeFormPage}
-            </div>
-            <span className="text-xs text-muted-foreground px-1">of {totalFormPages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.min(totalFormPages, p + 1))}
-              disabled={safeFormPage >= totalFormPages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
       </div>
     </DashboardLayout>
   );

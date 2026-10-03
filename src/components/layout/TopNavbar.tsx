@@ -217,7 +217,7 @@ export function TopNavbar() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-9 gap-1.5 px-2 md:px-2.5 text-muted-foreground hover:text-foreground"
+            className="h-9 gap-1.5 px-2 md:px-2.5 text-foreground"
             title="Settings"
           >
             <Settings className="h-4 w-4" />
@@ -233,7 +233,7 @@ export function TopNavbar() {
           <Button
             variant="ghost"
             size="icon"
-            className="h-9 w-9 text-muted-foreground hover:text-foreground"
+            className="h-9 w-9 text-foreground"
             title="Share"
           >
             <Share2 className="h-4 w-4" />
@@ -244,7 +244,7 @@ export function TopNavbar() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 text-muted-foreground hover:text-foreground"
+              className="h-9 w-9 text-foreground"
               title="Tasks"
             >
               <CheckSquare className="h-4 w-4" />
@@ -256,7 +256,7 @@ export function TopNavbar() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 text-muted-foreground hover:text-foreground"
+              className="h-9 w-9 text-foreground"
               title="Time Tracking"
             >
               <Clock className="h-4 w-4" />
@@ -271,22 +271,22 @@ export function TopNavbar() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                className="h-9 w-9 text-foreground"
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem onClick={() => { }}>
-                <Share2 className="mr-2 h-4 w-4 text-muted-foreground" />
+                <Share2 className="mr-2 h-4 w-4 text-foreground" />
                 <span>Share</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate(`${base}/tasks`)}>
-                <CheckSquare className="mr-2 h-4 w-4 text-muted-foreground" />
+                <CheckSquare className="mr-2 h-4 w-4 text-foreground" />
                 <span>Tasks</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate(`${base}/time-tracking`)}>
-                <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
+                <Clock className="mr-2 h-4 w-4 text-foreground" />
                 <span>Time Tracking</span>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -299,7 +299,7 @@ export function TopNavbar() {
             <Button
               variant="ghost"
               size="icon"
-              className="relative h-9 w-9 text-muted-foreground hover:text-foreground"
+              className="relative h-9 w-9 text-foreground"
             >
               <Bell className="h-4 w-4" />
               {unreadCount > 0 && (
@@ -361,7 +361,7 @@ export function TopNavbar() {
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 text-muted-foreground hover:text-foreground"
+              className="h-9 w-9 text-foreground"
               title="Theme Selection"
             >
               {theme === "dark" ? (
@@ -439,7 +439,7 @@ export function TopNavbar() {
               className="gap-3 px-4 py-2.5 cursor-pointer"
               onClick={() => navigate(`${base}/profile`)}
             >
-              <User className="h-4 w-4 text-muted-foreground" />
+              <User className="h-4 w-4 text-foreground" />
               <span className="text-sm">My Profile</span>
             </DropdownMenuItem>
 
@@ -447,7 +447,7 @@ export function TopNavbar() {
               className="gap-3 px-4 py-2.5 cursor-pointer"
               onClick={() => navigate(`${base}/time-tracking`)}
             >
-              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+              <ClipboardList className="h-4 w-4 text-foreground" />
               <span className="text-sm">My Timesheets</span>
             </DropdownMenuItem>
 
@@ -455,13 +455,13 @@ export function TopNavbar() {
               className="gap-3 px-4 py-2.5 cursor-pointer"
               onClick={() => navigate(`${base}/profile`)}
             >
-              <Edit className="h-4 w-4 text-muted-foreground" />
+              <Edit className="h-4 w-4 text-foreground" />
               <span className="text-sm">Edit Profile</span>
             </DropdownMenuItem>
 
             <DropdownMenuSub>
               <DropdownMenuSubTrigger className="gap-3 px-4 py-2.5 cursor-pointer notranslate">
-                <Globe className="h-4 w-4 text-muted-foreground" />
+                <Globe className="h-4 w-4 text-foreground" />
                 <span className="text-sm">Language</span>
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-48 max-h-72 overflow-y-auto notranslate">

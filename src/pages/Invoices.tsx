@@ -54,6 +54,7 @@ import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/ui/export-button";
@@ -675,33 +676,33 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                 <div className="border border-border/40 rounded-xl p-5 min-h-[100px]">
                   {d.items?.length > 0 ? (
                     <>
-                      <table className="w-full text-xs mb-4">
-                        <thead className="bg-red-600 text-white text-[10px] font-black uppercase tracking-widest">
-                          <tr>
-                            <th className="px-3 py-2.5 text-left w-12">#</th>
-                            <th className="px-3 py-2.5 text-left">Item</th>
-                            <th className="px-3 py-2.5 text-left w-16">Qty</th>
-                            <th className="px-3 py-2.5 text-left w-24">Rate</th>
-                            <th className="px-3 py-2.5 text-left w-16">Tax</th>
-                            <th className="px-3 py-2.5 text-left w-28">Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/30">
+                      <Table className="mb-4">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-left w-12">#</TableHead>
+                            <TableHead className="text-left">Item</TableHead>
+                            <TableHead className="text-left w-16">Qty</TableHead>
+                            <TableHead className="text-left w-24">Rate</TableHead>
+                            <TableHead className="text-left w-16">Tax</TableHead>
+                            <TableHead className="text-left w-28">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {d.items.map((item: any, i: number) => (
-                            <tr key={i} className="hover:bg-muted/20">
-                              <td className="px-3 py-2.5 text-foreground font-medium">{i + 1}</td>
-                              <td className="px-3 py-2.5 text-foreground align-top">
+                            <TableRow key={i}>
+                              <TableCell className="text-foreground font-medium">{i + 1}</TableCell>
+                              <TableCell className="text-foreground align-top">
                                 <div className="font-bold">{item.description || item.name || "—"}</div>
                                 {item.long_description && <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.long_description}</div>}
-                              </td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.qty || item.quantity || 1}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</td>
-                              <td className="px-3 py-2.5 font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</td>
-                            </tr>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground align-top">{item.qty || item.quantity || 1}</TableCell>
+                              <TableCell className="text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</TableCell>
+                              <TableCell className="text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</TableCell>
+                              <TableCell className="font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                       <div className="flex flex-col items-end gap-1.5 pt-2 border-t border-border/30">
                         {d.subtotal !== undefined && (
                           <div className="flex gap-4 text-xs">
@@ -1458,47 +1459,42 @@ const Invoices = () => {
         </div>
 
         {/* Invoices Table */}
-        <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-              <tr>
-                <th className="w-10 px-3 py-4">
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10">
                   <Checkbox
                     checked={pageInvoices.length > 0 && pageInvoices.every((i: any) => selectedIds.includes(i._id))}
                     onCheckedChange={() => toggleSelectAll(pageInvoices)}
                   />
-                </th>
+                </TableHead>
                 {tableHeaders.map((h) => (
-                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px] whitespace-nowrap">
+                  <TableHead key={h} className="whitespace-nowrap">
                     {h}
-                  </th>
+                  </TableHead>
                 ))}
-                <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {isLoading ? (
                 <SkeletonTableRows rows={6} colSpan={TABLE_COLUMN_COUNT} />
               ) : flatRows.length === 0 ? (
-                <tr>
-                  <td colSpan={TABLE_COLUMN_COUNT} className="px-6 py-12 text-center text-muted-foreground italic">
-                    No invoices found.
-                  </td>
-                </tr>
+                <TableEmpty colSpan={TABLE_COLUMN_COUNT}>No invoices found.</TableEmpty>
               ) : (
                 flatRows.map((row: any) => {
                   const inv = row.invoice;
                   const status = statusMap[inv.status] || statusMap["unpaid"];
                   return (
-                    <tr key={row.rowKey} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(inv._id) ? 'bg-primary/5' : ''}`}>
-                      <td className="px-3 py-2">
+                    <TableRow key={row.rowKey} className={`${selectedIds.includes(inv._id) ? 'bg-primary/5' : ''}`}>
+                      <TableCell>
                         <Checkbox
                           checked={selectedIds.includes(inv._id)}
                           onCheckedChange={() => toggleSelect(inv._id)}
                         />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <button
                             className="font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer text-left"
@@ -1510,77 +1506,46 @@ const Invoices = () => {
                             {status.label}
                           </Badge>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">
                         {row.billDate ? formatDate(row.billDate) : "-"}
-                      </td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.voucherType || "-"}</td>
-                      {isPilot && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.salesPerson || "-"}</td>}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.voucherType || "-"}</TableCell>
+                      {isPilot && <TableCell className="text-muted-foreground whitespace-nowrap">{row.salesPerson || "-"}</TableCell>}
 
-                      <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">{row.partyName}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.partyAddress || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.partyGroup || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.termsOfPayment || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.gstin || "-"}</td>
-                      <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">{row.itemName || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.itemGroup || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.itemHSN || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.gstPercentage || 0}%</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.itemBatch || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.quantity || 0}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.rate || 0)}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.unit || "-"}</td>
-                      <td className="px-6 py-4 font-black text-foreground whitespace-nowrap">{formatRowAmount(inv, row.amount || 0)}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.freight || 0)}</td>
-                      <td className="px-6 py-4 font-black text-primary whitespace-nowrap">{formatRowAmount(inv, row.total || 0)}</td>
-                      {canUseBranch && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.branch || "-"}</td>}
-                      {canUseBankDetails && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.bankDetails || "-"}</td>}
-                      <td className="px-6 py-4">
+                      <TableCell className="font-medium text-foreground whitespace-nowrap">{row.partyName}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.partyAddress || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.partyGroup || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.termsOfPayment || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.gstin || "-"}</TableCell>
+                      <TableCell className="font-medium text-foreground whitespace-nowrap">{row.itemName || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.itemGroup || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.itemHSN || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.gstPercentage || 0}%</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.itemBatch || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.quantity || 0}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.rate || 0)}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.unit || "-"}</TableCell>
+                      <TableCell className="font-black text-foreground whitespace-nowrap">{formatRowAmount(inv, row.amount || 0)}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.freight || 0)}</TableCell>
+                      <TableCell className="font-black text-primary whitespace-nowrap">{formatRowAmount(inv, row.total || 0)}</TableCell>
+                      {canUseBranch && <TableCell className="text-muted-foreground whitespace-nowrap">{row.branch || "-"}</TableCell>}
+                      {canUseBankDetails && <TableCell className="text-muted-foreground whitespace-nowrap">{row.bankDetails || "-"}</TableCell>}
+                      <TableCell>
                         <TableActions
                           onView={() => setPreviewInvoice(inv)}
                           onEdit={can("Invoices", "Edit") ? () => navigate(`/admin/invoices/edit/${inv._id}`) : undefined}
                           onDelete={can("Invoices", "Delete") ? () => deleteMutation.mutate(inv._id) : undefined}
                         />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })
               )}
-            </tbody>
-          </table>
-          </div>
-        </div>
-
-        {/* Pagination Footer */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-          <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {totalInvoiceRows === 0 ? 0 : (safeInvoicePage - 1) * invoicePageSize + 1} to {Math.min(safeInvoicePage * invoicePageSize, totalInvoiceRows)} of {totalInvoiceRows} entries
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={safeInvoicePage <= 1}
-            >
-              Previous
-            </Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              {safeInvoicePage}
-            </div>
-            <span className="text-xs text-muted-foreground px-1">of {totalInvoicePages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.min(totalInvoicePages, p + 1))}
-              disabled={safeInvoicePage >= totalInvoicePages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+            </TableBody>
+          </Table>
+          <TablePagination page={safeInvoicePage} pageSize={invoicePageSize} total={totalInvoiceRows} onPageChange={setCurrentPage} />
+        </TableContainer>
       </div>
 
       {/* Centered popup dialog */}

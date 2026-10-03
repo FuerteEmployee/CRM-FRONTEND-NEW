@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Plus, CheckSquare } from "lucide-react";
 import { formatDate } from "@/lib/dateFormat";
 import { taskService } from "@/api/services/task.service";
@@ -62,18 +63,18 @@ export function LeadTasksTab({ lead }: { lead: any }) {
           <p className="text-sm text-slate-400 font-medium">No tasks yet for this lead</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500">
-              <tr>
-                <th className="text-left px-4 py-3">Title</th>
-                <th className="text-left px-4 py-3">Assigned To</th>
-                <th className="text-left px-4 py-3">Due Date</th>
-                <th className="text-left px-4 py-3">Priority</th>
-                <th className="text-left px-4 py-3">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Title</TableHead>
+                <TableHead>Assigned To</TableHead>
+                <TableHead>Due Date</TableHead>
+                <TableHead>Priority</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {tasks.map((t: any) => {
                 const status = STATUS_LABELS[t.status] ?? STATUS_LABELS[1];
                 const assignedNames = (t.assignees || [])
@@ -82,24 +83,24 @@ export function LeadTasksTab({ lead }: { lead: any }) {
                   .map((s: any) => `${s.firstname} ${s.lastname}`.trim())
                   .join(", ");
                 return (
-                  <tr
+                  <TableRow
                     key={t._id}
-                    className="hover:bg-slate-50 cursor-pointer transition-colors"
+                    className="cursor-pointer"
                     onClick={() => setViewingTask(t)}
                   >
-                    <td className="px-4 py-3 font-bold text-slate-800">{t.name}</td>
-                    <td className="px-4 py-3 text-slate-600">{assignedNames || "—"}</td>
-                    <td className="px-4 py-3 text-slate-600">{t.duedate ? formatDate(t.duedate) : "—"}</td>
-                    <td className="px-4 py-3 text-slate-600">{PRIORITY_LABELS[t.priority] || "—"}</td>
-                    <td className="px-4 py-3">
+                    <TableCell><span className="font-semibold">{t.name}</span></TableCell>
+                    <TableCell>{assignedNames || "—"}</TableCell>
+                    <TableCell>{t.duedate ? formatDate(t.duedate) : "—"}</TableCell>
+                    <TableCell>{PRIORITY_LABELS[t.priority] || "—"}</TableCell>
+                    <TableCell>
                       <Badge className={`rounded-lg font-bold ${status.className}`}>{status.label}</Badge>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
 
       <LeadAddTaskModal open={addOpen} onOpenChange={setAddOpen} lead={lead} staffOptions={staffOptions} />

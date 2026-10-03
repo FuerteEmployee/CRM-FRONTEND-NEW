@@ -38,6 +38,7 @@ import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { useCurrency } from "@/context/CurrencyContext";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 
 const ITEM_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Item Name", sample: "Laptop Stand", required: true, core: true },
@@ -875,52 +876,48 @@ const Items = () => {
         </div>
 
         {/* Items Data Grid */}
-        <Card className="rounded-[2rem] border border-border/50 overflow-hidden shadow-sm">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                  <tr>
-                    <th className="p-3 font-medium w-8">
+        <TableContainer>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8">
                       <input
                         type="checkbox"
                         className="rounded border-border"
                         checked={allItemPageSelected}
                         onChange={handleSelectAll}
                       />
-                    </th>
-                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Name</th>
-                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Group</th>
-                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Description</th>
-                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Quantity</th>
-                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Rate</th>
-                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Amount</th>
-                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Unit</th>
-                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Tax</th>
-                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">HSN/SAC</th>
-                    {canUseBranch && <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Branch</th>}
+                    </TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Group</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Rate</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Unit</TableHead>
+                    <TableHead>Tax</TableHead>
+                    <TableHead>HSN/SAC</TableHead>
+                    {canUseBranch && <TableHead>Branch</TableHead>}
                     {tableCustomFields.map((cf: any) => (
-                      <th key={cf._id} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
+                      <TableHead key={cf._id}>
                         {cf.name}
-                      </th>
+                      </TableHead>
                     ))}
-                    <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading ? (
                     <SkeletonTableRows rows={6} colSpan={11 + (canUseBranch ? 1 : 0) + tableCustomFields.length} />
                   ) : paginatedItems.length === 0 ? (
-                    <tr>
-                      <td colSpan={11 + (canUseBranch ? 1 : 0) + tableCustomFields.length} className="px-6 py-12 text-center text-muted-foreground italic">
+                    <TableEmpty colSpan={11 + (canUseBranch ? 1 : 0) + tableCustomFields.length}>
                         No database items found. Use "New Item" to populate the list.
-                      </td>
-                    </tr>
+                      </TableEmpty>
                   ) : (
                     paginatedItems
                       .map((item: any) => (
-                      <tr key={item._id} className={`hover:bg-muted/30 transition-colors ${selectedItems.includes(item._id) ? 'bg-primary/5' : ''}`}>
-                        <td className="p-3">
+                      <TableRow key={item._id} className={`${selectedItems.includes(item._id) ? 'bg-primary/5' : ''}`}>
+                        <TableCell>
                           <input
                             type="checkbox"
                             className="rounded border-border"
@@ -930,9 +927,9 @@ const Items = () => {
                               else setSelectedItems(prev => prev.filter(id => id !== item._id));
                             }}
                           />
-                        </td>
-                        <td className="px-6 py-4 font-bold text-slate-800">{item.name || item.description}</td>
-                        <td className="px-6 py-4">
+                        </TableCell>
+                        <TableCell className="font-medium">{item.name || item.description}</TableCell>
+                        <TableCell>
                           {item.group ? (
                             <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 font-bold uppercase tracking-wider text-[9px] px-2 py-0.5">
                               {item.group}
@@ -940,17 +937,17 @@ const Items = () => {
                           ) : (
                             <span className="text-slate-400 font-medium">-</span>
                           )}
-                        </td>
-                        <td className="px-6 py-4 text-muted-foreground max-w-xs truncate">{item.long_description || "-"}</td>
-                        <td className="px-6 py-4 font-bold text-slate-800">{item.quantity ?? 1}</td>
-                        <td className="px-6 py-4 font-black text-slate-900">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground max-w-xs truncate">{item.long_description || "-"}</TableCell>
+                        <TableCell>{item.quantity ?? 1}</TableCell>
+                        <TableCell>
                           {symbol}{(item.rate || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-6 py-4 font-black text-slate-900">
+                        </TableCell>
+                        <TableCell className="font-semibold">
                           {symbol}{(item.amount ?? ((item.quantity ?? 1) * (item.rate ?? 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-6 py-4 font-medium text-slate-500">{item.unit || "item"}</td>
-                        <td className="px-6 py-4">
+                        </TableCell>
+                        <TableCell>{item.unit || "item"}</TableCell>
+                        <TableCell>
                           {item.tax ? (
                             <Badge className="bg-emerald-500/10 text-emerald-700 border-none font-black text-[10px]">
                               {typeof item.tax === "object" ? item.tax.name : "Active Tax"} (
@@ -959,67 +956,41 @@ const Items = () => {
                           ) : (
                             <span className="text-slate-400 font-medium">-</span>
                           )}
-                        </td>
-                        <td className="px-6 py-4 font-medium text-slate-500">{item.hsn_sac_code || "-"}</td>
+                        </TableCell>
+                        <TableCell>{item.hsn_sac_code || "-"}</TableCell>
                         {canUseBranch && (
-                          <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                          <TableCell className="text-muted-foreground whitespace-nowrap">
                             {typeof item.branch === "object" ? (item.branch?.name || "-") : (item.branch || "-")}
-                          </td>
+                          </TableCell>
                         )}
                         {tableCustomFields.map((cf: any) => {
                           const val = item.custom_fields?.[cf.slug] ?? item.custom_fields?.[cf._id] ?? "-";
                           return (
-                            <td key={cf._id} className="px-6 py-4 font-medium text-slate-600">
+                            <TableCell key={cf._id}>
                               {typeof val === "boolean" ? (val ? "Yes" : "No") : String(val || "-")}
-                            </td>
+                            </TableCell>
                           );
                         })}
-                        <td className="px-6 py-4">
+                        <TableCell>
                           <TableActions
                             onView={() => setViewItem(item)}
                             onEdit={can("items", "edit") ? () => openEdit(item) : undefined}
                             onDelete={can("items", "delete") ? () => deleteMutation.mutate(item._id) : undefined}
                           />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pagination Footer */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-          <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {totalItemRows === 0 ? 0 : (safeItemPage - 1) * itemPageSize + 1} to {Math.min(safeItemPage * itemPageSize, totalItemRows)} of {totalItemRows} entries
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={safeItemPage <= 1}
-            >
-              Previous
-            </Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              {safeItemPage}
-            </div>
-            <span className="text-xs text-muted-foreground px-1">of {totalItemPages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.min(totalItemPages, p + 1))}
-              disabled={safeItemPage >= totalItemPages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+                </TableBody>
+              </Table>
+          {/* Pagination Footer */}
+          <TablePagination
+            page={safeItemPage}
+            pageSize={itemPageSize}
+            total={totalItemRows}
+            onPageChange={(p) => setCurrentPage(Math.min(Math.max(1, p), totalItemPages))}
+          />
+        </TableContainer>
       </div>
 
       {/* View Item Details */}

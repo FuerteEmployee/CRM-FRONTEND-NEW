@@ -354,7 +354,7 @@ const TargetsManagementPage = () => {
       </div>
 
       <div className="space-y-6">
-        <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden [&>.space-y-4>div]:rounded-none [&>.space-y-4>div]:border-0 [&>.space-y-4>div]:shadow-none">
           <CardHeader className="py-4 border-b border-slate-100">
             <div className="flex items-center justify-between">
               <div>
@@ -511,9 +511,9 @@ const TargetsManagementPage = () => {
               </CardHeader>
               <Table>
                 <TableHeader>
-                  <TableRow className="hover:bg-transparent border-slate-100">
-                    <TableHead className="text-[10px] font-bold text-slate-500 h-9">Achievement</TableHead>
-                    <TableHead className="text-[10px] font-bold text-slate-500 h-9 text-right pr-4">Rate</TableHead>
+                  <TableRow>
+                    <TableHead>Achievement</TableHead>
+                    <TableHead className="text-right">Rate</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -523,9 +523,9 @@ const TargetsManagementPage = () => {
                     { range: "100–120%", rate: "1.0%", color: "text-emerald-500 font-semibold" },
                     { range: "> 120%", rate: "1.5%", color: "text-emerald-600 font-bold" },
                   ].map((s) => (
-                    <TableRow key={s.range} className="hover:bg-slate-50 border-slate-50">
-                      <TableCell className="text-sm font-medium text-slate-600 py-3">{s.range}</TableCell>
-                      <TableCell className={cn("text-sm text-right pr-4 py-3 font-semibold", s.color)}>{s.rate}</TableCell>
+                    <TableRow key={s.range}>
+                      <TableCell>{s.range}</TableCell>
+                      <TableCell className={cn("text-right font-semibold", s.color)}>{s.rate}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -40,6 +40,7 @@ import { useToast } from "@/hooks/use-toast";
 import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { usePermissions } from "@/hooks/usePermissions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 
 const Support = () => {
   const [search, setSearch] = useState("");
@@ -211,7 +212,7 @@ const Support = () => {
           )}
         </div>
 
-        <Card className="border-none shadow-sm overflow-hidden bg-white">
+        <Card className="overflow-hidden">
           <CardContent className="p-0">
             {/* Table Header Controls */}
             <div className="p-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/50">
@@ -365,42 +366,38 @@ const Support = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1200px]">
-                <thead>
-                  <tr className="border-b text-left text-[11px] text-slate-500 uppercase tracking-widest bg-slate-50/80">
-                    <th className="p-4 w-10">
+              <Table className="min-w-[1200px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">
                       <Checkbox 
                         className="border-slate-300"
                         checked={paginated.length > 0 && selectedTickets.length === paginated.length}
                         onCheckedChange={handleSelectAll}
                       />
-                    </th>
-                    <th className="p-4 font-bold w-12">#</th>
-                    <th className="p-4 font-bold min-w-[200px]">Subject</th>
-                    <th className="p-4 font-bold">Tags</th>
-                    <th className="p-4 font-bold">Department</th>
-                    <th className="p-4 font-bold">Service</th>
-                    <th className="p-4 font-bold">Contact</th>
-                    <th className="p-4 font-bold">Status</th>
-                    <th className="p-4 font-bold">Priority</th>
-                    <th className="p-4 font-bold">Last Reply</th>
-                    <th className="p-4 font-bold">Created</th>
-                    <th className="p-4 font-bold w-20 text-center">Options</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm">
+                    </TableHead>
+                    <TableHead className="w-12">#</TableHead>
+                    <TableHead className="min-w-[200px]">Subject</TableHead>
+                    <TableHead>Tags</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Service</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Last Reply</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="w-20 text-center">Options</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading ? (
-                    <SkeletonTableRows rows={6} colSpan={11} />
+                    <SkeletonTableRows rows={6} colSpan={12} />
                   ) : paginated.length === 0 ? (
-                    <tr>
-                      <td colSpan={11} className="p-10 text-center text-slate-500 font-medium">
-                        No tickets found
-                      </td>
-                    </tr>
+                    <TableEmpty colSpan={12}>No tickets found</TableEmpty>
                   ) : (
                     paginated.map((ticket, index) => (
-                      <tr key={ticket._id} className="border-b last:border-0 hover:bg-slate-50/50 transition-colors group">
-                        <td className="p-4">
+                      <TableRow key={ticket._id} className="group">
+                        <TableCell>
                           <Checkbox 
                             className="border-slate-300 data-[state=checked]:bg-primary"
                             checked={selectedTickets.includes(ticket._id)}
@@ -409,16 +406,16 @@ const Support = () => {
                               else setSelectedTickets(selectedTickets.filter(id => id !== ticket._id));
                             }}
                           />
-                        </td>
-                        <td className="p-4 text-xs font-medium text-slate-500">
+                        </TableCell>
+                        <TableCell>
                           {(currentPage - 1) * itemsPerPage + index + 1}
-                        </td>
-                        <td className="p-4">
+                        </TableCell>
+                        <TableCell>
                           <span className="font-semibold text-primary hover:underline cursor-pointer">
                             {ticket.subject}
                           </span>
-                        </td>
-                        <td className="p-4">
+                        </TableCell>
+                        <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {ticket.tags && ticket.tags.length > 0 ? (
                               ticket.tags.map((tag: string) => (
@@ -428,25 +425,25 @@ const Support = () => {
                               ))
                             ) : "-"}
                           </div>
-                        </td>
-                        <td className="p-4 text-xs text-slate-600 font-medium">
+                        </TableCell>
+                        <TableCell>
                           {typeof ticket.department === 'object' ? ticket.department?.name : ticket.department || "-"}
-                        </td>
-                        <td className="p-4 text-xs text-slate-600 font-medium">{ticket.service || "-"}</td>
-                        <td className="p-4 text-xs text-slate-600 font-medium">{ticket.contact_name || ticket.name || "-"}</td>
-                        <td className="p-4">
+                        </TableCell>
+                        <TableCell>{ticket.service || "-"}</TableCell>
+                        <TableCell>{ticket.contact_name || ticket.name || "-"}</TableCell>
+                        <TableCell>
                           <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[10px] uppercase font-bold tracking-wider">
                             {typeof ticket.status === 'object' ? ticket.status?.name : ticket.status || "Open"}
                           </Badge>
-                        </td>
-                        <td className="p-4">
+                        </TableCell>
+                        <TableCell>
                           <Badge className="bg-yellow-50 text-yellow-700 border-yellow-200 text-[10px] uppercase font-bold tracking-wider">
                             {typeof ticket.priority === 'object' ? ticket.priority?.name : ticket.priority || "Medium"}
                           </Badge>
-                        </td>
-                        <td className="p-4 text-xs text-slate-500 font-medium">{ticket.last_reply ? formatDate(ticket.last_reply) : "No reply yet"}</td>
-                        <td className="p-4 text-xs text-slate-500 font-medium">{formatDate(ticket.createdAt)}</td>
-                        <td className="p-4 text-center">
+                        </TableCell>
+                        <TableCell>{ticket.last_reply ? formatDate(ticket.last_reply) : "No reply yet"}</TableCell>
+                        <TableCell>{formatDate(ticket.createdAt)}</TableCell>
+                        <TableCell className="text-center">
                           <TableActions 
                             onView={() => navigate(`/admin/support/view/${ticket._id}`)}
                             onEdit={() => navigate(`/admin/support/edit/${ticket._id}`)}
@@ -455,46 +452,22 @@ const Support = () => {
                               deleteMutation.mutate(ticket._id);
                             }}
                           />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
             {/* Pagination */}
             {!isLoading && filtered.length > 0 && (
-              <div className="flex items-center justify-between p-4 border-t bg-slate-50/50">
-                <div className="text-xs font-medium text-slate-500">
-                  Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-8 text-xs font-bold"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <div className="flex items-center gap-1 mx-2">
-                    <div className="h-8 w-8 rounded-lg bg-primary text-white flex items-center justify-center text-xs font-bold">
-                      {currentPage}
-                    </div>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-8 text-xs font-bold"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+              <TablePagination
+                page={currentPage}
+                pageSize={itemsPerPage}
+                total={totalItems}
+                onPageChange={(p) => setCurrentPage(Math.min(Math.max(1, p), Math.max(totalPages, 1)))}
+              />
             )}
           </CardContent>
         </Card>

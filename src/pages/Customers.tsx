@@ -59,6 +59,7 @@ import { hrmsbranchService, type HRMSBranch } from "@/hrms/services/hrmsbranchSe
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
@@ -1251,7 +1252,7 @@ const Customers = () => {
           </div>
         )}
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardContent className="p-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
               <div className="flex flex-wrap items-center gap-2">
@@ -1363,51 +1364,43 @@ const Customers = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px]">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="p-3 font-medium w-8">
+            <div>
+              <Table className="min-w-[900px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8">
                       <input
                         type="checkbox"
                         className="rounded border-border"
                         checked={paginatedCustomers.length > 0 && paginatedCustomers.every((c: any) => selectedCustomers.includes(c._id))}
                         onChange={handleSelectAll}
                       />
-                    </th>
-                    <th className="p-3 font-medium">#</th>
-                    <th className="p-3 font-medium">Company ↕</th>
-                    <th className="p-3 font-medium">Primary Contact</th>
-                    <th className="p-3 font-medium">Primary Email</th>
-                    <th className="p-3 font-medium">Phone</th>
-                    <th className="p-3 font-medium">Pan Number</th>
-                    <th className="p-3 font-medium">Gst Number</th>
-                    <th className="p-3 font-medium">Active</th>
-                    <th className="p-3 font-medium">Groups</th>
-                    <th className="p-3 font-medium">Branch</th>
-                    <th className="p-3 font-medium">Date Created</th>
-                    <th className="p-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+                    </TableHead>
+                    <TableHead>#</TableHead>
+                    <TableHead>Company ↕</TableHead>
+                    <TableHead>Primary Contact</TableHead>
+                    <TableHead>Primary Email</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Pan Number</TableHead>
+                    <TableHead>Gst Number</TableHead>
+                    <TableHead>Active</TableHead>
+                    <TableHead>Groups</TableHead>
+                    <TableHead>Branch</TableHead>
+                    <TableHead>Date Created</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading ? (
                     <SkeletonTableRows rows={6} colSpan={12} />
                   ) : paginatedCustomers.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={12}
-                        className="p-10 text-center text-muted-foreground"
-                      >
-                        No customers found.
-                      </td>
-                    </tr>
+                    <TableEmpty colSpan={13}>No customers found.</TableEmpty>
                   ) : (
                     paginatedCustomers.map((c, i) => (
-                      <tr
+                      <TableRow
                         key={c._id}
-                        className="border-b last:border-0 hover:bg-muted/50 transition-colors"
                       >
-                        <td className="p-3">
+                        <TableCell>
                           <input
                             type="checkbox"
                             className="rounded border-border"
@@ -1417,35 +1410,35 @@ const Customers = () => {
                               else setSelectedCustomers(selectedCustomers.filter(id => id !== c._id));
                             }}
                           />
-                        </td>
-                        <td className="p-3 text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
                           {(currentPage - 1) * itemsPerPageNum + i + 1}
-                        </td>
-                        <td className="p-3">
+                        </TableCell>
+                        <TableCell>
                           <span className="text-sm font-medium">
                             {c.company}
                           </span>
-                        </td>
-                        <td className="p-3 text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
                           {c.primaryContact ? (
                             <Link to="/admin/contacts" className="text-primary hover:underline">
                               {c.primaryContact.firstname} {c.primaryContact.lastname}
                             </Link>
                           ) : (c.contact_person || "-")}
-                        </td>
-                        <td className="p-3 text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
                           {c.primaryContact?.email || c.email || "-"}
-                        </td>
-                        <td className="p-3 text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
                           <WhatsAppQuickChat phone={c.phonenumber} data={{ customer_name: c.company }} />
-                        </td>
-                        <td className="p-3 text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
                           {c.pan_number || "-"}
-                        </td>
-                        <td className="p-3 text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
                           {c.gst_number || "-"}
-                        </td>
-                        <td className="p-3">
+                        </TableCell>
+                        <TableCell>
                           <Switch
                             checked={c.active}
                             disabled={!can("Customers", "Edit")}
@@ -1457,8 +1450,8 @@ const Customers = () => {
                             }
                             className="scale-75"
                           />
-                        </td>
-                        <td className="p-3">
+                        </TableCell>
+                        <TableCell>
                           <div className="flex gap-1 flex-wrap">
                             {c.groups?.map((g: any) => (
                               <Badge
@@ -1470,14 +1463,14 @@ const Customers = () => {
                               </Badge>
                             ))}
                           </div>
-                        </td>
-                        <td className="p-3 text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
                           {getCustomerBranchName(c) || "-"}
-                        </td>
-                        <td className="p-3 text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
                           {formatDate(c.datecreated)}
-                        </td>
-                        <td className="p-3">
+                        </TableCell>
+                        <TableCell>
                           <TableActions
                             onView={() => navigate(`/admin/customers/${c._id}`)}
                             onEdit={can("Customers", "Edit") ? () => {
@@ -1493,46 +1486,20 @@ const Customers = () => {
                             } : undefined}
                             onDelete={can("Customers", "Delete") ? () => deleteMutation.mutate(c._id || "") : undefined}
                           />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 py-4 border-t">
-              <p className="text-xs font-bold text-muted-foreground italic">
-                Showing {totalCustomers === 0 ? 0 : (currentPage - 1) * itemsPerPageNum + 1} to{" "}
-                {Math.min(currentPage * itemsPerPageNum, totalCustomers)} of {totalCustomers} entries
-              </p>
-              {itemsPerPage !== "all" && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-4 rounded-lg font-bold text-xs"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                  >
-                    Previous
-                  </Button>
-                  <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-                    {currentPage}
-                  </div>
-                  <span className="text-xs text-muted-foreground px-1">of {totalPages}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-4 rounded-lg font-bold text-xs"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                  >
-                    Next
-                  </Button>
-                </div>
-              )}
-            </div>
+            <TablePagination
+              page={currentPage}
+              pageSize={itemsPerPageNum}
+              total={totalCustomers}
+              onPageChange={(p) => setCurrentPage(Math.min(Math.max(p, 1), totalPages))}
+            />
           </CardContent>
         </Card>
       </div>

@@ -69,6 +69,7 @@ import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/dateFormat";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/CurrencyContext";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 
 const statusConfig = [
   { id: 1, label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
@@ -575,33 +576,31 @@ export default function ProjectView() {
         )}
 
         {activeTab === "Tasks" && (
-          <Card className="rounded-2xl border-border/50 shadow-sm">
-            <CardContent className="p-0">
-              {tasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground italic text-center py-10">No tasks linked to this project yet.</p>
-              ) : (
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                    <tr>
-                      {["Name", "Priority", "Status", "Due Date"].map(h => (
-                        <th key={h} className="px-4 py-3 font-black uppercase tracking-wider text-[10px]">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border/50">
-                    {tasks.map((t: any) => (
-                      <tr key={t._id}>
-                        <td className="px-4 py-3 font-bold text-foreground">{t.name}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{["", "Low", "Medium", "High", "Urgent"][t.priority] || "Medium"}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{["", "Not Started", "Awaiting Feedback", "Testing", "In Progress", "Complete"][t.status] || "Not Started"}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{t.duedate ? formatDate(t.duedate) : "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </CardContent>
-          </Card>
+          <TableContainer>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {["Name", "Priority", "Status", "Due Date"].map(h => (
+                    <TableHead key={h}>{h}</TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {tasks.length === 0 ? (
+                  <TableEmpty colSpan={4}>No tasks linked to this project yet.</TableEmpty>
+                ) : (
+                  tasks.map((t: any) => (
+                    <TableRow key={t._id}>
+                      <TableCell className="font-medium">{t.name}</TableCell>
+                      <TableCell className="text-muted-foreground">{["", "Low", "Medium", "High", "Urgent"][t.priority] || "Medium"}</TableCell>
+                      <TableCell className="text-muted-foreground">{["", "Not Started", "Awaiting Feedback", "Testing", "In Progress", "Complete"][t.status] || "Not Started"}</TableCell>
+                      <TableCell className="text-muted-foreground">{t.duedate ? formatDate(t.duedate) : "-"}</TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
 
         {!["Overview", "Tasks"].includes(activeTab) && (

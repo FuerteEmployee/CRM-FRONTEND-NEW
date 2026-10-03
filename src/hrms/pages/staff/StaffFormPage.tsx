@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/hrms/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/hrms/components/ui/tabs";
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from "@/hrms/components/ui/table";
 import { Switch } from "@/hrms/components/ui/switch";
 import { staffService } from "@/hrms/services/staffService";
 import { salespersonService } from "@/hrms/services/salespersonService";
@@ -274,6 +275,10 @@ const staffSchema = z.object({
   // Employment
   role: z.string().optional(),
   hrmsBranchId: z.string().optional(),
+  // Branches this staff member supervises (scopes their visibility of the
+  // staff directory to only these branches instead of the full org) —
+  // separate from hrmsBranchId, which is the branch they themselves belong to.
+  supervisorBranchIds: z.array(z.string()).default([]),
   department: z.string().optional(),
   employmentType: z.string().optional(),
   payType: z.string().optional(),
@@ -440,6 +445,7 @@ export default function StaffFormPage() {
       legalDocuments: { panNumber: "", panUrl: "", aadhaarNumber: "", aadhaarUrl: "", passportPhotoUrl: "" },
       role: "",
       hrmsBranchId: "",
+      supervisorBranchIds: [],
       department: "",
       designation: "",
       employmentType: "permanent",
@@ -581,6 +587,9 @@ export default function StaffFormPage() {
               hrmsBranchId: ((user as any).hrmsBranchId && typeof (user as any).hrmsBranchId === "object")
                 ? ((user as any).hrmsBranchId._id || (user as any).hrmsBranchId.id || "")
                 : ((user as any).hrmsBranchId as string || ""),
+              supervisorBranchIds: Array.isArray((user as any).supervisorBranchIds)
+                ? (user as any).supervisorBranchIds.map((b: any) => (b && typeof b === "object") ? (b._id || b.id) : b)
+                : [],
               department: (user.department && typeof user.department === "object") ? ((user.department as any)._id || (user.department as any).id) : (user.department as string || ""),
               designation: (user.designation && typeof user.designation === "object") ? ((user.designation as any)._id || (user.designation as any).id) : (user.designation as string || ""),
               shiftId: (user.shiftId && typeof user.shiftId === "object") ? ((user.shiftId as any)._id || (user.shiftId as any).id) : (user.shiftId as string || ""),
@@ -1228,6 +1237,36 @@ export default function StaffFormPage() {
                       )} />
                     </div>
 
+                    <div className="space-y-3">
+                      <Label className={labelClass}>Supervisor For Branches</Label>
+                      <p className="text-[11px] text-slate-500">If set, this staff member only sees staff/data for the selected branches in the Staff Directory (branch-wise supervisor scoping), instead of the whole organization.</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {branches.map((b) => (
+                          <FormField
+                            key={b._id || b.id}
+                            control={form.control}
+                            name="supervisorBranchIds"
+                            render={({ field }) => {
+                              const branchId = b._id || b.id;
+                              return (
+                                <FormItem className="flex items-center gap-2 space-y-0 p-2 rounded-md border border-slate-200 bg-white">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value?.includes(branchId)}
+                                      onCheckedChange={(checked) => {
+                                        const current = field.value || [];
+                                        field.onChange(checked ? [...current, branchId] : current.filter((id: string) => id !== branchId));
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <span className="text-xs font-medium text-slate-600">{b.name}</span>
+                                </FormItem>
+                              );
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
 
                     <div className="p-6 rounded-xl bg-slate-50 border border-slate-200 space-y-4">
                       <div className="flex items-center gap-3">
@@ -1912,19 +1951,19 @@ export default function StaffFormPage() {
                       </Select>
                     </div>
 
-                    <div className="border border-slate-200 rounded-lg overflow-hidden mt-8">
-                      <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                          <tr>
-                            <th className="px-6 py-4 font-bold text-foreground w-1/3 border-r border-slate-200">Features</th>
-                            <th className="px-6 py-4 font-bold text-foreground">Capabilities</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200">
+                    <TableContainer className="mt-8">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-1/3">Features</TableHead>
+                            <TableHead>Capabilities</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {FEATURES_CONFIG.map((feature) => (
-                            <tr key={feature.name} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-6 py-4 text-slate-700 font-bold border-r border-slate-200 bg-slate-50/30">{feature.name}</td>
-                              <td className="px-6 py-4">
+                            <TableRow key={feature.name}>
+                              <TableCell className="font-semibold">{feature.name}</TableCell>
+                              <TableCell>
                                 <div className="grid grid-cols-1 gap-2">
                                   {feature.caps.map((cap) => (
                                     <div key={cap} className="flex items-center space-x-3 group">
@@ -1940,12 +1979,12 @@ export default function StaffFormPage() {
                                     </div>
                                   ))}
                                 </div>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
                   </TabsContent>
 
                   {/* Assigned Customers */}

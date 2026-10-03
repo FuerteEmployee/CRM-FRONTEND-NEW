@@ -34,6 +34,7 @@ import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 
 const VENDOR_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Company Name", sample: "Orion Supplies Pvt Ltd", required: true, core: true },
@@ -398,7 +399,7 @@ const Vendors = () => {
         </div>
 
         {/* Table */}
-        <Card className="rounded-2xl border-slate-100 shadow-sm overflow-hidden">
+        <Card className="rounded-lg shadow-sm overflow-hidden">
           <CardContent className="p-0">
             {/* Toolbar: per-page, bulk actions, search */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b bg-white">
@@ -506,61 +507,57 @@ const Vendors = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-slate-50/50 text-left text-xs text-muted-foreground uppercase tracking-wider">
-                    <th className="p-4 font-bold w-12">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
                       <Checkbox className="border-slate-300" checked={allPageSelected} onCheckedChange={toggleSelectAll} />
-                    </th>
-                    <th className="p-4 font-bold">Company Name</th>
-                    <th className="p-4 font-bold">Vendor Reference</th>
-                    <th className="p-4 font-bold">Connect Person</th>
-                    <th className="p-4 font-bold">Phone Number</th>
-                    <th className="p-4 font-bold">Address with State</th>
-                    <th className="p-4 font-bold">Email</th>
-                    <th className="p-4 font-bold">PAN</th>
-                    <th className="p-4 font-bold">GST Number</th>
-                    <th className="p-4 font-bold">Account Details</th>
-                    <th className="p-4 font-bold">Sales Person</th>
-                    {canUseBranch && <th className="p-4 font-bold">Branch</th>}
-                    <th className="p-4 font-bold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+                    </TableHead>
+                    <TableHead>Company Name</TableHead>
+                    <TableHead>Vendor Reference</TableHead>
+                    <TableHead>Connect Person</TableHead>
+                    <TableHead>Phone Number</TableHead>
+                    <TableHead>Address with State</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>PAN</TableHead>
+                    <TableHead>GST Number</TableHead>
+                    <TableHead>Account Details</TableHead>
+                    <TableHead>Sales Person</TableHead>
+                    {canUseBranch && <TableHead>Branch</TableHead>}
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading ? (
                     <SkeletonTableRows rows={6} colSpan={12 + (canUseBranch ? 1 : 0)} />
                   ) : paginatedVendors.length === 0 ? (
-                    <tr>
-                      <td colSpan={12 + (canUseBranch ? 1 : 0)} className="p-10 text-center text-slate-400 font-medium">
-                        No vendors found. Create one or import from Excel.
-                      </td>
-                    </tr>
+                    <TableEmpty colSpan={12 + (canUseBranch ? 1 : 0)}>No vendors found. Create one or import from Excel.</TableEmpty>
                   ) : (
                     paginatedVendors.map((v: any) => (
-                      <tr key={v._id} className={`border-b hover:bg-slate-50/50 transition-colors ${selectedIds.includes(v._id) ? "bg-primary/5" : ""}`}>
-                        <td className="p-4">
+                      <TableRow key={v._id} className={`${selectedIds.includes(v._id) ? "bg-primary/5" : ""}`}>
+                        <TableCell>
                           <Checkbox
                             className="border-slate-300"
                             checked={selectedIds.includes(v._id)}
                             onCheckedChange={() => toggleSelect(v._id)}
                           />
-                        </td>
-                        <td className="p-4 font-bold text-slate-800">{v.company_name}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{v.vendor_reference || "-"}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{v.connect_person || "-"}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">
+                        </TableCell>
+                        <TableCell className="font-medium">{v.company_name}</TableCell>
+                        <TableCell>{v.vendor_reference || "-"}</TableCell>
+                        <TableCell>{v.connect_person || "-"}</TableCell>
+                        <TableCell>
                           {v.phone_number ? (
                             <WhatsAppQuickChat phone={v.phone_number} data={{ customer_name: v.company_name }} />
                           ) : "-"}
-                        </td>
-                        <td className="p-4 text-xs font-medium text-slate-600 max-w-[220px] truncate">{v.address || "-"}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{v.email || "-"}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{v.pan_number || "-"}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{v.gst_number || "-"}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600 max-w-[180px] truncate">{v.account_details || "-"}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{v.sales_person || "-"}</td>
-                        {canUseBranch && <td className="p-4 text-xs font-medium text-slate-600">{v.branch || "-"}</td>}
-                        <td className="p-4">
+                        </TableCell>
+                        <TableCell className="max-w-[220px] truncate">{v.address || "-"}</TableCell>
+                        <TableCell>{v.email || "-"}</TableCell>
+                        <TableCell>{v.pan_number || "-"}</TableCell>
+                        <TableCell>{v.gst_number || "-"}</TableCell>
+                        <TableCell className="max-w-[180px] truncate">{v.account_details || "-"}</TableCell>
+                        <TableCell>{v.sales_person || "-"}</TableCell>
+                        {canUseBranch && <TableCell>{v.branch || "-"}</TableCell>}
+                        <TableCell>
                           <div className="flex justify-end gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => navigate(`/admin/vendors/${v._id}`)}>
                               <Eye className="h-3.5 w-3.5 text-slate-500" />
@@ -581,47 +578,25 @@ const Vendors = () => {
                               </Button>
                             )}
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
             {/* Pagination footer */}
             {totalItems > 0 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t bg-white">
-                <div className="text-xs font-medium text-slate-500">
-                  Showing {itemsPerPage === "all" ? 1 : (safePage - 1) * pageSize + 1} to {itemsPerPage === "all" ? totalItems : Math.min(safePage * pageSize, totalItems)} of {totalItems} entries
-                  {selectedIds.length > 0 && <span className="ml-2 text-primary font-bold">· {selectedIds.length} selected</span>}
-                </div>
-                {itemsPerPage !== "all" && totalPages > 1 && (
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 px-3 text-xs font-bold"
-                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                      disabled={safePage === 1}
-                    >
-                      Previous
-                    </Button>
-                    <Button variant="default" size="sm" className="h-8 w-8 p-0 text-xs font-bold bg-primary text-primary-foreground">
-                      {safePage}
-                    </Button>
-                    <span className="text-xs text-slate-400 px-1">of {totalPages}</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 px-3 text-xs font-bold"
-                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                      disabled={safePage === totalPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                )}
+              <div className="flex items-center border-t bg-muted/30">
+                <TablePagination
+                  className="flex-1 border-t-0"
+                  page={safePage}
+                  pageSize={pageSize}
+                  total={totalItems}
+                  onPageChange={(p) => setCurrentPage(Math.min(Math.max(p, 1), totalPages))}
+                />
+                {selectedIds.length > 0 && <span className="px-4 text-xs text-primary font-bold whitespace-nowrap">{selectedIds.length} selected</span>}
               </div>
             )}
           </CardContent>

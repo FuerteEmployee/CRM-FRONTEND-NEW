@@ -298,7 +298,7 @@ export default function IncentiveSlabsPage() {
       </div>
 
       {/* Rules list */}
-      <div className="animate-fade-in shadow-soft rounded-2xl overflow-hidden border border-border/40 bg-white/50 backdrop-blur-sm">
+      <div className="animate-fade-in">
         <DataTable
           data={rules}
           columns={columns}

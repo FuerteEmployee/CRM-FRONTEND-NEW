@@ -27,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Table as UITable, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { Plus, Search, BookOpen, Eye, ThumbsUp, Download, ChevronDown, FileSpreadsheet, FileJson, FileType, Printer, Undo, Redo, Bold, Italic, Underline, AlignLeft, List, Zap, Trash2, Pencil, AlignCenter, AlignRight, AlignJustify, Strikethrough, Link, Image, Code, Quote, Eraser, Type, Palette, Minus, MoreHorizontal, Save, Copy, Scissors, ClipboardPaste, ZoomIn, ZoomOut, Maximize2, FileText, Table, Film } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supportService } from "@/api/services/support.service";
@@ -805,7 +806,7 @@ const KnowledgeBase = () => {
           </Dialog>
         </div>
 
-        <Card>
+        <Card className="overflow-hidden">
           <CardContent className="p-0">
             {/* Control Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
@@ -908,42 +909,38 @@ const KnowledgeBase = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[800px]">
-                <thead>
-                  <tr className="border-b text-left text-[11px] text-muted-foreground uppercase tracking-wider bg-zinc-50/50">
-                    <th className="p-3 font-semibold w-8">
+              <UITable className="min-w-[800px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8">
                       <Checkbox
                         checked={selectedArticles.length > 0 && selectedArticles.length === paginatedArticles.length}
                         onCheckedChange={handleSelectAll}
                         className="rounded border-zinc-300"
                       />
-                    </th>
-                    <th className="p-3 font-semibold w-10">#</th>
-                    <th className="p-3 font-semibold">Article Name ↕</th>
-                    <th className="p-3 font-semibold">Group</th>
-                    <th className="p-3 font-semibold">Date Published</th>
-                    <th className="p-3 font-semibold text-right">Options</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
+                    </TableHead>
+                    <TableHead className="w-10">#</TableHead>
+                    <TableHead>Article Name ↕</TableHead>
+                    <TableHead>Group</TableHead>
+                    <TableHead>Date Published</TableHead>
+                    <TableHead className="text-right">Options</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoadingArticles || isLoadingGroups ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="border-b">
-                        <td colSpan={5} className="p-8">
+                      <TableRow key={i}>
+                        <TableCell colSpan={6}>
                           <Skeleton className="h-8 w-full" />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   ) : paginatedArticles.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-10 text-center text-muted-foreground text-sm">
-                        No articles found.
-                      </td>
-                    </tr>
+                    <TableEmpty colSpan={6}>No articles found.</TableEmpty>
                   ) : (
                     paginatedArticles.map((article: any, index) => (
-                      <tr key={article._id} className="border-b last:border-0 hover:bg-muted/50 transition-colors cursor-pointer">
-                        <td className="p-3">
+                      <TableRow key={article._id} className="cursor-pointer">
+                        <TableCell>
                           <Checkbox
                             checked={selectedArticles.includes(article._id)}
                             onCheckedChange={(checked) => {
@@ -952,26 +949,26 @@ const KnowledgeBase = () => {
                             }}
                             className="rounded border-zinc-300"
                           />
-                        </td>
-                        <td className="p-3 text-xs text-muted-foreground" onClick={() => openEditModal(article)}>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground" onClick={() => openEditModal(article)}>
                           {(currentPage - 1) * pageSize + index + 1}
-                        </td>
-                        <td className="p-3" onClick={() => openEditModal(article)}>
+                        </TableCell>
+                        <TableCell onClick={() => openEditModal(article)}>
                           <div className="flex flex-col">
                             <span className="text-sm font-semibold text-primary hover:underline">
                               {article.title || article.subject}
                             </span>
                           </div>
-                        </td>
-                        <td className="p-3" onClick={() => openEditModal(article)}>
+                        </TableCell>
+                        <TableCell onClick={() => openEditModal(article)}>
                           <Badge variant="secondary" className="text-[10px] px-1.5 h-5 font-bold uppercase tracking-wider">
                             {article.group_name || groups.find((g: any) => g._id === article.group)?.name || "General"}
                           </Badge>
-                        </td>
-                        <td className="p-3 text-xs text-zinc-600" onClick={() => openEditModal(article)}>
+                        </TableCell>
+                        <TableCell onClick={() => openEditModal(article)}>
                           {formatDate(article.datecreated || article.createdAt)}
-                        </td>
-                        <td className="p-3 text-right">
+                        </TableCell>
+                        <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button
                               variant="ghost"
@@ -1002,42 +999,20 @@ const KnowledgeBase = () => {
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </UITable>
             </div>
 
-            <div className="p-3 border-t border-slate-100 flex items-center justify-between bg-white">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                Showing {startEntry} to {endEntry} of {totalEntries} entries
-              </span>
-              <div className="flex items-center gap-4">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 font-bold text-xs hover:bg-slate-50 text-slate-400 hover:text-slate-900 transition-colors"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  Previous
-                </Button>
-                <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary text-white font-black text-xs shadow-sm shadow-primary/20">
-                  {currentPage}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 px-2 font-bold text-xs hover:bg-slate-50 text-slate-400 hover:text-slate-900 transition-colors"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+            <TablePagination
+              page={currentPage}
+              pageSize={pageSize || 1}
+              total={totalEntries}
+              onPageChange={(p) => setCurrentPage(Math.min(Math.max(1, p), totalPages))}
+            />
           </CardContent>
         </Card>
       </div>

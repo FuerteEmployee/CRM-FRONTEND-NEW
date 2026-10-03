@@ -88,11 +88,6 @@ export const staffService = {
     return { message: (res as any).message };
   },
 
-  importStaff: async (data: any[]): Promise<{ count: number; message: string }> => {
-    const res = await apiClient.post("/users/import", { staff: data });
-    return res.data;
-  },
-
   getSalespersons: async (): Promise<{ _id: string; name: string; mobile?: string }[]> => {
     try {
       const res = await apiClient.get("/users/salespersons");

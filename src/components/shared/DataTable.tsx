@@ -6,6 +6,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TablePagination,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -665,58 +666,12 @@ export function DataTable<T extends Record<string, any>>({
             </TableBody>
           </Table>
         </div>
-        <div className="px-6 py-4 flex flex-wrap items-center justify-between gap-4 border-t bg-muted/30">
-          <div className="text-sm text-muted-foreground font-medium">
-            Showing{" "}
-            <span className="text-foreground font-bold">
-              {sortedData.length > 0 ? startIndex + 1 : 0}
-            </span>{" "}
-            to{" "}
-            <span className="text-foreground font-bold">
-              {Math.min(endIndex, sortedData.length)}
-            </span>{" "}
-            of{" "}
-            <span className="text-foreground font-bold">{sortedData.length}</span>{" "}
-            entries
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              disabled={safeCurrentPage === 1}
-              className="text-muted-foreground hover:bg-accent h-9 text-xs font-bold px-3 uppercase tracking-wider disabled:opacity-30"
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-            >
-              Previous
-            </Button>
-            <div className="flex items-center gap-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                (page) => (
-                  <Button
-                    key={page}
-                    variant={page === safeCurrentPage ? "default" : "ghost"}
-                    className={`h-9 w-9 p-0 rounded-lg text-sm font-bold transition-all duration-300 ${page === safeCurrentPage
-                      ? "bg-primary hover:bg-primary/90 text-primary-foreground shadow-[0_2px_10px_-3px_hsl(var(--primary)/0.5)]"
-                      : "text-muted-foreground hover:bg-accent"
-                      }`}
-                    onClick={() => setCurrentPage(page)}
-                  >
-                    {page}
-                  </Button>
-                ),
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              disabled={safeCurrentPage === totalPages || totalPages === 0}
-              className="text-muted-foreground hover:bg-accent h-9 text-xs font-bold px-3 uppercase tracking-wider disabled:opacity-30"
-              onClick={() =>
-                setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-              }
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+        <TablePagination
+          page={safeCurrentPage}
+          pageSize={itemsPerPage}
+          total={sortedData.length}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   );

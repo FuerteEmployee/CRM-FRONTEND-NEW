@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableContainer } from "@/components/ui/table";
 import { MessageCircle, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -167,21 +167,21 @@ export function WhatsappQuickChatSettingsTab({ enabled, setEnabled, templates, s
               </Button>
             </div>
 
-            <div className="bg-card border rounded-lg overflow-hidden">
+            <TableContainer>
               <Table>
-                <TableHeader className="bg-muted/50">
+                <TableHeader>
                   <TableRow className="hover:bg-transparent">
-                    <TableHead className="py-2 px-4">Name</TableHead>
-                    <TableHead className="py-2 px-4">Message</TableHead>
-                    <TableHead className="py-2 px-4 w-24 text-right">Actions</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Message</TableHead>
+                    <TableHead className="w-24 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {templates.map((t) => (
                     <TableRow key={t.id}>
-                      <TableCell className="py-2.5 px-4 font-medium whitespace-nowrap">{t.name}</TableCell>
-                      <TableCell className="py-2.5 px-4 text-muted-foreground truncate max-w-[360px]">{t.template}</TableCell>
-                      <TableCell className="py-2.5 px-4 text-right">
+                      <TableCell className="whitespace-nowrap"><span className="font-medium">{t.name}</span></TableCell>
+                      <TableCell className="text-muted-foreground truncate max-w-[360px]">{t.template}</TableCell>
+                      <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(t)}>
                             <Pencil className="h-4 w-4" />
@@ -195,7 +195,7 @@ export function WhatsappQuickChatSettingsTab({ enabled, setEnabled, templates, s
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </TableContainer>
             <p className="text-[11px] text-muted-foreground">
               Templates save immediately — no need to click the page's Save Changes button for these.
             </p>

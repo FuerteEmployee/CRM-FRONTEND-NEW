@@ -58,6 +58,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemSelect";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { COUNTRIES } from "@/constants/countries";
 import { useCurrency } from "@/context/CurrencyContext";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -805,46 +806,48 @@ export default function ProposalCreate() {
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-border/50 overflow-x-auto shadow-sm">
-              <table className="w-full min-w-[1200px]">
-                <thead>
-                  <tr className="bg-primary text-white">
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                      <AlertCircle className="h-3.5 w-3.5" />
-                      Item
-                    </th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest">Description</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-24">
+            <TableContainer>
+              <Table className="min-w-[1200px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-left">
+                      <span className="flex items-center gap-2">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        Item
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-left">Description</TableHead>
+                    <TableHead className="text-left w-24">
                       {showQtyAs === "hours" ? "Hours" : "Qty"}
-                    </th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-32">Rate</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-40">Tax</th>
-                    <th className="p-4 text-left text-[10px] font-black uppercase tracking-widest w-32">Amount</th>
-                    <th className="p-4 text-right">
+                    </TableHead>
+                    <TableHead className="text-left w-32">Rate</TableHead>
+                    <TableHead className="text-left w-40">Tax</TableHead>
+                    <TableHead className="text-left w-32">Amount</TableHead>
+                    <TableHead className="text-right">
                       <Settings className="h-4 w-4 ml-auto opacity-50" />
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-background/40">
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {/* New Item Input Row */}
-                  <tr className="border-b border-border/30 bg-primary/5 group">
-                    <td className="p-4 align-top w-[250px]">
+                  <TableRow className="bg-primary/5 group">
+                    <TableCell className="align-top w-[250px]">
                       <Textarea 
                         placeholder="Description" 
                         className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
                         value={newItem.description}
                         onChange={(e) => setNewItem(p => ({ ...p, description: e.target.value }))}
                       />
-                    </td>
-                    <td className="p-4 align-top">
+                    </TableCell>
+                    <TableCell className="align-top">
                       <Textarea 
                         placeholder="Long description" 
                         className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
                         value={newItem.long_description}
                         onChange={(e) => setNewItem(p => ({ ...p, long_description: e.target.value }))}
                       />
-                    </td>
-                    <td className="p-4 align-top w-[120px]">
+                    </TableCell>
+                    <TableCell className="align-top w-[120px]">
                       <div className="space-y-1">
                         <Input 
                           type="number" 
@@ -854,8 +857,8 @@ export default function ProposalCreate() {
                         />
                         <span className="text-[10px] font-black text-muted-foreground/50 uppercase tracking-tighter block text-center">Unit</span>
                       </div>
-                    </td>
-                    <td className="p-4 align-top w-[150px]">
+                    </TableCell>
+                    <TableCell className="align-top w-[150px]">
                       <Input 
                         placeholder="Rate" 
                         type="number"
@@ -863,8 +866,8 @@ export default function ProposalCreate() {
                         onChange={(e) => setNewItem(p => ({ ...p, rate: Number(e.target.value) }))}
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                       />
-                    </td>
-                    <td className="p-4 align-top w-[180px]">
+                    </TableCell>
+                    <TableCell className="align-top w-[180px]">
                       <Select value={newItem.tax} onValueChange={(v) => setNewItem(p => ({ ...p, tax: v }))}>
                         <SelectTrigger className="h-10 rounded-xl bg-background border-border/50 shadow-sm text-xs font-bold">
                           <SelectValue placeholder="No Tax" />
@@ -876,37 +879,37 @@ export default function ProposalCreate() {
                           ))}
                         </SelectContent>
                       </Select>
-                    </td>
-                    <td className="p-4 align-top text-sm font-black text-foreground">
+                    </TableCell>
+                    <TableCell className="align-top font-black text-foreground">
                       {formatDocAmount(newItem.qty * newItem.rate)}
-                    </td>
-                    <td className="p-4 align-top text-right">
+                    </TableCell>
+                    <TableCell className="align-top text-right">
                       <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
                         <Check className="h-4 w-4" />
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
 
                   {items.map((item) => (
-                    <tr key={item.id} className="border-b border-border/20 hover:bg-muted/5 transition-colors">
-                      <td className="p-4 align-top font-bold text-xs">{item.description}</td>
-                      <td className="p-4 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
-                      <td className="p-4 align-top text-xs font-bold">{item.qty}</td>
-                      <td className="p-4 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
-                      <td className="p-4 align-top text-[10px] font-black uppercase text-muted-foreground">
+                    <TableRow key={item.id}>
+                      <TableCell className="align-top font-bold">{item.description}</TableCell>
+                      <TableCell className="align-top text-muted-foreground leading-relaxed">{item.long_description}</TableCell>
+                      <TableCell className="align-top font-bold">{item.qty}</TableCell>
+                      <TableCell className="align-top font-bold">{formatDocAmount(item.rate)}</TableCell>
+                      <TableCell className="align-top font-black text-muted-foreground">
                         {taxes.find(t => t._id === item.tax)?.name || "No Tax"}
-                      </td>
-                      <td className="p-4 align-top text-sm font-black text-primary">{formatDocAmount(item.qty * item.rate)}</td>
-                      <td className="p-4 align-top text-right">
+                      </TableCell>
+                      <TableCell className="align-top font-black text-primary">{formatDocAmount(item.qty * item.rate)}</TableCell>
+                      <TableCell className="align-top text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 pt-8">
               <div className="space-y-4">

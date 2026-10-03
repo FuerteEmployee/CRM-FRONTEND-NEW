@@ -19,6 +19,7 @@ import { moduleService } from "@/api/services/module.service";
 import { ExportButton } from "@/components/ui/export-button";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 
 export default function SetupModules() {
   const { toast } = useToast();
@@ -171,39 +172,35 @@ export default function SetupModules() {
         </div>
 
         {/* Modules Table */}
-        <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-              <tr>
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
                 {["Module", "Description", "Status", "Actions"].map((h) => (
-                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                  <TableHead key={h}>{h}</TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {isLoading ? (
                 Array(3).fill(0).map((_, i) => (
-                  <tr key={i}><td colSpan={4} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                  <TableRow key={i}><TableCell colSpan={4}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                 ))
               ) : pageData.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground italic">
-                    No modules found.
-                  </td>
-                </tr>
+                <TableEmpty colSpan={4}>No modules found.</TableEmpty>
               ) : (
                 pageData.map((m: any) => (
-                  <tr key={m._id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4">
+                  <TableRow key={m._id}>
+                    <TableCell>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-foreground">{m.name}</span>
                         {m.core && (
                           <Badge variant="outline" className="text-[9px] font-black uppercase">Core</Badge>
                         )}
                       </div>
-                    </td>
-                    <td className="px-6 py-4 text-muted-foreground max-w-md">{m.description || "-"}</td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell className="text-muted-foreground max-w-md">{m.description || "-"}</TableCell>
+                    <TableCell>
                       <div className="flex items-center gap-2">
                         <Switch
                           checked={!!m.active}
@@ -212,8 +209,8 @@ export default function SetupModules() {
                         />
                         <span className="text-xs font-bold text-muted-foreground">{m.active ? "Active" : "Disabled"}</span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
+                    </TableCell>
+                    <TableCell>
                       {!m.core && canManage && (
                         <Button
                           variant="ghost"
@@ -226,43 +223,15 @@ export default function SetupModules() {
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+          <TablePagination page={safeModulePage} pageSize={modulePageSize} total={filtered.length} onPageChange={setCurrentPage} />
+        </TableContainer>
 
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4">
-          <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {filtered.length === 0 ? 0 : (safeModulePage - 1) * modulePageSize + 1} to {Math.min(safeModulePage * modulePageSize, filtered.length)} of {filtered.length} entries
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={safeModulePage <= 1}
-            >
-              Previous
-            </Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              {safeModulePage}
-            </div>
-            <span className="text-xs text-muted-foreground px-1">of {totalModulePages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.min(totalModulePages, p + 1))}
-              disabled={safeModulePage >= totalModulePages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
       </div>
     </DashboardLayout>
   );

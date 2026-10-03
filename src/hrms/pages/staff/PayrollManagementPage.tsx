@@ -313,7 +313,7 @@ const PayrollManagementPage = () => {
 
         {/* ── Payroll Tab ── */}
         <TabsContent value="payroll">
-          <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden [&>.space-y-4>div]:rounded-none [&>.space-y-4>div]:border-0 [&>.space-y-4>div]:shadow-none">
             <CardHeader className="py-4 border-b border-slate-100">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <CardTitle className="text-base font-semibold text-slate-700 flex items-center gap-2">

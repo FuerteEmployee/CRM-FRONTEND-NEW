@@ -39,6 +39,7 @@ import { mediaService } from "@/api/services/media.service";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 const Media = () => {
   const [currentPath, setCurrentPath] = useState("");
@@ -259,31 +260,35 @@ const Media = () => {
                   ))}
                 </div>
               ) : (
-                <table className="w-full text-left text-xs bg-white rounded border shadow-sm overflow-hidden">
-                  <thead className="bg-gray-100 border-b">
-                    <tr>
-                      <th className="px-3 py-2 font-semibold text-gray-600">Name</th>
-                      <th className="px-3 py-2 font-semibold text-gray-600">Size</th>
-                      <th className="px-3 py-2 font-semibold text-gray-600">Type</th>
-                      <th className="px-3 py-2 font-semibold text-gray-600 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <TableContainer>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Size</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {filteredItems.map((item: any) => (
-                      <tr key={item.name} className="border-b hover:bg-blue-50 group cursor-pointer" onDoubleClick={() => item.isFolder && navigateTo(item.name)}>
-                        <td className="px-3 py-2 flex items-center gap-2">
-                          {getIcon(item)}
-                          <span className="truncate max-w-[200px]">{item.name}</span>
-                        </td>
-                        <td className="px-3 py-2 text-gray-500">{item.isFolder ? "-" : (item.size / 1024).toFixed(1) + " KB"}</td>
-                        <td className="px-3 py-2 text-gray-500 uppercase">{item.isFolder ? "Folder" : item.extension.replace(".", "") || "File"}</td>
-                        <td className="px-3 py-2 text-right">
+                      <TableRow key={item.name} className="group cursor-pointer" onDoubleClick={() => item.isFolder && navigateTo(item.name)}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {getIcon(item)}
+                            <span className="truncate max-w-[200px]">{item.name}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{item.isFolder ? "-" : (item.size / 1024).toFixed(1) + " KB"}</TableCell>
+                        <TableCell className="text-muted-foreground uppercase">{item.isFolder ? "Folder" : item.extension.replace(".", "") || "File"}</TableCell>
+                        <TableCell className="text-right">
                            <button onClick={() => deleteMutation.mutate(item.name)} className="p-1 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 className="h-3 w-3" /></button>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
+                </TableContainer>
               )}
             </div>
           </main>

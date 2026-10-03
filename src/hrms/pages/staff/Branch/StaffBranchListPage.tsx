@@ -294,7 +294,7 @@ export default function StaffBranchListPage() {
             </div>
           );
         }
-        const rawRadius = b.radius && b.radius > 0 ? b.radius : null;
+        const rawRadius = Number(b.radius) > 0 ? Number(b.radius) : null;
         if (!rawRadius) {
           return (
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200">
@@ -520,7 +520,7 @@ export default function StaffBranchListPage() {
             </div>
           </div>
 
-          <div className="animate-fade-in shadow-soft rounded-2xl overflow-hidden border border-border/40 bg-white/50 backdrop-blur-sm">
+          <div className="animate-fade-in">
             <DataTable
               data={formattedBranches}
               columns={branchColumns}
@@ -576,7 +576,7 @@ export default function StaffBranchListPage() {
             </div>
           </div>
 
-          <div className="animate-fade-in shadow-soft rounded-2xl overflow-hidden border border-border/40 bg-white/50 backdrop-blur-sm">
+          <div className="animate-fade-in">
             <DataTable
               data={filteredTypes}
               columns={typeColumns}

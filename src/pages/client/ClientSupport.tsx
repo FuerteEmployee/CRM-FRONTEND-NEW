@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 
 const supportStats = [
   {
@@ -79,7 +80,7 @@ export default function ClientSupport() {
         ))}
       </div>
 
-      <Card className="border-none shadow-[0_4px_25px_rgb(0,0,0,0.03)] bg-white/90 backdrop-blur-md overflow-hidden rounded-2xl">
+      <Card className="border shadow-sm bg-card overflow-hidden rounded-lg">
         <CardContent className="p-0">
           <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4 w-full md:w-auto">
@@ -102,28 +103,24 @@ export default function ClientSupport() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 bg-slate-50/50">
-                  <th className="py-4 px-8">Contact / Subject</th>
-                  <th className="py-4 px-6">Last Reply</th>
-                  <th className="py-4 px-6">Created</th>
-                  <th className="py-4 px-8 text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-gray-50 last:border-none">
-                  <td colSpan={4} className="py-16 text-center">
-                    <div className="flex flex-col items-center gap-2 opacity-40">
-                      <AlertCircle className="h-8 w-8 text-slate-300" />
-                      <p className="text-slate-400 font-bold text-xs uppercase tracking-[0.2em]">
-                        No tickets found
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Contact / Subject</TableHead>
+                  <TableHead>Last Reply</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead className="text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableEmpty colSpan={4}>
+                  <div className="flex flex-col items-center gap-2">
+                    <AlertCircle className="h-8 w-8 text-muted-foreground/40" />
+                    <p>No tickets found</p>
+                  </div>
+                </TableEmpty>
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>
