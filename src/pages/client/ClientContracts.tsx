@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Search, FileText, Filter, Signature, Calendar } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 const contracts = [
   {
@@ -79,7 +80,7 @@ export default function ClientContracts() {
           </div>
         </Card>
 
-        <Card className="lg:col-span-2 border-none shadow-[0_4px_25px_rgb(0,0,0,0.03)] bg-white/90 backdrop-blur-md overflow-hidden rounded-2xl">
+        <Card className="lg:col-span-2 border shadow-sm bg-card overflow-hidden rounded-lg">
           <CardContent className="p-0">
             <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="relative w-full group">
@@ -100,23 +101,23 @@ export default function ClientContracts() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 bg-slate-50/50">
-                    <th className="py-4 px-8">Subject</th>
-                    <th className="py-4 px-6">Type</th>
-                    <th className="py-4 px-6">Signature</th>
-                    <th className="py-4 px-6">Start Date</th>
-                    <th className="py-4 px-8 text-right">End Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Signature</TableHead>
+                    <TableHead>Start Date</TableHead>
+                    <TableHead className="text-right">End Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {contracts.map((contract) => (
-                    <tr
+                    <TableRow
                       key={contract.id}
-                      className="group hover:bg-slate-50/50 transition-colors"
+                      className="group"
                     >
-                      <td className="py-5 px-8">
+                      <TableCell>
                         <div className="flex items-center gap-3">
                           <div className="p-2 bg-slate-100 rounded-lg text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                             <FileText className="h-4 w-4" />
@@ -125,30 +126,30 @@ export default function ClientContracts() {
                             {contract.subject}
                           </span>
                         </div>
-                      </td>
-                      <td className="py-5 px-6">
+                      </TableCell>
+                      <TableCell>
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                           {contract.type}
                         </span>
-                      </td>
-                      <td className="py-5 px-6">
+                      </TableCell>
+                      <TableCell>
                         <div className="flex items-center gap-1.5 text-sm font-bold text-muted-foreground">
                           <Signature
                             className={`h-3.5 w-3.5 ${contract.signature === "Signed" ? "text-emerald-500" : "text-amber-400"}`}
                           />
                           {contract.signature}
                         </div>
-                      </td>
-                      <td className="py-5 px-6 text-sm font-bold text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
                         {contract.start}
-                      </td>
-                      <td className="py-5 px-8 text-right text-sm font-bold text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
                         {contract.end}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>

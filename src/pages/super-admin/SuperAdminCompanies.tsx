@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { SuperAdminTablePageSkeleton } from "@/components/ui/page-skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TablePagination } from "@/components/ui/table";
 
 interface SaasPlan {
   _id: string;
@@ -39,8 +40,18 @@ interface Tenant {
   trial_ends_at?: string;
   billing_cycle_start?: string;
   billing_cycle_end?: string;
+  enabled_features?: string[];
   createdAt: string;
 }
+
+// Optional Leads add-ons enabled per company — must match
+// Backend/src/config/tenantFeatures.js.
+const TENANT_FEATURES: { key: string; label: string; hint: string }[] = [
+  { key: "whatsapp_leads", label: "WhatsApp lead capture", hint: "Incoming WhatsApp enquiries auto-create leads" },
+  { key: "marketing_spend", label: "Marketing spend / Meta Ads", hint: "Daily burning amount, cost per lead, Meta ad account sync" },
+  { key: "patient_conversion", label: "Patient conversion & treatment", hint: "Convert with treatment + amount, treatment totals" },
+  { key: "lead_followups", label: "Follow-up reminders dashboard", hint: "Today / overdue / upcoming follow-ups on Leads" },
+];
 
 const STATUS_CONFIG = {
   active:   { label: "Active",   icon: CheckCircle2, cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
@@ -50,7 +61,7 @@ const STATUS_CONFIG = {
 };
 
 const DEFAULT_CREATE = { company_name: "", email: "", password: "", plan_id: "", custom_domains: "" };
-const DEFAULT_MANAGE = { company_name: "", email: "", password: "", plan_id: "", status: "trial" as Tenant["status"], custom_domains: "" };
+const DEFAULT_MANAGE = { company_name: "", email: "", password: "", plan_id: "", status: "trial" as Tenant["status"], custom_domains: "", enabled_features: [] as string[] };
 
 const parseDomains = (value: string) =>
   value.split(",").map((d) => d.trim().toLowerCase()).filter(Boolean);
@@ -229,6 +240,7 @@ export default function SuperAdminCompanies() {
       plan_id: tenant.plan_id?._id || "",
       status: tenant.status,
       custom_domains: (tenant.custom_domains || []).join(", "),
+      enabled_features: tenant.enabled_features || [],
     });
     setIsManageOpen(true);
   };
@@ -291,7 +303,7 @@ export default function SuperAdminCompanies() {
       </div>
 
       {/* Table */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      <TableContainer>
         <div className="p-4 border-b border-gray-200 flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -327,32 +339,32 @@ export default function SuperAdminCompanies() {
         ) : (
           <>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] text-left">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Company Name</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Email ID</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Plan</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Banner Shows</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Status</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Joined</th>
-                  <th className="px-6 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right whitespace-nowrap">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
+            <Table className="min-w-[1180px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="whitespace-nowrap">Company Name</TableHead>
+                  <TableHead className="whitespace-nowrap">Email ID</TableHead>
+                  <TableHead className="whitespace-nowrap">Plan</TableHead>
+                  <TableHead className="whitespace-nowrap">Banner Shows</TableHead>
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
+                  <TableHead className="whitespace-nowrap">Joined</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {tenants.map((tenant) => (
-                  <tr key={tenant._id} className="hover:bg-gray-50 transition-colors group">
+                  <TableRow key={tenant._id} className="group">
                     {/* Company */}
-                    <td className="px-6 py-4">
+                    <TableCell>
                       <div className="flex items-center gap-3">
                         <div className="h-9 w-9 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
                           {tenant.company_name.charAt(0).toUpperCase()}
                         </div>
                         <span className="font-semibold text-gray-900 text-sm">{tenant.company_name}</span>
                       </div>
-                    </td>
+                    </TableCell>
                     {/* Email */}
-                    <td className="px-6 py-4">
+                    <TableCell>
                       {tenant.owner_id?.email ? (
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Mail className="h-3.5 w-3.5 text-gray-300 flex-shrink-0" />
@@ -361,18 +373,18 @@ export default function SuperAdminCompanies() {
                       ) : (
                         <span className="text-xs text-gray-400 italic">No owner</span>
                       )}
-                    </td>
+                    </TableCell>
                     {/* Plan */}
-                    <td className="px-6 py-4">
+                    <TableCell>
                       <div className="flex items-center gap-2">
                         <Package className="h-4 w-4 text-gray-300 flex-shrink-0" />
                         <span className="text-sm text-gray-700 font-medium">
                           {tenant.plan_id ? tenant.plan_id.name : <span className="text-gray-400 italic font-normal">No Plan</span>}
                         </span>
                       </div>
-                    </td>
+                    </TableCell>
                     {/* Banner Shows */}
-                    <td className="px-6 py-4">
+                    <TableCell>
                       {tenant.plan_id?.banner_warning_days ? (() => {
                         const d = tenant.plan_id.banner_warning_days!;
                         const label = d === 7 ? "7 days" : d === 30 ? "1 month" : d === 90 ? "3 months" : d === 180 ? "6 months" : `${d} days`;
@@ -390,9 +402,9 @@ export default function SuperAdminCompanies() {
                       })() : (
                         <span className="text-xs text-gray-400 italic whitespace-nowrap">Not set</span>
                       )}
-                    </td>
+                    </TableCell>
                     {/* Status */}
-                    <td className="px-6 py-4">
+                    <TableCell>
                       <div className="flex flex-col gap-1">
                         <StatusBadge status={tenant.status} />
                         {tenant.status === "trial" && (() => {
@@ -424,9 +436,9 @@ export default function SuperAdminCompanies() {
                           <span className="text-[11px] text-red-500 font-semibold">Plan ended</span>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
                     {/* Joined */}
-                    <td className="px-6 py-4 text-sm text-gray-500">
+                    <TableCell>
                       {(() => {
                         const joinedDate = new Date(tenant.billing_cycle_start || tenant.createdAt);
 
@@ -489,9 +501,9 @@ export default function SuperAdminCompanies() {
                           </div>
                         );
                       })()}
-                    </td>
+                    </TableCell>
                     {/* Actions */}
-                    <td className="px-6 py-4 text-right whitespace-nowrap">
+                    <TableCell className="text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
                         {(() => {
                           const daysLeft = getDaysLeft(tenant);
@@ -526,43 +538,17 @@ export default function SuperAdminCompanies() {
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
-          {/* Pagination Footer */}
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 px-6 py-4 border-t border-gray-200">
-            <p className="text-xs text-gray-500">
-              Showing {total === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, total)} of {total} result{total !== 1 ? "s" : ""}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 px-4 text-xs font-medium"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage <= 1}
-              >
-                Previous
-              </Button>
-              <span className="text-xs text-gray-500 px-1">Page {currentPage} of {pages}</span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 px-4 text-xs font-medium"
-                onClick={() => setCurrentPage((p) => Math.min(pages, p + 1))}
-                disabled={currentPage >= pages}
-              >
-                Next
-              </Button>
-            </div>
-          </div>
+          <TablePagination page={currentPage} pageSize={itemsPerPage} total={total} onPageChange={setCurrentPage} />
           </>
         )}
-      </div>
+      </TableContainer>
     </div>
 
     {/* ── Add Customer Modal ── */}
@@ -837,6 +823,43 @@ export default function SuperAdminCompanies() {
                             {s === "expired" && "Plan ended"}
                           </div>
                         </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Optional Leads features for this company */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Lead features</label>
+                <div className="space-y-2">
+                  {TENANT_FEATURES.map((f) => {
+                    const on = manageForm.enabled_features.includes(f.key);
+                    return (
+                      <button
+                        key={f.key}
+                        type="button"
+                        role="switch"
+                        aria-checked={on}
+                        onClick={() =>
+                          setManageForm({
+                            ...manageForm,
+                            enabled_features: on
+                              ? manageForm.enabled_features.filter((k) => k !== f.key)
+                              : [...manageForm.enabled_features, f.key],
+                          })
+                        }
+                        className={`w-full flex items-center justify-between gap-3 p-3 rounded-lg border text-left transition-all ${
+                          on ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span className={`block text-sm font-medium ${on ? "text-blue-800" : "text-gray-700"}`}>{f.label}</span>
+                          <span className="block text-[11px] text-gray-500">{f.hint}</span>
+                        </span>
+                        <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${on ? "bg-blue-600" : "bg-gray-300"}`}>
+                          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? "left-[18px]" : "left-0.5"}`} />
+                        </span>
                       </button>
                     );
                   })}

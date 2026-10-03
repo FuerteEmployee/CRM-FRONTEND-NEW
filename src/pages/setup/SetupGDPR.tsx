@@ -6,14 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableContainer, TableEmpty } from "@/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -957,28 +950,22 @@ export default function SetupGDPR() {
                         </div>
                       </div>
 
-                      <div className="border rounded-md overflow-hidden bg-background">
+                      <TableContainer>
                         <Table>
                           <TableHeader>
-                            <TableRow className="bg-muted/50">
-                              <TableHead className="font-semibold text-foreground">Request ID</TableHead>
-                              <TableHead className="font-semibold text-foreground">Request Form</TableHead>
-                              <TableHead className="font-semibold text-foreground">Description</TableHead>
-                              <TableHead className="font-semibold text-foreground">Request Status</TableHead>
-                              <TableHead className="font-semibold text-foreground text-right pr-4">Request Date</TableHead>
+                            <TableRow>
+                              <TableHead>Request ID</TableHead>
+                              <TableHead>Request Form</TableHead>
+                              <TableHead>Description</TableHead>
+                              <TableHead>Request Status</TableHead>
+                              <TableHead className="text-right">Request Date</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                                <div className="flex flex-col items-center justify-center space-y-1">
-                                  <span>No removal requests found.</span>
-                                </div>
-                              </TableCell>
-                            </TableRow>
+                            <TableEmpty colSpan={5}>No removal requests found.</TableEmpty>
                           </TableBody>
                         </Table>
-                      </div>
+                      </TableContainer>
                     </CardContent>
                   </Card>
                 )}
@@ -1270,36 +1257,32 @@ export default function SetupGDPR() {
                       </div>
                     </div>
 
-                    <div className="border rounded-md overflow-hidden bg-background">
+                    <TableContainer>
                       <Table>
                         <TableHeader>
-                          <TableRow className="bg-muted/50">
-                            <TableHead className="font-semibold text-foreground">Name</TableHead>
-                            <TableHead className="font-semibold text-foreground">Description</TableHead>
-                            <TableHead className="font-semibold text-foreground">Created</TableHead>
-                            <TableHead className="font-semibold text-foreground">Last Update</TableHead>
-                            <TableHead className="font-semibold text-foreground text-right pr-4">Option</TableHead>
+                          <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead>Created</TableHead>
+                            <TableHead>Last Update</TableHead>
+                            <TableHead className="text-right">Option</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {isPurposesLoading ? (
                             <TableRow>
-                              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">Loading...</TableCell>
+                              <TableCell colSpan={5} className="text-center text-muted-foreground">Loading...</TableCell>
                             </TableRow>
                           ) : purposePageData.length === 0 ? (
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                                No purposes found.
-                              </TableCell>
-                            </TableRow>
+                            <TableEmpty colSpan={5}>No purposes found.</TableEmpty>
                           ) : (
                             purposePageData.map((p: any) => (
                               <TableRow key={p._id}>
-                                <TableCell className="font-medium text-foreground">{p.name}</TableCell>
+                                <TableCell><span className="font-medium">{p.name}</span></TableCell>
                                 <TableCell className="text-muted-foreground">{p.description || "-"}</TableCell>
                                 <TableCell className="text-muted-foreground">{formatDateShort(p.createdAt)}</TableCell>
                                 <TableCell className="text-muted-foreground">{formatDateShort(p.updatedAt)}</TableCell>
-                                <TableCell className="text-right pr-4">
+                                <TableCell className="text-right">
                                   <div className="flex justify-end gap-1">
                                     {can("GDPR", "Edit") && (
                                       <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => openPurposeModal(p)}>
@@ -1325,7 +1308,7 @@ export default function SetupGDPR() {
                           )}
                         </TableBody>
                       </Table>
-                    </div>
+                    </TableContainer>
                   </CardContent>
                 </Card>
 

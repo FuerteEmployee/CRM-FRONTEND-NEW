@@ -22,6 +22,7 @@ import { useQuery } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { formatDate } from "@/lib/dateFormat";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -262,56 +263,52 @@ const Subscriptions = () => {
             </div>
 
             {/* Subscriptions Table */}
-            <div className="rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm bg-white/50">
-              <table className="w-full text-sm text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-100">
-                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500 w-12 text-center">
+            <TableContainer>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12 text-center">
                       <Checkbox
                         checked={allSubPageSelected}
                         onCheckedChange={handleSelectAll}
                       />
-                    </th>
-                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500 w-16">#</th>
-                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Subscription Name</th>
-                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Project</th>
-                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Status</th>
-                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Next Billing Cycle</th>
-                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Date Subscribed</th>
-                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500">Last Sent</th>
-                    <th className="px-6 py-5 font-black uppercase tracking-[0.2em] text-[10px] text-slate-500 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
+                    </TableHead>
+                    <TableHead className="w-16">#</TableHead>
+                    <TableHead>Subscription Name</TableHead>
+                    <TableHead>Project</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Next Billing Cycle</TableHead>
+                    <TableHead>Date Subscribed</TableHead>
+                    <TableHead>Last Sent</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="animate-pulse">
-                        <td className="px-6 py-4 text-center"><Skeleton className="h-4 w-4 rounded mx-auto" /></td>
-                        <td className="px-6 py-4"><Skeleton className="h-4 w-4 rounded" /></td>
-                        <td className="px-6 py-4"><Skeleton className="h-4 w-40 rounded" /></td>
-                        <td className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
-                        <td className="px-6 py-4"><Skeleton className="h-6 w-16 rounded-full" /></td>
-                        <td className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
-                        <td className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
-                        <td className="px-6 py-4"><Skeleton className="h-4 w-24 rounded" /></td>
-                        <td className="px-6 py-4"><Skeleton className="h-8 w-8 rounded-full ml-auto" /></td>
-                      </tr>
+                      <TableRow key={i} className="animate-pulse">
+                        <TableCell className="text-center"><Skeleton className="h-4 w-4 rounded mx-auto" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-4 rounded" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-40 rounded" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24 rounded" /></TableCell>
+                        <TableCell><Skeleton className="h-6 w-16 rounded-full" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24 rounded" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24 rounded" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24 rounded" /></TableCell>
+                        <TableCell><Skeleton className="h-8 w-8 rounded-full ml-auto" /></TableCell>
+                      </TableRow>
                     ))
                   ) : filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="px-6 py-12 text-center text-slate-400 font-bold italic bg-slate-50/20">
-                        No entries found
-                      </td>
-                    </tr>
+                    <TableEmpty colSpan={9} />
                   ) : (
                     paginatedSubs.map((s: any, index: number) => {
                       const status = statusMap[s.status] || statusMap.active;
                       return (
-                        <tr
+                        <TableRow
                           key={s._id}
-                          className="hover:bg-primary/[0.02] transition-colors group border-b border-slate-50 last:border-0"
+                          className="group"
                         >
-                          <td className="px-6 py-5 text-center">
+                          <TableCell className="text-center">
                             <Checkbox 
                               checked={selectedItems.includes(s._id)}
                               onCheckedChange={(checked) => {
@@ -319,11 +316,11 @@ const Subscriptions = () => {
                                 else setSelectedItems(selectedItems.filter(id => id !== s._id));
                               }}
                             />
-                          </td>
-                          <td className="px-6 py-5 text-xs font-black text-slate-400">
+                          </TableCell>
+                          <TableCell className="font-black text-slate-400">
                             {index + 1}
-                          </td>
-                          <td className="px-6 py-5">
+                          </TableCell>
+                          <TableCell>
                             <div className="flex flex-col gap-0.5">
                               <span className="font-black text-slate-900 group-hover:text-primary transition-colors cursor-pointer">
                                 {s.name}
@@ -332,67 +329,37 @@ const Subscriptions = () => {
                                 {s.client?.company || "No Client"}
                               </span>
                             </div>
-                          </td>
-                          <td className="px-6 py-5 text-xs font-bold text-slate-600 italic">
+                          </TableCell>
+                          <TableCell className="font-bold text-slate-600 italic">
                             {s.project?.name || "N/A"}
-                          </td>
-                          <td className="px-6 py-5">
+                          </TableCell>
+                          <TableCell>
                             <Badge variant="outline" className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border-none shadow-sm", status.color)}>
                               {status.label}
                             </Badge>
-                          </td>
-                          <td className="px-6 py-5 text-xs font-bold text-slate-600 uppercase">
+                          </TableCell>
+                          <TableCell className="font-bold text-slate-600">
                             {s.next_billing_cycle ? formatDate(s.next_billing_cycle) : "N/A"}
-                          </td>
-                          <td className="px-6 py-5 text-xs font-bold text-slate-400 tracking-tight">
+                          </TableCell>
+                          <TableCell className="font-bold text-slate-400">
                             {s.date_subscribed ? formatDate(s.date_subscribed) : "-"}
-                          </td>
-                          <td className="px-6 py-5 text-xs font-bold text-slate-400 tracking-tight italic">
+                          </TableCell>
+                          <TableCell className="font-bold text-slate-400 italic">
                             {s.last_sent ? formatDate(s.last_sent) : "Never"}
-                          </td>
-                          <td className="px-6 py-5 text-right">
+                          </TableCell>
+                          <TableCell className="text-right">
                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-primary/10 hover:text-primary transition-all">
                               <MoreHorizontal className="h-4 w-4" />
                             </Button>
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       );
                     })
                   )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination Footer */}
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4">
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest italic">
-                Showing {filtered.length === 0 ? 0 : (safeSubPage - 1) * subPageSize + 1} to {Math.min(safeSubPage * subPageSize, filtered.length)} of {filtered.length} entries
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 px-4 rounded-xl font-bold text-xs border-slate-200 hover:bg-slate-50 group disabled:opacity-50"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={safeSubPage <= 1}
-                >
-                  <ChevronLeft className="h-4 w-4 mr-1 group-hover:-translate-x-0.5 transition-transform" />
-                  Previous
-                </Button>
-                <div className="h-9 w-9 flex items-center justify-center rounded-xl bg-primary text-white font-black text-xs shadow-lg shadow-primary/20 scale-110">{safeSubPage}</div>
-                <span className="text-[11px] text-slate-400 font-black px-1">of {totalSubPages}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 px-4 rounded-xl font-bold text-xs border-slate-200 hover:bg-slate-50 group disabled:opacity-50"
-                  onClick={() => setCurrentPage(p => Math.min(totalSubPages, p + 1))}
-                  disabled={safeSubPage >= totalSubPages}
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4 ml-1 group-hover:translate-x-0.5 transition-transform" />
-                </Button>
-              </div>
-            </div>
+                </TableBody>
+              </Table>
+              <TablePagination page={safeSubPage} pageSize={subPageSize} total={filtered.length} onPageChange={setCurrentPage} />
+            </TableContainer>
           </CardContent>
         </Card>
       </div>

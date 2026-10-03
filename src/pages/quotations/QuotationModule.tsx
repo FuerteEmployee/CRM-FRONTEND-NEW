@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TablePagination } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1464,27 +1465,26 @@ export default function QuotationModule() {
                         <p className="text-sm text-muted-foreground italic">No quotations yet.</p>
                       </div>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm text-left min-w-[640px]">
-                          <thead>
-                            <tr className="border-b border-border/40">
-                              <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">#</th>
-                              <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Client</th>
-                              <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Date</th>
-                              <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Amount</th>
-                              <th className="px-6 py-2.5 w-24" />
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/30">
+                        <Table className="min-w-[640px]">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>#</TableHead>
+                              <TableHead>Client</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Amount</TableHead>
+                              <TableHead className="w-24"/>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {recent.map((q) => (
-                              <tr key={q._id} className="hover:bg-muted/20 transition-colors">
-                                <td className="px-6 py-2.5 font-medium text-slate-700">{q.number}</td>
-                                <td className="px-6 py-2.5">{q.client?.company || "—"}</td>
-                                <td className="px-6 py-2.5 text-muted-foreground">
+                              <TableRow key={q._id}>
+                                <TableCell className="font-medium text-slate-700">{q.number}</TableCell>
+                                <TableCell>{q.client?.company || "—"}</TableCell>
+                                <TableCell className="text-muted-foreground">
                                   {q.date ? new Date(q.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
-                                </td>
-                                <td className="px-6 py-2.5">₹{(q.total || 0).toLocaleString("en-IN")}</td>
-                                <td className="px-6 py-2.5 text-right">
+                                </TableCell>
+                                <TableCell>₹{(q.total || 0).toLocaleString("en-IN")}</TableCell>
+                                <TableCell className="text-right">
                                   <div className="flex items-center justify-end gap-1">
                                     <button onClick={() => handleDownloadPDF(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Download PDF">
                                       <Download className="h-3.5 w-3.5" />
@@ -1496,12 +1496,11 @@ export default function QuotationModule() {
                                       <Trash2 className="h-3.5 w-3.5" />
                                     </button>
                                   </div>
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))}
-                          </tbody>
-                        </table>
-                      </div>
+                          </TableBody>
+                        </Table>
                     )}
                   </CardContent>
                 </Card>
@@ -2017,23 +2016,23 @@ export default function QuotationModule() {
                         <span className="text-xs font-bold uppercase tracking-widest text-blue-700">Items — Description, Photo &amp; Pricing</span>
                       </div>
                       <CardContent className="p-6 space-y-4">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm text-left min-w-[720px]">
-                            <thead>
-                              <tr className="border-b border-border/40">
-                                <th className="pb-2.5 pr-3 font-bold text-xs text-muted-foreground w-8">#</th>
-                                <th className="pb-2.5 pr-3 font-bold text-xs text-muted-foreground">Description</th>
-                                <th className="pb-2.5 pr-3 font-bold text-xs text-muted-foreground w-24">Qty</th>
-                                <th className="pb-2.5 pr-3 font-bold text-xs text-muted-foreground w-32">Unit Price (₹)</th>
-                                <th className="pb-2.5 pr-3 font-bold text-xs text-muted-foreground w-32">Amount (₹)</th>
-                                <th className="pb-2.5 w-8" />
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border/20">
+                        <TableContainer>
+                          <Table className="min-w-[720px]">
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-8">#</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead className="w-24">Qty</TableHead>
+                                <TableHead className="w-32">Unit Price (₹)</TableHead>
+                                <TableHead className="w-32">Amount (₹)</TableHead>
+                                <TableHead className="w-8"/>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
                               {items.map((item, idx) => (
-                                <tr key={item.id}>
-                                  <td className="py-2.5 pr-3 text-muted-foreground">{idx + 1}</td>
-                                  <td className="py-2.5 pr-3">
+                                <TableRow key={item.id}>
+                                  <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
+                                  <TableCell>
                                     <div className="flex items-center gap-2">
                                       <div className="relative group shrink-0">
                                         <label
@@ -2081,8 +2080,8 @@ export default function QuotationModule() {
                                         className="h-10 flex-1"
                                       />
                                     </div>
-                                  </td>
-                                  <td className="py-2.5 pr-3">
+                                  </TableCell>
+                                  <TableCell>
                                     <Input
                                       type="number"
                                       min={0}
@@ -2090,8 +2089,8 @@ export default function QuotationModule() {
                                       onChange={(e) => updateItem(item.id, "qty", Number(e.target.value))}
                                       className="h-10"
                                     />
-                                  </td>
-                                  <td className="py-2.5 pr-3">
+                                  </TableCell>
+                                  <TableCell>
                                     <Input
                                       type="number"
                                       min={0}
@@ -2100,23 +2099,23 @@ export default function QuotationModule() {
                                       onChange={(e) => updateItem(item.id, "rate", Number(e.target.value))}
                                       className="h-10"
                                     />
-                                  </td>
-                                  <td className="py-2.5 pr-3 font-semibold text-slate-700">
+                                  </TableCell>
+                                  <TableCell className="font-semibold text-slate-700">
                                     {(Number(item.qty) * Number(item.rate) || 0).toFixed(2)}
-                                  </td>
-                                  <td className="py-2.5 text-right">
+                                  </TableCell>
+                                  <TableCell className="text-right">
                                     <button
                                       onClick={() => removeItemRow(item.id)}
                                       className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors"
                                     >
                                       <X className="h-4 w-4" />
                                     </button>
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))}
-                            </tbody>
-                          </table>
-                        </div>
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
 
                         <Button variant="outline" size="sm" onClick={addItemRow} className="gap-2 rounded-xl">
                           <Plus className="h-3.5 w-3.5" /> Add item
@@ -2454,51 +2453,50 @@ export default function QuotationModule() {
                       <p className="text-sm text-muted-foreground italic">No quotations found.</p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm text-left whitespace-nowrap">
-                        <thead>
-                          <tr className="border-b border-border/40">
-                            <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">#</th>
-                            <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Client</th>
-                            <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Format</th>
-                            <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Date</th>
-                            <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Items</th>
-                            <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Amount</th>
-                            <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Grand Total</th>
-                            <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Status</th>
-                            {canUseBankDetails && <th className="px-6 py-4 font-bold text-xs text-muted-foreground uppercase tracking-wider">Bank Details</th>}
-                            <th className="px-6 py-4 w-24 text-right font-bold text-xs text-muted-foreground uppercase tracking-wider">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/30">
+                      <Table className="whitespace-nowrap">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>#</TableHead>
+                            <TableHead>Client</TableHead>
+                            <TableHead>Format</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Items</TableHead>
+                            <TableHead>Amount</TableHead>
+                            <TableHead>Grand Total</TableHead>
+                            <TableHead>Status</TableHead>
+                            {canUseBankDetails && <TableHead>Bank Details</TableHead>}
+                            <TableHead className="w-24 text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {quotationsList.map((q) => (
-                            <tr key={q._id} className="hover:bg-muted/20 transition-colors">
-                              <td className="px-6 py-3 font-medium text-slate-700">{q.number || "—"}</td>
-                              <td className="px-6 py-3 font-medium">{q.client?.company || "—"}</td>
-                              <td className="px-6 py-3">
+                            <TableRow key={q._id}>
+                              <TableCell className="font-medium text-slate-700">{q.number || "—"}</TableCell>
+                              <TableCell className="font-medium">{q.client?.company || "—"}</TableCell>
+                              <TableCell>
                                 <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${q.format === "pro" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"}`}>
                                   {q.format || "simple"}
                                 </span>
-                              </td>
-                              <td className="px-6 py-3 text-muted-foreground">
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
                                 {q.date ? new Date(q.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
-                              </td>
-                              <td className="px-6 py-3 text-muted-foreground">
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
                                 {q.format === "pro" ? (q.rooms || []).reduce((s, r: any) => s + (r.items?.length || 0), 0) : q.items?.length || 0}
-                              </td>
-                              <td className="px-6 py-3">₹{(q.subtotal || 0).toLocaleString("en-IN")}</td>
-                              <td className="px-6 py-3 font-medium">₹{(q.total || 0).toLocaleString("en-IN")}</td>
-                              <td className="px-6 py-3">
+                              </TableCell>
+                              <TableCell>₹{(q.subtotal || 0).toLocaleString("en-IN")}</TableCell>
+                              <TableCell className="font-medium">₹{(q.total || 0).toLocaleString("en-IN")}</TableCell>
+                              <TableCell>
                                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_STYLES[q.status?.toLowerCase()] || "bg-gray-100 text-gray-600"}`}>
                                   {q.status || "Draft"}
                                 </span>
-                              </td>
+                              </TableCell>
                               {canUseBankDetails && (
-                                <td className="px-6 py-3 text-muted-foreground">
+                                <TableCell className="text-muted-foreground">
                                   {(q as any).bank_detail ? `${(q as any).bank_detail.bankName || ""} — ${(q as any).bank_detail.accountNumber || ""}` : "-"}
-                                </td>
+                                </TableCell>
                               )}
-                              <td className="px-6 py-3 text-right">
+                              <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-1">
                                   <button onClick={() => handleDownloadPDF(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Download PDF">
                                     <Download className="h-3.5 w-3.5" />
@@ -2510,18 +2508,17 @@ export default function QuotationModule() {
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        </TableBody>
+                      </Table>
                   )}
 
                   {/* Pagination Footer */}
-                  <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-6 py-4 border-t border-border/50">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-xs font-bold text-muted-foreground">Rows per page</span>
+                  <div className="flex flex-col md:flex-row md:items-center border-t bg-muted/30">
+                    <div className="flex items-center gap-3 px-6 pt-4 md:pt-0">
+                      <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">Rows per page</span>
                       <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
                         <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
                           <SelectValue />
@@ -2532,32 +2529,14 @@ export default function QuotationModule() {
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs font-bold text-muted-foreground italic">
-                        Showing {totalQuotations === 0 ? 0 : (safeQuotationsPage - 1) * quotationsPageSize + 1} to {Math.min(safeQuotationsPage * quotationsPageSize, totalQuotations)} of {totalQuotations} entries
-                      </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-4 rounded-lg font-bold text-xs"
-                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                        disabled={safeQuotationsPage <= 1}
-                      >
-                        Previous
-                      </Button>
-                      <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">{safeQuotationsPage}</div>
-                      <span className="text-xs text-muted-foreground px-1">of {totalQuotationPages}</span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-4 rounded-lg font-bold text-xs"
-                        onClick={() => setCurrentPage((p) => Math.min(totalQuotationPages, p + 1))}
-                        disabled={safeQuotationsPage >= totalQuotationPages}
-                      >
-                        Next
-                      </Button>
-                    </div>
+                    <TablePagination
+                      className="flex-1 border-t-0 bg-transparent"
+                      page={safeQuotationsPage}
+                      pageSize={quotationsPageSize}
+                      total={totalQuotations}
+                      onPageChange={setCurrentPage}
+                    />
                   </div>
                 </CardContent>
               </Card>

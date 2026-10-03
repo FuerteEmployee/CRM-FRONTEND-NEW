@@ -16,7 +16,19 @@ export const leadService = {
 
   bulkDelete: (ids) => apiClient.post('/leads/bulk-delete', { ids }),
 
-  convertToCustomer: (id) => apiClient.post(`/leads/${id}/convert`),
+  // data: { treatment_item?, treatment_name, treatment_amount, notes?, converted_at? }
+  convertToCustomer: (id, data) => apiClient.post(`/leads/${id}/convert`, data || {}),
+
+  getOverview: () => apiClient.get('/leads/overview'),
+
+  // bucket: "today" | "overdue" | "upcoming"
+  getFollowUps: (bucket, limit = 50) => apiClient.get('/leads/follow-ups', { params: { bucket, limit } }),
+
+  getConversions: (params) => apiClient.get('/leads/conversions', params ? { params } : undefined),
+
+  updateConversion: (id, data) => apiClient.put(`/leads/conversions/${id}`, data),
+
+  setupPipelineStatuses: () => apiClient.post('/leads/pipeline-statuses', {}),
 
   markAsLost: (id) => apiClient.patch(`/leads/${id}/lost`),
 

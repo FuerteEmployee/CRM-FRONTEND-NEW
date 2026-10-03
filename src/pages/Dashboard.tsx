@@ -60,6 +60,7 @@ import { customerService } from "@/api/services/customer.service";
 import { quotationService } from "@/api/services/quotation.service";
 import { formatDate } from "@/lib/dateFormat";
 import { useCurrency } from "@/context/CurrencyContext";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 
 const OverviewSection = ({ title, icon: Icon, items }: { title: string; icon: React.ElementType; items: { label: string; value: number; percentage: string; color?: string }[] }) => (
   <div className="space-y-3">
@@ -1160,36 +1161,36 @@ const Dashboard = () => {
                   {isModuleEnabled("tasks") && (
                     <TabsContent value="tasks" className="m-0">
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b text-left text-xs text-muted-foreground">
-                              <th className="pb-2 font-medium">#</th>
-                              <th className="pb-2 font-medium">Name</th>
-                              <th className="pb-2 font-medium">Status</th>
-                              <th className="pb-2 font-medium hidden sm:table-cell">Start Date</th>
-                              <th className="pb-2 font-medium hidden md:table-cell">Tags</th>
-                              <th className="pb-2 font-medium">Priority</th>
-                            </tr>
-                          </thead>
-                          <tbody>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>#</TableHead>
+                              <TableHead>Name</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead className="hidden sm:table-cell">Start Date</TableHead>
+                              <TableHead className="hidden md:table-cell">Tags</TableHead>
+                              <TableHead>Priority</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {dynamicTasksToShow.map((t, i) => (
-                              <tr key={t.id} className="border-b last:border-0 hover:bg-muted/50">
-                                <td className="py-2 text-muted-foreground">{i + 1}</td>
-                                <td className="py-2 font-medium">{t.title}</td>
-                                <td className="py-2">
+                              <TableRow key={t.id}>
+                                <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                                <TableCell className="font-medium">{t.title}</TableCell>
+                                <TableCell>
                                   <Badge variant="outline" className={t.status === "In Progress" ? "bg-primary/10 text-primary border-primary/20" : "bg-muted text-muted-foreground"}>
                                     {t.status}
                                   </Badge>
-                                </td>
-                                <td className="py-2 hidden sm:table-cell text-muted-foreground">{t.startDate || "-"}</td>
-                                <td className="py-2 hidden md:table-cell">
+                                </TableCell>
+                                <TableCell className="hidden sm:table-cell text-muted-foreground">{t.startDate || "-"}</TableCell>
+                                <TableCell className="hidden md:table-cell">
                                   <div className="flex gap-1">
                                     {t.tags?.map((tag: string) => (
                                       <Badge key={tag} variant="secondary" className="text-[10px] px-1.5 py-0">{tag}</Badge>
                                     ))}
                                   </div>
-                                </td>
-                                <td className="py-2">
+                                </TableCell>
+                                <TableCell>
                                   <Badge variant="outline" className={
                                     t.priority === "High" || t.priority === "Urgent" ? "bg-destructive/10 text-destructive border-destructive/20" :
                                       t.priority === "Medium" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
@@ -1197,14 +1198,12 @@ const Dashboard = () => {
                                   }>
                                     {t.priority}
                                   </Badge>
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))}
-                          </tbody>
-                        </table>
-                        {dynamicTasksToShow.length === 0 && (
-                          <p className="text-sm text-muted-foreground text-center py-8">No entries found</p>
-                        )}
+                            {dynamicTasksToShow.length === 0 && <TableEmpty colSpan={6}>No entries found</TableEmpty>}
+                          </TableBody>
+                        </Table>
                       </div>
                     </TabsContent>
                   )}
@@ -1212,22 +1211,22 @@ const Dashboard = () => {
                   {isModuleEnabled("projects") && (
                     <TabsContent value="projects" className="m-0">
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b text-left text-xs text-muted-foreground">
-                              <th className="pb-2 font-medium">#</th>
-                              <th className="pb-2 font-medium">Name</th>
-                              <th className="pb-2 font-medium">Status</th>
-                              <th className="pb-2 font-medium hidden sm:table-cell">Start Date</th>
-                              <th className="pb-2 font-medium">Progress</th>
-                            </tr>
-                          </thead>
-                          <tbody>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>#</TableHead>
+                              <TableHead>Name</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead className="hidden sm:table-cell">Start Date</TableHead>
+                              <TableHead>Progress</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {dynamicProjectsToShow.map((p, i) => (
-                              <tr key={p.id} className="border-b last:border-0 hover:bg-muted/50">
-                                <td className="py-2 text-muted-foreground">{i + 1}</td>
-                                <td className="py-2 font-medium">{p.name}</td>
-                                <td className="py-2">
+                              <TableRow key={p.id}>
+                                <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                                <TableCell className="font-medium">{p.name}</TableCell>
+                                <TableCell>
                                   <Badge variant="outline" className={
                                     p.status === "Active" || p.status === "In Progress" ? "bg-primary/10 text-primary border-primary/20" :
                                       p.status === "Completed" || p.status === "Finished" ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400" :
@@ -1235,18 +1234,18 @@ const Dashboard = () => {
                                   }>
                                     {p.status}
                                   </Badge>
-                                </td>
-                                <td className="py-2 hidden sm:table-cell text-muted-foreground">{p.startDate}</td>
-                                <td className="py-2">
+                                </TableCell>
+                                <TableCell className="hidden sm:table-cell text-muted-foreground">{p.startDate}</TableCell>
+                                <TableCell>
                                   <div className="flex items-center gap-2">
                                     <Progress value={p.progress} className="w-16 h-1.5" />
                                     <span className="text-xs text-muted-foreground">{p.progress}%</span>
                                   </div>
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))}
-                          </tbody>
-                        </table>
+                          </TableBody>
+                        </Table>
                       </div>
                     </TabsContent>
                   )}
@@ -1269,20 +1268,20 @@ const Dashboard = () => {
                   {isModuleEnabled("support") && (
                     <TabsContent value="tickets" className="m-0">
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b text-left text-xs text-muted-foreground">
-                              <th className="pb-2 font-medium">Subject</th>
-                              <th className="pb-2 font-medium">Status</th>
-                              <th className="pb-2 font-medium">Priority</th>
-                              <th className="pb-2 font-medium hidden sm:table-cell">Customer</th>
-                            </tr>
-                          </thead>
-                          <tbody>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Subject</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Priority</TableHead>
+                              <TableHead className="hidden sm:table-cell">Customer</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {dynamicTickets.map(tk => (
-                              <tr key={tk.id} className="border-b last:border-0 hover:bg-muted/50">
-                                <td className="py-2 font-medium">{tk.subject}</td>
-                                <td className="py-2">
+                              <TableRow key={tk.id}>
+                                <TableCell className="font-medium">{tk.subject}</TableCell>
+                                <TableCell>
                                   <Badge variant="outline" className={
                                     tk.status === "Open" ? "bg-primary/10 text-primary border-primary/20" :
                                       tk.status === "In Progress" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
@@ -1290,8 +1289,8 @@ const Dashboard = () => {
                                   }>
                                     {tk.status}
                                   </Badge>
-                                </td>
-                                <td className="py-2">
+                                </TableCell>
+                                <TableCell>
                                   <Badge variant="outline" className={
                                     tk.priority === "High" || tk.priority === "Urgent" ? "bg-destructive/10 text-destructive border-destructive/20" :
                                       tk.priority === "Medium" ? "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400" :
@@ -1299,12 +1298,12 @@ const Dashboard = () => {
                                   }>
                                     {tk.priority}
                                   </Badge>
-                                </td>
-                                <td className="py-2 hidden sm:table-cell text-muted-foreground">{tk.customer}</td>
-                              </tr>
+                                </TableCell>
+                                <TableCell className="hidden sm:table-cell text-muted-foreground">{tk.customer}</TableCell>
+                              </TableRow>
                             ))}
-                          </tbody>
-                        </table>
+                          </TableBody>
+                        </Table>
                       </div>
                     </TabsContent>
                   )}
@@ -1329,24 +1328,24 @@ const Dashboard = () => {
                   {isModuleEnabled("quotations") && (
                     <TabsContent value="quotations" className="m-0">
                       <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b text-left text-xs text-muted-foreground">
-                              <th className="pb-2 font-medium pl-4">#</th>
-                              <th className="pb-2 font-medium">Client</th>
-                              <th className="pb-2 font-medium">Date</th>
-                              <th className="pb-2 font-medium">Amount</th>
-                              <th className="pb-2 font-medium pr-4">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>#</TableHead>
+                              <TableHead>Client</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Amount</TableHead>
+                              <TableHead>Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {dynamicQuotationsToShow.map((q) => (
-                              <tr key={q.id} className="border-b last:border-0 hover:bg-muted/50">
-                                <td className="py-2 text-muted-foreground pl-4">{q.number}</td>
-                                <td className="py-2 font-medium">{q.client}</td>
-                                <td className="py-2 text-muted-foreground">{q.date}</td>
-                                <td className="py-2 font-medium">{q.total}</td>
-                                <td className="py-2 pr-4">
+                              <TableRow key={q.id}>
+                                <TableCell className="text-muted-foreground">{q.number}</TableCell>
+                                <TableCell className="font-medium">{q.client}</TableCell>
+                                <TableCell className="text-muted-foreground">{q.date}</TableCell>
+                                <TableCell className="font-medium">{q.total}</TableCell>
+                                <TableCell>
                                   <Badge variant="outline" className={
                                     q.status.toLowerCase() === "accepted" ? "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400" :
                                       q.status.toLowerCase() === "rejected" ? "bg-destructive/10 text-destructive border-destructive/20" :
@@ -1356,14 +1355,12 @@ const Dashboard = () => {
                                   }>
                                     <span className="capitalize">{q.status}</span>
                                   </Badge>
-                                </td>
-                              </tr>
+                                </TableCell>
+                              </TableRow>
                             ))}
-                          </tbody>
-                        </table>
-                        {dynamicQuotationsToShow.length === 0 && (
-                          <p className="text-sm text-muted-foreground text-center py-8">No quotations found</p>
-                        )}
+                            {dynamicQuotationsToShow.length === 0 && <TableEmpty colSpan={5}>No quotations found</TableEmpty>}
+                          </TableBody>
+                        </Table>
                       </div>
                     </TabsContent>
                   )}

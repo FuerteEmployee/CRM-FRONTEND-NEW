@@ -58,6 +58,7 @@ import { formatDate } from "@/lib/dateFormat";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { TableActions } from "@/components/TableActions";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 
 
 const Contacts = () => {
@@ -356,7 +357,7 @@ const Contacts = () => {
         </div>
 
         
-        <Card>
+        <Card className="overflow-hidden">
           <CardContent className="p-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
               <div className="flex flex-wrap items-center gap-2">
@@ -424,95 +425,94 @@ const Contacts = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px]">
-                <thead>
-                  <tr className="border-b text-left text-[10px] text-muted-foreground font-bold uppercase tracking-wider">
-                    <th className="p-4">Full Name</th>
-                    <th className="p-4">Customer</th>
-                    <th className="p-4">Email</th>
-                    <th className="p-4">Position</th>
-                    <th className="p-4">Phone</th>
-                    <th className="p-4">Active</th>
-                    <th className="p-4">Last Login</th>
-                    <th className="p-4 text-right">Options</th>
-                  </tr>
-                </thead>
-                <tbody>
+              <Table className="min-w-[900px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Full Name</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Position</TableHead>
+                    <TableHead>Phone</TableHead>
+                    <TableHead>Active</TableHead>
+                    <TableHead>Last Login</TableHead>
+                    <TableHead className="text-right">Options</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="border-b">
-                        <td colSpan={7} className="p-8">
+                      <TableRow key={i}>
+                        <TableCell colSpan={8}>
                           <Skeleton className="h-8 w-full" />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   ) : filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="p-10 text-center text-muted-foreground">
-                        No contacts found.
-                      </td>
-                    </tr>
+                    <TableEmpty colSpan={8}>No contacts found.</TableEmpty>
                   ) : (
                     paginatedContacts.map((contact) => (
-                      <tr
+                      <TableRow
                         key={contact._id}
-                        className="border-b last:border-0 hover:bg-muted/50 transition-colors group"
+                        className="group"
                       >
-                        <td className="p-4">
+                        <TableCell>
                           <span className="text-sm font-bold text-[#334155]">
                             {contact.firstname} {contact.lastname}
                           </span>
-                        </td>
-                        <td className="p-4">
+                        </TableCell>
+                        <TableCell>
                           <span className="text-sm text-[#64748b]">
                             {contact.userid?.company || "-"}
                           </span>
-                        </td>
-                        <td className="p-4 text-sm text-[#64748b]">
+                        </TableCell>
+                        <TableCell className="text-[#64748b]">
                           {contact.email}
-                        </td>
-                        <td className="p-4 text-sm text-[#64748b]">
+                        </TableCell>
+                        <TableCell className="text-[#64748b]">
                           {contact.title || "developer"}
-                        </td>
-                        <td className="p-4 text-sm text-[#64748b]">
+                        </TableCell>
+                        <TableCell className="text-[#64748b]">
                           {contact.phonenumber ? (
                             <WhatsAppQuickChat
                               phone={contact.phonenumber}
                               data={{ customer_name: `${contact.firstname || ""} ${contact.lastname || ""}`.trim() }}
                             />
                           ) : "-"}
-                        </td>
-                        <td className="p-4">
+                        </TableCell>
+                        <TableCell>
                           <Switch
                             checked={contact.active}
                             onCheckedChange={(val) => updateMutation.mutate({ ...contact, active: val })}
                             className="scale-90 data-[state=checked]:bg-blue-600"
                           />
-                        </td>
-                        <td className="p-4 text-sm text-[#64748b]">
+                        </TableCell>
+                        <TableCell className="text-[#64748b]">
                           {contact.last_login ? formatDate(contact.last_login) : "Never"}
-                        </td>
-                        <td className="p-4 text-right">
+                        </TableCell>
+                        <TableCell className="text-right">
                           <div className="flex justify-end">
                             <TableActions
                               onEdit={() => setEditContact(contact)}
                               onDelete={() => deleteMutation.mutate(contact._id)}
                             />
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
-            <div className="flex flex-col md:flex-row items-center justify-between gap-3 p-3 border-t text-sm text-muted-foreground">
-              <span>
-                Showing {totalContactCount === 0 ? 0 : (safeContactPage - 1) * contactPageSize + 1} to {Math.min(safeContactPage * contactPageSize, totalContactCount)} of{" "}
-                {totalContactCount} entries
-              </span>
-              <div className="flex items-center gap-2">
+            <div className="flex items-center border-t bg-muted/30">
+              <TablePagination
+                className="flex-1 border-t-0"
+                page={safeContactPage}
+                pageSize={contactPageSize}
+                total={totalContactCount}
+                onPageChange={(p) => setCurrentPage(Math.min(Math.max(1, p), totalContactPages))}
+              />
+              <div className="ml-auto px-4 py-3">
                 <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
                   <SelectTrigger className="h-8 w-[80px] text-xs">
                     <SelectValue />
@@ -523,25 +523,6 @@ const Contacts = () => {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 text-xs"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={safeContactPage <= 1}
-                >
-                  Previous
-                </Button>
-                <span className="text-xs px-1">{safeContactPage} of {totalContactPages}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-3 text-xs"
-                  onClick={() => setCurrentPage(p => Math.min(totalContactPages, p + 1))}
-                  disabled={safeContactPage >= totalContactPages}
-                >
-                  Next
-                </Button>
               </div>
             </div>
           </CardContent>

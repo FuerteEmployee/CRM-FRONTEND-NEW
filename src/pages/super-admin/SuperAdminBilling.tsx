@@ -6,6 +6,7 @@ import {
 import { apiClient as api } from "@/api/client";
 import { SuperAdminBillingSkeleton } from "@/components/ui/page-skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 interface Tenant {
   _id: string;
@@ -124,7 +125,7 @@ export default function SuperAdminBilling() {
       )}
 
       {/* Current billing summary table */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+      <TableContainer>
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-sm font-bold text-gray-900">Current Subscriptions</h2>
           <span className="text-xs text-gray-400">{activeTenants.length} active customer{activeTenants.length !== 1 ? "s" : ""}</span>
@@ -132,40 +133,40 @@ export default function SuperAdminBilling() {
         {activeTenants.length === 0 ? (
           <div className="py-12 text-center text-gray-400 text-sm">No active subscriptions yet.</div>
         ) : (
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b border-gray-100">
-              <tr>
-                <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer</th>
-                <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Plan</th>
-                <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-5 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Customer</TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {activeTenants.map((t) => (
-                <tr key={t._id} className="hover:bg-gray-50">
-                  <td className="px-5 py-3 font-medium text-gray-900">{t.company_name}</td>
-                  <td className="px-5 py-3 text-gray-600">
+                <TableRow key={t._id}>
+                  <TableCell><span className="font-medium">{t.company_name}</span></TableCell>
+                  <TableCell>
                     <div className="flex items-center gap-2">
                       <Package className="h-4 w-4 text-gray-300" />
                       {t.plan_id && typeof t.plan_id === "object" ? t.plan_id.name : "—"}
                     </div>
-                  </td>
-                  <td className="px-5 py-3 font-semibold text-gray-900">
-                    ₹{t.plan_id && typeof t.plan_id === "object" ? t.plan_id.price.toFixed(2) : "0.00"}
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-semibold">₹{t.plan_id && typeof t.plan_id === "object" ? t.plan_id.price.toFixed(2) : "0.00"}</span>
                     <span className="text-xs font-normal text-gray-400">/mo</span>
-                  </td>
-                  <td className="px-5 py-3">
+                  </TableCell>
+                  <TableCell>
                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       <CheckCircle2 className="h-3 w-3" /> Active
                     </span>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
-      </div>
+      </TableContainer>
 
       {/* Integration roadmap — hidden until payment gateway is implemented
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">

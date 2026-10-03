@@ -58,6 +58,7 @@ import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/ui/export-button";
@@ -312,103 +313,69 @@ const CreditNotes = () => {
         )}
 
         {/* Credit Notes Table */}
-        <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-              <tr>
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
                 {["Credit Note #", "Customer", "Date", "Status", "Reference#", "Amount", "Remaining Amount", "Actions"].map((h) => (
-                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">
+                  <TableHead key={h}>
                     {h}
-                  </th>
+                  </TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {isLoading ? (
                 <SkeletonTableRows rows={6} colSpan={8} />
               ) : paginatedCreditNotes.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
-                    No credit notes found.
-                  </td>
-                </tr>
+                <TableEmpty colSpan={8}>No credit notes found.</TableEmpty>
               ) : (
                 paginatedCreditNotes
                   .map((note: any) => {
                     const status = statusMap[note.status] || statusMap[1];
                     return (
-                      <tr key={note._id} className="hover:bg-muted/30 transition-colors">
-                        <td
-                          className="px-6 py-4 font-bold text-primary cursor-pointer hover:underline"
+                      <TableRow key={note._id}>
+                        <TableCell
+                          className="font-bold text-primary cursor-pointer hover:underline"
                           onClick={() => setViewItem(note)}
                         >
                           {note.number || `CN-${note._id?.substring(0, 6)}`}
-                        </td>
-                        <td className="px-6 py-4 font-medium text-foreground">
+                        </TableCell>
+                        <TableCell className="font-medium text-foreground">
                           {note.client?.company || "N/A"}
-                        </td>
-                        <td className="px-6 py-4 text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
                           {note.date ? formatDate(note.date) : "-"}
-                        </td>
-                        <td className="px-6 py-4">
+                        </TableCell>
+                        <TableCell>
                           <Badge variant="outline" className={cn("text-[10px] font-black uppercase tracking-widest px-3 py-1", status.color)}>
                             {status.label}
                           </Badge>
-                        </td>
-                        <td className="px-6 py-4 font-mono text-[11px] text-foreground">
+                        </TableCell>
+                        <TableCell className="text-foreground">
                           {note.reference || "-"}
-                        </td>
-                        <td className="px-6 py-4 font-black text-foreground">
+                        </TableCell>
+                        <TableCell className="font-black text-foreground">
                           {formatRowAmount(note, note.total || 0)}
-                        </td>
-                        <td className="px-6 py-4 font-black text-primary">
+                        </TableCell>
+                        <TableCell className="font-black text-primary">
                           {formatRowAmount(note, note.remaining_amount ?? note.total ?? 0)}
-                        </td>
-                        <td className="px-6 py-4">
+                        </TableCell>
+                        <TableCell>
                           <TableActions
                             onView={() => setViewItem(note)}
                             onEdit={can("Invoices", "Edit") ? () => navigate(`/admin/credit-notes/edit/${note._id}`) : undefined}
                             onDelete={can("Invoices", "Delete") ? () => deleteMutation.mutate(note._id) : undefined}
                           />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })
               )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination Footer */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-          <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {totalCreditNotes === 0 ? 0 : (safeCnPage - 1) * cnPageSize + 1} to {Math.min(safeCnPage * cnPageSize, totalCreditNotes)} of {totalCreditNotes} entries
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={safeCnPage <= 1}
-            >
-              Previous
-            </Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              {safeCnPage}
-            </div>
-            <span className="text-xs text-muted-foreground px-1">of {totalCnPages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.min(totalCnPages, p + 1))}
-              disabled={safeCnPage >= totalCnPages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+            </TableBody>
+          </Table>
+          <TablePagination page={safeCnPage} pageSize={cnPageSize} total={totalCreditNotes} onPageChange={setCurrentPage} />
+        </TableContainer>
       </div>
 
       {/* View Dialog */}
@@ -839,26 +806,26 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
             {activeTab === "Invoices Credited" && (
               <div className="animate-in fade-in duration-300">
                 {item.invoices_credited && item.invoices_credited.length > 0 ? (
-                  <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-100 text-slate-600">
-                        <tr>
-                          <th className="py-3 px-4 text-left font-bold">Invoice #</th>
-                          <th className="py-3 px-4 text-left font-bold">Amount Credited</th>
-                          <th className="py-3 px-4 text-left font-bold">Date</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 bg-white">
+                  <TableContainer>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-left">Invoice #</TableHead>
+                          <TableHead className="text-left">Amount Credited</TableHead>
+                          <TableHead className="text-left">Date</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {item.invoices_credited.map((inv: any, idx: number) => (
-                          <tr key={idx}>
-                            <td className="py-3 px-4 text-blue-600 font-bold hover:underline cursor-pointer">{inv.invoice_number}</td>
-                            <td className="py-3 px-4 font-semibold text-slate-700">{formatAmount(inv.amount || 0)}</td>
-                            <td className="py-3 px-4 text-slate-500">{formatDate(inv.date)}</td>
-                          </tr>
+                          <TableRow key={idx}>
+                            <TableCell className="text-blue-600 font-bold hover:underline cursor-pointer">{inv.invoice_number}</TableCell>
+                            <TableCell className="font-semibold text-slate-700">{formatAmount(inv.amount || 0)}</TableCell>
+                            <TableCell className="text-slate-500">{formatDate(inv.date)}</TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 ) : (
                   <div className="p-12 text-center bg-slate-50 rounded-xl border border-slate-200">
                     <p className="text-slate-500 font-medium">Credited Invoices Not Found</p>
@@ -870,26 +837,26 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
             {activeTab === "Refunds" && (
               <div className="animate-in fade-in duration-300">
                 {item.refunds && item.refunds.length > 0 ? (
-                  <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-100 text-slate-600">
-                        <tr>
-                          <th className="py-3 px-4 text-left font-bold">Date</th>
-                          <th className="py-3 px-4 text-left font-bold">Amount</th>
-                          <th className="py-3 px-4 text-left font-bold">Payment Mode</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 bg-white">
+                  <TableContainer>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-left">Date</TableHead>
+                          <TableHead className="text-left">Amount</TableHead>
+                          <TableHead className="text-left">Payment Mode</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {item.refunds.map((refund: any, idx: number) => (
-                          <tr key={idx}>
-                            <td className="py-3 px-4 text-slate-500">{formatDate(refund.date)}</td>
-                            <td className="py-3 px-4 font-semibold text-slate-700">{formatAmount(refund.amount || 0)}</td>
-                            <td className="py-3 px-4 text-slate-700">{refund.payment_mode || "-"}</td>
-                          </tr>
+                          <TableRow key={idx}>
+                            <TableCell className="text-slate-500">{formatDate(refund.date)}</TableCell>
+                            <TableCell className="font-semibold text-slate-700">{formatAmount(refund.amount || 0)}</TableCell>
+                            <TableCell className="text-slate-700">{refund.payment_mode || "-"}</TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 ) : (
                   <div className="p-12 text-center bg-slate-50 rounded-xl border border-slate-200">
                     <p className="text-slate-500 font-medium">No refunds found</p>
@@ -938,40 +905,36 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 overflow-hidden bg-white shadow-sm">
-                  <table className="w-full text-sm">
-                    <thead className="bg-slate-100 text-slate-600 border-b border-slate-200">
-                      <tr>
-                        <th className="py-3 px-6 text-left font-bold text-xs">Description</th>
-                        <th className="py-3 px-6 text-left font-bold text-xs">Date</th>
-                        <th className="py-3 px-6 text-left font-bold text-xs">Remind</th>
-                        <th className="py-3 px-6 text-left font-bold text-xs">Is notified?</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                <TableContainer>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-left">Description</TableHead>
+                        <TableHead className="text-left">Date</TableHead>
+                        <TableHead className="text-left">Remind</TableHead>
+                        <TableHead className="text-left">Is notified?</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {item.reminders && item.reminders.length > 0 ? (
                         item.reminders.map((rem: any, idx: number) => (
-                          <tr key={idx} className="hover:bg-slate-50/50 transition-colors border-b border-slate-100">
-                            <td className="py-4 px-6 text-slate-700 font-medium">{rem.description}</td>
-                            <td className="py-4 px-6 text-slate-500">{formatDate(rem.date)}</td>
-                            <td className="py-4 px-6 text-slate-700">{rem.staff}</td>
-                            <td className="py-4 px-6 text-slate-700">
+                          <TableRow key={idx}>
+                            <TableCell className="text-slate-700 font-medium">{rem.description}</TableCell>
+                            <TableCell className="text-slate-500">{formatDate(rem.date)}</TableCell>
+                            <TableCell className="text-slate-700">{rem.staff}</TableCell>
+                            <TableCell className="text-slate-700">
                               <Badge variant="outline" className={cn("text-[10px] uppercase tracking-widest", rem.is_notified ? "border-emerald-200 text-emerald-600 bg-emerald-50" : "border-slate-200 text-slate-500 bg-slate-50")}>
                                 {rem.is_notified ? "Yes" : "No"}
                               </Badge>
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))
                       ) : (
-                        <tr>
-                          <td colSpan={4} className="px-6 py-10 text-center text-slate-500 italic font-medium">
-                            No entries found
-                          </td>
-                        </tr>
+                        <TableEmpty colSpan={4}>No entries found</TableEmpty>
                       )}
-                    </tbody>
-                  </table>
-                </div>
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               </div>
             )}
 
@@ -1065,27 +1028,27 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
             </div>
             
             {item.available_invoices && item.available_invoices.length > 0 ? (
-              <div className="rounded-xl overflow-hidden border border-slate-200 shadow-sm">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-100 text-slate-600 border-b border-slate-200">
-                    <tr>
-                      <th className="py-3 px-3 text-left font-bold text-xs">Invoice #</th>
-                      <th className="py-3 px-3 text-left font-bold text-xs">Date</th>
-                      <th className="py-3 px-3 text-left font-bold text-xs">Total</th>
-                      <th className="py-3 px-3 text-left font-bold text-xs text-emerald-700">Paid</th>
-                      <th className="py-3 px-3 text-left font-bold text-xs text-rose-600">Balance</th>
-                      <th className="py-3 px-3 text-left font-bold text-xs">Apply</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
+              <TableContainer>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-left">Invoice #</TableHead>
+                      <TableHead className="text-left">Date</TableHead>
+                      <TableHead className="text-left">Total</TableHead>
+                      <TableHead className="text-left">Paid</TableHead>
+                      <TableHead className="text-left">Balance</TableHead>
+                      <TableHead className="text-left">Apply</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {item.available_invoices.map((inv: any, idx: number) => (
-                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-2.5 px-3 font-bold text-blue-600 text-xs">{inv.number}</td>
-                        <td className="py-2.5 px-3 text-slate-500 text-xs">{formatDate(inv.date)}</td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-700 text-xs">{formatAmount(inv.total || 0)}</td>
-                        <td className="py-2.5 px-3 font-semibold text-emerald-600 text-xs">{formatAmount(inv.amount_paid || 0)}</td>
-                        <td className="py-2.5 px-3 font-bold text-rose-600 text-xs">{formatAmount(inv.balance_due || 0)}</td>
-                        <td className="py-2.5 px-3">
+                      <TableRow key={idx}>
+                        <TableCell className="font-bold text-blue-600">{inv.number}</TableCell>
+                        <TableCell className="text-slate-500">{formatDate(inv.date)}</TableCell>
+                        <TableCell className="font-semibold text-slate-700">{formatAmount(inv.total || 0)}</TableCell>
+                        <TableCell className="font-semibold text-emerald-600">{formatAmount(inv.amount_paid || 0)}</TableCell>
+                        <TableCell className="font-bold text-rose-600">{formatAmount(inv.balance_due || 0)}</TableCell>
+                        <TableCell>
                            <Input 
                              type="number" 
                              placeholder="0.00" 
@@ -1095,12 +1058,12 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                              max={Math.min(item.remaining_amount ?? item.total ?? 0, inv.balance_due || 0)}
                              min={0}
                            />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             ) : (
               <div className="p-8 text-center bg-slate-50 rounded-xl border border-slate-200">
                 <p className="text-slate-500 font-medium text-sm">There are no available invoices for this customer.</p>

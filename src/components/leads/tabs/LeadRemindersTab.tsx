@@ -3,13 +3,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Bell, Trash2 } from "lucide-react";
+import { Plus, Bell, Trash2, Check, X, RotateCcw } from "lucide-react";
 import { formatDateTime } from "@/lib/dateFormat";
 import { reminderService } from "@/api/services/reminder.service";
 import { staffService } from "@/api/services/staff.service";
 import { LeadReminderModal, type LeadReminderFormData } from "@/components/leads/LeadReminderModal";
 import { useNotificationContext } from "@/context/NotificationContext";
 import { toast } from "sonner";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 const emptyForm: LeadReminderFormData = { date: "", staff: "", description: "", notify_by_email: false };
 
@@ -43,6 +44,8 @@ export function LeadRemindersTab({ lead }: { lead: any }) {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["lead-reminders", lead._id] });
     queryClient.invalidateQueries({ queryKey: ["lead-activity-log", lead._id] });
+    // Follow-up column, reminder filters and overview counts on the Leads page.
+    queryClient.invalidateQueries({ queryKey: ["leads"] });
   };
 
   // The reminderDelivery cron marks isnotified server-side (and may also
@@ -106,6 +109,27 @@ export function LeadRemindersTab({ lead }: { lead: any }) {
     onError: (err: any) => toast.error(err.message || "Failed to delete reminder"),
   });
 
+  const statusMutation = useMutation({
+    mutationFn: ({ id, action }: { id: string; action: "complete" | "dismiss" | "reopen" }) =>
+      action === "complete"
+        ? reminderService.completeReminder(id)
+        : action === "dismiss"
+          ? reminderService.dismissReminder(id)
+          : reminderService.reopenReminder(id),
+    onSuccess: (_d, v) => {
+      invalidate();
+      toast.success(v.action === "complete" ? "Reminder completed" : v.action === "dismiss" ? "Reminder dismissed" : "Reminder reopened");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to update reminder"),
+  });
+
+  const reminderState = (r: any) => {
+    if (r.status === "completed") return { label: "Completed", cls: "text-emerald-600 border-emerald-200 bg-emerald-50" };
+    if (r.status === "dismissed") return { label: "Dismissed", cls: "text-slate-400 border-slate-200" };
+    if (new Date(r.date).getTime() < Date.now()) return { label: "Overdue", cls: "text-red-600 border-red-200 bg-red-50" };
+    return { label: "Pending", cls: "text-blue-600 border-blue-200 bg-blue-50" };
+  };
+
   const openCreate = () => {
     setEditingId(null);
     setForm(emptyForm);
@@ -153,30 +177,76 @@ export function LeadRemindersTab({ lead }: { lead: any }) {
           <p className="text-sm text-slate-400 font-medium">No reminders set for this lead</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500">
-              <tr>
-                <th className="text-left px-4 py-3">Description</th>
-                <th className="text-left px-4 py-3">Date</th>
-                <th className="text-left px-4 py-3">Remind</th>
-                <th className="text-left px-4 py-3">Is notified?</th>
-                <th className="text-right px-4 py-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {reminders.map((r: any) => (
-                <tr key={r._id} className="hover:bg-slate-50 cursor-pointer transition-colors" onClick={() => openEdit(r)}>
-                  <td className="px-4 py-3 font-bold text-slate-800 max-w-xs truncate">{r.description}</td>
-                  <td className="px-4 py-3 text-slate-600">{formatDateTime(r.date)}</td>
-                  <td className="px-4 py-3 text-slate-600">{r.staff ? `${r.staff.firstname} ${r.staff.lastname}` : "—"}</td>
-                  <td className="px-4 py-3">
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Description</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Remind</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Is notified?</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {reminders.map((r: any) => {
+                const state = reminderState(r);
+                const isOpen = r.status !== "completed" && r.status !== "dismissed";
+                const busy = statusMutation.isPending && statusMutation.variables?.id === r._id;
+                return (
+                <TableRow key={r._id} className="cursor-pointer" onClick={() => openEdit(r)}>
+                  <TableCell className={`max-w-xs truncate ${isOpen ? "" : "text-muted-foreground line-through"}`}><span className="font-semibold">{r.description}</span></TableCell>
+                  <TableCell>{formatDateTime(r.date)}</TableCell>
+                  <TableCell>{r.staff ? `${r.staff.firstname} ${r.staff.lastname}` : "—"}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`rounded-lg font-bold text-[10px] ${state.cls}`}>{state.label}</Badge>
+                  </TableCell>
+                  <TableCell>
                     <Badge variant="outline" className={`rounded-lg font-bold text-[10px] ${r.isnotified ? "text-emerald-600 border-emerald-200" : "text-slate-400 border-slate-200"}`}>
                       {r.isnotified ? "Yes" : "No"}
                     </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end">
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-0.5">
+                      {isOpen ? (
+                        <>
+                          <button
+                            title="Mark done"
+                            disabled={busy}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              statusMutation.mutate({ id: r._id, action: "complete" });
+                            }}
+                            className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                          <button
+                            title="Dismiss"
+                            disabled={busy}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              statusMutation.mutate({ id: r._id, action: "dismiss" });
+                            }}
+                            className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          title="Reopen"
+                          disabled={busy}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            statusMutation.mutate({ id: r._id, action: "reopen" });
+                          }}
+                          className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10 transition-colors"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -187,12 +257,13 @@ export function LeadRemindersTab({ lead }: { lead: any }) {
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </TableCell>
+                </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
 
       <LeadReminderModal

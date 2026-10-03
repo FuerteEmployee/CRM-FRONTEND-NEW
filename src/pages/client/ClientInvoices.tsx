@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 const invoices = [
   {
@@ -55,7 +56,7 @@ export default function ClientInvoices() {
         </Button>
       </div>
 
-      <Card className="border-none shadow-[0_4px_25px_rgb(0,0,0,0.03)] bg-white/90 backdrop-blur-md overflow-hidden rounded-2xl">
+      <Card className="border shadow-sm bg-card overflow-hidden rounded-lg">
         <CardContent className="p-0">
           <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4 w-full md:w-auto">
@@ -101,24 +102,24 @@ export default function ClientInvoices() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 bg-slate-50/50">
-                  <th className="py-4 px-8">Invoice #</th>
-                  <th className="py-4 px-6">Amount</th>
-                  <th className="py-4 px-6">Total Tax</th>
-                  <th className="py-4 px-6">Issue Date</th>
-                  <th className="py-4 px-6">Due Date</th>
-                  <th className="py-4 px-8 text-right">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Invoice #</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Total Tax</TableHead>
+                  <TableHead>Issue Date</TableHead>
+                  <TableHead>Due Date</TableHead>
+                  <TableHead className="text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {invoices.map((inv, i) => (
-                  <tr
+                  <TableRow
                     key={inv.id}
-                    className="group hover:bg-slate-50/50 transition-colors"
+                    className="group"
                   >
-                    <td className="py-5 px-8">
+                    <TableCell>
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-slate-100 rounded-lg text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                           <Receipt className="h-4 w-4" />
@@ -127,20 +128,20 @@ export default function ClientInvoices() {
                           {inv.id}
                         </span>
                       </div>
-                    </td>
-                    <td className="py-5 px-6 font-black text-slate-900">
-                      {inv.amount}
-                    </td>
-                    <td className="py-5 px-6 text-sm font-bold text-muted-foreground">
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-bold">{inv.amount}</span>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
                       {inv.tax}
-                    </td>
-                    <td className="py-5 px-6 text-sm font-bold text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
                       {inv.date}
-                    </td>
-                    <td className="py-5 px-6 text-sm font-bold text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
                       {inv.due}
-                    </td>
-                    <td className="py-5 px-8 text-right">
+                    </TableCell>
+                    <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-3">
                         <Badge
                           className={`px-3 py-1 rounded-full font-black text-[10px] uppercase tracking-widest shadow-sm border-none ${
@@ -161,11 +162,11 @@ export default function ClientInvoices() {
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </CardContent>
       </Card>

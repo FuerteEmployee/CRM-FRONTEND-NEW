@@ -12,6 +12,7 @@ import { apiClient } from "@/api/client";
 import { vendorService } from "@/api/services/vendor.service";
 import { formatDate } from "@/lib/dateFormat";
 import { useCurrency } from "@/context/CurrencyContext";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 
 interface VendorDetail {
   _id: string;
@@ -149,41 +150,37 @@ const VendorView = () => {
                     ))}
                   </div>
 
-                  <Card className="rounded-2xl border-slate-100 shadow-sm overflow-hidden">
-                    <CardContent className="p-0">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b bg-slate-50/50 text-left text-xs text-muted-foreground uppercase tracking-wider">
-                              <th className="p-4 font-bold">Bill Ref</th>
-                              <th className="p-4 font-bold">Bill Date</th>
-                              <th className="p-4 font-bold">Taxable</th>
-                              <th className="p-4 font-bold">GST</th>
-                              <th className="p-4 font-bold">Total</th>
-                              <th className="p-4 font-bold">Payment</th>
-                            </tr>
-                          </thead>
-                          <tbody>
+                  <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Bill Ref</TableHead>
+                              <TableHead>Bill Date</TableHead>
+                              <TableHead>Taxable</TableHead>
+                              <TableHead>GST</TableHead>
+                              <TableHead>Total</TableHead>
+                              <TableHead>Payment</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {purchases.length === 0 ? (
-                              <tr>
-                                <td colSpan={6} className="p-10 text-center text-slate-400 font-medium">
+                              <TableEmpty colSpan={6}>
                                   <FileText className="h-8 w-8 mx-auto mb-2 text-slate-200" />
                                   No purchases from this vendor yet.
-                                </td>
-                              </tr>
+                                </TableEmpty>
                             ) : (
                               purchases.map((p: any) => (
-                                <tr key={p._id} className="border-b hover:bg-slate-50/50">
-                                  <td className="p-4 font-bold text-slate-800">{p.bill_no}</td>
-                                  <td className="p-4 text-xs font-medium text-slate-600">
+                                <TableRow key={p._id}>
+                                  <TableCell className="font-medium">{p.bill_no}</TableCell>
+                                  <TableCell>
                                     {p.bill_date ? formatDate(p.bill_date) : "-"}
-                                  </td>
-                                  <td className="p-4 font-bold text-slate-800">{formatAmount(p.amount || 0)}</td>
-                                  <td className="p-4 text-xs font-medium text-slate-600">
+                                  </TableCell>
+                                  <TableCell>{formatAmount(p.amount || 0)}</TableCell>
+                                  <TableCell>
                                     {formatAmount((p.cgst || 0) + (p.sgst || 0) + (p.igst || 0))}
-                                  </td>
-                                  <td className="p-4 font-black text-green-700">{formatAmount(p.total || 0)}</td>
-                                  <td className="p-4">
+                                  </TableCell>
+                                  <TableCell className="font-semibold text-green-700">{formatAmount(p.total || 0)}</TableCell>
+                                  <TableCell>
                                     <Badge
                                       variant="outline"
                                       className={`font-bold text-[10px] ${
@@ -194,15 +191,13 @@ const VendorView = () => {
                                     >
                                       {p.payment_status || "Unpaid"}
                                     </Badge>
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </CardContent>
-                  </Card>
+                          </TableBody>
+                        </Table>
+                  </TableContainer>
                 </>
               )}
             </TabsContent>

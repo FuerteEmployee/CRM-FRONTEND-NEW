@@ -207,6 +207,7 @@ import {
   CommandInput,
   CommandItem
 } from "@/components/ui/command";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 
 export function VoiceTextarea({ value, onChange, className, placeholder, name }: any) {
   const [isRecording, setIsRecording] = useState(false);
@@ -2170,26 +2171,22 @@ export default function CustomerView() {
                             </div>
                           </div>
 
-                          <div className="rounded-xl border border-border/50 overflow-hidden bg-background/50">
-                            <table className="w-full text-sm text-left">
-                              <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                                <tr>
-                                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px]">Staff Member</th>
-                                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px]">Date Assigned</th>
-                                  <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px] text-right">Options</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-border/50">
+                          <TableContainer>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Staff Member</TableHead>
+                                  <TableHead>Date Assigned</TableHead>
+                                  <TableHead className="text-right">Options</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
                                 {(customer?.admins || []).length === 0 ? (
-                                  <tr>
-                                    <td colSpan={3} className="px-6 py-12 text-center text-muted-foreground">
-                                      No staff members assigned as admins for this customer.
-                                    </td>
-                                  </tr>
+                                  <TableEmpty colSpan={3}>No staff members assigned as admins for this customer.</TableEmpty>
                                 ) : (
                                   customer.admins.map((admin: any) => (
-                                    <tr key={admin.staff?._id || admin.staff} className="hover:bg-muted/30 transition-colors group">
-                                      <td className="px-6 py-4">
+                                    <TableRow key={admin.staff?._id || admin.staff} className="group">
+                                      <TableCell>
                                         <div className="flex flex-col">
                                           <span className="font-semibold text-foreground">
                                             {admin.staff?.firstname} {admin.staff?.lastname}
@@ -2198,11 +2195,11 @@ export default function CustomerView() {
                                             {admin.staff?.email}
                                           </span>
                                         </div>
-                                      </td>
-                                      <td className="px-6 py-4 text-muted-foreground">
+                                      </TableCell>
+                                      <TableCell className="text-muted-foreground">
                                         {formatDateTime(admin.date_assigned)}
-                                      </td>
-                                      <td className="px-6 py-4 text-right">
+                                      </TableCell>
+                                      <TableCell className="text-right">
                                         <Button
                                           variant="ghost"
                                           size="icon"
@@ -2211,30 +2208,14 @@ export default function CustomerView() {
                                         >
                                           <Trash2 className="h-4 w-4" />
                                         </Button>
-                                      </td>
-                                    </tr>
+                                      </TableCell>
+                                    </TableRow>
                                   ))
                                 )}
-                              </tbody>
-                            </table>
-                          </div>
-
-                          <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-6 px-2">
-                            <div className="text-sm text-muted-foreground font-medium">
-                              Showing 1 to {(customer?.admins || []).length} of {(customer?.admins || []).length} entries
-                            </div>
-                            <div className="flex items-center gap-1 bg-muted/30 p-1 rounded-lg border border-border/50 shadow-inner">
-                              <Button variant="ghost" size="sm" className="h-8 px-3 text-xs hover:bg-background transition-colors" disabled>
-                                Previous
-                              </Button>
-                              <Button variant="default" size="sm" className="h-8 w-8 p-0 text-xs shadow-md bg-primary hover:bg-primary/90 transition-all font-bold">
-                                1
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-8 px-3 text-xs hover:bg-background transition-colors" disabled>
-                                Next
-                              </Button>
-                            </div>
-                          </div>
+                              </TableBody>
+                            </Table>
+                            <TablePagination page={1} pageSize={Math.max((customer?.admins || []).length, 1)} total={(customer?.admins || []).length} onPageChange={() => {}} />
+                          </TableContainer>
                         </TabsContent>
                       </div>
                     </Tabs>
@@ -2512,55 +2493,51 @@ export default function CustomerView() {
                         </div>
                       </div>
 
-                      <div className="rounded-xl border border-border/50 overflow-hidden bg-background/50 shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
-                              <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px]">Full Name</th>
-                              <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px]">Email</th>
-                              <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px]">Position</th>
-                              <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px]">Phone</th>
-                              <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px]">Active</th>
-                              <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px]">Last Login</th>
-                              <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px] text-right">Options</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Full Name</TableHead>
+                              <TableHead>Email</TableHead>
+                              <TableHead>Position</TableHead>
+                              <TableHead>Phone</TableHead>
+                              <TableHead>Active</TableHead>
+                              <TableHead>Last Login</TableHead>
+                              <TableHead className="text-right">Options</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingContacts ? (
                               Array.from({ length: 3 }).map((_, i) => (
-                                <tr key={i}><td colSpan={7} className="px-6 py-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : (contacts || []).length === 0 ? (
-                              <tr>
-                                <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No contacts found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={7}>No contacts found for this customer.</TableEmpty>
                             ) : (
                               [...(contacts || [])].sort((a: any, b: any) => {
                                 const nameA = `${a.firstname || ""} ${a.lastname || ""}`.toLowerCase();
                                 const nameB = `${b.firstname || ""} ${b.lastname || ""}`.toLowerCase();
                                 return nameA.localeCompare(nameB);
                               }).map((contact: any) => (
-                                <tr key={contact._id} className="hover:bg-muted/30 transition-colors group">
-                                  <td className="px-6 py-4 font-semibold text-foreground">
+                                <TableRow key={contact._id} className="group">
+                                  <TableCell>
                                     {contact.firstname} {contact.lastname}
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
                                     {contact.email}
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
                                     {contact.title || "-"}
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
                                     {contact.phonenumber ? (
                                       <WhatsAppQuickChat
                                         phone={contact.phonenumber}
                                         data={{ customer_name: `${contact.firstname || ""} ${contact.lastname || ""}`.trim() }}
                                       />
                                     ) : "-"}
-                                  </td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell>
                                     <Switch
                                       checked={contact.active}
                                       onCheckedChange={(checked) =>
@@ -2571,41 +2548,25 @@ export default function CustomerView() {
                                       }
                                       disabled={toggleContactStatusMutation.isPending}
                                     />
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">
                                     {contact.last_login ? formatDate(contact.last_login) : "Never"}
-                                  </td>
-                                  <td className="px-6 py-4 text-right">
+                                  </TableCell>
+                                  <TableCell className="text-right">
                                     <div className="flex items-center justify-end">
                                       <TableActions
                                         onEdit={() => handleEditContact(contact)}
                                         onDelete={() => deleteContactMutation.mutate(contact._id)}
                                       />
                                     </div>
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-6 px-2">
-                        <div className="text-sm text-muted-foreground font-medium">
-                          Showing 1 to {(contacts || []).length} of {(contacts || []).length} entries
-                        </div>
-                        <div className="flex items-center gap-1 bg-muted/30 p-1 rounded-lg border border-border/50 shadow-inner">
-                          <Button variant="ghost" size="sm" className="h-8 px-3 text-xs hover:bg-background transition-colors" disabled>
-                            Previous
-                          </Button>
-                          <Button variant="default" size="sm" className="h-8 w-8 p-0 text-xs shadow-md bg-primary hover:bg-primary/90 transition-all font-bold">
-                            1
-                          </Button>
-                          <Button variant="ghost" size="sm" className="h-8 px-3 text-xs hover:bg-background transition-colors" disabled>
-                            Next
-                          </Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max((contacts || []).length, 1)} total={(contacts || []).length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -2735,42 +2696,38 @@ export default function CustomerView() {
                           </div>
                         </div>
 
-                        <div className="rounded-xl border border-border/50 overflow-hidden bg-background/50 shadow-sm">
-                          <table className="w-full text-sm text-left">
-                            <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                              <tr>
-                                <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px]">Description</th>
-                                <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px]">Added From</th>
-                                <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px]">Date Added</th>
-                                <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px] text-right">Options</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border/50">
+                        <TableContainer>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Description</TableHead>
+                                <TableHead>Added From</TableHead>
+                                <TableHead>Date Added</TableHead>
+                                <TableHead className="text-right">Options</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
                               {isLoadingNotes ? (
                                 Array.from({ length: 3 }).map((_, i) => (
-                                  <tr key={i}><td colSpan={4} className="px-6 py-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                  <TableRow key={i}><TableCell colSpan={4}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                                 ))
                               ) : notes.filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase())).length === 0 ? (
-                                <tr>
-                                  <td colSpan={4} className="px-6 py-12 text-center text-muted-foreground italic">
-                                    No notes found.
-                                  </td>
-                                </tr>
+                                <TableEmpty colSpan={4}>No notes found.</TableEmpty>
                               ) : (
                                 notes
                                   .filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase()))
                                   .map((note: any) => (
-                                    <tr key={note._id} className="hover:bg-muted/30 transition-colors group">
-                                      <td className="px-6 py-4 text-foreground whitespace-pre-wrap">
+                                    <TableRow key={note._id} className="group">
+                                      <TableCell className="whitespace-pre-wrap">
                                         {note.description}
-                                      </td>
-                                      <td className="px-6 py-4 text-muted-foreground font-medium">
+                                      </TableCell>
+                                      <TableCell className="text-muted-foreground">
                                         {note.addedfrom?.firstname} {note.addedfrom?.lastname}
-                                      </td>
-                                      <td className="px-6 py-4 text-muted-foreground">
+                                      </TableCell>
+                                      <TableCell className="text-muted-foreground">
                                         {formatDateTime(note.dateadded)}
-                                      </td>
-                                      <td className="px-6 py-4 text-right">
+                                      </TableCell>
+                                      <TableCell className="text-right">
                                         <div className="flex items-center justify-end gap-1">
                                           <Button
                                             variant="ghost"
@@ -2798,30 +2755,14 @@ export default function CustomerView() {
                                             <Trash2 className="h-4 w-4" />
                                           </Button>
                                         </div>
-                                      </td>
-                                    </tr>
+                                      </TableCell>
+                                    </TableRow>
                                   ))
                               )}
-                            </tbody>
-                          </table>
-                        </div>
-
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-6 px-2">
-                          <div className="text-sm text-muted-foreground font-medium">
-                            Showing 1 to {notes.filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase())).length} of {notes.length} entries
-                          </div>
-                          <div className="flex items-center gap-1 bg-muted/30 p-1 rounded-lg border border-border/50 shadow-inner">
-                            <Button variant="ghost" size="sm" className="h-8 px-3 text-xs hover:bg-background transition-colors" disabled>
-                              Previous
-                            </Button>
-                            <Button variant="default" size="sm" className="h-8 w-8 p-0 text-xs shadow-md bg-primary hover:bg-primary/90 transition-all font-bold">
-                              1
-                            </Button>
-                            <Button variant="ghost" size="sm" className="h-8 px-3 text-xs hover:bg-background transition-colors" disabled>
-                              Next
-                            </Button>
-                          </div>
-                        </div>
+                            </TableBody>
+                          </Table>
+                          <TablePagination page={1} pageSize={Math.max(notes.filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase())).length, 1)} total={notes.filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase())).length} onPageChange={() => {}} />
+                        </TableContainer>
                       </div>
                     </div>
                   )}
@@ -2948,51 +2889,51 @@ export default function CustomerView() {
                               Showing all invoices and payments between {formatDate(finalStatementData?.from)} and {formatDate(finalStatementData?.to)}
                             </p>
 
-                            <div className="rounded-2xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                              <table className="w-full text-sm text-left">
-                                <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                                  <tr>
-                                    <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px]">Date</th>
-                                    <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px]">Details</th>
-                                    <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px] text-right">Amount</th>
-                                    <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px] text-right">Payments</th>
-                                    <th className="px-6 py-4 font-bold uppercase tracking-wider text-[10px] text-right">Balance</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-border/50">
-                                  <tr className="bg-muted/10 font-medium">
-                                    <td className="px-6 py-4 text-muted-foreground">{formatDate(finalStatementData?.from)}</td>
-                                    <td className="px-6 py-4 italic">Beginning Balance</td>
-                                    <td className="px-6 py-4 text-right">-</td>
-                                    <td className="px-6 py-4 text-right">-</td>
-                                    <td className="px-6 py-4 text-right font-bold">
+                            <TableContainer>
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Date</TableHead>
+                                    <TableHead>Details</TableHead>
+                                    <TableHead className="text-right">Amount</TableHead>
+                                    <TableHead className="text-right">Payments</TableHead>
+                                    <TableHead className="text-right">Balance</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  <TableRow>
+                                    <TableCell className="text-muted-foreground">{formatDate(finalStatementData?.from)}</TableCell>
+                                    <TableCell>Beginning Balance</TableCell>
+                                    <TableCell className="text-right">-</TableCell>
+                                    <TableCell className="text-right">-</TableCell>
+                                    <TableCell className="text-right">
                                       {formatAmount(finalStatementData?.beginningBalance || 0)}
-                                    </td>
-                                  </tr>
+                                    </TableCell>
+                                  </TableRow>
                                   {finalStatementData?.entries.map((entry: any, i: number) => (
-                                    <tr key={i} className="hover:bg-muted/30 transition-colors">
-                                      <td className="px-6 py-4 text-muted-foreground">{formatDate(entry.date)}</td>
-                                      <td className="px-6 py-4 font-medium">{entry.details}</td>
-                                      <td className="px-6 py-4 text-right text-primary font-bold">
+                                    <TableRow key={i}>
+                                      <TableCell className="text-muted-foreground">{formatDate(entry.date)}</TableCell>
+                                      <TableCell>{entry.details}</TableCell>
+                                      <TableCell className="text-right text-primary">
                                         {entry.amount > 0 ? formatAmount(entry.amount) : "-"}
-                                      </td>
-                                      <td className="px-6 py-4 text-right text-green-500 font-bold">
+                                      </TableCell>
+                                      <TableCell className="text-right text-green-500">
                                         {entry.payments > 0 ? formatAmount(entry.payments) : "-"}
-                                      </td>
-                                      <td className="px-6 py-4 text-right font-bold">
+                                      </TableCell>
+                                      <TableCell className="text-right">
                                         {formatAmount(entry.balance)}
-                                      </td>
-                                    </tr>
+                                      </TableCell>
+                                    </TableRow>
                                   ))}
-                                  <tr className="bg-primary/[0.03] font-black">
-                                    <td colSpan={4} className="px-6 py-5 text-right uppercase tracking-widest text-[10px] text-primary">Balance Due</td>
-                                    <td className="px-6 py-5 text-right text-lg text-destructive">
+                                  <TableRow className="bg-primary/[0.03] font-semibold">
+                                    <TableCell colSpan={4} className="text-right text-primary">Balance Due</TableCell>
+                                    <TableCell className="text-right text-destructive">
                                       {formatAmount(finalStatementData?.balanceDue || 0)}
-                                    </td>
-                                  </tr>
-                                </tbody>
-                              </table>
-                            </div>
+                                    </TableCell>
+                                  </TableRow>
+                                </TableBody>
+                              </Table>
+                            </TableContainer>
                           </div>
                         </div>
                       )}
@@ -3109,35 +3050,31 @@ export default function CustomerView() {
                       </div>
 
                       {/* Invoices Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["Invoice #", "Amount", "Total Tax", "Date", "Project", "Tags", "Due Date", "Status", "Actions"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingInvoices ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={8} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={9}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : invoices.length === 0 ? (
-                              <tr>
-                                <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No invoices found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={9}>No invoices found for this customer.</TableEmpty>
                             ) : (
                               invoices.map((inv: any) => (
-                                <tr key={inv._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-primary">{inv.number}</td>
-                                  <td className="px-6 py-4 font-black text-foreground">{formatAmount(inv.total || 0)}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{formatAmount(inv.total_tax || 0)}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(inv.date)}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{inv.project?.name || "-"}</td>
-                                  <td className="px-6 py-4">
+                                <TableRow key={inv._id}>
+                                  <TableCell className="font-medium text-primary">{inv.number}</TableCell>
+                                  <TableCell>{formatAmount(inv.total || 0)}</TableCell>
+                                  <TableCell className="text-muted-foreground">{formatAmount(inv.total_tax || 0)}</TableCell>
+                                  <TableCell className="text-muted-foreground">{formatDate(inv.date)}</TableCell>
+                                  <TableCell className="text-muted-foreground">{inv.project?.name || "-"}</TableCell>
+                                  <TableCell>
                                     <div className="flex flex-wrap gap-1">
                                       {inv.tags?.map((tag: string, i: number) => (
                                         <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
@@ -3145,9 +3082,9 @@ export default function CustomerView() {
                                         </Badge>
                                       ))}
                                     </div>
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(inv.duedate)}</td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{formatDate(inv.duedate)}</TableCell>
+                                  <TableCell>
                                     <Badge className={cn(
                                       "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
                                       inv.status === "paid" ? "bg-green-500/10 text-green-500" :
@@ -3157,8 +3094,8 @@ export default function CustomerView() {
                                     )}>
                                       {inv.status}
                                     </Badge>
-                                  </td>
-                                  <td className="px-6 py-4 text-right">
+                                  </TableCell>
+                                  <TableCell className="text-right">
                                     <div className="flex items-center gap-2 justify-end">
                                       <Button
                                         variant="ghost"
@@ -3185,25 +3122,14 @@ export default function CustomerView() {
                                         <Eye className="h-3.5 w-3.5" />
                                       </Button>
                                     </div>
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {invoices.length} of {invoices.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(invoices.length, 1)} total={invoices.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -3285,32 +3211,28 @@ export default function CustomerView() {
                       </div>
 
                       {/* Credit Notes Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["Credit Note #", "Credit Note Date", "Status", "Project", "Reference#", "Amount", "Remaining Amount"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingCreditNotes ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={7} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : creditNotes.length === 0 ? (
-                              <tr>
-                                <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No credit notes found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={7}>No credit notes found for this customer.</TableEmpty>
                             ) : (
                               creditNotes.map((note: any) => (
-                                <tr key={note._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-primary">{note.number || (note._id.slice(-6).toUpperCase())}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(note.date)}</td>
-                                  <td className="px-6 py-4">
+                                <TableRow key={note._id}>
+                                  <TableCell className="font-medium text-primary">{note.number || (note._id.slice(-6).toUpperCase())}</TableCell>
+                                  <TableCell className="text-muted-foreground">{formatDate(note.date)}</TableCell>
+                                  <TableCell>
                                     <Badge className={cn(
                                       "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
                                       note.status === 1 ? "bg-green-500/10 text-green-500" :
@@ -3320,29 +3242,18 @@ export default function CustomerView() {
                                     )}>
                                       {note.status === 1 ? "Open" : note.status === 2 ? "Closed" : note.status === 3 ? "Void" : "Unknown"}
                                     </Badge>
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">{note.project?.name || "-"}</td>
-                                  <td className="px-6 py-4 font-mono text-[11px]">{note.reference || "-"}</td>
-                                  <td className="px-6 py-4 font-black text-foreground">{formatAmount(note.total || 0)}</td>
-                                  <td className="px-6 py-4 font-black text-primary">{formatAmount(note.remaining_amount ?? note.total ?? 0)}</td>
-                                </tr>
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{note.project?.name || "-"}</TableCell>
+                                  <TableCell>{note.reference || "-"}</TableCell>
+                                  <TableCell>{formatAmount(note.total || 0)}</TableCell>
+                                  <TableCell className="font-medium text-primary">{formatAmount(note.remaining_amount ?? note.total ?? 0)}</TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {creditNotes.length} of {creditNotes.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(creditNotes.length, 1)} total={creditNotes.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -3409,53 +3320,38 @@ export default function CustomerView() {
                       </div>
 
                       {/* Payments Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["Payment #", "Invoice #", "Payment Mode", "Transaction ID", "Amount", "Date"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingPayments ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={6} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : payments.length === 0 ? (
-                              <tr>
-                                <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No payments found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={6}>No payments found for this customer.</TableEmpty>
                             ) : (
                               payments.map((pay: any) => (
-                                <tr key={pay._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-primary">{pay._id.slice(-6).toUpperCase()}</td>
-                                  <td className="px-6 py-4 font-medium text-foreground">{pay.invoice?.number || "-"}</td>
-                                  <td className="px-6 py-4 uppercase text-[10px] font-black tracking-widest text-muted-foreground">{pay.paymentmode}</td>
-                                  <td className="px-6 py-4 font-mono text-[11px]">{pay.transactionid || "-"}</td>
-                                  <td className="px-6 py-4 font-black text-green-600">{formatAmount(pay.amount || 0)}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(pay.date)}</td>
-                                </tr>
+                                <TableRow key={pay._id}>
+                                  <TableCell className="font-medium text-primary">{pay._id.slice(-6).toUpperCase()}</TableCell>
+                                  <TableCell>{pay.invoice?.number || "-"}</TableCell>
+                                  <TableCell className="text-muted-foreground">{pay.paymentmode}</TableCell>
+                                  <TableCell>{pay.transactionid || "-"}</TableCell>
+                                  <TableCell className="text-green-600">{formatAmount(pay.amount || 0)}</TableCell>
+                                  <TableCell className="text-muted-foreground">{formatDate(pay.date)}</TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {payments.length} of {payments.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(payments.length, 1)} total={payments.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -3518,35 +3414,31 @@ export default function CustomerView() {
                       </div>
 
                       {/* Proposals Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["Proposal #", "Subject", "Total", "Date", "Open Till", "Tags", "Date Created", "Status"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingProposals ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={8} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : proposals.length === 0 ? (
-                              <tr>
-                                <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No proposals found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={8}>No proposals found for this customer.</TableEmpty>
                             ) : (
                               proposals.map((prop: any) => (
-                                <tr key={prop._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-primary">{prop._id.slice(-6).toUpperCase()}</td>
-                                  <td className="px-6 py-4 font-medium text-foreground">{prop.subject}</td>
-                                  <td className="px-6 py-4 font-black text-foreground">{prop.total != null ? formatAmount(prop.total) : ""}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(prop.date)}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{prop.open_till ? formatDate(prop.open_till) : "-"}</td>
-                                  <td className="px-6 py-4">
+                                <TableRow key={prop._id}>
+                                  <TableCell className="font-medium text-primary">{prop._id.slice(-6).toUpperCase()}</TableCell>
+                                  <TableCell>{prop.subject}</TableCell>
+                                  <TableCell>{prop.total != null ? formatAmount(prop.total) : ""}</TableCell>
+                                  <TableCell className="text-muted-foreground">{formatDate(prop.date)}</TableCell>
+                                  <TableCell className="text-muted-foreground">{prop.open_till ? formatDate(prop.open_till) : "-"}</TableCell>
+                                  <TableCell>
                                     <div className="flex flex-wrap gap-1">
                                       {prop.tags?.map((tag: string, i: number) => (
                                         <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
@@ -3554,9 +3446,9 @@ export default function CustomerView() {
                                         </Badge>
                                       ))}
                                     </div>
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(prop.createdAt)}</td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{formatDate(prop.createdAt)}</TableCell>
+                                  <TableCell>
                                     <Badge className={cn(
                                       "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
                                       prop.status === 1 ? "bg-muted text-muted-foreground" :
@@ -3574,25 +3466,14 @@ export default function CustomerView() {
                                               prop.status === 5 ? "Declined" :
                                                 prop.status === 6 ? "Accepted" : "Unknown"}
                                     </Badge>
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {proposals.length} of {proposals.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(proposals.length, 1)} total={proposals.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -3701,35 +3582,31 @@ export default function CustomerView() {
                       </div>
 
                       {/* Estimates Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["Estimate #", "Subject", "Total", "Date", "Open Till", "Tags", "Date Created", "Status"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingEstimates ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={8} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : estimates.length === 0 ? (
-                              <tr>
-                                <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No estimates found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={8}>No estimates found for this customer.</TableEmpty>
                             ) : (
                               estimates.map((est: any) => (
-                                <tr key={est._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-primary">{est.number || est._id.slice(-6).toUpperCase()}</td>
-                                  <td className="px-6 py-4 font-medium text-foreground">{est.subject}</td>
-                                  <td className="px-6 py-4 font-black text-foreground">{est.total != null ? formatAmount(est.total) : ""}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(est.date)}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{est.open_till ? formatDate(est.open_till) : "-"}</td>
-                                  <td className="px-6 py-4">
+                                <TableRow key={est._id}>
+                                  <TableCell className="font-medium text-primary">{est.number || est._id.slice(-6).toUpperCase()}</TableCell>
+                                  <TableCell>{est.subject}</TableCell>
+                                  <TableCell>{est.total != null ? formatAmount(est.total) : ""}</TableCell>
+                                  <TableCell className="text-muted-foreground">{formatDate(est.date)}</TableCell>
+                                  <TableCell className="text-muted-foreground">{est.open_till ? formatDate(est.open_till) : "-"}</TableCell>
+                                  <TableCell>
                                     <div className="flex flex-wrap gap-1">
                                       {est.tags?.map((tag: string, i: number) => (
                                         <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
@@ -3737,9 +3614,9 @@ export default function CustomerView() {
                                         </Badge>
                                       ))}
                                     </div>
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(est.createdAt)}</td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{formatDate(est.createdAt)}</TableCell>
+                                  <TableCell>
                                     <Badge className={cn(
                                       "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
                                       est.status === 1 ? "bg-muted text-muted-foreground" :
@@ -3755,25 +3632,14 @@ export default function CustomerView() {
                                             est.status === 4 ? "Revised" :
                                               est.status === 5 ? "Declined" : "Unknown"}
                                     </Badge>
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {estimates.length} of {estimates.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(estimates.length, 1)} total={estimates.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -3841,61 +3707,46 @@ export default function CustomerView() {
                       </div>
 
                       {/* Subscriptions Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["#", "Subscription Name", "Project", "Status", "Next Billing Cycle", "Date Subscribed", "Last Sent"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingSubscriptions ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={7} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : subscriptions.length === 0 ? (
-                              <tr>
-                                <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No entries found
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={7}>No entries found</TableEmpty>
                             ) : (
                               subscriptions.map((s: any, index: number) => (
-                                <tr key={s._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-slate-400">{index + 1}</td>
-                                  <td className="px-6 py-4 font-bold text-primary">{s.name}</td>
-                                  <td className="px-6 py-4 text-muted-foreground italic">{s.project?.name || "N/A"}</td>
-                                  <td className="px-6 py-4">
+                                <TableRow key={s._id}>
+                                  <TableCell>{index + 1}</TableCell>
+                                  <TableCell className="font-medium text-primary">{s.name}</TableCell>
+                                  <TableCell className="text-muted-foreground">{s.project?.name || "N/A"}</TableCell>
+                                  <TableCell>
                                     <Badge className={cn(
                                       "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
                                       s.status === "active" ? "bg-green-500/10 text-green-500" : "bg-muted text-muted-foreground"
                                     )}>
                                       {s.status}
                                     </Badge>
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">{s.next_billing_cycle ? formatDate(s.next_billing_cycle) : "N/A"}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{s.date_subscribed ? formatDate(s.date_subscribed) : "-"}</td>
-                                  <td className="px-6 py-4 text-muted-foreground italic">{s.last_sent ? formatDate(s.last_sent) : "Never"}</td>
-                                </tr>
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{s.next_billing_cycle ? formatDate(s.next_billing_cycle) : "N/A"}</TableCell>
+                                  <TableCell className="text-muted-foreground">{s.date_subscribed ? formatDate(s.date_subscribed) : "-"}</TableCell>
+                                  <TableCell className="text-muted-foreground">{s.last_sent ? formatDate(s.last_sent) : "Never"}</TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {subscriptions.length} of {subscriptions.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(subscriptions.length, 1)} total={subscriptions.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -3999,37 +3850,33 @@ export default function CustomerView() {
                       </div>
 
                       {/* Expenses Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["Category", "Amount", "Name", "Receipt", "Date", "Project", "Invoice", "Reference #", "Payment Mode"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingExpenses ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={9} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={9}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : filteredExpenses.length === 0 ? (
-                              <tr>
-                                <td colSpan={9} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No expenses found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={9}>No expenses found for this customer.</TableEmpty>
                             ) : (
                               filteredExpenses.map((exp: any) => (
-                                <tr key={exp._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4">
+                                <TableRow key={exp._id}>
+                                  <TableCell>
                                     <Badge variant="outline" className="text-[9px] font-black uppercase tracking-widest bg-background border-none shadow-sm px-2 py-0.5">
                                       {exp.category || "General"}
                                     </Badge>
-                                  </td>
-                                  <td className="px-6 py-4 font-black text-foreground">{formatAmount(exp.amount || 0)}</td>
-                                  <td className="px-6 py-4 text-muted-foreground font-medium">{exp.expense_name || "-"}</td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell>{formatAmount(exp.amount || 0)}</TableCell>
+                                  <TableCell className="text-muted-foreground">{exp.expense_name || "-"}</TableCell>
+                                  <TableCell>
                                     {exp.receipt ? (
                                       <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg bg-muted/20 hover:text-primary">
                                         <Eye className="h-3.5 w-3.5" />
@@ -4037,10 +3884,10 @@ export default function CustomerView() {
                                     ) : (
                                       <span className="text-[9px] font-bold text-muted-foreground/30 uppercase">None</span>
                                     )}
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">{exp.date ? formatDate(exp.date) : "-"}</td>
-                                  <td className="px-6 py-4 text-muted-foreground italic">{exp.project?.name || exp.project || "-"}</td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{exp.date ? formatDate(exp.date) : "-"}</TableCell>
+                                  <TableCell className="text-muted-foreground">{exp.project?.name || exp.project || "-"}</TableCell>
+                                  <TableCell>
                                     {exp.invoiceid ? (
                                       <Badge className="bg-indigo-50 text-indigo-600 border-none font-black text-[9px] tracking-tighter rounded-md px-2">
                                         {exp.invoiceid?.number || "MATCHED"}
@@ -4048,31 +3895,20 @@ export default function CustomerView() {
                                     ) : (
                                       <span className="text-[10px] font-bold text-muted-foreground/30">N/A</span>
                                     )}
-                                  </td>
-                                  <td className="px-6 py-4 font-mono text-[10px] text-muted-foreground">{exp.reference_no || "-"}</td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{exp.reference_no || "-"}</TableCell>
+                                  <TableCell>
                                     <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none text-[9px] font-bold uppercase tracking-widest rounded-md px-2">
                                       {exp.paymentmode || "Cash"}
                                     </Badge>
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {filteredExpenses.length} of {filteredExpenses.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(filteredExpenses.length, 1)} total={filteredExpenses.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -4193,41 +4029,37 @@ export default function CustomerView() {
                       </div>
 
                       {/* Contracts Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["#", "Subject", "Contract Type", "Contract Value", "Start Date", "End Date", "Project", "Signature"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingContracts ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={8} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : filteredContracts.length === 0 ? (
-                              <tr>
-                                <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No contracts found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={8}>No contracts found for this customer.</TableEmpty>
                             ) : (
                               filteredContracts.map((c: any, idx: number) => (
-                                <tr key={c._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
-                                  <td className="px-6 py-4 font-bold text-primary">{c.subject}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">
+                                <TableRow key={c._id}>
+                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell className="font-medium text-primary">{c.subject}</TableCell>
+                                  <TableCell className="text-muted-foreground">
                                     <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none text-[9px] font-bold uppercase tracking-widest rounded-md px-2">
                                       {c.contract_type || "N/A"}
                                     </Badge>
-                                  </td>
-                                  <td className="px-6 py-4 font-black text-foreground">{formatAmount(c.contract_value || 0)}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{c.datestart ? formatDate(c.datestart) : "-"}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{c.dateend ? formatDate(c.dateend) : "-"}</td>
-                                  <td className="px-6 py-4 text-muted-foreground italic">{c.project?.name || "-"}</td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell>{formatAmount(c.contract_value || 0)}</TableCell>
+                                  <TableCell className="text-muted-foreground">{c.datestart ? formatDate(c.datestart) : "-"}</TableCell>
+                                  <TableCell className="text-muted-foreground">{c.dateend ? formatDate(c.dateend) : "-"}</TableCell>
+                                  <TableCell className="text-muted-foreground">{c.project?.name || "-"}</TableCell>
+                                  <TableCell>
                                     {c.is_signed ? (
                                       <Badge className="bg-emerald-50 text-emerald-600 border-none font-black text-[9px] tracking-widest rounded-md px-2">
                                         SIGNED
@@ -4237,25 +4069,14 @@ export default function CustomerView() {
                                         PENDING
                                       </Badge>
                                     )}
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {filteredContracts.length} of {filteredContracts.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(filteredContracts.length, 1)} total={filteredContracts.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -4341,32 +4162,28 @@ export default function CustomerView() {
                       </div>
 
                       {/* Projects Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["#", "Project Name", "Tags", "Start Date", "Deadline", "Members", "Status"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingProjects ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={7} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : filteredProjects.length === 0 ? (
-                              <tr>
-                                <td colSpan={7} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No projects found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={7}>No projects found for this customer.</TableEmpty>
                             ) : (
                               filteredProjects.map((p: any, idx: number) => (
-                                <tr key={p._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
-                                  <td className="px-6 py-4 font-bold text-primary">{p.name}</td>
-                                  <td className="px-6 py-4">
+                                <TableRow key={p._id}>
+                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell className="font-medium text-primary">{p.name}</TableCell>
+                                  <TableCell>
                                     <div className="flex flex-wrap gap-1">
                                       {p.tags?.map((tag: string, i: number) => (
                                         <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
@@ -4374,10 +4191,10 @@ export default function CustomerView() {
                                         </Badge>
                                       ))}
                                     </div>
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">{p.start_date ? formatDate(p.start_date) : "-"}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{p.deadline ? formatDate(p.deadline) : "-"}</td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{p.start_date ? formatDate(p.start_date) : "-"}</TableCell>
+                                  <TableCell className="text-muted-foreground">{p.deadline ? formatDate(p.deadline) : "-"}</TableCell>
+                                  <TableCell>
                                     <div className="flex -space-x-2">
                                       {p.team?.map((m: any, i: number) => (
                                         <div key={i} className="h-7 w-7 rounded-full border-2 border-background bg-muted flex items-center justify-center text-[10px] font-black uppercase overflow-hidden" title={m.firstname + " " + m.lastname}>
@@ -4385,8 +4202,8 @@ export default function CustomerView() {
                                         </div>
                                       ))}
                                     </div>
-                                  </td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell>
                                     <Badge className={cn(
                                       "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
                                       p.status === 1 ? "bg-slate-100 text-slate-600" :
@@ -4401,25 +4218,14 @@ export default function CustomerView() {
                                             p.status === 4 ? "Finished" :
                                               p.status === 5 ? "Cancelled" : "Unknown"}
                                     </Badge>
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {filteredProjects.length} of {filteredProjects.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(filteredProjects.length, 1)} total={filteredProjects.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -4628,32 +4434,28 @@ export default function CustomerView() {
                       </div>
 
                       {/* Tasks Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["#", "Name", "Status", "Start Date", "Due Date", "Assigned to", "Tags", "Priority"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingTasks ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={8} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : filteredTasks.length === 0 ? (
-                              <tr>
-                                <td colSpan={8} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No tasks found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={8}>No tasks found for this customer.</TableEmpty>
                             ) : (
                               filteredTasks.map((t: any, idx: number) => (
-                                <tr key={t._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
-                                  <td className="px-6 py-4 font-bold text-primary">{t.name}</td>
-                                  <td className="px-6 py-4">
+                                <TableRow key={t._id}>
+                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell className="font-medium text-primary">{t.name}</TableCell>
+                                  <TableCell>
                                     <Badge className={cn(
                                       "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
                                       t.status === 1 ? "bg-slate-100 text-slate-600" :
@@ -4668,10 +4470,10 @@ export default function CustomerView() {
                                             t.status === 4 ? "In Progress" :
                                               t.status === 5 ? "Complete" : "Unknown"}
                                     </Badge>
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">{t.startdate ? formatDate(t.startdate) : "-"}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{t.duedate ? formatDate(t.duedate) : "-"}</td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{t.startdate ? formatDate(t.startdate) : "-"}</TableCell>
+                                  <TableCell className="text-muted-foreground">{t.duedate ? formatDate(t.duedate) : "-"}</TableCell>
+                                  <TableCell>
                                     <div className="flex -space-x-2">
                                       {t.assignees?.map((a: any, i: number) => (
                                         <div key={i} className="h-7 w-7 rounded-full border-2 border-background bg-slate-100 flex items-center justify-center text-[10px] font-black uppercase text-primary shadow-sm" title={`${a.firstname} ${a.lastname}`}>
@@ -4679,8 +4481,8 @@ export default function CustomerView() {
                                         </div>
                                       ))}
                                     </div>
-                                  </td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell>
                                     <div className="flex flex-wrap gap-1">
                                       {t.tags?.map((tag: string, i: number) => (
                                         <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
@@ -4688,8 +4490,8 @@ export default function CustomerView() {
                                         </Badge>
                                       ))}
                                     </div>
-                                  </td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell>
                                     <Badge variant="outline" className={cn(
                                       "text-[10px] font-black uppercase tracking-widest border-2",
                                       t.priority === 1 ? "border-slate-200 text-slate-500" :
@@ -4702,25 +4504,14 @@ export default function CustomerView() {
                                           t.priority === 3 ? "High" :
                                             t.priority === 4 ? "Urgent" : "None"}
                                     </Badge>
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {filteredTasks.length} of {filteredTasks.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(filteredTasks.length, 1)} total={filteredTasks.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -4795,32 +4586,28 @@ export default function CustomerView() {
                       </div>
 
                       {/* Tickets Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["#", "Subject", "Tags", "Department", "Service", "Contact", "Status", "Priority", "Last Reply", "Created"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingTickets ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={10} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={10}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : filteredTickets.length === 0 ? (
-                              <tr>
-                                <td colSpan={10} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No tickets found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={10}>No tickets found for this customer.</TableEmpty>
                             ) : (
                               filteredTickets.map((t: any, idx: number) => (
-                                <tr key={t._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
-                                  <td className="px-6 py-4 font-bold text-primary">{t.subject}</td>
-                                  <td className="px-6 py-4">
+                                <TableRow key={t._id}>
+                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell className="font-medium text-primary">{t.subject}</TableCell>
+                                  <TableCell>
                                     <div className="flex flex-wrap gap-1">
                                       {t.tags?.map((tag: string, i: number) => (
                                         <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
@@ -4828,11 +4615,11 @@ export default function CustomerView() {
                                         </Badge>
                                       ))}
                                     </div>
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">{t.department?.name || "-"}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{t.service?.name || "-"}</td>
-                                  <td className="px-6 py-4 text-muted-foreground font-bold">{t.contact?.firstname} {t.contact?.lastname}</td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{t.department?.name || "-"}</TableCell>
+                                  <TableCell className="text-muted-foreground">{t.service?.name || "-"}</TableCell>
+                                  <TableCell className="text-muted-foreground">{t.contact?.firstname} {t.contact?.lastname}</TableCell>
+                                  <TableCell>
                                     <Badge className={cn(
                                       "text-[10px] font-black uppercase tracking-widest border-none px-3 py-1",
                                       t.status === 1 ? "bg-slate-100 text-slate-600" :
@@ -4841,8 +4628,8 @@ export default function CustomerView() {
                                     )}>
                                       {t.status_name || "Unknown"}
                                     </Badge>
-                                  </td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell>
                                     <Badge variant="outline" className={cn(
                                       "text-[10px] font-black uppercase tracking-widest border-2",
                                       t.priority === 1 ? "border-slate-200 text-slate-500" :
@@ -4851,27 +4638,16 @@ export default function CustomerView() {
                                     )}>
                                       {t.priority_name || "None"}
                                     </Badge>
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">{t.last_reply ? formatDate(t.last_reply) : "-"}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{t.date_created ? formatDate(t.date_created) : "-"}</td>
-                                </tr>
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{t.last_reply ? formatDate(t.last_reply) : "-"}</TableCell>
+                                  <TableCell className="text-muted-foreground">{t.date_created ? formatDate(t.date_created) : "-"}</TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {filteredTickets.length} of {filteredTickets.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(filteredTickets.length, 1)} total={filteredTickets.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -4970,48 +4746,44 @@ export default function CustomerView() {
                       </div>
 
                       {/* Files Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["#", "File", "Show to customers area", "Date Uploaded", "Options"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingFiles ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={5} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : filteredFiles.length === 0 ? (
-                              <tr>
-                                <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No files found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={5}>No files found for this customer.</TableEmpty>
                             ) : (
                               filteredFiles.map((f: any, idx: number) => (
-                                <tr key={f._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
-                                  <td className="px-6 py-4">
+                                <TableRow key={f._id}>
+                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell>
                                     <div className="flex items-center gap-3">
                                       <div className="p-2 bg-blue-50 rounded-lg">
                                         <FileText className="h-4 w-4 text-blue-500" />
                                       </div>
                                       <span className="font-bold text-slate-700">{f.file_name}</span>
                                     </div>
-                                  </td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell>
                                     <Switch
                                       checked={f.visible_to_customer}
                                       onCheckedChange={(val) => {
                                         // Update mutation
                                       }}
                                     />
-                                  </td>
-                                  <td className="px-6 py-4 text-muted-foreground">{formatDate(f.dateadded)}</td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell className="text-muted-foreground">{formatDate(f.dateadded)}</TableCell>
+                                  <TableCell>
                                     <Button
                                       variant="ghost"
                                       size="icon"
@@ -5020,25 +4792,14 @@ export default function CustomerView() {
                                     >
                                       <X className="h-4 w-4" />
                                     </Button>
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {filteredFiles.length} of {filteredFiles.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(filteredFiles.length, 1)} total={filteredFiles.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -5108,34 +4869,30 @@ export default function CustomerView() {
                       </div>
 
                       {/* Vault Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["#", "Server Address", "Port", "Username", "Password", "Options"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingVault ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={6} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : filteredVault.length === 0 ? (
-                              <tr>
-                                <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No vault entries found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={6}>No vault entries found for this customer.</TableEmpty>
                             ) : (
                               filteredVault.map((v: any, idx: number) => (
-                                <tr key={v._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
-                                  <td className="px-6 py-4 font-bold text-slate-700">{v.server}</td>
-                                  <td className="px-6 py-4 text-muted-foreground">{v.port || "-"}</td>
-                                  <td className="px-6 py-4 text-slate-700 font-medium">{v.username}</td>
-                                  <td className="px-6 py-4">
+                                <TableRow key={v._id}>
+                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell>{v.server}</TableCell>
+                                  <TableCell className="text-muted-foreground">{v.port || "-"}</TableCell>
+                                  <TableCell>{v.username}</TableCell>
+                                  <TableCell>
                                     <div className="flex items-center gap-2">
                                       <span className={cn(
                                         "font-mono transition-all duration-300",
@@ -5155,8 +4912,8 @@ export default function CustomerView() {
                                         {visibleVaultPasswords[v._id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                                       </Button>
                                     </div>
-                                  </td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell>
                                     <div className="flex items-center gap-2">
                                       <Button
                                         variant="ghost"
@@ -5174,25 +4931,14 @@ export default function CustomerView() {
                                         <X className="h-4 w-4" />
                                       </Button>
                                     </div>
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {filteredVault.length} of {filteredVault.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(filteredVault.length, 1)} total={filteredVault.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 
@@ -5262,39 +5008,35 @@ export default function CustomerView() {
                       </div>
 
                       {/* Reminders Table */}
-                      <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-                        <table className="w-full text-sm text-left">
-                          <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-                            <tr>
+                      <TableContainer>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
                               {["#", "Date", "Description", "Reminder set to", "Email sent?", "Options"].map(h => (
-                                <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                                <TableHead key={h}>{h}</TableHead>
                               ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-border/50">
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
                             {isLoadingReminders ? (
                               Array(3).fill(0).map((_, i) => (
-                                <tr key={i}><td colSpan={6} className="p-4"><Skeleton className="h-10 w-full" /></td></tr>
+                                <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                               ))
                             ) : filteredReminders.length === 0 ? (
-                              <tr>
-                                <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground italic">
-                                  No reminders found for this customer.
-                                </td>
-                              </tr>
+                              <TableEmpty colSpan={6}>No reminders found for this customer.</TableEmpty>
                             ) : (
                               filteredReminders.map((r: any, idx: number) => (
-                                <tr key={r._id} className="hover:bg-muted/30 transition-colors">
-                                  <td className="px-6 py-4 font-bold text-slate-400">{idx + 1}</td>
-                                  <td className="px-6 py-4 font-bold text-slate-700">{formatDate(r.date)}</td>
-                                  <td className="px-6 py-4 text-muted-foreground max-w-xs truncate">{r.description}</td>
-                                  <td className="px-6 py-4 text-slate-700 font-medium">{r.staff?.firstname} {r.staff?.lastname}</td>
-                                  <td className="px-6 py-4">
+                                <TableRow key={r._id}>
+                                  <TableCell>{idx + 1}</TableCell>
+                                  <TableCell>{formatDate(r.date)}</TableCell>
+                                  <TableCell className="text-muted-foreground max-w-xs truncate">{r.description}</TableCell>
+                                  <TableCell>{r.staff?.firstname} {r.staff?.lastname}</TableCell>
+                                  <TableCell>
                                     <Badge variant={r.notify_by_email ? "success" : "secondary"} className="rounded-lg font-bold text-[10px] uppercase tracking-wider">
                                       {r.notify_by_email ? "Yes" : "No"}
                                     </Badge>
-                                  </td>
-                                  <td className="px-6 py-4">
+                                  </TableCell>
+                                  <TableCell>
                                     <div className="flex items-center gap-2">
                                       <Button
                                         variant="ghost"
@@ -5305,25 +5047,14 @@ export default function CustomerView() {
                                         <X className="h-4 w-4" />
                                       </Button>
                                     </div>
-                                  </td>
-                                </tr>
+                                  </TableCell>
+                                </TableRow>
                               ))
                             )}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      {/* Pagination Footer */}
-                      <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-                        <p className="text-xs font-bold text-muted-foreground italic">
-                          Showing 1 to {filteredReminders.length} of {filteredReminders.length} entries
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Previous</Button>
-                          <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">1</div>
-                          <Button variant="outline" size="sm" className="h-8 px-4 rounded-lg font-bold text-xs" disabled>Next</Button>
-                        </div>
-                      </div>
+                          </TableBody>
+                        </Table>
+                        <TablePagination page={1} pageSize={Math.max(filteredReminders.length, 1)} total={filteredReminders.length} onPageChange={() => {}} />
+                      </TableContainer>
                     </div>
                   )}
 

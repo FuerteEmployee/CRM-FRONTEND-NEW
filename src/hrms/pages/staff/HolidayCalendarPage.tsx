@@ -243,7 +243,7 @@ const HolidayCalendarPage = () => {
         </div>
       </div>
 
-      <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden [&>.space-y-4>div]:rounded-none [&>.space-y-4>div]:border-0 [&>.space-y-4>div]:shadow-none">
         <CardHeader className="py-4 border-b border-slate-100">
           <CardTitle className="text-base font-semibold text-slate-700 flex items-center gap-2">
             <CalendarDays className="h-4 w-4 text-primary" />

@@ -53,6 +53,7 @@ import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 
 const statusConfig = [
   { id: 1, label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
@@ -392,10 +393,10 @@ const Projects = () => {
 
             {/* Old Table Style */}
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px]">
-                <thead>
-                  <tr className="border-b text-left text-[11px] text-muted-foreground uppercase tracking-wider bg-zinc-50/50">
-                    <th className="p-3 font-semibold w-8">
+              <Table className="min-w-[900px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8">
                       <Checkbox
                         checked={allProjectPageSelected}
                         onCheckedChange={() => {
@@ -404,32 +405,28 @@ const Projects = () => {
                           );
                         }}
                       />
-                    </th>
-                    <th className="p-3 font-semibold">#</th>
-                    <th className="p-3 font-semibold">Project Name ↕</th>
-                    <th className="p-3 font-semibold">Customer</th>
-                    {canUseBranch && <th className="p-3 font-semibold">Branch</th>}
-                    <th className="p-3 font-semibold">Tags</th>
-                    <th className="p-3 font-semibold text-center">Start Date</th>
-                    <th className="p-3 font-semibold text-center">Deadline</th>
-                    <th className="p-3 font-semibold text-center">Members</th>
-                    <th className="p-3 font-semibold text-center">Status</th>
-                    <th className="p-3 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+                    </TableHead>
+                    <TableHead>#</TableHead>
+                    <TableHead>Project Name ↕</TableHead>
+                    <TableHead>Customer</TableHead>
+                    {canUseBranch && <TableHead>Branch</TableHead>}
+                    <TableHead>Tags</TableHead>
+                    <TableHead className="text-center">Start Date</TableHead>
+                    <TableHead className="text-center">Deadline</TableHead>
+                    <TableHead className="text-center">Members</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading ? (
                     <SkeletonTableRows rows={6} colSpan={10 + (canUseBranch ? 1 : 0)} />
                   ) : paginatedProjects.length === 0 ? (
-                    <tr>
-                      <td colSpan={10} className="p-10 text-center text-muted-foreground text-sm">
-                        No projects found.
-                      </td>
-                    </tr>
+                    <TableEmpty colSpan={10 + (canUseBranch ? 1 : 0)}>No projects found.</TableEmpty>
                   ) : (
                     paginatedProjects.map((project, index) => (
-                      <tr key={project._id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                        <td className="p-3">
+                      <TableRow key={project._id}>
+                        <TableCell>
                           <Checkbox 
                             checked={selectedProjects.includes(project._id)}
                             onCheckedChange={(checked) => {
@@ -440,9 +437,9 @@ const Projects = () => {
                               }
                             }}
                           />
-                        </td>
-                        <td className="p-3 text-xs text-muted-foreground">{index + 1}</td>
-                        <td className="p-3">
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{index + 1}</TableCell>
+                        <TableCell>
                           <div className="flex flex-col">
                             <span
                               onClick={() => navigate(`/admin/projects/view/${project._id}`)}
@@ -452,21 +449,21 @@ const Projects = () => {
                             </span>
                             <span className="text-[10px] text-muted-foreground line-clamp-1">{project.description}</span>
                           </div>
-                        </td>
-                        <td className="p-3">
+                        </TableCell>
+                        <TableCell>
                           <span 
                             onClick={() => navigate(`/admin/customers/${project.clientid?._id}`)}
                             className="text-xs font-medium text-zinc-700 hover:text-primary cursor-pointer transition-colors"
                           >
                             {project.clientid?.company || "Unknown"}
                           </span>
-                        </td>
+                        </TableCell>
                         {canUseBranch && (
-                          <td className="p-3 text-xs text-zinc-600 whitespace-nowrap">
+                          <TableCell className="whitespace-nowrap">
                             {typeof project.branch === "object" ? (project.branch?.name || "-") : (project.branch || "-")}
-                          </td>
+                          </TableCell>
                         )}
-                        <td className="p-3">
+                        <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {project.tags && project.tags.length > 0 ? (
                               project.tags.map((tag: string) => (
@@ -478,14 +475,14 @@ const Projects = () => {
                               <span className="text-[10px] text-zinc-300">No tags</span>
                             )}
                           </div>
-                        </td>
-                        <td className="p-3 text-center text-xs text-zinc-600">
+                        </TableCell>
+                        <TableCell className="text-center">
                           {project.start_date ? formatDate(project.start_date) : "-"}
-                        </td>
-                        <td className="p-3 text-center text-xs text-zinc-600">
+                        </TableCell>
+                        <TableCell className="text-center">
                           {project.deadline ? formatDate(project.deadline) : "-"}
-                        </td>
-                        <td className="p-3 text-center">
+                        </TableCell>
+                        <TableCell className="text-center">
                           <div className="flex -space-x-2 justify-center">
                             <Avatar className="h-6 w-6 border border-white shadow-sm">
                               <AvatarFallback className="bg-primary/5 text-primary text-[8px] font-bold">TM</AvatarFallback>
@@ -494,13 +491,13 @@ const Projects = () => {
                               +2
                             </div>
                           </div>
-                        </td>
-                        <td className="p-3 text-center">
+                        </TableCell>
+                        <TableCell className="text-center">
                           <Badge className={`rounded-md px-1.5 py-0.5 font-bold text-[9px] uppercase tracking-tighter ${statusConfig.find(s => s.id === project.status)?.color || statusConfig[0].color}`}>
                             {statusConfig.find(s => s.id === project.status)?.label || "Not Started"}
                           </Badge>
-                        </td>
-                        <td className="p-3 text-right">
+                        </TableCell>
+                        <TableCell className="text-right">
                           <TableActions
                             onView={() => navigate(`/admin/projects/view/${project._id}`)}
                             onEdit={() => navigate(`/admin/projects/edit/${project._id}`)}
@@ -510,44 +507,21 @@ const Projects = () => {
                               }
                             }}
                           />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
             {/* Pagination Footer */}
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 py-4">
-              <p className="text-xs font-bold text-muted-foreground italic">
-                Showing {filteredProjectsCount === 0 ? 0 : (safeProjectPage - 1) * projectPageSize + 1} to {Math.min(safeProjectPage * projectPageSize, filteredProjectsCount)} of {filteredProjectsCount} entries
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-4 rounded-lg font-bold text-xs"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={safeProjectPage <= 1}
-                >
-                  Previous
-                </Button>
-                <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-                  {safeProjectPage}
-                </div>
-                <span className="text-xs text-muted-foreground px-1">of {totalProjectPages}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 px-4 rounded-lg font-bold text-xs"
-                  onClick={() => setCurrentPage(p => Math.min(totalProjectPages, p + 1))}
-                  disabled={safeProjectPage >= totalProjectPages}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+            <TablePagination
+              page={safeProjectPage}
+              pageSize={projectPageSize}
+              total={filteredProjectsCount}
+              onPageChange={(p) => setCurrentPage(Math.min(Math.max(1, p), totalProjectPages))}
+            />
           </CardContent>
         </Card>
       </div>

@@ -59,6 +59,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemSelect";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useCurrency } from "@/context/CurrencyContext";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
@@ -1050,36 +1051,38 @@ export default function InvoiceCreate() {
             </div>
 
             {/* Items Table */}
-            <div className="rounded-[2rem] border border-border/50 overflow-x-auto shadow-sm">
-              <table className="w-full min-w-[1800px]">
-                <thead>
-                  <tr className="bg-red-600 text-white">
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                      <AlertCircle className="h-3.5 w-3.5" />
-                      Item
-                    </th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Description</th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Item Group</th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">HSN</th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Batch</th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Qty</th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Unit</th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Rate</th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Sub Total</th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Freight %</th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">GST %</th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Tax</th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Tax Amount</th>
-                    <th className="px-2 py-3 text-left text-[10px] font-black uppercase tracking-widest">Amount</th>
-                    <th className="px-2 py-3 text-right">
+            <TableContainer>
+              <Table className="min-w-[1800px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-left">
+                      <span className="flex items-center gap-2">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        Item
+                      </span>
+                    </TableHead>
+                    <TableHead className="text-left">Description</TableHead>
+                    <TableHead className="text-left">Item Group</TableHead>
+                    <TableHead className="text-left">HSN</TableHead>
+                    <TableHead className="text-left">Batch</TableHead>
+                    <TableHead className="text-left">Qty</TableHead>
+                    <TableHead className="text-left">Unit</TableHead>
+                    <TableHead className="text-left">Rate</TableHead>
+                    <TableHead className="text-left">Sub Total</TableHead>
+                    <TableHead className="text-left">Freight %</TableHead>
+                    <TableHead className="text-left">GST %</TableHead>
+                    <TableHead className="text-left">Tax</TableHead>
+                    <TableHead className="text-left">Tax Amount</TableHead>
+                    <TableHead className="text-left">Amount</TableHead>
+                    <TableHead className="text-right">
                       <Settings className="h-4 w-4 ml-auto opacity-50" />
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-background/40">
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {/* New Item Input Row */}
-                  <tr className="border-b border-border/30 bg-primary/5 group">
-                    <td className="px-2 py-3 align-top w-[250px]">
+                  <TableRow className="bg-primary/5 group">
+                    <TableCell className="align-top w-[250px]">
                       <Textarea 
                         placeholder="Description" 
                         className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
@@ -1087,8 +1090,8 @@ export default function InvoiceCreate() {
                         onChange={(e) => setNewItem(p => ({ ...p, description: e.target.value }))}
                         disableVoice
                       />
-                    </td>
-                    <td className="px-2 py-3 align-top">
+                    </TableCell>
+                    <TableCell className="align-top">
                       <Textarea
                         placeholder="Long description"
                         className="min-h-[80px] rounded-xl border-border/50 bg-background shadow-sm text-xs font-medium resize-none"
@@ -1096,8 +1099,8 @@ export default function InvoiceCreate() {
                         onChange={(e) => setNewItem(p => ({ ...p, long_description: e.target.value }))}
                         disableVoice
                       />
-                    </td>
-                    <td className="px-2 py-3 align-top w-[130px]">
+                    </TableCell>
+                    <TableCell className="align-top w-[130px]">
                       <Input
                         placeholder="Item Group"
                         value={newItem.itemGroup}
@@ -1105,8 +1108,8 @@ export default function InvoiceCreate() {
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                         disableVoice
                       />
-                    </td>
-                    <td className="px-2 py-3 align-top w-[110px]">
+                    </TableCell>
+                    <TableCell className="align-top w-[110px]">
                       <Input
                         placeholder="HSN"
                         value={newItem.itemHSN}
@@ -1114,8 +1117,8 @@ export default function InvoiceCreate() {
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                         disableVoice
                       />
-                    </td>
-                    <td className="px-2 py-3 align-top w-[110px]">
+                    </TableCell>
+                    <TableCell className="align-top w-[110px]">
                       <Input
                         placeholder="Batch"
                         value={newItem.itemBatch}
@@ -1123,8 +1126,8 @@ export default function InvoiceCreate() {
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                         disableVoice
                       />
-                    </td>
-                    <td className="px-2 py-3 align-top w-[100px]">
+                    </TableCell>
+                    <TableCell className="align-top w-[100px]">
                       <Input
                         type="number"
                         value={newItem.qty}
@@ -1132,8 +1135,8 @@ export default function InvoiceCreate() {
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                         disableVoice
                       />
-                    </td>
-                    <td className="px-2 py-3 align-top w-[100px]">
+                    </TableCell>
+                    <TableCell className="align-top w-[100px]">
                       <Input
                         placeholder="Unit"
                         value={newItem.unit}
@@ -1141,8 +1144,8 @@ export default function InvoiceCreate() {
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                         disableVoice
                       />
-                    </td>
-                    <td className="px-2 py-3 align-top w-[150px]">
+                    </TableCell>
+                    <TableCell className="align-top w-[150px]">
                       <Input
                         placeholder="Rate"
                         type="number"
@@ -1151,11 +1154,11 @@ export default function InvoiceCreate() {
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                         disableVoice
                       />
-                    </td>
-                    <td className="px-2 py-3 align-top w-[110px] text-xs font-bold text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="align-top w-[110px] font-bold text-muted-foreground">
                       {formatDocAmount(newItem.qty * newItem.rate)}
-                    </td>
-                    <td className="px-2 py-3 align-top w-[130px]">
+                    </TableCell>
+                    <TableCell className="align-top w-[130px]">
                       <Input
                         placeholder="Freight %"
                         type="number"
@@ -1165,8 +1168,8 @@ export default function InvoiceCreate() {
                         disableVoice
                       />
                       <p className="text-[10px] text-muted-foreground mt-1">= {formatDocAmount(newItem.freight_charge)}</p>
-                    </td>
-                    <td className="px-2 py-3 align-top w-[100px]">
+                    </TableCell>
+                    <TableCell className="align-top w-[100px]">
                       <Input
                         type="number"
                         placeholder="GST %"
@@ -1175,8 +1178,8 @@ export default function InvoiceCreate() {
                         className="h-10 rounded-xl border-border/50 bg-background shadow-sm text-xs font-bold"
                         disableVoice
                       />
-                    </td>
-                    <td className="px-2 py-3 align-top w-[180px]">
+                    </TableCell>
+                    <TableCell className="align-top w-[180px]">
                       <Select value={newItem.tax} onValueChange={(v) => setNewItem(p => ({ ...p, tax: v }))}>
                         <SelectTrigger className="h-10 rounded-xl bg-background border-border/50 shadow-sm text-xs font-bold">
                           <SelectValue placeholder="No Tax" />
@@ -1188,28 +1191,28 @@ export default function InvoiceCreate() {
                           ))}
                         </SelectContent>
                       </Select>
-                    </td>
+                    </TableCell>
                     {(() => {
                       const taxRate = taxes.find(t => t._id === newItem.tax)?.taxrate || newItem.gstPercentage || 0;
                       const taxable = newItem.qty * newItem.rate + (Number(newItem.freight_charge) || 0);
                       const taxAmt = taxable * (taxRate / 100);
                       return (
                         <>
-                          <td className="px-2 py-3 align-top text-xs font-bold text-muted-foreground">
+                          <TableCell className="align-top font-bold text-muted-foreground">
                             {formatDocAmount(taxAmt)}
-                          </td>
-                          <td className="px-2 py-3 align-top text-sm font-black text-foreground">
+                          </TableCell>
+                          <TableCell className="align-top font-black text-foreground">
                             {formatDocAmount(taxable + taxAmt)}
-                          </td>
+                          </TableCell>
                         </>
                       );
                     })()}
-                    <td className="px-2 py-3 align-top text-right">
+                    <TableCell className="align-top text-right">
                       <Button size="icon" className="h-8 w-8 rounded-lg bg-slate-900 shadow-md hover:scale-110 transition-transform" onClick={addItem}>
                         <Check className="h-4 w-4" />
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
 
                   {/* Added Items List */}
                   {items.map((item) => {
@@ -1218,34 +1221,34 @@ export default function InvoiceCreate() {
                     const taxable = item.qty * item.rate + itemFreight;
                     const taxAmt = taxable * (taxRate / 100);
                     return (
-                    <tr key={item.id} className="border-b border-border/20 hover:bg-muted/5 transition-colors">
-                      <td className="px-2 py-3 align-top font-bold text-xs">{item.description}</td>
-                      <td className="px-2 py-3 align-top text-xs text-muted-foreground leading-relaxed">{item.long_description}</td>
-                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.itemGroup || "-"}</td>
-                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.itemHSN || "-"}</td>
-                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.itemBatch || "-"}</td>
-                      <td className="px-2 py-3 align-top text-xs font-bold">{item.qty}</td>
-                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.unit || "-"}</td>
-                      <td className="px-2 py-3 align-top text-xs font-bold">{formatDocAmount(item.rate)}</td>
-                      <td className="px-2 py-3 align-top text-xs font-bold text-muted-foreground">{formatDocAmount(item.qty * item.rate)}</td>
-                      <td className="px-2 py-3 align-top text-xs font-bold text-muted-foreground">{formatDocAmount(itemFreight)}</td>
-                      <td className="px-2 py-3 align-top text-xs font-medium text-muted-foreground">{item.gstPercentage || 0}%</td>
-                      <td className="px-2 py-3 align-top text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                    <TableRow key={item.id}>
+                      <TableCell className="align-top font-bold">{item.description}</TableCell>
+                      <TableCell className="align-top text-muted-foreground leading-relaxed">{item.long_description}</TableCell>
+                      <TableCell className="align-top font-medium text-muted-foreground">{item.itemGroup || "-"}</TableCell>
+                      <TableCell className="align-top font-medium text-muted-foreground">{item.itemHSN || "-"}</TableCell>
+                      <TableCell className="align-top font-medium text-muted-foreground">{item.itemBatch || "-"}</TableCell>
+                      <TableCell className="align-top font-bold">{item.qty}</TableCell>
+                      <TableCell className="align-top font-medium text-muted-foreground">{item.unit || "-"}</TableCell>
+                      <TableCell className="align-top font-bold">{formatDocAmount(item.rate)}</TableCell>
+                      <TableCell className="align-top font-bold text-muted-foreground">{formatDocAmount(item.qty * item.rate)}</TableCell>
+                      <TableCell className="align-top font-bold text-muted-foreground">{formatDocAmount(itemFreight)}</TableCell>
+                      <TableCell className="align-top font-medium text-muted-foreground">{item.gstPercentage || 0}%</TableCell>
+                      <TableCell className="align-top font-black text-muted-foreground">
                         {taxes.find(t => t._id === item.tax)?.name || (item.gstPercentage ? `${item.gstPercentage}%` : "No Tax")}
-                      </td>
-                      <td className="px-2 py-3 align-top text-xs font-bold text-muted-foreground">{formatDocAmount(taxAmt)}</td>
-                      <td className="px-2 py-3 align-top text-sm font-black text-primary">{formatDocAmount(taxable + taxAmt)}</td>
-                      <td className="px-2 py-3 align-top text-right">
+                      </TableCell>
+                      <TableCell className="align-top font-bold text-muted-foreground">{formatDocAmount(taxAmt)}</TableCell>
+                      <TableCell className="align-top font-black text-primary">{formatDocAmount(taxable + taxAmt)}</TableCell>
+                      <TableCell className="align-top text-right">
                         <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10" onClick={() => removeItem(item.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
 
             {/* Calculations and Notes Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 pt-8">

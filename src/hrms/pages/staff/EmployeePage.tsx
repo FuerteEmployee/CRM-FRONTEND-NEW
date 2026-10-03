@@ -744,7 +744,7 @@ const EmployeePage = () => {
         ════════════════════════════════════ */}
         {hasPermission("view_attendance") && (
           <TabsContent value="attendance" className="mt-6 space-y-6">
-            <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden [&>.space-y-4>div]:rounded-none [&>.space-y-4>div]:border-0 [&>.space-y-4>div]:shadow-none">
               <CardHeader className="bg-slate-50 border-b border-slate-100 py-4">
                 <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3">
                   <CardTitle className="text-base font-semibold text-slate-700">Daily Attendance Record</CardTitle>
@@ -1591,7 +1591,7 @@ const EmployeePage = () => {
           <TabsContent value="targets" className="mt-6 space-y-5">
             <div className="grid lg:grid-cols-3 gap-5">
               <div className="lg:col-span-2">
-                <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden">
+                <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden [&>.space-y-4>div]:rounded-none [&>.space-y-4>div]:border-0 [&>.space-y-4>div]:shadow-none">
                   <CardHeader className="py-4 border-b border-slate-100">
                     <div className="flex items-center justify-between">
                       <div>
@@ -1679,10 +1679,10 @@ const EmployeePage = () => {
                   <div>
                     <Table>
                       <TableHeader>
-                        <TableRow className="hover:bg-transparent border-slate-100">
-                          <TableHead className="text-[10px] font-bold text-slate-500 h-9">Achievement</TableHead>
-                          <TableHead className="text-[10px] font-bold text-slate-500 h-9 text-center">Rate</TableHead>
-                          <TableHead className="text-[10px] font-bold text-slate-500 h-9 text-right pr-4">Est. Bonus</TableHead>
+                        <TableRow>
+                          <TableHead>Achievement</TableHead>
+                          <TableHead className="text-center">Rate</TableHead>
+                          <TableHead className="text-right">Est. Bonus</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1692,12 +1692,12 @@ const EmployeePage = () => {
                           { range: "100–120%", rate: "1.0%", bonus: "₹1,000", color: "text-emerald-500" },
                           { range: "> 120%", rate: "1.5%", bonus: "₹1,500", color: "text-emerald-600 font-bold" },
                         ].map((s) => (
-                          <TableRow key={s.range} className="hover:bg-slate-50 border-slate-50">
-                            <TableCell className="text-sm font-medium text-slate-600 py-3">{s.range}</TableCell>
-                            <TableCell className="py-3 text-center">
+                          <TableRow key={s.range}>
+                            <TableCell>{s.range}</TableCell>
+                            <TableCell className="text-center">
                               <Badge variant="outline" className={cn("text-[10px] font-bold border-slate-200", s.color)}>{s.rate}</Badge>
                             </TableCell>
-                            <TableCell className={cn("text-sm text-right pr-4 py-3 font-semibold", s.color)}>{s.bonus}</TableCell>
+                            <TableCell className={cn("text-right font-semibold", s.color)}>{s.bonus}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -1731,7 +1731,7 @@ const EmployeePage = () => {
         ════════════════════════════════════ */}
         {hasPermission("view_payroll") && (
           <TabsContent value="payroll" className="mt-6">
-            <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden [&>.space-y-4>div]:rounded-none [&>.space-y-4>div]:border-0 [&>.space-y-4>div]:shadow-none">
               <CardHeader className="py-4 border-b border-slate-100">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>

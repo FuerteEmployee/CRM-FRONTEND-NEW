@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/hrms/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/hrms/components/ui/tabs";
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from "@/hrms/components/ui/table";
 import { Switch } from "@/hrms/components/ui/switch";
 import { staffService } from "@/hrms/services/staffService";
 import { salespersonService } from "@/hrms/services/salespersonService";
@@ -1940,19 +1941,19 @@ export default function StaffFormPage() {
                       </Select>
                     </div>
 
-                    <div className="border border-slate-200 rounded-lg overflow-hidden mt-8">
-                      <table className="w-full text-sm text-left">
-                        <thead className="bg-slate-50 border-b border-slate-200">
-                          <tr>
-                            <th className="px-6 py-4 font-bold text-foreground w-1/3 border-r border-slate-200">Features</th>
-                            <th className="px-6 py-4 font-bold text-foreground">Capabilities</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200">
+                    <TableContainer className="mt-8">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-1/3">Features</TableHead>
+                            <TableHead>Capabilities</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {FEATURES_CONFIG.map((feature) => (
-                            <tr key={feature.name} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="px-6 py-4 text-slate-700 font-bold border-r border-slate-200 bg-slate-50/30">{feature.name}</td>
-                              <td className="px-6 py-4">
+                            <TableRow key={feature.name}>
+                              <TableCell className="font-semibold">{feature.name}</TableCell>
+                              <TableCell>
                                 <div className="grid grid-cols-1 gap-2">
                                   {feature.caps.map((cap) => (
                                     <div key={cap} className="flex items-center space-x-3 group">
@@ -1968,12 +1969,12 @@ export default function StaffFormPage() {
                                     </div>
                                   ))}
                                 </div>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
                   </TabsContent>
 
                   {/* Assigned Customers */}

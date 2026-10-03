@@ -512,7 +512,7 @@ export default function StaffBranchListPage() {
             </div>
           </div>
 
-          <div className="animate-fade-in shadow-soft rounded-2xl overflow-hidden border border-border/40 bg-white/50 backdrop-blur-sm">
+          <div className="animate-fade-in">
             <DataTable
               data={formattedBranches}
               columns={branchColumns}
@@ -568,7 +568,7 @@ export default function StaffBranchListPage() {
             </div>
           </div>
 
-          <div className="animate-fade-in shadow-soft rounded-2xl overflow-hidden border border-border/40 bg-white/50 backdrop-blur-sm">
+          <div className="animate-fade-in">
             <DataTable
               data={filteredTypes}
               columns={typeColumns}

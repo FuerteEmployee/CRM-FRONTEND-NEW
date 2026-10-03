@@ -886,7 +886,7 @@ const AttendancePage = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-6 space-y-6 animate-fade-in font-['Outfit']">
+    <div className="max-w-6xl mx-auto p-4 md:p-6 space-y-6 animate-fade-in">
       {/* Refined Professional Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div>

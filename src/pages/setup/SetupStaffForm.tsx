@@ -61,6 +61,7 @@ import { salespersonService } from "@/hrms/services/salespersonService";
 import { managingCompanyService, type ManagingCompany } from "@/hrms/services/managingCompanyService";
 import { ManageCompaniesDialog } from "@/hrms/components/staff/ManageCompaniesDialog";
 import { ConfirmProvider } from "@/hrms/contexts/ConfirmContext";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 interface Role {
   _id: string;
@@ -183,6 +184,7 @@ const FEATURES_CONFIG = [
   },
   { name: "Goals", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "WhatsApp", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "Marketing Spend", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "Announcements", caps: ["View(Global)"] },
   { name: "Activity Log", caps: ["View(Global)"] },
   { name: "Ticket Pipe Log", caps: ["View(Global)"] },
@@ -1986,28 +1988,28 @@ export default function SetupStaffForm() {
               </Select>
             </div>
 
-            <div className="border border-slate-200 rounded-lg overflow-hidden mt-8">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 border-b border-slate-200">
-                  <tr>
-                    <th className="px-6 py-4 font-bold text-foreground w-1/3 border-r border-slate-200">
+            <TableContainer className="mt-8">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-1/3">
                       features
-                    </th>
-                    <th className="px-6 py-4 font-bold text-foreground">
+                    </TableHead>
+                    <TableHead>
                       Capabilities
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {FEATURES_CONFIG.map((feature) => (
-                    <tr
+                    <TableRow
                       key={feature.name}
-                      className="hover:bg-slate-50/50 transition-colors"
+                     
                     >
-                      <td className="px-6 py-4 text-slate-700 font-bold border-r border-slate-200 bg-slate-50/30">
-                        {feature.name}
-                      </td>
-                      <td className="px-6 py-4">
+                      <TableCell>
+                        <span className="font-semibold">{feature.name}</span>
+                      </TableCell>
+                      <TableCell>
                         <div className="grid grid-cols-1 gap-2">
                           {feature.caps.map((cap) => (
                             <div
@@ -2034,12 +2036,12 @@ export default function SetupStaffForm() {
                             </div>
                           ))}
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+              </Table>
+            </TableContainer>
           </TabsContent>
 
           <TabsContent

@@ -67,6 +67,7 @@ import { customerService } from "@/api/services/customer.service";
 import { TaskViewModal } from "@/components/tasks/TaskViewModal";
 import { InquiryOutcomeDialog } from "@/components/tasks/InquiryOutcomeDialog";
 import { TasksKanban, type KanbanTask } from "@/pages/TasksKanban";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 
 export const taskStatusConfig = [
   { id: 1, label: "Not Started", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" },
@@ -1092,7 +1093,7 @@ const Tasks = () => {
             }
           />
         ) : (
-        <Card>
+        <Card className="overflow-hidden">
           <CardContent className="p-0">
             {/* Control Bar */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 border-b gap-4">
@@ -1277,38 +1278,34 @@ const Tasks = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1000px]">
-                <thead>
-                  <tr className="border-b text-left text-[11px] text-slate-500 uppercase tracking-widest bg-slate-50/80">
-                    <th className="p-4 font-bold w-12">
+              <Table className="min-w-[1000px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
                       <Checkbox
                         className="border-slate-300"
                         checked={paginatedTasks.length > 0 && selectedTasks.length === paginatedTasks.length}
                         onCheckedChange={handleSelectAll}
                       />
-                    </th>
-                    <th className="p-4 font-bold w-16">#</th>
-                    <th className="p-4 font-bold min-w-[200px]">Name</th>
-                    <th className="p-4 font-bold">Category</th>
-                    <th className="p-4 font-bold">Status</th>
-                    <th className="p-4 font-bold">Start Date</th>
-                    <th className="p-4 font-bold">Due Date</th>
-                    <th className="p-4 font-bold">Assigned to</th>
-                    {canUseBranch && <th className="p-4 font-bold">Branch</th>}
-                    <th className="p-4 font-bold">Tags</th>
-                    <th className="p-4 font-bold">Priority</th>
-                    <th className="p-4 font-bold text-right">Options</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm">
+                    </TableHead>
+                    <TableHead className="w-16">#</TableHead>
+                    <TableHead className="min-w-[200px]">Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Start Date</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead>Assigned to</TableHead>
+                    {canUseBranch && <TableHead>Branch</TableHead>}
+                    <TableHead>Tags</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead className="text-right">Options</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading ? (
                     <SkeletonTableRows rows={6} colSpan={canUseBranch ? 12 : 11} />
                   ) : paginatedTasks.length === 0 ? (
-                    <tr>
-                      <td colSpan={canUseBranch ? 12 : 11} className="p-10 text-center text-slate-500">
-                        No tasks found.
-                      </td>
-                    </tr>
+                    <TableEmpty colSpan={canUseBranch ? 12 : 11}>No tasks found.</TableEmpty>
                   ) : (
                     paginatedTasks.map((task, index) => {
                       const status = taskStatusConfig.find(s => s.id === task.displayStatus) || taskStatusConfig[0];
@@ -1316,8 +1313,8 @@ const Tasks = () => {
                       const priorityLabel = priorityLabels[task.displayPriority] || "Medium";
 
                       return (
-                        <tr key={task._id} className="border-b last:border-0 hover:bg-slate-50/50 transition-colors group">
-                          <td className="p-4">
+                        <TableRow key={task._id} className="group">
+                          <TableCell>
                             <Checkbox
                               className="border-slate-300 data-[state=checked]:bg-primary"
                               checked={selectedTasks.includes(task._id)}
@@ -1326,11 +1323,11 @@ const Tasks = () => {
                                 else setSelectedTasks(selectedTasks.filter(id => id !== task._id));
                               }}
                             />
-                          </td>
-                          <td className="p-4 text-xs font-medium text-slate-500">
+                          </TableCell>
+                          <TableCell>
                             {(currentPage - 1) * itemsPerPageNum + index + 1}
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell>
                             <div className="flex flex-col">
                               <span
                                 onClick={() => handleView(task)}
@@ -1340,8 +1337,8 @@ const Tasks = () => {
                               </span>
                               {task.isTodo && <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Personal Todo</span>}
                             </div>
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell>
                             <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-wider bg-slate-50">
                               {task.category || "To-Do"}
                               {task.category === "Inquiry" && task.inquiry_outcome && (
@@ -1350,8 +1347,8 @@ const Tasks = () => {
                                 </span>
                               )}
                             </Badge>
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell>
                             <Select
                               value={task.displayStatus.toString()}
                               onValueChange={(v) => handleInlineUpdate(task, task.isTodo ? 'finished' : 'status', task.isTodo ? v === '5' : parseInt(v))}
@@ -1365,14 +1362,14 @@ const Tasks = () => {
                                 ))}
                               </SelectContent>
                             </Select>
-                          </td>
-                          <td className="p-4 text-xs text-slate-600 font-medium">
+                          </TableCell>
+                          <TableCell>
                             {task.startdate ? formatDate(task.startdate) : "-"}
-                          </td>
-                          <td className="p-4 text-xs text-slate-600 font-medium">
+                          </TableCell>
+                          <TableCell>
                             {task.duedate ? formatDate(task.duedate) : "-"}
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell>
                             <div className="flex -space-x-2">
                               {task.assignees && task.assignees.length > 0 ? (
                                 task.assignees.map((staffId: string) => {
@@ -1400,13 +1397,13 @@ const Tasks = () => {
                                 <span className="text-[10px] text-slate-300 italic">None</span>
                               )}
                             </div>
-                          </td>
+                          </TableCell>
                           {canUseBranch && (
-                            <td className="p-4 text-xs font-bold text-slate-700">
+                            <TableCell>
                               {typeof task.branch === "object" ? (task.branch?.name || "-") : (task.branch || "-")}
-                            </td>
+                            </TableCell>
                           )}
-                          <td className="p-4">
+                          <TableCell>
                             <div className="flex flex-wrap gap-1">
                               {task.tags && task.tags.length > 0 ? (
                                 task.tags.map((tag: string) => (
@@ -1418,8 +1415,8 @@ const Tasks = () => {
                                 <span className="text-[10px] text-slate-300 italic">None</span>
                               )}
                             </div>
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell>
                             {!task.isTodo ? (
                               <Select
                                 value={task.displayPriority.toString()}
@@ -1437,8 +1434,8 @@ const Tasks = () => {
                             ) : (
                               <span className="text-xs text-slate-400">-</span>
                             )}
-                          </td>
-                          <td className="p-4 text-right">
+                          </TableCell>
+                          <TableCell className="text-right">
                             <TableActions
                               onView={() => handleView(task)}
                               onEdit={() => handleEdit(task)}
@@ -1448,49 +1445,23 @@ const Tasks = () => {
                                 }
                               }}
                             />
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       );
                     })
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
             {/* Pagination */}
             {!isLoading && filteredTasks.length > 0 && (
-              <div className="flex items-center justify-between p-4 border-t bg-slate-50/50">
-                <div className="text-xs font-medium text-slate-500">
-                  Showing {(currentPage - 1) * itemsPerPageNum + 1} to {Math.min(currentPage * itemsPerPageNum, totalItems)} of {totalItems} entries
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-3 text-xs font-bold"
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    variant="default"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-xs font-bold bg-primary text-primary-foreground"
-                  >
-                    {currentPage}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-3 text-xs font-bold"
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages || totalPages === 0}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+              <TablePagination
+                page={currentPage}
+                pageSize={itemsPerPageNum}
+                total={totalItems}
+                onPageChange={(p) => setCurrentPage(Math.min(Math.max(1, p), Math.max(totalPages, 1)))}
+              />
             )}
           </CardContent>
         </Card>

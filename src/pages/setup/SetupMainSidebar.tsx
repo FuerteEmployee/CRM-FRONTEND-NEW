@@ -23,14 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableEmpty } from "@/components/ui/table";
 import { 
   Plus,
   Search,
@@ -61,8 +54,8 @@ const SortableRow = ({ id, canDrag, children }: { id: string; canDrag: boolean; 
     opacity: isDragging ? 0.5 : 1,
   };
   return (
-    <TableRow ref={setNodeRef} style={style} className="hover:bg-accent/5 transition-colors border-border/40 group">
-      <TableCell className="w-8 px-2 py-4">
+    <TableRow ref={setNodeRef} style={style} className="group">
+      <TableCell className="w-8">
         <button
           type="button"
           {...(canDrag ? { ...attributes, ...listeners } : {})}
@@ -255,7 +248,7 @@ const SetupMainSidebar = () => {
           </Button>
         </div>
 
-        <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <Card className="border shadow-sm rounded-lg overflow-hidden">
           <CardHeader className="bg-accent/5 border-b border-border/40 p-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -312,22 +305,22 @@ const SetupMainSidebar = () => {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-accent/10">
-                  <TableRow className="hover:bg-transparent border-border/40">
-                    <TableHead className="w-8 px-2 py-4" title={searchTerm ? "Clear search to reorder" : "Drag to reorder"} />
-                    <TableHead className="w-12 px-4 py-4">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-8" title={searchTerm ? "Clear search to reorder" : "Drag to reorder"} />
+                    <TableHead className="w-12">
                       <Checkbox
                         checked={selectedItems.length > 0 && selectedItems.length === filteredData.length}
                         onCheckedChange={handleSelectAll}
                         className="border-muted-foreground/30"
                       />
                     </TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Icon</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Title</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">URL</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Group</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Order</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 text-right pr-6">Options</TableHead>
+                    <TableHead>Icon</TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>URL</TableHead>
+                    <TableHead>Group</TableHead>
+                    <TableHead>Order</TableHead>
+                    <TableHead className="text-right">Options</TableHead>
                   </TableRow>
                 </TableHeader>
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -335,8 +328,8 @@ const SetupMainSidebar = () => {
                 <TableBody>
                   {isLoading ? (
                     Array.from({ length: 3 }).map((_, i) => (
-                      <TableRow key={i} className="animate-pulse border-border/40">
-                        <TableCell colSpan={8} className="py-8">
+                      <TableRow key={i} className="animate-pulse">
+                        <TableCell colSpan={8}>
                            <div className="h-4 bg-muted rounded w-full" />
                         </TableCell>
                       </TableRow>
@@ -346,7 +339,7 @@ const SetupMainSidebar = () => {
                       const IconComponent = (Icons as any)[item.icon] || Icons.Circle;
                       return (
                         <SortableRow key={item._id} id={item._id} canDrag={!searchTerm}>
-                          <TableCell className="px-4 py-4">
+                          <TableCell>
                             <Checkbox
                               checked={selectedItems.includes(item._id)}
                               onCheckedChange={(checked) => {
@@ -356,24 +349,24 @@ const SetupMainSidebar = () => {
                               className="border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                             />
                           </TableCell>
-                          <TableCell className="py-4 text-muted-foreground">
+                          <TableCell className="text-muted-foreground">
                             <IconComponent className="h-5 w-5" />
                           </TableCell>
-                          <TableCell className="py-4 font-bold text-gray-900">
-                            {item.title}
+                          <TableCell>
+                            <span className="font-semibold">{item.title}</span>
                           </TableCell>
-                          <TableCell className="py-4 text-muted-foreground font-medium">
+                          <TableCell className="text-muted-foreground">
                             {item.url}
                           </TableCell>
-                          <TableCell className="py-4 text-muted-foreground">
+                          <TableCell className="text-muted-foreground">
                             <span className="px-2 py-1 bg-accent/10 border border-border/40 rounded-full text-[10px] font-bold uppercase tracking-wider">
                               {item.group}
                             </span>
                           </TableCell>
-                          <TableCell className="py-4 text-muted-foreground font-bold">
+                          <TableCell className="text-muted-foreground">
                             {item.order}
                           </TableCell>
-                          <TableCell className="py-4 text-right pr-6">
+                          <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               <Button
                                 variant="ghost"
@@ -397,16 +390,14 @@ const SetupMainSidebar = () => {
                       );
                     })
                   ) : (
-                    <TableRow>
-                      <TableCell colSpan={8} className="h-64 text-center">
+                    <TableEmpty colSpan={8}>
                         <div className="flex flex-col items-center justify-center gap-3">
                           <div className="p-4 rounded-full bg-accent/10 text-muted-foreground/40">
                             <Menu className="h-8 w-8" />
                           </div>
-                          <p className="text-sm font-bold text-muted-foreground italic tracking-wide">No menu items found</p>
+                          <p>No menu items found</p>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                    </TableEmpty>
                   )}
                 </TableBody>
                 </SortableContext>

@@ -12,7 +12,8 @@ import {
   TableCell, 
   TableHead, 
   TableHeader, 
-  TableRow 
+  TableRow,
+  TableEmpty,
 } from "@/components/ui/table";
 import {
   Plus,
@@ -132,7 +133,7 @@ const Announcements = () => {
         </div>
 
         {/* Table Controls Card */}
-        <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <Card className="overflow-hidden">
           <CardHeader className="bg-accent/5 border-b border-border/40 p-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -210,34 +211,34 @@ const Announcements = () => {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-accent/10">
-                  <TableRow className="hover:bg-transparent border-border/40">
-                    <TableHead className="w-12 px-4 py-4">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
                       <Checkbox 
                         checked={selectedItems.length > 0 && selectedItems.length === displayData.length}
                         onCheckedChange={handleSelectAll}
                         className="border-muted-foreground/30"
                       />
                     </TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Name</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Date</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 text-right pr-6">Options</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Options</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     Array.from({ length: 3 }).map((_, i) => (
-                      <TableRow key={i} className="animate-pulse border-border/40">
-                        <TableCell className="px-4 py-4"><div className="h-4 w-4 bg-muted rounded" /></TableCell>
-                        <TableCell className="py-4"><div className="h-4 w-48 bg-muted rounded" /></TableCell>
-                        <TableCell className="py-4"><div className="h-4 w-24 bg-muted rounded" /></TableCell>
-                        <TableCell className="py-4 text-right pr-6"><div className="h-8 w-8 bg-muted rounded ml-auto" /></TableCell>
+                      <TableRow key={i} className="animate-pulse">
+                        <TableCell><div className="h-4 w-4 bg-muted rounded" /></TableCell>
+                        <TableCell><div className="h-4 w-48 bg-muted rounded" /></TableCell>
+                        <TableCell><div className="h-4 w-24 bg-muted rounded" /></TableCell>
+                        <TableCell className="text-right"><div className="h-8 w-8 bg-muted rounded ml-auto" /></TableCell>
                       </TableRow>
                     ))
                   ) : displayData.length > 0 ? (
                     displayData.map((announcement: any) => (
-                      <TableRow key={announcement._id} className="hover:bg-accent/5 transition-colors border-border/40 group">
-                        <TableCell className="px-4 py-4">
+                      <TableRow key={announcement._id} className="group">
+                        <TableCell>
                           <Checkbox 
                             checked={selectedItems.includes(announcement._id)}
                             onCheckedChange={(checked) => {
@@ -247,21 +248,21 @@ const Announcements = () => {
                             className="border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                           />
                         </TableCell>
-                        <TableCell className="py-4 font-bold text-gray-900 group-hover:text-primary transition-colors cursor-pointer" onClick={() => setViewAnnouncement(announcement)}>
-                          <div className="flex items-center gap-3">
+                        <TableCell className="group-hover:text-primary transition-colors cursor-pointer" onClick={() => setViewAnnouncement(announcement)}>
+                          <div className="flex items-center gap-3 font-medium">
                             <div className="p-2 rounded-lg bg-primary/5 text-primary">
                               <Megaphone className="h-4 w-4" />
                             </div>
                             {announcement.name}
                           </div>
                         </TableCell>
-                        <TableCell className="py-4 text-muted-foreground font-medium">
+                        <TableCell className="text-muted-foreground">
                           <div className="flex items-center gap-2">
                             <Calendar className="h-3.5 w-3.5" />
                             {format(new Date(announcement.dateadded), "MMM dd, yyyy")}
                           </div>
                         </TableCell>
-                        <TableCell className="py-4 text-right pr-6">
+                        <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             <Button 
                               variant="ghost" 
@@ -295,16 +296,7 @@ const Announcements = () => {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow>
-                      <TableCell colSpan={4} className="h-64 text-center">
-                        <div className="flex flex-col items-center justify-center gap-3">
-                          <div className="p-4 rounded-full bg-accent/10 text-muted-foreground/40">
-                            <Megaphone className="h-8 w-8" />
-                          </div>
-                          <p className="text-sm font-bold text-muted-foreground italic tracking-wide">No entries found</p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <TableEmpty colSpan={4} />
                   )}
                 </TableBody>
               </Table>

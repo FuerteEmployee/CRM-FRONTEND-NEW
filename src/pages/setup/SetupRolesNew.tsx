@@ -165,6 +165,7 @@ const FEATURES_CONFIG = [
   },
   { name: "Goals", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "WhatsApp", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "Marketing Spend", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "HRMS Staff Directory", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "HRMS Attendance", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "HRMS Leave Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
@@ -215,6 +216,7 @@ const FEATURE_GROUP_META: Record<string, { group: string; emoji: string }> = {
   "Support": { group: "Support", emoji: "🎧" },
 
   "WhatsApp": { group: "Marketing", emoji: "📣" },
+  "Marketing Spend": { group: "Marketing", emoji: "🔥" },
   "Goals": { group: "Marketing", emoji: "📣" },
 
   "Knowledge Base": { group: "Knowledge Base", emoji: "📚" },

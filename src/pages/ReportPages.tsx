@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableEmpty, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   BarChart, 
   Bar, 
@@ -556,7 +556,7 @@ export const ReportSales = () => {
             </div>
 
             {/* Right Side Tables Content */}
-            <Card className="lg:col-span-3 border-border/50 shadow-sm rounded-2xl overflow-hidden bg-card">
+            <Card className="lg:col-span-3 overflow-hidden">
               <CardHeader className="bg-accent/5 border-b border-border/40 p-5 flex flex-row items-center justify-between gap-4 flex-wrap">
                 <div>
                   <CardTitle className="text-base font-bold">
@@ -579,38 +579,38 @@ export const ReportSales = () => {
                       {/* 1. INVOICES SUB-REPORT */}
                       {selectedSubReport === "invoices" && (
                         <Table>
-                          <TableHeader className="bg-accent/10">
-                            <TableRow className="border-border/40 hover:bg-transparent">
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground pl-6 py-4">Invoice Number</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Client</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Date</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Due Date</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Amount</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Total Tax</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 pr-6">Status</TableHead>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Invoice Number</TableHead>
+                              <TableHead>Client</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Due Date</TableHead>
+                              <TableHead>Amount</TableHead>
+                              <TableHead>Total Tax</TableHead>
+                              <TableHead>Status</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {invoicesReport.length > 0 ? (
                               invoicesReport.map((inv: any) => (
-                                <TableRow key={inv._id} className="border-border/30 hover:bg-accent/5 transition-colors">
-                                  <TableCell className="font-bold text-sm text-gray-800 pl-6 py-4">{inv.number}</TableCell>
-                                  <TableCell className="font-semibold text-sm text-gray-800 py-4">{inv.clientName}</TableCell>
-                                  <TableCell className="font-semibold text-xs text-muted-foreground whitespace-nowrap py-4">{formatRepDate(inv.date)}</TableCell>
-                                  <TableCell className="font-semibold text-xs text-muted-foreground whitespace-nowrap py-4">{formatRepDate(inv.duedate)}</TableCell>
-                                  <TableCell className="font-extrabold text-sm text-gray-800 py-4">{currency} {inv.total?.toFixed(2)}</TableCell>
-                                  <TableCell className="font-semibold text-xs text-muted-foreground py-4">{currency} {inv.total_tax?.toFixed(2)}</TableCell>
-                                  <TableCell className="py-4 pr-6">{getStatusBadge(inv.status)}</TableCell>
+                                <TableRow key={inv._id}>
+                                  <TableCell className="font-medium">{inv.number}</TableCell>
+                                  <TableCell>{inv.clientName}</TableCell>
+                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(inv.date)}</TableCell>
+                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(inv.duedate)}</TableCell>
+                                  <TableCell>{currency} {inv.total?.toFixed(2)}</TableCell>
+                                  <TableCell className="text-muted-foreground">{currency} {inv.total_tax?.toFixed(2)}</TableCell>
+                                  <TableCell>{getStatusBadge(inv.status)}</TableCell>
                                 </TableRow>
                               ))
                             ) : (
-                              <TableRow><TableCell colSpan={7} className="text-center py-10 font-bold text-muted-foreground italic">No invoice records found</TableCell></TableRow>
+                              <TableEmpty colSpan={7}>No invoice records found</TableEmpty>
                             )}
-                            <TableRow className="bg-accent/5 border-t-2 border-border/50 font-black">
-                              <TableCell colSpan={4} className="pl-6 py-4 text-xs font-black uppercase tracking-wider text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="py-4 text-sm font-black text-primary">{currency} {totalInvoiceVal.toFixed(2)}</TableCell>
-                              <TableCell className="py-4 text-sm font-black text-muted-foreground">{currency} {totalTaxVal.toFixed(2)}</TableCell>
-                              <TableCell className="py-4 pr-6"></TableCell>
+                            <TableRow className="bg-muted/30 font-semibold">
+                              <TableCell colSpan={4} className="text-muted-foreground">Total Summary ({currency})</TableCell>
+                              <TableCell className="text-primary">{currency} {totalInvoiceVal.toFixed(2)}</TableCell>
+                              <TableCell className="text-muted-foreground">{currency} {totalTaxVal.toFixed(2)}</TableCell>
+                              <TableCell></TableCell>
                             </TableRow>
                           </TableBody>
                         </Table>
@@ -619,32 +619,32 @@ export const ReportSales = () => {
                       {/* 2. ITEMS SUB-REPORT */}
                       {selectedSubReport === "items" && (
                         <Table>
-                          <TableHeader className="bg-accent/10">
-                            <TableRow className="border-border/40 hover:bg-transparent">
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground pl-6 py-4">Item Name</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Quantity Sold</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Average Price</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 pr-6">Total Revenue</TableHead>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Item Name</TableHead>
+                              <TableHead>Quantity Sold</TableHead>
+                              <TableHead>Average Price</TableHead>
+                              <TableHead>Total Revenue</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {itemsReport.length > 0 ? (
                               itemsReport.map((it: any, index: number) => (
-                                <TableRow key={index} className="border-border/30 hover:bg-accent/5 transition-colors">
-                                  <TableCell className="font-bold text-sm text-gray-800 pl-6 py-4">{it.name}</TableCell>
-                                  <TableCell className="font-bold text-sm text-gray-800 py-4">{it.qtySold}</TableCell>
-                                  <TableCell className="font-semibold text-xs text-muted-foreground py-4">{currency} {it.avgPrice?.toFixed(2)}</TableCell>
-                                  <TableCell className="font-extrabold text-sm text-gray-800 py-4 pr-6">{currency} {it.totalRevenue?.toFixed(2)}</TableCell>
+                                <TableRow key={index}>
+                                  <TableCell className="font-medium">{it.name}</TableCell>
+                                  <TableCell>{it.qtySold}</TableCell>
+                                  <TableCell className="text-muted-foreground">{currency} {it.avgPrice?.toFixed(2)}</TableCell>
+                                  <TableCell>{currency} {it.totalRevenue?.toFixed(2)}</TableCell>
                                 </TableRow>
                               ))
                             ) : (
-                              <TableRow><TableCell colSpan={4} className="text-center py-10 font-bold text-muted-foreground italic">No item sales records found</TableCell></TableRow>
+                              <TableEmpty colSpan={4}>No item sales records found</TableEmpty>
                             )}
-                            <TableRow className="bg-accent/5 border-t-2 border-border/50 font-black">
-                              <TableCell className="pl-6 py-4 text-xs font-black uppercase tracking-wider text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="py-4 text-sm font-black text-primary">{totalItemQty}</TableCell>
-                              <TableCell className="py-4"></TableCell>
-                              <TableCell className="py-4 pr-6 text-sm font-black text-primary">{currency} {totalItemRev.toFixed(2)}</TableCell>
+                            <TableRow className="bg-muted/30 font-semibold">
+                              <TableCell className="text-muted-foreground">Total Summary ({currency})</TableCell>
+                              <TableCell className="text-primary">{totalItemQty}</TableCell>
+                              <TableCell></TableCell>
+                              <TableCell className="text-primary">{currency} {totalItemRev.toFixed(2)}</TableCell>
                             </TableRow>
                           </TableBody>
                         </Table>
@@ -653,34 +653,34 @@ export const ReportSales = () => {
                       {/* 3. PAYMENTS RECEIVED */}
                       {selectedSubReport === "payments" && (
                         <Table>
-                          <TableHeader className="bg-accent/10">
-                            <TableRow className="border-border/40 hover:bg-transparent">
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground pl-6 py-4">Payment ID</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Invoice #</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Payment Mode</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Transaction ID</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Date</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 pr-6">Amount</TableHead>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Payment ID</TableHead>
+                              <TableHead>Invoice #</TableHead>
+                              <TableHead>Payment Mode</TableHead>
+                              <TableHead>Transaction ID</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Amount</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {paymentsReport.length > 0 ? (
                               paymentsReport.map((p: any) => (
-                                <TableRow key={p._id} className="border-border/30 hover:bg-accent/5 transition-colors">
-                                  <TableCell className="font-bold text-sm text-gray-800 pl-6 py-4">{p.paymentId}</TableCell>
-                                  <TableCell className="font-semibold text-sm text-gray-800 py-4">{p.invoiceNumber}</TableCell>
-                                  <TableCell className="font-semibold text-xs text-muted-foreground py-4">{p.paymentMode}</TableCell>
-                                  <TableCell className="font-semibold text-xs text-muted-foreground whitespace-nowrap py-4">{p.transactionId}</TableCell>
-                                  <TableCell className="font-semibold text-xs text-muted-foreground whitespace-nowrap py-4">{formatRepDate(p.date)}</TableCell>
-                                  <TableCell className="font-extrabold text-sm text-gray-800 py-4 pr-6">{currency} {p.amount?.toFixed(2)}</TableCell>
+                                <TableRow key={p._id}>
+                                  <TableCell className="font-medium">{p.paymentId}</TableCell>
+                                  <TableCell>{p.invoiceNumber}</TableCell>
+                                  <TableCell className="text-muted-foreground">{p.paymentMode}</TableCell>
+                                  <TableCell className="text-muted-foreground whitespace-nowrap">{p.transactionId}</TableCell>
+                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(p.date)}</TableCell>
+                                  <TableCell>{currency} {p.amount?.toFixed(2)}</TableCell>
                                 </TableRow>
                               ))
                             ) : (
-                              <TableRow><TableCell colSpan={6} className="text-center py-10 font-bold text-muted-foreground italic">No payments received found</TableCell></TableRow>
+                              <TableEmpty colSpan={6}>No payments received found</TableEmpty>
                             )}
-                            <TableRow className="bg-accent/5 border-t-2 border-border/50 font-black">
-                              <TableCell colSpan={5} className="pl-6 py-4 text-xs font-black uppercase tracking-wider text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="py-4 pr-6 text-sm font-black text-primary">{currency} {totalPaymentVal.toFixed(2)}</TableCell>
+                            <TableRow className="bg-muted/30 font-semibold">
+                              <TableCell colSpan={5} className="text-muted-foreground">Total Summary ({currency})</TableCell>
+                              <TableCell className="text-primary">{currency} {totalPaymentVal.toFixed(2)}</TableCell>
                             </TableRow>
                           </TableBody>
                         </Table>
@@ -689,35 +689,35 @@ export const ReportSales = () => {
                       {/* 4. CREDIT NOTES */}
                       {selectedSubReport === "credit_notes" && (
                         <Table>
-                          <TableHeader className="bg-accent/10">
-                            <TableRow className="border-border/40 hover:bg-transparent">
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground pl-6 py-4">Credit Note #</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Client</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Date</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Amount</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Remaining Balance</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 pr-6">Status</TableHead>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Credit Note #</TableHead>
+                              <TableHead>Client</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Amount</TableHead>
+                              <TableHead>Remaining Balance</TableHead>
+                              <TableHead>Status</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {creditNotesReport.length > 0 ? (
                               creditNotesReport.map((cn: any) => (
-                                <TableRow key={cn._id} className="border-border/30 hover:bg-accent/5 transition-colors">
-                                  <TableCell className="font-bold text-sm text-gray-800 pl-6 py-4">{cn.number}</TableCell>
-                                  <TableCell className="font-semibold text-sm text-gray-800 py-4">{cn.clientName}</TableCell>
-                                  <TableCell className="font-semibold text-xs text-muted-foreground whitespace-nowrap py-4">{formatRepDate(cn.date)}</TableCell>
-                                  <TableCell className="font-extrabold text-sm text-gray-800 py-4">{currency} {cn.total?.toFixed(2)}</TableCell>
-                                  <TableCell className="font-semibold text-sm text-gray-800 py-4">{currency} {cn.remaining?.toFixed(2)}</TableCell>
-                                  <TableCell className="py-4 pr-6">{getStatusBadge(cn.status)}</TableCell>
+                                <TableRow key={cn._id}>
+                                  <TableCell className="font-medium">{cn.number}</TableCell>
+                                  <TableCell>{cn.clientName}</TableCell>
+                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(cn.date)}</TableCell>
+                                  <TableCell>{currency} {cn.total?.toFixed(2)}</TableCell>
+                                  <TableCell>{currency} {cn.remaining?.toFixed(2)}</TableCell>
+                                  <TableCell>{getStatusBadge(cn.status)}</TableCell>
                                 </TableRow>
                               ))
                             ) : (
-                              <TableRow><TableCell colSpan={6} className="text-center py-10 font-bold text-muted-foreground italic">No credit notes found</TableCell></TableRow>
+                              <TableEmpty colSpan={6}>No credit notes found</TableEmpty>
                             )}
-                            <TableRow className="bg-accent/5 border-t-2 border-border/50 font-black">
-                              <TableCell colSpan={3} className="pl-6 py-4 text-xs font-black uppercase tracking-wider text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="py-4 text-sm font-black text-primary">{currency} {totalCNVal.toFixed(2)}</TableCell>
-                              <TableCell colSpan={2} className="py-4 pr-6"></TableCell>
+                            <TableRow className="bg-muted/30 font-semibold">
+                              <TableCell colSpan={3} className="text-muted-foreground">Total Summary ({currency})</TableCell>
+                              <TableCell className="text-primary">{currency} {totalCNVal.toFixed(2)}</TableCell>
+                              <TableCell colSpan={2}></TableCell>
                             </TableRow>
                           </TableBody>
                         </Table>
@@ -726,37 +726,37 @@ export const ReportSales = () => {
                       {/* 5. PROPOSALS SUB-REPORT */}
                       {selectedSubReport === "proposals" && (
                         <Table>
-                          <TableHeader className="bg-accent/10">
-                            <TableRow className="border-border/40 hover:bg-transparent">
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground pl-6 py-4">Proposal Number</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Subject</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Client</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Date</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Open Till</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Total Value</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 pr-6">Status</TableHead>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Proposal Number</TableHead>
+                              <TableHead>Subject</TableHead>
+                              <TableHead>Client</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Open Till</TableHead>
+                              <TableHead>Total Value</TableHead>
+                              <TableHead>Status</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {proposalsReport.length > 0 ? (
                               proposalsReport.map((prop: any) => (
-                                <TableRow key={prop._id} className="border-border/30 hover:bg-accent/5 transition-colors">
-                                  <TableCell className="font-bold text-sm text-gray-800 pl-6 py-4">{prop.number}</TableCell>
-                                  <TableCell className="font-semibold text-sm text-gray-800 py-4 max-w-[150px] truncate">{prop.subject}</TableCell>
-                                  <TableCell className="font-semibold text-sm text-gray-800 py-4">{prop.clientName}</TableCell>
-                                  <TableCell className="font-semibold text-xs text-muted-foreground whitespace-nowrap py-4">{formatRepDate(prop.date)}</TableCell>
-                                  <TableCell className="font-semibold text-xs text-muted-foreground whitespace-nowrap py-4">{formatRepDate(prop.openTill)}</TableCell>
-                                  <TableCell className="font-extrabold text-sm text-gray-800 py-4">{currency} {prop.total?.toFixed(2)}</TableCell>
-                                  <TableCell className="py-4 pr-6">{getStatusBadge(prop.status)}</TableCell>
+                                <TableRow key={prop._id}>
+                                  <TableCell className="font-medium">{prop.number}</TableCell>
+                                  <TableCell className="max-w-[150px] truncate">{prop.subject}</TableCell>
+                                  <TableCell>{prop.clientName}</TableCell>
+                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(prop.date)}</TableCell>
+                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(prop.openTill)}</TableCell>
+                                  <TableCell>{currency} {prop.total?.toFixed(2)}</TableCell>
+                                  <TableCell>{getStatusBadge(prop.status)}</TableCell>
                                 </TableRow>
                               ))
                             ) : (
-                              <TableRow><TableCell colSpan={7} className="text-center py-10 font-bold text-muted-foreground italic">No proposal records found</TableCell></TableRow>
+                              <TableEmpty colSpan={7}>No proposal records found</TableEmpty>
                             )}
-                            <TableRow className="bg-accent/5 border-t-2 border-border/50 font-black">
-                              <TableCell colSpan={5} className="pl-6 py-4 text-xs font-black uppercase tracking-wider text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="py-4 text-sm font-black text-primary">{currency} {totalPropVal.toFixed(2)}</TableCell>
-                              <TableCell className="py-4 pr-6"></TableCell>
+                            <TableRow className="bg-muted/30 font-semibold">
+                              <TableCell colSpan={5} className="text-muted-foreground">Total Summary ({currency})</TableCell>
+                              <TableCell className="text-primary">{currency} {totalPropVal.toFixed(2)}</TableCell>
+                              <TableCell></TableCell>
                             </TableRow>
                           </TableBody>
                         </Table>
@@ -765,37 +765,37 @@ export const ReportSales = () => {
                       {/* 6. ESTIMATES SUB-REPORT */}
                       {selectedSubReport === "estimates" && (
                         <Table>
-                          <TableHeader className="bg-accent/10">
-                            <TableRow className="border-border/40 hover:bg-transparent">
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground pl-6 py-4">Estimate Number</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Reference</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Client</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Date</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Expiry Date</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Total Value</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 pr-6">Status</TableHead>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Estimate Number</TableHead>
+                              <TableHead>Reference</TableHead>
+                              <TableHead>Client</TableHead>
+                              <TableHead>Date</TableHead>
+                              <TableHead>Expiry Date</TableHead>
+                              <TableHead>Total Value</TableHead>
+                              <TableHead>Status</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {estimatesReport.length > 0 ? (
                               estimatesReport.map((est: any) => (
-                                <TableRow key={est._id} className="border-border/30 hover:bg-accent/5 transition-colors">
-                                  <TableCell className="font-bold text-sm text-gray-800 pl-6 py-4">{est.number}</TableCell>
-                                  <TableCell className="font-semibold text-xs text-muted-foreground py-4">{est.reference}</TableCell>
-                                  <TableCell className="font-semibold text-sm text-gray-800 py-4">{est.clientName}</TableCell>
-                                  <TableCell className="font-semibold text-xs text-muted-foreground whitespace-nowrap py-4">{formatRepDate(est.date)}</TableCell>
-                                  <TableCell className="font-semibold text-xs text-muted-foreground whitespace-nowrap py-4">{formatRepDate(est.expiryDate)}</TableCell>
-                                  <TableCell className="font-extrabold text-sm text-gray-800 py-4">{currency} {est.total?.toFixed(2)}</TableCell>
-                                  <TableCell className="py-4 pr-6">{getStatusBadge(est.status)}</TableCell>
+                                <TableRow key={est._id}>
+                                  <TableCell className="font-medium">{est.number}</TableCell>
+                                  <TableCell className="text-muted-foreground">{est.reference}</TableCell>
+                                  <TableCell>{est.clientName}</TableCell>
+                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(est.date)}</TableCell>
+                                  <TableCell className="text-muted-foreground whitespace-nowrap">{formatRepDate(est.expiryDate)}</TableCell>
+                                  <TableCell>{currency} {est.total?.toFixed(2)}</TableCell>
+                                  <TableCell>{getStatusBadge(est.status)}</TableCell>
                                 </TableRow>
                               ))
                             ) : (
-                              <TableRow><TableCell colSpan={7} className="text-center py-10 font-bold text-muted-foreground italic">No estimate records found</TableCell></TableRow>
+                              <TableEmpty colSpan={7}>No estimate records found</TableEmpty>
                             )}
-                            <TableRow className="bg-accent/5 border-t-2 border-border/50 font-black">
-                              <TableCell colSpan={5} className="pl-6 py-4 text-xs font-black uppercase tracking-wider text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="py-4 text-sm font-black text-primary">{currency} {totalEstVal.toFixed(2)}</TableCell>
-                              <TableCell className="py-4 pr-6"></TableCell>
+                            <TableRow className="bg-muted/30 font-semibold">
+                              <TableCell colSpan={5} className="text-muted-foreground">Total Summary ({currency})</TableCell>
+                              <TableCell className="text-primary">{currency} {totalEstVal.toFixed(2)}</TableCell>
+                              <TableCell></TableCell>
                             </TableRow>
                           </TableBody>
                         </Table>
@@ -804,32 +804,32 @@ export const ReportSales = () => {
                       {/* 7. CUSTOMERS REPORT */}
                       {selectedSubReport === "customers" && (
                         <Table>
-                          <TableHeader className="bg-accent/10">
-                            <TableRow className="border-border/40 hover:bg-transparent">
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground pl-6 py-4">Client Name</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Total Invoiced</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Total Paid</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 pr-6">Outstanding Balance</TableHead>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Client Name</TableHead>
+                              <TableHead>Total Invoiced</TableHead>
+                              <TableHead>Total Paid</TableHead>
+                              <TableHead>Outstanding Balance</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
                             {customersReport.length > 0 ? (
                               customersReport.map((c: any, index: number) => (
-                                <TableRow key={index} className="border-border/30 hover:bg-accent/5 transition-colors">
-                                  <TableCell className="font-bold text-sm text-gray-800 pl-6 py-4">{c.clientName}</TableCell>
-                                  <TableCell className="font-extrabold text-sm text-gray-800 py-4">{currency} {c.totalInvoiced?.toFixed(2)}</TableCell>
-                                  <TableCell className="font-semibold text-sm text-emerald-600 py-4">{currency} {c.totalPaid?.toFixed(2)}</TableCell>
-                                  <TableCell className="font-bold text-sm text-red-500 py-4 pr-6">{currency} {c.balance?.toFixed(2)}</TableCell>
+                                <TableRow key={index}>
+                                  <TableCell className="font-medium">{c.clientName}</TableCell>
+                                  <TableCell>{currency} {c.totalInvoiced?.toFixed(2)}</TableCell>
+                                  <TableCell className="text-emerald-600">{currency} {c.totalPaid?.toFixed(2)}</TableCell>
+                                  <TableCell className="text-red-500">{currency} {c.balance?.toFixed(2)}</TableCell>
                                 </TableRow>
                               ))
                             ) : (
-                              <TableRow><TableCell colSpan={4} className="text-center py-10 font-bold text-muted-foreground italic">No customer invoicing summaries</TableCell></TableRow>
+                              <TableEmpty colSpan={4}>No customer invoicing summaries</TableEmpty>
                             )}
-                            <TableRow className="bg-accent/5 border-t-2 border-border/50 font-black">
-                              <TableCell className="pl-6 py-4 text-xs font-black uppercase tracking-wider text-muted-foreground">Total Summary ({currency})</TableCell>
-                              <TableCell className="py-4 text-sm font-black text-primary">{currency} {totalCustomerInv.toFixed(2)}</TableCell>
-                              <TableCell className="py-4 text-sm font-black text-emerald-600">{currency} {totalCustomerPaid.toFixed(2)}</TableCell>
-                              <TableCell className="py-4 pr-6 text-sm font-black text-red-500">{currency} {(totalCustomerInv - totalCustomerPaid).toFixed(2)}</TableCell>
+                            <TableRow className="bg-muted/30 font-semibold">
+                              <TableCell className="text-muted-foreground">Total Summary ({currency})</TableCell>
+                              <TableCell className="text-primary">{currency} {totalCustomerInv.toFixed(2)}</TableCell>
+                              <TableCell className="text-emerald-600">{currency} {totalCustomerPaid.toFixed(2)}</TableCell>
+                              <TableCell className="text-red-500">{currency} {(totalCustomerInv - totalCustomerPaid).toFixed(2)}</TableCell>
                             </TableRow>
                           </TableBody>
                         </Table>
@@ -1159,7 +1159,7 @@ export const ReportExpenses = () => {
           <div className="space-y-6">
             
             {/* 1. Matrix Table */}
-            <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden print:border-none print:shadow-none">
+            <Card className="overflow-hidden print:border-none print:shadow-none">
               <CardHeader className="bg-accent/5 border-b border-border/40 p-5 print:p-2">
                 <CardTitle className="text-sm font-bold flex items-center justify-between">
                   <span>Expenses Matrix - Year {year}</span>
@@ -1169,67 +1169,67 @@ export const ReportExpenses = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
-                <Table className="w-full min-w-[1000px] border-collapse text-left">
-                  <TableHeader className="bg-accent/10 border-b border-border/50">
+                <Table className="min-w-[1000px] text-left">
+                  <TableHeader>
                     <TableRow>
-                      <TableHead className="font-extrabold text-[11px] uppercase tracking-wider text-muted-foreground p-3.5">Category</TableHead>
+                      <TableHead>Category</TableHead>
                       {MONTH_NAMES.map((m) => (
-                        <TableHead key={m} className="font-extrabold text-[11px] uppercase tracking-wider text-muted-foreground text-right p-3.5">{m}</TableHead>
+                        <TableHead key={m} className="text-right">{m}</TableHead>
                       ))}
-                      <TableHead className="font-extrabold text-[11px] uppercase tracking-wider text-muted-foreground text-right p-3.5 bg-accent/20">Year Total</TableHead>
+                      <TableHead className="text-right">Year Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {/* Category Rows */}
                     {categoriesReport.map((row: any) => (
-                      <TableRow key={row.name} className="border-b border-border/40 hover:bg-accent/5">
-                        <TableCell className="font-bold text-xs p-3.5 text-gray-800">{row.name}</TableCell>
+                      <TableRow key={row.name}>
+                        <TableCell className="font-medium">{row.name}</TableCell>
                         {row.months.map((val: number, idx: number) => (
-                          <TableCell key={idx} className="text-xs text-right font-medium text-muted-foreground p-3.5">
+                          <TableCell key={idx} className="text-right text-muted-foreground">
                             {val > 0 ? `${activeCurrencySymbol}${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "-"}
                           </TableCell>
                         ))}
-                        <TableCell className="text-xs text-right font-extrabold text-foreground p-3.5 bg-accent/5">
+                        <TableCell className="text-right font-semibold bg-accent/5">
                           {activeCurrencySymbol}{row.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </TableCell>
                       </TableRow>
                     ))}
 
                     {/* Net Amount Row */}
-                    <TableRow className="border-t-2 border-border/60 bg-muted/20 font-bold">
-                      <TableCell className="text-xs p-3.5 text-foreground font-black">Net Amount (Subtotal)</TableCell>
+                    <TableRow className="bg-muted/30 font-semibold">
+                      <TableCell>Net Amount (Subtotal)</TableCell>
                       {netAmountSubtotal.map((val: number, idx: number) => (
-                        <TableCell key={idx} className="text-xs text-right p-3.5 font-bold text-muted-foreground">
+                        <TableCell key={idx} className="text-right text-muted-foreground">
                           {activeCurrencySymbol}{val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </TableCell>
                       ))}
-                      <TableCell className="text-xs text-right p-3.5 font-black text-foreground bg-accent/5">
+                      <TableCell className="text-right bg-accent/5">
                         {activeCurrencySymbol}{netSumYear.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                     </TableRow>
 
                     {/* Total Tax Row */}
-                    <TableRow className="border-b border-border/40 bg-muted/20 font-bold">
-                      <TableCell className="text-xs p-3.5 text-foreground font-black">Total Tax</TableCell>
+                    <TableRow className="bg-muted/30 font-semibold">
+                      <TableCell>Total Tax</TableCell>
                       {totalTax.map((val: number, idx: number) => (
-                        <TableCell key={idx} className="text-xs text-right p-3.5 font-bold text-muted-foreground">
+                        <TableCell key={idx} className="text-right text-muted-foreground">
                           {activeCurrencySymbol}{val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </TableCell>
                       ))}
-                      <TableCell className="text-xs text-right p-3.5 font-black text-foreground bg-accent/5">
+                      <TableCell className="text-right bg-accent/5">
                         {activeCurrencySymbol}{taxSumYear.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                     </TableRow>
 
                     {/* Total Row */}
-                    <TableRow className="bg-primary/5 font-black text-primary border-b border-border/60">
-                      <TableCell className="text-xs p-3.5 uppercase tracking-wide">Total</TableCell>
+                    <TableRow className="bg-primary/5 text-primary font-semibold">
+                      <TableCell>Total</TableCell>
                       {overallTotal.map((val: number, idx: number) => (
-                        <TableCell key={idx} className="text-xs text-right p-3.5 text-primary font-black">
+                        <TableCell key={idx} className="text-right text-primary">
                           {activeCurrencySymbol}{val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </TableCell>
                       ))}
-                      <TableCell className="text-xs text-right p-3.5 font-black text-primary bg-primary/10">
+                      <TableCell className="text-right text-primary bg-primary/10">
                         {activeCurrencySymbol}{overallTotalYear.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </TableCell>
                     </TableRow>
@@ -1348,7 +1348,7 @@ export const ReportExpenses = () => {
 
             {/* 3. Detailed individual report (Slide down toggle) */}
             {showDetails && (
-              <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden print:hidden animate-slide-in">
+              <Card className="overflow-hidden print:hidden animate-slide-in">
                 <CardHeader className="bg-accent/5 border-b border-border/40 p-5">
                   <CardTitle className="text-sm font-bold flex items-center justify-between">
                     <span>Individual Expense Transactions List</span>
@@ -1358,49 +1358,45 @@ export const ReportExpenses = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                  <Table className="w-full">
-                    <TableHeader className="bg-accent/10 border-b border-border/50">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableHead className="font-extrabold text-[11px] uppercase tracking-wider text-muted-foreground p-3.5">Date</TableHead>
-                        <TableHead className="font-extrabold text-[11px] uppercase tracking-wider text-muted-foreground p-3.5">Category</TableHead>
-                        <TableHead className="font-extrabold text-[11px] uppercase tracking-wider text-muted-foreground p-3.5">Ref No.</TableHead>
-                        <TableHead className="font-extrabold text-[11px] uppercase tracking-wider text-muted-foreground p-3.5">Billable</TableHead>
-                        <TableHead className="font-extrabold text-[11px] uppercase tracking-wider text-muted-foreground p-3.5">Tax</TableHead>
-                        <TableHead className="font-extrabold text-[11px] uppercase tracking-wider text-muted-foreground text-right p-3.5">Amount</TableHead>
-                        <TableHead className="font-extrabold text-[11px] uppercase tracking-wider text-muted-foreground p-3.5">Note</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Ref No.</TableHead>
+                        <TableHead>Billable</TableHead>
+                        <TableHead>Tax</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead>Note</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {rawExpenses.length > 0 ? (
                         rawExpenses.map((exp: any) => (
-                          <TableRow key={exp._id} className="border-b border-border/45 hover:bg-accent/5">
-                            <TableCell className="text-xs p-3.5 text-muted-foreground font-semibold">
+                          <TableRow key={exp._id}>
+                            <TableCell className="text-muted-foreground">
                               {format(new Date(exp.date), "yyyy-MM-dd")}
                             </TableCell>
-                            <TableCell className="text-xs p-3.5 text-gray-800 font-bold">{exp.category}</TableCell>
-                            <TableCell className="text-xs p-3.5 font-semibold text-muted-foreground">{exp.reference_no}</TableCell>
-                            <TableCell className="text-xs p-3.5">
+                            <TableCell>{exp.category}</TableCell>
+                            <TableCell className="text-muted-foreground">{exp.reference_no}</TableCell>
+                            <TableCell>
                               {exp.billable ? (
                                 <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 rounded-full font-extrabold text-[10px] uppercase px-2.5 py-0.5 shadow-none">Yes</Badge>
                               ) : (
                                 <Badge className="bg-gray-500/10 text-gray-600 border border-gray-500/20 rounded-full font-extrabold text-[10px] uppercase px-2.5 py-0.5 shadow-none">No</Badge>
                               )}
                             </TableCell>
-                            <TableCell className="text-xs p-3.5 font-semibold text-muted-foreground">
+                            <TableCell className="text-muted-foreground">
                               {activeCurrencySymbol}{exp.tax.toFixed(2)}
                             </TableCell>
-                            <TableCell className="text-xs text-right p-3.5 font-black text-foreground">
+                            <TableCell className="text-right">
                               {activeCurrencySymbol}{exp.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </TableCell>
-                            <TableCell className="text-xs p-3.5 text-muted-foreground font-medium max-w-[200px] truncate">{exp.note || "-"}</TableCell>
+                            <TableCell className="text-muted-foreground max-w-[200px] truncate">{exp.note || "-"}</TableCell>
                           </TableRow>
                         ))
                       ) : (
-                        <TableRow>
-                          <TableCell colSpan={7} className="text-center p-8 text-xs font-semibold text-muted-foreground">
-                            No individual transactions found matching filters.
-                          </TableCell>
-                        </TableRow>
+                        <TableEmpty colSpan={7}>No individual transactions found matching filters.</TableEmpty>
                       )}
                     </TableBody>
                   </Table>
@@ -2558,7 +2554,7 @@ export const ReportTimesheets = () => {
             </Card>
 
             {/* Timesheets Data Table */}
-            <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] rounded-2xl overflow-hidden">
+            <Card className="overflow-hidden">
               <CardHeader className="bg-white p-5 border-b border-border/10 pb-4">
                 <CardTitle className="text-sm font-black text-gray-900 tracking-tight font-sans text-left">
                   My Logged Entries
@@ -2568,25 +2564,25 @@ export const ReportTimesheets = () => {
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
-                        <TableHead className="font-bold text-gray-700 text-xs py-3.5 pl-6">Staff Member</TableHead>
-                        <TableHead className="font-bold text-gray-700 text-xs py-3.5">Task</TableHead>
-                        <TableHead className="font-bold text-gray-700 text-xs py-3.5">Project</TableHead>
-                        <TableHead className="font-bold text-gray-700 text-xs py-3.5">Date</TableHead>
-                        <TableHead className="font-bold text-gray-700 text-xs py-3.5">Duration</TableHead>
-                        <TableHead className="font-bold text-gray-700 text-xs py-3.5 pr-6 text-right">Billable</TableHead>
+                      <TableRow>
+                        <TableHead>Staff Member</TableHead>
+                        <TableHead>Task</TableHead>
+                        <TableHead>Project</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Duration</TableHead>
+                        <TableHead className="text-right">Billable</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredTimesheets.length > 0 ? (
                         filteredTimesheets.map((t) => (
-                          <TableRow key={t.id} className="hover:bg-gray-50/30 transition-colors border-b border-gray-100">
-                            <TableCell className="font-semibold text-gray-900 text-xs py-3.5 pl-6">{t.staff}</TableCell>
-                            <TableCell className="text-gray-600 text-xs py-3.5">{t.task}</TableCell>
-                            <TableCell className="text-gray-600 text-xs py-3.5 font-medium">{t.project}</TableCell>
-                            <TableCell className="text-gray-600 text-xs py-3.5">{t.date ? format(new Date(t.date), "yyyy-MM-dd") : "-"}</TableCell>
-                            <TableCell className="font-bold text-gray-900 text-xs py-3.5">{t.hours}h</TableCell>
-                            <TableCell className="py-3.5 pr-6 text-right">
+                          <TableRow key={t.id}>
+                            <TableCell className="font-medium">{t.staff}</TableCell>
+                            <TableCell>{t.task}</TableCell>
+                            <TableCell>{t.project}</TableCell>
+                            <TableCell>{t.date ? format(new Date(t.date), "yyyy-MM-dd") : "-"}</TableCell>
+                            <TableCell>{t.hours}h</TableCell>
+                            <TableCell className="text-right">
                               <Badge
                                 className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase tracking-wide border shadow-none ${
                                   t.billable
@@ -2600,11 +2596,7 @@ export const ReportTimesheets = () => {
                           </TableRow>
                         ))
                       ) : (
-                        <TableRow>
-                          <TableCell colSpan={6} className="text-center py-10 text-muted-foreground font-medium text-xs">
-                            No logged timesheet records match your filter criteria.
-                          </TableCell>
-                        </TableRow>
+                        <TableEmpty colSpan={6}>No logged timesheet records match your filter criteria.</TableEmpty>
                       )}
                     </TableBody>
                   </Table>
@@ -2802,7 +2794,7 @@ export const ReportTimesheets = () => {
           </Card>
 
           {/* Timesheets Data Table */}
-          <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] rounded-2xl overflow-hidden">
+          <Card className="overflow-hidden">
             <CardHeader className="bg-white p-5 border-b border-border/10 pb-4">
               <CardTitle className="text-sm font-black text-gray-900 tracking-tight font-sans text-left">
                 Timesheet Activity Records
@@ -2812,25 +2804,25 @@ export const ReportTimesheets = () => {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5 pl-6">Staff Member</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5">Task</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5">Project</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5">Date</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5">Duration</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5 pr-6 text-right">Billable</TableHead>
+                    <TableRow>
+                      <TableHead>Staff Member</TableHead>
+                      <TableHead>Task</TableHead>
+                      <TableHead>Project</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Duration</TableHead>
+                      <TableHead className="text-right">Billable</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredTimesheets.length > 0 ? (
                       filteredTimesheets.map((t) => (
-                        <TableRow key={t.id} className="hover:bg-gray-50/30 transition-colors border-b border-gray-100">
-                          <TableCell className="font-semibold text-gray-900 text-xs py-3.5 pl-6">{t.staff}</TableCell>
-                          <TableCell className="text-gray-600 text-xs py-3.5">{t.task}</TableCell>
-                          <TableCell className="text-gray-600 text-xs py-3.5 font-medium">{t.project}</TableCell>
-                          <TableCell className="text-gray-600 text-xs py-3.5">{t.date ? format(new Date(t.date), "yyyy-MM-dd") : "-"}</TableCell>
-                          <TableCell className="font-bold text-gray-900 text-xs py-3.5">{t.hours}h</TableCell>
-                          <TableCell className="py-3.5 pr-6 text-right">
+                        <TableRow key={t.id}>
+                          <TableCell className="font-medium">{t.staff}</TableCell>
+                          <TableCell>{t.task}</TableCell>
+                          <TableCell>{t.project}</TableCell>
+                          <TableCell>{t.date ? format(new Date(t.date), "yyyy-MM-dd") : "-"}</TableCell>
+                          <TableCell>{t.hours}h</TableCell>
+                          <TableCell className="text-right">
                             <Badge
                               className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase tracking-wide border shadow-none ${
                                 t.billable
@@ -2844,11 +2836,7 @@ export const ReportTimesheets = () => {
                         </TableRow>
                       ))
                     ) : (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-10 text-muted-foreground font-medium text-xs">
-                          No timesheet activity matches your filter criteria.
-                        </TableCell>
-                      </TableRow>
+                      <TableEmpty colSpan={6}>No timesheet activity matches your filter criteria.</TableEmpty>
                     )}
                   </TableBody>
                 </Table>
@@ -3080,7 +3068,7 @@ export const ReportKBArticles = () => {
           )}
 
           {/* Articles Data Table */}
-          <Card className="bg-white border border-border/30 shadow-[0_2px_8px_-3px_rgba(0,0,0,0.05)] rounded-2xl overflow-hidden">
+          <Card className="overflow-hidden">
             <CardHeader className="bg-white p-5 border-b border-b-gray-50 pb-4">
               <CardTitle className="text-sm font-black text-gray-900 tracking-tight font-sans text-left">
                 Knowledge Base Articles List
@@ -3090,21 +3078,21 @@ export const ReportKBArticles = () => {
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5 pl-6">Article Title</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5">Group Category</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5">Date Created</TableHead>
-                      <TableHead className="font-bold text-gray-700 text-xs py-3.5 pr-6 text-right">Status</TableHead>
+                    <TableRow>
+                      <TableHead>Article Title</TableHead>
+                      <TableHead>Group Category</TableHead>
+                      <TableHead>Date Created</TableHead>
+                      <TableHead className="text-right">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredArticles.length > 0 ? (
                       filteredArticles.map((art) => (
-                        <TableRow key={art.id} className="hover:bg-gray-50/30 transition-colors border-b border-gray-100">
-                          <TableCell className="font-semibold text-gray-900 text-xs py-3.5 pl-6">{art.title}</TableCell>
-                          <TableCell className="text-gray-600 text-xs py-3.5">{art.group}</TableCell>
-                          <TableCell className="text-gray-500 text-xs py-3.5">{art.date}</TableCell>
-                          <TableCell className="py-3.5 pr-6 text-right">
+                        <TableRow key={art.id}>
+                          <TableCell className="font-medium">{art.title}</TableCell>
+                          <TableCell>{art.group}</TableCell>
+                          <TableCell className="text-muted-foreground">{art.date}</TableCell>
+                          <TableCell className="text-right">
                             <Badge
                               className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase tracking-wide border shadow-none ${
                                 art.status === "Published"
@@ -3118,11 +3106,7 @@ export const ReportKBArticles = () => {
                         </TableRow>
                       ))
                     ) : (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-10 text-muted-foreground font-medium text-xs">
-                          No KB articles match the chosen group category.
-                        </TableCell>
-                      </TableRow>
+                      <TableEmpty colSpan={4}>No KB articles match the chosen group category.</TableEmpty>
                     )}
                   </TableBody>
                 </Table>
@@ -3382,7 +3366,7 @@ export const ReportPurchase = () => {
         </div>
 
         {/* Detailed Data Table */}
-        <Card className="rounded-2xl border-border/50 shadow-sm overflow-hidden">
+        <Card className="overflow-hidden">
           <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted/20 pb-4">
             <CardTitle className="text-base font-bold">Purchases Detailed Ledger</CardTitle>
             <div className="relative w-full sm:w-64 print:hidden">
@@ -3398,49 +3382,45 @@ export const ReportPurchase = () => {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-muted/40">
+                <TableHeader>
                   <TableRow>
-                    <TableHead className="font-bold text-xs">Bill No</TableHead>
-                    <TableHead className="font-bold text-xs">Supplier Name</TableHead>
-                    <TableHead className="font-bold text-xs">Bill Date</TableHead>
-                    <TableHead className="font-bold text-xs">Due Date</TableHead>
-                    <TableHead className="font-bold text-xs text-right">Qty</TableHead>
-                    <TableHead className="font-bold text-xs text-right">Rate</TableHead>
-                    <TableHead className="font-bold text-xs text-right">Amount</TableHead>
-                    <TableHead className="font-bold text-xs text-right">GST %</TableHead>
-                    <TableHead className="font-bold text-xs text-right">Total</TableHead>
-                    <TableHead className="font-bold text-xs text-center">Status</TableHead>
+                    <TableHead>Bill No</TableHead>
+                    <TableHead>Supplier Name</TableHead>
+                    <TableHead>Bill Date</TableHead>
+                    <TableHead>Due Date</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-right">Rate</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right">GST %</TableHead>
+                    <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center py-8">
+                      <TableCell colSpan={10} className="text-center">
                         <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
                       </TableCell>
                     </TableRow>
                   ) : filteredPurchases.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={10} className="text-center py-8 text-muted-foreground italic text-xs">
-                        No purchase records match the selected filter.
-                      </TableCell>
-                    </TableRow>
+                    <TableEmpty colSpan={10}>No purchase records match the selected filter.</TableEmpty>
                   ) : (
                     filteredPurchases.map((p: any) => (
-                      <TableRow key={p._id} className="hover:bg-muted/30 transition-colors">
-                        <TableCell className="font-bold text-xs text-slate-800">{p.bill_no}</TableCell>
-                        <TableCell className="font-medium text-xs">{p.supplier_name}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
+                      <TableRow key={p._id}>
+                        <TableCell className="font-medium">{p.bill_no}</TableCell>
+                        <TableCell>{p.supplier_name}</TableCell>
+                        <TableCell className="text-muted-foreground">
                           {p.bill_date ? format(new Date(p.bill_date), "MMM dd, yyyy") : "-"}
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
+                        <TableCell className="text-muted-foreground">
                           {p.due_date ? format(new Date(p.due_date), "MMM dd, yyyy") : "-"}
                         </TableCell>
-                        <TableCell className="text-xs text-right font-medium">{p.quantity || 1}</TableCell>
-                        <TableCell className="text-xs text-right font-medium">₹{(p.rate || 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-xs text-right font-medium">₹{(p.amount || 0).toLocaleString()}</TableCell>
-                        <TableCell className="text-xs text-right font-medium">{p.gst_rate || 0}%</TableCell>
-                        <TableCell className="text-xs text-right font-bold text-slate-900">₹{(p.total || 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">{p.quantity || 1}</TableCell>
+                        <TableCell className="text-right">₹{(p.rate || 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">₹{(p.amount || 0).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">{p.gst_rate || 0}%</TableCell>
+                        <TableCell className="text-right">₹{(p.total || 0).toLocaleString()}</TableCell>
                         <TableCell className="text-center">
                           <Badge
                             className={`rounded-lg px-2 py-0.5 font-bold text-[10px] uppercase tracking-wide border shadow-none ${

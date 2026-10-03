@@ -59,6 +59,7 @@ import type {
   CallStatus,
   ProcessingStatus,
 } from "@/types/callingAgent";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 
 const STATUS_OPTIONS: { value: CallStatus; label: string }[] = [
   { value: "ringing", label: "Ringing" },
@@ -221,7 +222,7 @@ const CallingAgent = () => {
           </div>
         </div>
 
-        <Card className="border shadow-sm rounded-xl overflow-hidden bg-white">
+        <Card className="overflow-hidden">
           <CardContent className="p-0">
             <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50/30">
               <div className="flex items-center gap-2">
@@ -338,49 +339,45 @@ const CallingAgent = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto max-h-[650px] no-scrollbar">
-              <table className="w-full min-w-[1200px]">
-                <thead>
-                  <tr className="sticky top-0 z-10 border-b border-slate-100 text-left text-[10px] text-slate-400 font-black uppercase tracking-wider bg-slate-50/50 backdrop-blur-md">
-                    <th className="p-4">Time</th>
-                    <th className="p-4">Caller</th>
-                    <th className="p-4">Customer</th>
-                    <th className="p-4">Duration</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4">Transcript</th>
-                    <th className="p-4">Languages</th>
-                    <th className="p-4">Handled By</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div>
+              <Table className="min-w-[1200px]" wrapperClassName="max-h-[650px] no-scrollbar">
+                <TableHeader className="sticky top-0 z-10 bg-card [&_th]:bg-muted/50">
+                  <TableRow>
+                    <TableHead>Time</TableHead>
+                    <TableHead>Caller</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Duration</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Transcript</TableHead>
+                    <TableHead>Languages</TableHead>
+                    <TableHead>Handled By</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading ? (
                     Array.from({ length: 6 }).map((_, i) => (
-                      <tr key={i} className="border-b border-slate-50">
+                      <TableRow key={i}>
                         {Array.from({ length: 8 }).map((__, j) => (
-                          <td key={j} className="p-4"><Skeleton className="h-4 w-full" /></td>
+                          <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                         ))}
-                      </tr>
+                      </TableRow>
                     ))
                   ) : calls.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="p-12 text-center text-sm text-slate-400 font-bold">
-                        No calls yet. They'll show up here the moment one comes in.
-                      </td>
-                    </tr>
+                    <TableEmpty colSpan={8}>No calls yet. They'll show up here the moment one comes in.</TableEmpty>
                   ) : (
                     calls.map((call) => (
-                      <tr
+                      <TableRow
                         key={call._id}
                         onClick={() => setSelectedCallId(call._id)}
                         className={cn(
-                          "border-b border-slate-50 cursor-pointer hover:bg-slate-50/70 transition-colors",
+                          "cursor-pointer",
                           call.matchStatus === "not_found" && "bg-red-50/40 hover:bg-red-50/70"
                         )}
                       >
-                        <td className="p-4 text-xs font-bold text-slate-500 whitespace-nowrap">
+                        <TableCell className="whitespace-nowrap">
                           {formatDateTime(call.createdAt)}
-                        </td>
-                        <td className="p-4 text-xs font-bold text-slate-700 whitespace-nowrap">
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
                             {call.status === "rejected_unknown_number" || call.status === "failed" ? (
                               <PhoneOff className="h-3.5 w-3.5 text-red-500" />
@@ -389,8 +386,8 @@ const CallingAgent = () => {
                             )}
                             {call.fromNumberE164 || call.fromNumber}
                           </div>
-                        </td>
-                        <td className="p-4 text-xs" onClick={(e) => e.stopPropagation()}>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           {call.matchStatus === "matched" && call.customerId ? (
                             <Link
                               to={`${basePath}/customers/${refToId(call.customerId)}`}
@@ -440,16 +437,16 @@ const CallingAgent = () => {
                               </Button>
                             </div>
                           )}
-                        </td>
-                        <td className="p-4 text-xs font-bold text-slate-500">
+                        </TableCell>
+                        <TableCell>
                           {formatDuration(call.durationSeconds)}
-                        </td>
-                        <td className="p-4">
+                        </TableCell>
+                        <TableCell>
                           <Badge variant="outline" className={cn("font-bold capitalize", STATUS_STYLES[call.status])}>
                             {call.status.replace(/_/g, " ")}
                           </Badge>
-                        </td>
-                        <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1.5">
                             <Badge variant="outline" className={cn("font-bold capitalize", PROCESSING_STYLES[call.transcriptionStatus])}>
                               {call.transcriptionStatus}
@@ -467,8 +464,8 @@ const CallingAgent = () => {
                               </Button>
                             )}
                           </div>
-                        </td>
-                        <td className="p-4">
+                        </TableCell>
+                        <TableCell>
                           <div className="flex flex-wrap gap-1">
                             {(call.languagesDetected || []).map((code) => (
                               <Badge key={code} variant="outline" className="text-[10px] font-bold border-slate-200 text-slate-500">
@@ -476,17 +473,17 @@ const CallingAgent = () => {
                               </Badge>
                             ))}
                           </div>
-                        </td>
-                        <td className="p-4 text-xs font-bold text-slate-600">
+                        </TableCell>
+                        <TableCell>
                           {call.handledByStaffId && typeof call.handledByStaffId === "object"
                             ? `${call.handledByStaffId.firstname || ""} ${call.handledByStaffId.lastname || ""}`.trim()
                             : "—"}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>

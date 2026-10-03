@@ -30,6 +30,7 @@ import {
 import { useAuth } from "@/hrms/contexts/AuthContext";
 import { ownerDashboardService, type OwnerDashboardData } from "@/hrms/services/ownerDashboardService";
 import { Badge } from "@/hrms/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/hrms/components/ui/table";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#ec4899", "#14b8a6", "#f43f5e"];
 
@@ -329,31 +330,31 @@ export default function OwnerDashboardPage() {
             <Badge variant="outline" className="bg-white text-slate-500">This Month</Badge>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-3 px-5 font-medium text-slate-500">Employee</th>
-                  <th className="text-right py-3 px-5 font-medium text-slate-500">Target</th>
-                  <th className="text-right py-3 px-5 font-medium text-slate-500">Achieved</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-left">Employee</TableHead>
+                  <TableHead className="text-right">Target</TableHead>
+                  <TableHead className="text-right">Achieved</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {tables.topSalespersons.map((s, i) => (
-                  <tr key={i} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                    <td className="py-3 px-5 font-medium text-slate-800">{s.name}</td>
-                    <td className="py-3 px-5 text-right text-slate-500">{fmtCurrency(s.target)}</td>
-                    <td className="py-3 px-5 text-right font-semibold text-slate-800">
+                  <TableRow key={i}>
+                    <TableCell className="font-medium">{s.name}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{fmtCurrency(s.target)}</TableCell>
+                    <TableCell className="text-right font-semibold">
                       <div className="flex items-center justify-end gap-2">
                         {fmtCurrency(s.achieved)}
                         <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${s.achievementPct >= 100 ? "bg-emerald-100 text-emerald-700" : s.achievementPct >= 60 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"}`}>
                           {s.achievementPct}%
                         </span>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </div>
 
@@ -367,24 +368,24 @@ export default function OwnerDashboardPage() {
             <Badge variant="outline" className="bg-rose-50 text-rose-600 border-rose-200">Attention</Badge>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-3 px-5 font-medium text-slate-500">Customer</th>
-                  <th className="text-right py-3 px-5 font-medium text-slate-500">Last Txn</th>
-                  <th className="text-right py-3 px-5 font-medium text-slate-500">Outstanding</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-left">Customer</TableHead>
+                  <TableHead className="text-right">Last Txn</TableHead>
+                  <TableHead className="text-right">Outstanding</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {tables.outstandingCustomers.map((c, i) => (
-                  <tr key={i} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                    <td className="py-3 px-5 font-medium text-slate-800">{c.name}</td>
-                    <td className="py-3 px-5 text-right text-slate-500 text-xs">{fmtDate(c.lastTransaction)}</td>
-                    <td className="py-3 px-5 text-right font-semibold text-rose-600">{fmtCurrency(c.outstanding)}</td>
-                  </tr>
+                  <TableRow key={i}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">{fmtDate(c.lastTransaction)}</TableCell>
+                    <TableCell className="text-right font-semibold text-rose-600">{fmtCurrency(c.outstanding)}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </div>
 
@@ -398,24 +399,24 @@ export default function OwnerDashboardPage() {
             <Badge variant="outline" className="bg-white text-slate-500">This Month</Badge>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-3 px-5 font-medium text-slate-500">Product</th>
-                  <th className="text-right py-3 px-5 font-medium text-slate-500">Qty</th>
-                  <th className="text-right py-3 px-5 font-medium text-slate-500">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-left">Product</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {tables.topProducts.map((p, i) => (
-                  <tr key={i} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                    <td className="py-3 px-5 font-medium text-slate-800 truncate max-w-[200px]">{p.name}</td>
-                    <td className="py-3 px-5 text-right text-slate-600 font-medium">{p.qty}</td>
-                    <td className="py-3 px-5 text-right font-semibold text-slate-800">{fmtCurrency(p.revenue)}</td>
-                  </tr>
+                  <TableRow key={i}>
+                    <TableCell className="font-medium truncate max-w-[200px]">{p.name}</TableCell>
+                    <TableCell className="text-right">{p.qty}</TableCell>
+                    <TableCell className="text-right font-semibold">{fmtCurrency(p.revenue)}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </div>
 
@@ -429,24 +430,24 @@ export default function OwnerDashboardPage() {
             <Badge variant="outline" className="bg-white text-slate-500">This Month</Badge>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left py-3 px-5 font-medium text-slate-500">Customer</th>
-                  <th className="text-right py-3 px-5 font-medium text-slate-500">Invoices</th>
-                  <th className="text-right py-3 px-5 font-medium text-slate-500">Revenue</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-left">Customer</TableHead>
+                  <TableHead className="text-right">Invoices</TableHead>
+                  <TableHead className="text-right">Revenue</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {tables.topCustomers.map((c, i) => (
-                  <tr key={i} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                    <td className="py-3 px-5 font-medium text-slate-800">{c.name}</td>
-                    <td className="py-3 px-5 text-right text-slate-600 font-medium">{c.invoices}</td>
-                    <td className="py-3 px-5 text-right font-semibold text-slate-800">{fmtCurrency(c.revenue)}</td>
-                  </tr>
+                  <TableRow key={i}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell className="text-right">{c.invoices}</TableCell>
+                    <TableCell className="text-right font-semibold">{fmtCurrency(c.revenue)}</TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </div>
 
