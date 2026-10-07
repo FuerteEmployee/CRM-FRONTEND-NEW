@@ -102,6 +102,8 @@ import PFRecordsPage from "./pages/staff/PFRecordsPage";
 import ShiftManagementPage from "./pages/staff/ShiftManagementPage";
 import DeviceApprovalsPage from "./pages/staff/DeviceApprovalsPage";
 import SessionLogsPage from "./pages/staff/SessionLogsPage";
+import FaceAttendancePage from "./pages/staff/FaceAttendancePage";
+import FaceKioskPage from "./pages/staff/FaceKioskPage";
 import SalarySettlementLedgerPage from "./pages/staff/SalarySettlementLedgerPage";
 
 // Settings
@@ -580,6 +582,22 @@ export function AppRoutes() {
           element={
             <PermissionGuard requiredPermission="view_attendance" mode="message">
               <SessionLogsPage />
+            </PermissionGuard>
+          }
+        />
+        <Route
+          path="staff/face-attendance"
+          element={
+            <PermissionGuard requiredPermission="view_attendance" mode="message">
+              <FaceAttendancePage />
+            </PermissionGuard>
+          }
+        />
+        <Route
+          path="staff/face-kiosk"
+          element={
+            <PermissionGuard requiredPermission="view_attendance" mode="message">
+              <FaceKioskPage />
             </PermissionGuard>
           }
         />

@@ -29,6 +29,7 @@ import {
   ArrowRight,
   Edit2,
   ShieldCheck,
+  ScanFace,
   AlertTriangle,
   PartyPopper,
 } from "lucide-react";
@@ -846,6 +847,11 @@ const AttendanceDashboardPage: React.FC = () => {
                       {att.source === "admin" && (
                         <span className="flex items-center gap-0.5 text-[9px] font-bold text-violet-600 uppercase tracking-wide">
                           <ShieldCheck className="h-2.5 w-2.5" /> Admin Entry
+                        </span>
+                      )}
+                      {att.source === "face" && (
+                        <span className="flex items-center gap-0.5 text-[9px] font-bold text-indigo-600 uppercase tracking-wide">
+                          <ScanFace className="h-2.5 w-2.5" /> Face Kiosk
                         </span>
                       )}
                       {att.autoPunchOut && (
