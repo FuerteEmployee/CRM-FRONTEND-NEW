@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import { Camera, Upload, X, ScanFace, Trash2, RefreshCw, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/hrms/components/ui/button";
