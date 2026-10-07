@@ -177,7 +177,8 @@ export const employeeService = {
     return res.data?.data || res.data || [];
   },
 
-  generatePayroll: async (data: { month: number; year: number; storeId: string }): Promise<any> => {
+  // storeId omitted = all branches (every salaried employee in the company).
+  generatePayroll: async (data: { month: number; year: number; storeId?: string }): Promise<any> => {
     const res = await apiClient.post("/payroll/generate", data);
     return res;
   },

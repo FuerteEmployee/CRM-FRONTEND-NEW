@@ -18,6 +18,7 @@ import { settingsService } from "@/api/services/settings.service";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 import { Loader2, Search, Mail, Plus } from "lucide-react";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 // Fixed section order matching the reference layout — any template whose
 // module isn't in this list still shows, just appended alphabetically after.
@@ -177,7 +178,7 @@ export default function SetupEmailTemplates() {
         ) : (
           <div className="space-y-5">
             {sections.map(({ module, items }) => (
-              <Card key={module} className="rounded-2xl border-border/50 shadow-sm overflow-hidden">
+              <Card key={module} className="rounded-lg shadow-sm overflow-hidden">
                 <div className="flex items-center justify-between px-6 py-3 bg-muted/40 border-b border-border/50">
                   <h3 className="text-sm font-black text-foreground">{module}</h3>
                   {can("Email Templates", "Edit") && (
@@ -193,25 +194,25 @@ export default function SetupEmailTemplates() {
                   )}
                 </div>
                 <CardContent className="p-0">
-                  <table className="w-full text-sm text-left">
-                    <thead>
-                      <tr className="border-b border-border/40">
-                        <th className="px-6 py-2.5 font-bold text-xs text-muted-foreground">Template Name</th>
-                        <th className="px-6 py-2.5 w-24" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/30">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Template Name</TableHead>
+                        <TableHead className="w-24" />
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {items.map((t: any) => (
-                        <tr key={t._id} className="hover:bg-muted/20 transition-colors">
-                          <td className="px-6 py-2.5">
+                        <TableRow key={t._id}>
+                          <TableCell>
                             <button
                               className={`font-medium hover:underline text-left ${t.active === false ? "text-muted-foreground line-through" : "text-primary"}`}
                               onClick={() => navigate(`/admin/setup/email-templates/${t._id}`)}
                             >
                               {t.name}
                             </button>
-                          </td>
-                          <td className="px-6 py-2.5 text-right">
+                          </TableCell>
+                          <TableCell className="text-right">
                             {can("Email Templates", "Edit") && (
                               <button
                                 className="text-primary hover:underline text-xs font-bold"
@@ -220,11 +221,11 @@ export default function SetupEmailTemplates() {
                                 {t.active === false ? "Enable" : "Disable"}
                               </button>
                             )}
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
             ))}

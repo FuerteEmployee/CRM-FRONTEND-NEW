@@ -5,6 +5,7 @@ import { Badge } from "@/hrms/components/ui/badge";
 import { Button } from "@/hrms/components/ui/button";
 import { Input } from "@/hrms/components/ui/input";
 import { Skeleton } from "@/hrms/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableContainer, TableEmpty, TableHead, TableHeader, TableRow } from "@/hrms/components/ui/table";
 import {
   Select,
   SelectContent,
@@ -402,55 +403,56 @@ const SalarySettlementLedgerPage = () => {
       </Card>
 
       {/* Table */}
-      <Card className="border-slate-200 bg-white shadow-sm overflow-hidden">
+      <TableContainer>
         <CardHeader className="py-4 border-b">
           <CardTitle className="text-base">Settlements ({settlements.length})</CardTitle>
         </CardHeader>
-        <CardContent className="p-0 overflow-x-auto">
+        <div>
           {isLoading ? (
             <div className="divide-y">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full rounded-none" />
               ))}
             </div>
-          ) : settlements.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              No settlements found. Click "Add to Settlement" to calculate one for an employee.
-            </div>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b">
-                <tr>
-                  <th className="text-left py-3 px-4 font-semibold">Employee</th>
-                  <th className="text-left py-3 px-4 font-semibold">Company</th>
-                  <th className="text-right py-3 px-4 font-semibold">Decided</th>
-                  <th className="text-right py-3 px-4 font-semibold">Est.</th>
-                  <th className="text-right py-3 px-4 font-semibold">Brand Slip</th>
-                  <th className="text-right py-3 px-4 font-semibold">Settlement</th>
-                  <th className="text-center py-3 px-4 font-semibold">Direction</th>
-                  <th className="text-center py-3 px-4 font-semibold">Status</th>
-                  <th className="text-right py-3 px-4 font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-left">Employee</TableHead>
+                  <TableHead className="text-left">Company</TableHead>
+                  <TableHead className="text-right">Decided</TableHead>
+                  <TableHead className="text-right">Est.</TableHead>
+                  <TableHead className="text-right">Brand Slip</TableHead>
+                  <TableHead className="text-right">Settlement</TableHead>
+                  <TableHead className="text-center">Direction</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {settlements.length === 0 && (
+                  <TableEmpty colSpan={9}>
+                    No settlements found. Click "Add to Settlement" to calculate one for an employee.
+                  </TableEmpty>
+                )}
                 {settlements.map((s) => {
                   const isSettled = s.status === "settled";
                   const recordId = s._id || s.id || "";
                   return (
-                    <tr key={recordId} className="hover:bg-slate-50">
-                      <td className="py-3 px-4 font-medium">{employeeName(s)}</td>
-                      <td className="py-3 px-4 text-xs text-muted-foreground">
+                    <TableRow key={recordId}>
+                      <TableCell><span className="font-medium">{employeeName(s)}</span></TableCell>
+                      <TableCell className="text-muted-foreground">
                         {companyName(s.managingCompanyId)}
-                      </td>
-                      <td className="py-3 px-4 text-right font-semibold">₹{s.decidedSalary.toLocaleString("en-IN")}</td>
-                      <td className="py-3 px-4 text-right text-xs">
+                      </TableCell>
+                      <TableCell className="text-right font-semibold">₹{s.decidedSalary.toLocaleString("en-IN")}</TableCell>
+                      <TableCell className="text-right">
                         {s.flags?.noTargetSet ? (
                           <span className="text-amber-600 font-semibold">No target</span>
                         ) : (
                           s.computedActualSalary ? `₹${s.computedActualSalary.toLocaleString("en-IN")}` : "—"
                         )}
-                      </td>
-                      <td className="py-3 px-4 text-right">
+                      </TableCell>
+                      <TableCell className="text-right">
                         {isSettled ? (
                           <span className="font-semibold">
                             {s.brandSlipAmount ? `₹${s.brandSlipAmount.toLocaleString("en-IN")}` : "—"}
@@ -476,11 +478,11 @@ const SalarySettlementLedgerPage = () => {
                             {s.brandSlipAmount ? `₹${s.brandSlipAmount.toLocaleString("en-IN")}` : "Enter"}
                           </Button>
                         )}
-                      </td>
-                      <td className="py-3 px-4 text-right font-semibold">
+                      </TableCell>
+                      <TableCell className="text-right">
                         {s.settlementAmount ? `₹${s.settlementAmount.toLocaleString("en-IN")}` : "—"}
-                      </td>
-                      <td className="py-3 px-4 text-center">
+                      </TableCell>
+                      <TableCell className="text-center">
                         <Badge
                           variant={
                             s.direction === "employee_to_ge"
@@ -503,8 +505,8 @@ const SalarySettlementLedgerPage = () => {
                               ? "↓ Emp"
                               : "—"}
                         </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-center">
+                      </TableCell>
+                      <TableCell className="text-center">
                         <Badge
                           variant={
                             isSettled
@@ -527,8 +529,8 @@ const SalarySettlementLedgerPage = () => {
                               ? "Pending"
                               : "Slip?"}
                         </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right space-x-1">
+                      </TableCell>
+                      <TableCell className="text-right space-x-1">
                         {editingId === recordId ? (
                           <>
                             <Button
@@ -578,15 +580,15 @@ const SalarySettlementLedgerPage = () => {
                             </Button>
                           </>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </TableContainer>
 
       {/* Add to Settlement Dialog */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>

@@ -3,7 +3,13 @@ import { useSearchParams } from "react-router-dom";
 import { LeadDetailDialog } from "@/components/leads/LeadDetailDialog";
 import { WhatsAppQuickChat } from "@/components/shared/WhatsAppQuickChat";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
-import { Plus, Search, ChevronDown, MoreHorizontal, Filter, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon, KanbanSquare, List, StickyNote } from "lucide-react";
+import { Plus, Search, ChevronDown, MoreHorizontal, Filter, Mail, User, Building2, Calendar, Tag as TagIcon, X, Trash2, Users, Edit, Eye, UserCheck, AlertTriangle, AlertOctagon, KanbanSquare, List, StickyNote, SlidersHorizontal, MessageCircle, Bell } from "lucide-react";
+import { ConvertLeadDialog } from "@/components/leads/ConvertLeadDialog";
+import { LeadsOverview } from "@/components/leads/LeadsOverview";
+import { MarketingSpendDialog } from "@/components/leads/MarketingSpendDialog";
+import { FollowUpsSheet, type FollowUpBucket } from "@/components/leads/FollowUpsSheet";
+import { useNotificationContext } from "@/context/NotificationContext";
+import { useLeadFeatures } from "@/hooks/useLeadFeatures";
 
 import { cn } from "@/lib/utils";
 import { LANGUAGE_NAMES } from "@/lib/languages";
@@ -11,7 +17,7 @@ import { LANGUAGE_NAMES } from "@/lib/languages";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { leadService } from "@/api/services/lead.service";
-import { formatDate } from "@/lib/dateFormat";
+import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -66,6 +72,7 @@ import { metaIntegrationService } from "@/api/services/metaIntegration.service";
 import { WebsiteFormsDialog } from "@/components/leads/WebsiteFormsDialog";
 import { AdminTablePageSkeleton } from "@/components/ui/page-skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 
 const DATE_FILTER_OPTIONS = [
   { value: "all", label: "All Time" },
@@ -94,16 +101,53 @@ const Leads = () => {
   const [customDateTo, setCustomDateTo] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState<number | "all">(25);
   const [currentPage, setCurrentPage] = useState(1);
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [assignedFilter, setAssignedFilter] = useState("all");
+  const [campaignFilter, setCampaignFilter] = useState("");
+  const [debouncedCampaign, setDebouncedCampaign] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCampaign(campaignFilter.trim()), 350);
+    return () => clearTimeout(t);
+  }, [campaignFilter]);
+  const [whatsappOnly, setWhatsappOnly] = useState(false);
+  const [convertedFilter, setConvertedFilter] = useState<"all" | "yes" | "no">("all");
+  const [reminderFilter, setReminderFilter] = useState<"all" | "today" | "overdue" | "upcoming" | "none">("all");
+  const [followUpsOpen, setFollowUpsOpen] = useState(false);
+  const [followUpsBucket, setFollowUpsBucket] = useState<FollowUpBucket>("today");
+  const [spendOpen, setSpendOpen] = useState(false);
+  const [convertLead, setConvertLead] = useState<any>(null);
+  const advancedFilterCount =
+    (sourceFilter !== "all" ? 1 : 0) +
+    (assignedFilter !== "all" ? 1 : 0) +
+    (debouncedCampaign ? 1 : 0) +
+    (whatsappOnly ? 1 : 0) +
+    (convertedFilter !== "all" ? 1 : 0) +
+    (reminderFilter !== "all" ? 1 : 0);
+  const clearAdvancedFilters = () => {
+    setSourceFilter("all");
+    setAssignedFilter("all");
+    setCampaignFilter("");
+    setWhatsappOnly(false);
+    setConvertedFilter("all");
+    setReminderFilter("all");
+  };
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, metaFormFilter, dateFilter, customDateFrom, customDateTo]);
+  }, [debouncedSearch, statusFilter, metaFormFilter, dateFilter, customDateFrom, customDateTo, sourceFilter, assignedFilter, debouncedCampaign, whatsappOnly, convertedFilter, reminderFilter]);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [viewItem, setViewItem] = useState(null);
   const [editItem, setEditItem] = useState(null);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can, user, isModuleEnabled } = usePermissions();
+  const { can, user, isModuleEnabled, isAdmin } = usePermissions();
+  // Add-ons the super admin enabled for this company (WhatsApp capture,
+  // marketing spend, patient conversion, follow-ups dashboard).
+  const leadFeatures = useLeadFeatures();
+  const hasConversion = leadFeatures.has("patient_conversion");
+  const hasFollowups = leadFeatures.has("lead_followups");
+  const hasWhatsAppLeads = leadFeatures.has("whatsapp_leads");
+  const hasSpend = leadFeatures.has("marketing_spend");
   const { getSetting } = useSettings();
   const isPilot = isTrinetraPilotUser(user?.email);
   // Branch is sourced from the HRMS module — only show/fetch it when the
@@ -191,10 +235,10 @@ const Leads = () => {
 
   interface LeadsPage { rows: any[]; total: number; pages: number; statusCounts: Record<string, number> }
   const { data: leadsResult, isLoading } = useQuery<LeadsPage>({
-    queryKey: ["leads", itemsPerPage, currentPage, debouncedSearch, statusFilter, metaFormFilter, dateFilter, customDateFrom, customDateTo],
+    queryKey: ["leads", itemsPerPage, currentPage, debouncedSearch, statusFilter, metaFormFilter, dateFilter, customDateFrom, customDateTo, sourceFilter, assignedFilter, debouncedCampaign, whatsappOnly, convertedFilter, reminderFilter],
     queryFn: async () => {
       if (itemsPerPage === "all") {
-        const response = await leadService.getAll();
+        const response = await leadService.getAll({ insights: "1" });
         const rows: any[] = Array.isArray(response) ? response : response?.data || [];
         // Status-card counts always reflect the whole tenant, before any
         // filters — matches the paginated path's server-side aggregate.
@@ -215,6 +259,12 @@ const Leads = () => {
         metaForm: metaFormFilter !== "all" ? metaFormFilter : undefined,
         dateFrom: range.from?.toISOString(),
         dateTo: range.to?.toISOString(),
+        source: sourceFilter !== "all" ? sourceFilter : undefined,
+        assigned: assignedFilter !== "all" ? assignedFilter : undefined,
+        campaign: debouncedCampaign || undefined,
+        whatsapp: whatsappOnly ? "1" : undefined,
+        converted: convertedFilter !== "all" ? convertedFilter : undefined,
+        reminder: reminderFilter !== "all" ? reminderFilter : undefined,
       });
       if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, statusCounts: {} };
       const statusCounts: Record<string, number> = {};
@@ -241,6 +291,34 @@ const Leads = () => {
     queryKey: ["staff"],
     queryFn: staffService.getAll,
   });
+
+  // Mirrors the backend's whatsappLeadCondition: created by the WhatsApp
+  // integration, or tagged with the "WhatsApp" source.
+  const isWhatsAppLead = (l: any) => {
+    if (l?.origin === "whatsapp") return true;
+    const name = typeof l?.source === "object" ? l.source?.name : sources.find((s: any) => s._id === l?.source)?.name;
+    return /^whatsapp$/i.test(String(name || "").trim());
+  };
+
+  const confirmedStatusId: string | undefined = useMemo(
+    () => (statuses as any[]).find((s) => /^confirm/i.test(String(s.name || "").trim()))?._id,
+    [statuses]
+  );
+
+  // New WhatsApp enquiries (and replies on existing leads) arrive over the
+  // socket from the WhatsApp webhook — refresh the list and overview live.
+  const { socket } = useNotificationContext();
+  useEffect(() => {
+    if (!socket) return;
+    const handler = (payload: any) => {
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+      if (payload?.created) {
+        SonnerToast.success(`New WhatsApp lead: ${payload.name || payload.mobile || ""}`);
+      }
+    };
+    socket.on("lead:whatsapp", handler);
+    return () => { socket.off("lead:whatsapp", handler); };
+  }, [socket, queryClient]);
 
   // Shares the ["meta-integration"] cache with MetaAdsDialog — whichever
   // fetches first populates it for both, so connected forms show up here
@@ -475,7 +553,7 @@ const Leads = () => {
     }
   });
 
-  const convertToCustomerMutation = useMutation({
+  const legacyConvertMutation = useMutation({
     mutationFn: (id: string) => leadService.convertToCustomer(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
@@ -762,7 +840,22 @@ const Leads = () => {
                             dbName.includes(filterVal);
         const matchMetaForm = metaFormFilter === "all" || l.meta_form_id === metaFormFilter;
         const matchDate = matchesDateFilter(l.createdAt);
-        return matchSearch && matchStatus && matchMetaForm && matchDate;
+
+        const lSourceId = typeof l.source === "object" ? l.source?._id : l.source;
+        const lAssignedId = typeof l.assigned === "object" ? l.assigned?._id : l.assigned;
+        const matchSource = sourceFilter === "all" || lSourceId === sourceFilter;
+        const matchAssigned =
+          assignedFilter === "all" || (assignedFilter === "unassigned" ? !lAssignedId : lAssignedId === assignedFilter);
+        const matchCampaign = !debouncedCampaign || (l.campaign || "") === debouncedCampaign;
+        const matchWhatsApp = !whatsappOnly || isWhatsAppLead(l);
+        const matchConverted =
+          convertedFilter === "all" || (convertedFilter === "yes" ? !!l.converted : !l.converted);
+        const matchReminder =
+          reminderFilter === "all" ||
+          (reminderFilter === "none" ? !l.pending_reminders : l.reminder_bucket === reminderFilter);
+
+        return matchSearch && matchStatus && matchMetaForm && matchDate &&
+          matchSource && matchAssigned && matchCampaign && matchWhatsApp && matchConverted && matchReminder;
       })
       // Newest leads first by default.
       .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
@@ -771,7 +864,7 @@ const Leads = () => {
   const filtered = useMemo(() => {
     if (itemsPerPage !== "all") return leads;
     return filterLeadsClientSide(leads, debouncedSearch.toLowerCase());
-  }, [leads, debouncedSearch, statusFilter, metaFormFilter, dateFilter, customDateFrom, customDateTo, statuses, itemsPerPage]);
+  }, [leads, debouncedSearch, statusFilter, metaFormFilter, dateFilter, customDateFrom, customDateTo, statuses, itemsPerPage, sourceFilter, assignedFilter, debouncedCampaign, whatsappOnly, convertedFilter, reminderFilter]);
 
   const paginated = filtered;
   const totalPages = itemsPerPage === "all" ? 1 : (leadsResult?.pages ?? 1);
@@ -836,13 +929,11 @@ const Leads = () => {
       {
         id: "company",
         label: "Company",
-        tdClassName: "font-bold text-slate-600 text-xs",
         cell: (l) => l.company || "-",
       },
       {
         id: "email",
         label: "Email",
-        tdClassName: "text-slate-500 font-medium text-xs",
         cell: (l) => (
           <div className="flex items-center gap-1.5 group/email cursor-pointer">
             <Mail className="h-3 w-3 text-slate-300 group-hover/email:text-primary transition-colors" />
@@ -853,14 +944,12 @@ const Leads = () => {
       {
         id: "phone",
         label: "Phone",
-        tdClassName: "text-slate-500 font-medium text-xs",
         cell: (l) => (l.phonenumber ? <WhatsAppQuickChat phone={l.phonenumber} data={{ customer_name: l.name, lead_id: l._id }} /> : "-"),
       },
       {
         id: "value",
         label: "Value",
-        tdClassName: "font-black text-slate-900 text-xs",
-        cell: (l) => formatAmount(l.lead_value || 0),
+        cell: (l) => <span className="font-bold">{formatAmount(l.lead_value || 0)}</span>,
       },
       {
         id: "tags",
@@ -909,13 +998,11 @@ const Leads = () => {
       ...(isPilot ? [{
         id: "salesPerson",
         label: "Sales Person",
-        tdClassName: "text-xs font-bold text-slate-700",
         cell: (l: any) => l.salesPerson || "-",
       }] : []),
       ...(canUseBranch ? [{
         id: "branch",
         label: "Branch",
-        tdClassName: "text-xs font-bold text-slate-700",
         cell: (l: any) => (typeof l.branch === "object" ? (l.branch?.name || "-") : (l.branch || "-")),
       }] : []),
       {
@@ -941,36 +1028,91 @@ const Leads = () => {
       {
         id: "source",
         label: "Source",
-        tdClassName: "text-[10px] font-bold text-slate-400 uppercase",
-        cell: (l) => (typeof l.source === 'object' ? l.source?.name : (sources.find((s) => s._id === l.source)?.name || "-")),
+        cell: (l) => {
+          const name = typeof l.source === 'object' ? l.source?.name : (sources.find((s) => s._id === l.source)?.name || "-");
+          if (!isWhatsAppLead(l)) return name;
+          return (
+            <span className="inline-flex items-center gap-1 rounded-md bg-green-50 text-green-700 px-1.5 py-0.5 normal-case" title={l.whatsapp_last_message || undefined}>
+              <MessageCircle className="h-3 w-3" /> {name || "WhatsApp"}
+              {l.whatsapp_message_count > 1 && <span className="text-green-500">· {l.whatsapp_message_count}</span>}
+            </span>
+          );
+        },
+      },
+      {
+        id: "campaign",
+        label: "Campaign",
+        cell: (l) => l.campaign || l.meta_form_name || "-",
       },
       {
         id: "followup",
         label: "Follow-Up",
-        tdClassName: "text-[10px] font-bold text-slate-400",
-        cell: (l) => (l.followup_date ? formatDate(l.followup_date) : "-"),
+        tdOnClick: (e) => e.stopPropagation(),
+        cell: (l) => {
+          const next = l.next_reminder;
+          if (!hasFollowups || !next) return l.followup_date ? formatDate(l.followup_date) : "-";
+          const tone =
+            l.reminder_bucket === "overdue" || (l.reminder_bucket === "today" && new Date(next.date).getTime() < Date.now())
+              ? "bg-red-50 text-red-600"
+              : l.reminder_bucket === "today"
+                ? "bg-amber-50 text-amber-700"
+                : "bg-blue-50 text-blue-600";
+          return (
+            <button
+              type="button"
+              onClick={() => openModal("view", l, "reminders")}
+              title={next.description}
+              className={cn("inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 whitespace-nowrap", tone)}
+            >
+              <Bell className="h-3 w-3" />
+              {formatDateTime(next.date)}
+              {l.pending_reminders > 1 && <span className="opacity-70">+{l.pending_reminders - 1}</span>}
+            </button>
+          );
+        },
       },
+      ...(!hasConversion ? [] : [{
+        id: "conversion",
+        label: "Conversion",
+        cell: (l) =>
+          l.converted ? (
+            <Badge className="bg-emerald-50 text-emerald-700 border-none rounded-md text-[8px] font-black uppercase px-1.5 h-5 tracking-tight" title={l.conversion?.treatment_name}>
+              Converted{l.conversion?.converted_at ? ` · ${formatDate(l.conversion.converted_at)}` : ""}
+            </Badge>
+          ) : (
+            <span className="text-[10px] font-bold text-slate-300">Not converted</span>
+          ),
+      },
+      {
+        id: "treatmentValue",
+        label: "Treatment Value",
+        cell: (l) =>
+          l.conversion ? (
+            <span className="font-bold" title={l.conversion.treatment_name}>{formatAmount(Number(l.conversion.treatment_amount) || 0)}</span>
+          ) : (
+            "-"
+          ),
+      }]),
       {
         id: "lastContact",
         label: "Last Contact",
-        tdClassName: "text-[10px] font-bold text-slate-400",
-        cell: () => "Never",
+        cell: (l) => (l.lastcontact ? formatDateTime(l.lastcontact) : "Never"),
       },
       {
         id: "created",
         label: "Created",
-        tdClassName: "text-[10px] font-bold text-slate-400 italic",
         cell: (l) => formatDate(l.createdAt),
       },
     ];
     return cols;
-  }, [isPilot, canUseBranch, staff, statuses, sources, updateLeadStatusMutation, formatAmount, showLeadNoteIndicator, leadIdsWithNotesSet]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPilot, canUseBranch, staff, statuses, sources, updateLeadStatusMutation, formatAmount, showLeadNoteIndicator, leadIdsWithNotesSet, hasConversion, hasFollowups]);
 
   const customFieldColumnDefs = useMemo(
     () => tableCustomFields.map((cf: any) => ({
       id: `cf_${cf._id}`,
       label: cf.name,
-      tdClassName: "text-xs font-bold text-slate-600",
+      tdClassName: "",
       cell: (l: any) => l.custom_fields?.[cf.slug] ?? "-",
     })),
     [tableCustomFields]
@@ -1054,7 +1196,7 @@ const Leads = () => {
   // Export needs the full filtered set, not just the current page — fetched
   // on demand only when the user actually exports.
   const loadAllFilteredLeads = async () => {
-    const response = await leadService.getAll();
+    const response = await leadService.getAll({ insights: "1" });
     const rows: any[] = Array.isArray(response) ? response : response?.data || [];
     return filterLeadsClientSide(rows, debouncedSearch.toLowerCase());
   };
@@ -1431,20 +1573,28 @@ const Leads = () => {
                             </DropdownMenuContent>
                           </DropdownMenu>
 
-                          {/* Convert to Customer */}
-                          <Button
-                            onClick={() => {
-                              if (!selectedLead) return;
-                              if (window.confirm(`Convert "${selectedLead.name}" to a customer? A new customer record will be created.`)) {
-                                convertToCustomerMutation.mutate(selectedLead._id);
-                              }
-                            }}
-                            disabled={convertToCustomerMutation.isPending}
-                            className="h-9 rounded-xl px-5 font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 gap-2"
-                          >
-                            <UserCheck className="h-4 w-4" />
-                            {convertToCustomerMutation.isPending ? "Converting..." : "Convert to Customer"}
-                          </Button>
+                          {/* Convert to Patient */}
+                          {selectedLead?.converted ? (
+                            <Badge className="h-9 rounded-xl px-4 font-black uppercase text-[10px] tracking-widest bg-emerald-50 text-emerald-700 border border-emerald-200 gap-2">
+                              <UserCheck className="h-4 w-4" /> Converted
+                            </Badge>
+                          ) : can("Leads", "Edit") && (
+                            <Button
+                              onClick={() => {
+                                if (!selectedLead) return;
+                                if (hasConversion) {
+                                  setConvertLead(selectedLead);
+                                } else if (window.confirm(`Convert "${selectedLead.name}" to a customer? A new customer record will be created.`)) {
+                                  legacyConvertMutation.mutate(selectedLead._id);
+                                }
+                              }}
+                              disabled={legacyConvertMutation.isPending}
+                              className="h-9 rounded-xl px-5 font-black uppercase text-[10px] tracking-widest bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20 transition-all hover:scale-105 gap-2"
+                            >
+                              <UserCheck className="h-4 w-4" />
+                              {hasConversion ? "Convert to Patient" : legacyConvertMutation.isPending ? "Converting..." : "Convert to Customer"}
+                            </Button>
+                          )}
                         </>
                       )}
 
@@ -1464,6 +1614,36 @@ const Leads = () => {
           </div>
         </div>
 
+        {/* CRM overview — every figure is computed server-side (/leads/overview) */}
+        {leadFeatures.any && (
+        <LeadsOverview
+          active={{
+            whatsapp: whatsappOnly,
+            converted: convertedFilter === "yes",
+            confirmed: !!confirmedStatusId && statusFilter === confirmedStatusId,
+            reminder: reminderFilter,
+          }}
+          onShowAll={() => {
+            clearAdvancedFilters();
+            setStatusFilter("all");
+          }}
+          onToggleWhatsApp={() => setWhatsappOnly((v) => !v)}
+          onToggleConfirmed={() => {
+            if (!confirmedStatusId) {
+              SonnerToast.info("No \"Confirmed\" status exists yet — add it under Setup → Leads → Statuses.");
+              return;
+            }
+            setStatusFilter((prev) => (prev === confirmedStatusId ? "all" : confirmedStatusId));
+          }}
+          onToggleConverted={() => setConvertedFilter((v) => (v === "yes" ? "all" : "yes"))}
+          onOpenFollowUps={(bucket) => {
+            setFollowUpsBucket(bucket);
+            setFollowUpsOpen(true);
+          }}
+          onManageSpend={() => setSpendOpen(true)}
+        />
+        )}
+
         {/* Ads-wise view — only shows once at least one lead has been imported from a Meta form */}
         {adFormTabs.length > 0 && (
           <Tabs value={metaFormFilter} onValueChange={setMetaFormFilter}>
@@ -1479,7 +1659,7 @@ const Leads = () => {
         )}
 
         {/* Status Cards - Filters */}
-        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-11 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-3">
           {statusCards.map((card) => {
             const count = leadsResult?.statusCounts?.[String(card.id)] ?? 0;
             const isActive = statusFilter === card.id;
@@ -1489,7 +1669,7 @@ const Leads = () => {
                 key={card.id}
                 onClick={() => setStatusFilter(isActive ? "all" : card.id)}
                 className={cn(
-                  "flex flex-col p-2.5 rounded-2xl transition-all duration-300 text-left group border-2",
+                  "flex flex-col p-3.5 rounded-2xl transition-all duration-300 text-left group border-2",
                   isActive ? "border-primary bg-primary/5 ring-4 ring-primary/5" : "border-transparent bg-white hover:border-slate-100 shadow-sm"
                 )}
               >
@@ -1507,7 +1687,7 @@ const Leads = () => {
         {view === "kanban" ? (
           <LeadsKanban leads={filtered} statuses={statuses} staff={staff} isLoading={isLoading} />
         ) : (
-        <Card className="border shadow-sm rounded-xl overflow-hidden bg-white">
+        <Card className="border shadow-sm rounded-lg overflow-hidden bg-card">
           <CardContent className="p-0">
             {/* Table Controls */}
             <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-6 bg-slate-50/30">
@@ -1542,6 +1722,12 @@ const Leads = () => {
                     { header: "Country", key: "country" },
                     { header: "Zip", key: "zip" },
                     { header: "Website", key: "website" },
+                    { header: "Campaign", key: (l) => l.campaign || l.meta_form_name || "" },
+                    { header: "WhatsApp Lead", key: (l) => (isWhatsAppLead(l) ? "Yes" : "No") },
+                    { header: "Next Follow-up", key: (l) => (l.next_reminder?.date ? formatDateTime(l.next_reminder.date) : "") },
+                    { header: "Converted", key: (l) => (l.converted ? "Yes" : "No") },
+                    { header: "Treatment", key: (l) => l.conversion?.treatment_name || "" },
+                    { header: "Treatment Amount", key: (l) => l.conversion?.treatment_amount ?? "" },
                     { header: "Created At", key: (l) => l.createdAt ? new Date(l.createdAt).toLocaleDateString() : "" },
                     ...(isPilot ? [
                       { header: "Sales Person", key: (l: any) => l.salesPerson || "" },
@@ -1744,6 +1930,106 @@ const Leads = () => {
                   </PopoverContent>
                 </Popover>
 
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      aria-label="More lead filters"
+                      className="h-11 shrink-0 bg-white border-slate-200 rounded-2xl gap-2 px-3 text-xs font-black"
+                    >
+                      <SlidersHorizontal className={cn("h-4 w-4", advancedFilterCount ? "text-primary" : "text-slate-400")} />
+                      Filters
+                      {advancedFilterCount > 0 && (
+                        <span className="h-5 min-w-5 px-1 rounded-full bg-primary text-white text-[10px] flex items-center justify-center">{advancedFilterCount}</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-80 max-w-[calc(100vw-2rem)] rounded-2xl p-4 space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Lead source</Label>
+                      <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All sources</SelectItem>
+                          {(sources as any[]).map((s) => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Campaign</Label>
+                      <Input
+                        list="lead-campaign-options"
+                        value={campaignFilter}
+                        onChange={(e) => setCampaignFilter(e.target.value)}
+                        placeholder="Any campaign"
+                        className="h-9 text-xs"
+                      />
+                      <datalist id="lead-campaign-options">
+                        {Array.from(new Set(leads.map((l: any) => l.campaign).filter(Boolean))).map((c: any) => (
+                          <option key={c} value={c} />
+                        ))}
+                      </datalist>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Assigned staff</Label>
+                      <Select value={assignedFilter} onValueChange={setAssignedFilter}>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Anyone</SelectItem>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                          {(staff as any[]).map((s) => (
+                            <SelectItem key={s._id} value={s._id}>{`${s.firstname || ""} ${s.lastname || ""}`.trim() || s.email}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {hasConversion && (
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Conversion</Label>
+                        <Select value={convertedFilter} onValueChange={(v) => setConvertedFilter(v as any)}>
+                          <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All</SelectItem>
+                            <SelectItem value="yes">Converted</SelectItem>
+                            <SelectItem value="no">Not converted</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      )}
+                      {hasFollowups && (
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-black uppercase tracking-wider text-slate-400">Reminder</Label>
+                        <Select value={reminderFilter} onValueChange={(v) => setReminderFilter(v as any)}>
+                          <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All</SelectItem>
+                            <SelectItem value="today">Due today</SelectItem>
+                            <SelectItem value="overdue">Overdue</SelectItem>
+                            <SelectItem value="upcoming">Upcoming</SelectItem>
+                            <SelectItem value="none">No reminder</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      )}
+                    </div>
+                    {hasWhatsAppLeads && (
+                    <label className="flex items-center gap-2 rounded-xl border border-slate-100 p-2.5 cursor-pointer">
+                      <Checkbox checked={whatsappOnly} onCheckedChange={(v) => setWhatsappOnly(!!v)} />
+                      <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                        <MessageCircle className="h-3.5 w-3.5 text-green-600" /> WhatsApp leads only
+                      </span>
+                    </label>
+                    )}
+                    {advancedFilterCount > 0 && (
+                      <Button variant="ghost" size="sm" onClick={clearAdvancedFilters} className="w-full h-8 text-xs font-bold text-slate-500">
+                        Clear filters
+                      </Button>
+                    )}
+                  </PopoverContent>
+                </Popover>
+
                 <div className="relative w-full lg:w-80">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 stroke-[3]" />
                   <Input
@@ -1756,41 +2042,38 @@ const Leads = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto max-h-[600px] no-scrollbar">
-              <table className="w-full min-w-[1400px]">
-                <thead>
-                  <tr className="sticky top-0 z-10 border-b border-slate-100 text-left text-[10px] text-slate-400 font-black uppercase tracking-wider bg-slate-50/50 backdrop-blur-md">
-                    <th className="p-4 w-12 bg-slate-50/50">
+            <Table className="min-w-[1400px]" wrapperClassName="max-h-[600px] no-scrollbar">
+                <TableHeader className="sticky top-0 z-10 bg-card [&_th]:bg-muted/50">
+                  <TableRow>
+                    <TableHead className="w-12">
                       <Checkbox className="border-slate-300 rounded-md" checked={selectedLeads.length === paginated.length && paginated.length > 0} onCheckedChange={handleSelectAll} />
-                    </th>
-                    <th className="p-4 w-12 text-center bg-slate-50/50">#</th>
+                    </TableHead>
+                    <TableHead className="w-12 text-center">#</TableHead>
                     {visibleLeadColumns.map((col) => (
-                      <th key={col.id} className={cn("p-4 bg-slate-50/50", col.thClassName)}>{col.label}</th>
+                      <TableHead key={col.id} className={col.thClassName}>{col.label}</TableHead>
                     ))}
-                    <th className="p-4 text-center bg-slate-50/50">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="text-sm">
+                    <TableHead className="text-center">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="border-b border-slate-50">
-                        <td colSpan={visibleLeadColumns.length + 3} className="p-10"><Skeleton className="h-12 w-full rounded-2xl" /></td>
-                      </tr>
+                      <TableRow key={i}>
+                        <TableCell colSpan={visibleLeadColumns.length + 3}><Skeleton className="h-12 w-full rounded-2xl" /></TableCell>
+                      </TableRow>
                     ))
                   ) : paginated.length === 0 ? (
-                    <tr>
-                      <td colSpan={visibleLeadColumns.length + 3} className="p-20 text-center"><div className="flex flex-col items-center gap-3"><Users className="h-12 w-12 text-slate-100" /><p className="text-slate-400 font-black uppercase tracking-widest text-xs">No leads found in the pipeline</p></div></td>
-                    </tr>
+                    <TableEmpty colSpan={visibleLeadColumns.length + 3}><div className="flex flex-col items-center gap-3"><Users className="h-12 w-12 text-muted-foreground/30" /><p>No leads found in the pipeline</p></div></TableEmpty>
                   ) : (
                     paginated.map((l, index) => (
-                      <tr
+                      <TableRow
                         key={l._id}
                         className={cn(
-                          "border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-all duration-300 group",
+                          "group",
                           selectedLeads.includes(l._id) ? "bg-primary/5" : ""
                         )}
                       >
-                        <td className="p-4">
+                        <TableCell>
                           <Checkbox 
                             className="border-slate-200 rounded-md" 
                             checked={selectedLeads.includes(l._id)} 
@@ -1799,14 +2082,14 @@ const Leads = () => {
                               else setSelectedLeads(selectedLeads.filter(id => id !== l._id));
                             }} 
                           />
-                        </td>
-                        <td className="p-4 text-center text-[10px] font-black text-slate-300">{(currentPage - 1) * itemsPerPageNum + index + 1}</td>
+                        </TableCell>
+                        <TableCell className="text-center text-muted-foreground">{(currentPage - 1) * itemsPerPageNum + index + 1}</TableCell>
                         {visibleLeadColumns.map((col) => (
-                          <td key={col.id} className={cn("p-4", col.tdClassName)} onClick={col.tdOnClick}>
+                          <TableCell key={col.id} className={col.tdClassName} onClick={col.tdOnClick}>
                             {col.cell(l)}
-                          </td>
+                          </TableCell>
                         ))}
-                        <td className="p-4">
+                        <TableCell>
                            <TableActions
                              onView={() => openModal("view", l)}
                              onEdit={() => openModal("edit", l)}
@@ -1816,51 +2099,61 @@ const Leads = () => {
                                }
                              }}
                            />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
-            </div>
+                </TableBody>
+            </Table>
 
-            {/* Pagination */}
-            {!isLoading && totalLeadsCount > 0 && (
-              <div className="p-6 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
-                <p className="text-xs font-black uppercase tracking-widest text-slate-400">
-                  Showing <span className="text-slate-900">{(currentPage - 1) * itemsPerPageNum + 1}</span> to <span className="text-slate-900">{Math.min(currentPage * itemsPerPageNum, totalLeadsCount)}</span> of <span className="text-slate-900">{totalLeadsCount}</span> entries
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="rounded-xl h-9 font-black uppercase text-[10px] tracking-widest hover:bg-white border border-transparent hover:border-slate-200 transition-all"
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    Previous
-                  </Button>
-                  <div className="flex items-center gap-1 px-2">
-                    <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center text-white font-black text-xs shadow-lg shadow-primary/20">
-                        {currentPage}
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="rounded-xl h-9 font-black uppercase text-[10px] tracking-widest hover:bg-white border border-transparent hover:border-slate-200 transition-all"
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+            {!isLoading && (
+              <TablePagination page={currentPage} pageSize={itemsPerPageNum} total={totalLeadsCount} onPageChange={setCurrentPage} />
             )}
           </CardContent>
         </Card>
         )}
       </div>
+
+      {hasConversion && (
+      <ConvertLeadDialog
+        lead={convertLead}
+        open={!!convertLead}
+        onOpenChange={(o) => !o && setConvertLead(null)}
+        onConverted={() => {
+          setConvertLead(null);
+          closeLeadModal();
+        }}
+      />
+      )}
+      {hasSpend && (
+      <MarketingSpendDialog
+        open={spendOpen}
+        onOpenChange={setSpendOpen}
+        sources={sources as any[]}
+        canCreate={can("Marketing Spend", "Create")}
+        canEdit={can("Marketing Spend", "Edit")}
+        canDelete={can("Marketing Spend", "Delete")}
+        isAdmin={!!isAdmin}
+      />
+      )}
+      {hasFollowups && (
+      <FollowUpsSheet
+        open={followUpsOpen}
+        onOpenChange={setFollowUpsOpen}
+        bucket={followUpsBucket}
+        onBucketChange={setFollowUpsBucket}
+        counts={queryClient.getQueryData<any>(["leads", "overview"])?.reminders}
+        onOpenLead={(leadId) => {
+          setFollowUpsOpen(false);
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.set("leadView", leadId);
+            next.set("tab", "reminders");
+            return next;
+          }, { replace: true });
+        }}
+      />
+      )}
     </DashboardLayout>
   );
 };

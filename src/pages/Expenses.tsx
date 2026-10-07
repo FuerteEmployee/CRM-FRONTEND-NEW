@@ -43,6 +43,7 @@ import { salesService } from "@/api/services/sales.service";
 import { formatDate } from "@/lib/dateFormat";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCurrency } from "@/context/CurrencyContext";
 
@@ -265,11 +266,11 @@ const Expenses = () => {
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-separate border-spacing-y-4">
-                <thead>
-                  <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">
-                    <th className="px-6 pb-2 w-12">
+            <TableContainer>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
                       <Checkbox
                         checked={allExpensePageSelected}
                         onCheckedChange={() => {
@@ -279,43 +280,39 @@ const Expenses = () => {
                           );
                         }}
                       />
-                    </th>
-                    <th className="px-6 pb-2">Category</th>
-                    <th className="px-6 pb-2">Amount</th>
-                    <th className="px-6 pb-2">Name</th>
-                    <th className="px-6 pb-2">Receipt</th>
-                    <th className="px-6 pb-2">Date</th>
-                    <th className="px-6 pb-2">Project</th>
-                    <th className="px-6 pb-2">Invoice</th>
-                    <th className="px-6 pb-2">Reference #</th>
-                    <th className="px-6 pb-2">Payment Mode</th>
-                    <th className="px-6 pb-2 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+                    </TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Receipt</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Project</TableHead>
+                    <TableHead>Invoice</TableHead>
+                    <TableHead>Reference #</TableHead>
+                    <TableHead>Payment Mode</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="bg-muted/5 animate-pulse">
-                        <td colSpan={11} className="p-4 rounded-3xl h-16">
+                      <TableRow key={i} className="animate-pulse">
+                        <TableCell colSpan={11} className="h-16">
                           <Skeleton className="h-full w-full rounded-2xl" />
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   ) : filtered.length === 0 ? (
-                    <tr>
-                      <td colSpan={11} className="text-center py-20 bg-muted/5 rounded-[2rem]">
-                        <div className="flex flex-col items-center gap-4">
-                          <div className="p-6 bg-background rounded-full shadow-inner">
-                            <Receipt className="h-12 w-12 text-muted-foreground/20" />
-                          </div>
-                          <p className="text-sm font-black uppercase tracking-widest text-muted-foreground/40">No entries found</p>
-                        </div>
-                      </td>
-                    </tr>
+                    <TableEmpty colSpan={11} className="py-12">
+                      <div className="flex flex-col items-center gap-3 not-italic">
+                        <Receipt className="h-10 w-10 text-muted-foreground/30" />
+                        <span>No records found.</span>
+                      </div>
+                    </TableEmpty>
                   ) : (
                     paginatedExpenses.map((e: any) => (
-                      <tr key={e._id} className="group bg-muted/5 hover:bg-primary/5 transition-all duration-300 rounded-[1.5rem] relative">
-                        <td className="px-6 py-5 first:rounded-l-[1.5rem] last:rounded-r-[1.5rem]">
+                      <TableRow key={e._id} className="group">
+                        <TableCell>
                           <Checkbox 
                             checked={selectedExpenses.includes(e._id)}
                             onCheckedChange={(checked) => {
@@ -323,21 +320,21 @@ const Expenses = () => {
                               else setSelectedExpenses(selectedExpenses.filter(id => id !== e._id));
                             }}
                           />
-                        </td>
-                        <td className="px-6 py-5">
+                        </TableCell>
+                        <TableCell>
                           <Badge variant="outline" className="rounded-lg bg-background border-none shadow-sm text-[10px] font-black uppercase tracking-widest px-3 py-1">
                             {e.category || "General"}
                           </Badge>
-                        </td>
-                        <td className="px-6 py-5">
+                        </TableCell>
+                        <TableCell>
                           <span className="text-sm font-black text-foreground">
                             {formatAmount(e.amount || 0)}
                           </span>
-                        </td>
-                        <td className="px-6 py-5">
+                        </TableCell>
+                        <TableCell>
                           <span className="text-xs font-bold text-slate-600">{e.expense_name || "-"}</span>
-                        </td>
-                        <td className="px-6 py-5">
+                        </TableCell>
+                        <TableCell>
                           {e.receipt ? (
                             <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg bg-background shadow-sm hover:text-primary">
                               <Eye className="h-4 w-4" />
@@ -345,14 +342,14 @@ const Expenses = () => {
                           ) : (
                             <span className="text-[10px] font-bold text-muted-foreground/40 uppercase">No Receipt</span>
                           )}
-                        </td>
-                        <td className="px-6 py-5">
+                        </TableCell>
+                        <TableCell>
                           <span className="text-xs font-bold text-slate-500">{e.date ? formatDate(e.date) : "-"}</span>
-                        </td>
-                        <td className="px-6 py-5">
+                        </TableCell>
+                        <TableCell>
                           <span className="text-xs font-bold text-slate-600 italic">{e.project?.name || e.project || "-"}</span>
-                        </td>
-                        <td className="px-6 py-5">
+                        </TableCell>
+                        <TableCell>
                           {e.invoiceid ? (
                             <Badge className="rounded-lg bg-indigo-50 text-indigo-600 border-none font-black text-[10px] tracking-tighter">
                               {e.invoiceid?.number || "INV-MATCHED"}
@@ -360,16 +357,16 @@ const Expenses = () => {
                           ) : (
                             <span className="text-[10px] font-bold text-muted-foreground/30 italic">N/A</span>
                           )}
-                        </td>
-                        <td className="px-6 py-5">
+                        </TableCell>
+                        <TableCell>
                           <span className="text-xs font-mono font-bold text-slate-400">{e.reference_no || "-"}</span>
-                        </td>
-                        <td className="px-6 py-5">
+                        </TableCell>
+                        <TableCell>
                           <Badge variant="secondary" className="rounded-lg bg-slate-100 text-slate-600 border-none text-[10px] font-bold uppercase tracking-widest">
                             {e.paymentmode || "Cash"}
                           </Badge>
-                        </td>
-                        <td className="px-6 py-5 text-right first:rounded-l-[1.5rem] last:rounded-r-[1.5rem]">
+                        </TableCell>
+                        <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl hover:bg-background shadow-none transition-all">
@@ -410,44 +407,14 @@ const Expenses = () => {
                               )}
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination Info */}
-            <div className="mt-8 flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-6 rounded-[2rem] border border-border/50">
-              <p className="text-xs font-bold text-muted-foreground/60 tracking-widest uppercase">
-                Showing {filtered.length === 0 ? 0 : (safeExpensePage - 1) * expensePageSize + 1} to {Math.min(safeExpensePage * expensePageSize, filtered.length)} of {filtered.length} entries
-              </p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-10 rounded-xl font-black text-[10px] uppercase tracking-widest px-6 bg-background border-none shadow-sm disabled:opacity-30"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={safeExpensePage <= 1}
-                >
-                  Previous
-                </Button>
-                <Button variant="outline" size="sm" className="h-10 w-10 rounded-xl font-black text-xs bg-primary text-white border-none shadow-lg shadow-primary/20">
-                  {safeExpensePage}
-                </Button>
-                <span className="text-xs text-muted-foreground/60 font-bold px-1">of {totalExpensePages}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-10 rounded-xl font-black text-[10px] uppercase tracking-widest px-6 bg-background border-none shadow-sm disabled:opacity-30"
-                  onClick={() => setCurrentPage(p => Math.min(totalExpensePages, p + 1))}
-                  disabled={safeExpensePage >= totalExpensePages}
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
+                </TableBody>
+              </Table>
+              <TablePagination page={safeExpensePage} pageSize={expensePageSize} total={filtered.length} onPageChange={setCurrentPage} />
+            </TableContainer>
           </CardContent>
         </Card>
       </div>

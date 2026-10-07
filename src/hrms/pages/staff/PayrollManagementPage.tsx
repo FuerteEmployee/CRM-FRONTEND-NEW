@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { Input } from "@/hrms/components/ui/input";
 import {
   Card,
   CardHeader,
@@ -17,6 +18,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle,
+  Search,
+  X,
 } from "lucide-react";
 import { employeeApi } from "@/hrms/services/api";
 import { useConfirm } from "@/hrms/contexts/ConfirmContext";
@@ -57,20 +60,58 @@ const PayrollManagementPage = () => {
   }>({ isOpen: false, recordId: null, name: "" });
   const [slipPayrollId, setSlipPayrollId] = useState<string | null>(null);
 
+  // Every active employee (same people as the Staff Directory) — used to also
+  // list staff who have no payslip for the month, so both screens match.
+  const [employees, setEmployees] = useState<any[]>([]);
+  const idOf = (v: any) => String((v && typeof v === "object" ? v._id || v.id : v) || "");
+
+  // Staff without a payslip this month: "no_salary" (no salary set up — payroll
+  // skips them) or "not_generated" (salary set, Generate not run for them yet).
+  const missingRows = useMemo(() => {
+    const withPayslip = new Set(payroll.map((r: any) => idOf(r?.employeeId)));
+    return employees
+      .filter((e) => e.isActive !== false && e.status !== "inactive")
+      .filter((e) => selectedStoreId === "all" || idOf(e.hrmsBranchId) === selectedStoreId || idOf(e.storeId) === selectedStoreId)
+      .filter((e) => !withPayslip.has(idOf(e)))
+      .map((e) => ({
+        _id: `missing-${idOf(e)}`,
+        _missing: e.salaryStructureId ? "not_generated" : "no_salary",
+        employeeId: { _id: idOf(e), name: e.name, employeeCode: e.employeeCode },
+      }));
+  }, [employees, payroll, selectedStoreId]);
+
+  // Search the month's list by employee name / code / status.
+  const [searchQuery, setSearchQuery] = useState("");
+  const visiblePayroll = useMemo(() => {
+    const rows = [...payroll, ...missingRows];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((row: any) =>
+      [row?.employeeId?.name, row?.employeeId?.employeeCode, row?.status, row?.paymentStatus,
+        row?._missing === "no_salary" ? "no salary set" : row?._missing ? "not generated" : ""]
+        .some((v) => String(v || "").toLowerCase().includes(q))
+    );
+  }, [payroll, missingRows, searchQuery]);
+  const noSalaryCount = missingRows.filter((r) => r._missing === "no_salary").length;
+  const notGeneratedCount = missingRows.length - noSalaryCount;
+  const hrmsBase = (typeof window !== "undefined" && window.location.pathname.includes("/staff/hrms")) ? "/staff/hrms" : "/admin/hrms";
+
   const load = useCallback(async () => {
     setIsLoading(true);
     const month = selectedDate.getMonth() + 1;
     const year = selectedDate.getFullYear();
     const storeId = selectedStoreId === "all" ? "" : selectedStoreId || user?.storeId || "";
     try {
-      const [branchesRes, payrollData] = await Promise.all([
+      const [branchesRes, payrollData, staff] = await Promise.all([
         hrmsbranchService.getAll({ status: "Active" }),
         employeeApi.getPayroll({ month, year, storeId: storeId || undefined }),
+        staffService.getAll().catch(() => []),
       ]);
       if (branchesRes.success) {
         setBranches(branchesRes.data);
       }
       setPayroll(Array.isArray(payrollData) ? payrollData : []);
+      setEmployees(Array.isArray(staff) ? staff : []);
     } catch {
       toast({ title: "Sync Failed", variant: "destructive" });
     } finally {
@@ -91,25 +132,19 @@ const PayrollManagementPage = () => {
 
     const month = selectedDate.getMonth() + 1;
     const year = selectedDate.getFullYear();
-    const storeId =
-      selectedStoreId === "all" ? "" : selectedStoreId || user?.storeId || "";
-
-    if (!storeId || selectedStoreId === "all") {
-      toast({
-        title: "Generation Failed",
-        description: "Please select a specific branch to generate payroll.",
-        variant: "destructive",
-      });
-      setIsGenerating(false);
-      return;
-    }
+    // "All Branches" = every salaried employee in the company (no storeId),
+    // including staff without a branch.
+    const storeId = selectedStoreId === "all" ? "" : selectedStoreId || user?.storeId || "";
 
     try {
-      const response = await employeeApi.generatePayroll({ month, year, storeId });
+      const response: any = await employeeApi.generatePayroll({ month, year, ...(storeId ? { storeId } : {}) });
       if (response.success || response.count !== undefined) {
+        const skipped = Number(response.skippedNoSalary) || 0;
         toast({
           title: "Success",
-          description: `Generated payroll for ${response.count || 0} employees.`,
+          description:
+            `Generated payroll for ${response.count || 0} employees${selectedStoreId === "all" ? " across all branches" : ""}.` +
+            (skipped ? ` ${skipped} active employee(s) skipped — no salary set (Staff → Edit → Salary & Banking).` : ""),
         });
         load();
       } else {
@@ -278,20 +313,57 @@ const PayrollManagementPage = () => {
 
         {/* ── Payroll Tab ── */}
         <TabsContent value="payroll">
-          <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden [&>.space-y-4>div]:rounded-none [&>.space-y-4>div]:border-0 [&>.space-y-4>div]:shadow-none">
             <CardHeader className="py-4 border-b border-slate-100">
-              <CardTitle className="text-base font-semibold text-slate-700 flex items-center gap-2">
-                <Landmark className="h-4 w-4 text-primary" />
-                Monthly Payroll
-              </CardTitle>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <CardTitle className="text-base font-semibold text-slate-700 flex items-center gap-2">
+                  <Landmark className="h-4 w-4 text-primary" />
+                  Monthly Payroll
+                  <Badge className="bg-slate-100 text-slate-600 border-0 text-[10px] font-semibold">
+                    {payroll.length} payslip{payroll.length === 1 ? "" : "s"}
+                  </Badge>
+                  {noSalaryCount > 0 && (
+                    <Badge className="bg-red-50 text-red-600 border-0 text-[10px] font-semibold">{noSalaryCount} no salary set</Badge>
+                  )}
+                  {notGeneratedCount > 0 && (
+                    <Badge className="bg-amber-50 text-amber-700 border-0 text-[10px] font-semibold">{notGeneratedCount} not generated</Badge>
+                  )}
+                  {searchQuery && (
+                    <Badge className="bg-slate-100 text-slate-600 border-0 text-[10px] font-semibold">
+                      showing {visiblePayroll.length}
+                    </Badge>
+                  )}
+                </CardTitle>
+                <div className="relative w-full sm:w-72">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    placeholder="Search employee name or code..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 pr-8 h-9 rounded-lg border-slate-200 bg-slate-50 text-sm"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      title="Clear search"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
             </CardHeader>
             <DataTable
-              data={payroll}
+              data={visiblePayroll}
               isLoading={isLoading}
-              emptyMessage={`No payroll records for ${selectedDate.toLocaleDateString("en-US", {
-                month: "long",
-                year: "numeric",
-              })}`}
+              emptyMessage={searchQuery
+                ? `No employee matching "${searchQuery}" in ${selectedDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}`
+                : `No payroll records for ${selectedDate.toLocaleDateString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })}`}
               columns={[
                 {
                   header: "Employee",
@@ -310,13 +382,13 @@ const PayrollManagementPage = () => {
                   header: "Period",
                   accessorKey: (row: any) => (
                     <span className="text-sm font-medium text-slate-600">
-                      {row ? `${row.month}/${row.year}` : "—"}
+                      {row && !row._missing ? `${row.month}/${row.year}` : "—"}
                     </span>
                   ),
                 },
                 {
                   header: "Days",
-                  accessorKey: (row: any) => (
+                  accessorKey: (row: any) => row?._missing ? <div className="text-center text-slate-300">—</div> : (
                     <div className="text-center">
                       <p className="text-sm font-semibold text-slate-700">
                         {row?.payableDays}
@@ -327,7 +399,11 @@ const PayrollManagementPage = () => {
                 },
                 {
                   header: "Net Salary",
-                  accessorKey: (row: any) => (
+                  accessorKey: (row: any) => row?._missing ? (
+                    <div className="text-right text-[11px] text-slate-400">
+                      {row._missing === "no_salary" ? "No salary set — payroll skips" : "Salary set — click Generate"}
+                    </div>
+                  ) : (
                     <div className="text-right">
                       <p className="text-sm font-bold text-primary">
                         ₹{row?.netSalary?.toLocaleString("en-IN")}
@@ -341,6 +417,13 @@ const PayrollManagementPage = () => {
                 {
                   header: "Status",
                   accessorKey: (row: any) => {
+                    if (row?._missing) {
+                      return (
+                        <Badge className={`text-[10px] font-semibold border-0 pointer-events-none ${row._missing === "no_salary" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                          {row._missing === "no_salary" ? "No salary set" : "Not generated"}
+                        </Badge>
+                      );
+                    }
                     const c = statusColor(row?.status);
                     return (
                       <Badge
@@ -354,6 +437,7 @@ const PayrollManagementPage = () => {
                 {
                   header: "Payment",
                   accessorKey: (row: any) => {
+                    if (row?._missing) return <div className="text-center text-slate-300">—</div>;
                     const isPaid =
                       row?.paymentStatus === "Paid" || row?.status === "paid";
                     const bg = isPaid
@@ -390,7 +474,19 @@ const PayrollManagementPage = () => {
                 {
                   header: "",
                   id: "actions",
-                  accessorKey: (row: any) => (
+                  accessorKey: (row: any) => row?._missing ? (
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2.5 text-[11px] rounded-lg"
+                        title={row._missing === "no_salary" ? "Open the employee and set Salary / Basic" : "Open the employee's salary details"}
+                        onClick={() => navigate(`${hrmsBase}/staff/users/edit/${row.employeeId._id}`)}
+                      >
+                        {row._missing === "no_salary" ? "Set Salary" : "View Salary"}
+                      </Button>
+                    </div>
+                  ) : (
                     <div className="flex items-center gap-1">
                       <Button
                         variant="ghost"

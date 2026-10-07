@@ -10,6 +10,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useThemeStyle } from "@/context/ThemeContext";
 import { toast } from "sonner";
 import { applyThemeToDom, normalizeToHex } from "@/lib/themeUtils";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 interface ThemeArea {
   [key: string]: string;
@@ -407,36 +408,36 @@ export default function SetupThemeStyle() {
                 
                 <div className="space-y-6">
                   {/* Standard Table mock */}
-                  <div className="border bg-background rounded-xl overflow-hidden shadow-sm">
+                  <TableContainer>
                     <div className="p-4 border-b">
                       <h4 className="font-semibold text-sm">Standard Data Table</h4>
                     </div>
-                    <table className="w-full text-sm">
-                      <thead className="border-b transition-colors duration-300">
-                        <tr>
-                          <th className="py-3 px-4 text-left font-semibold transition-colors duration-300">Customer Name</th>
-                          <th className="py-3 px-4 text-left font-semibold transition-colors duration-300">Contact Person</th>
-                          <th className="py-3 px-4 text-left font-semibold transition-colors duration-300">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr className="border-b">
-                          <td className="py-3 px-4 transition-colors duration-300">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Customer Name</TableHead>
+                          <TableHead>Contact Person</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        <TableRow>
+                          <TableCell>
                             <a href="#" className="font-medium hover:underline transition-colors">Acme Corp</a>
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground">John Doe</td>
-                          <td className="py-3 px-4">Active</td>
-                        </tr>
-                        <tr>
-                          <td className="py-3 px-4 transition-colors duration-300">
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">John Doe</TableCell>
+                          <TableCell>Active</TableCell>
+                        </TableRow>
+                        <TableRow>
+                          <TableCell>
                             <a href="#" className="font-medium hover:underline transition-colors">Global Tech</a>
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground">Jane Smith</td>
-                          <td className="py-3 px-4">Pending</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">Jane Smith</TableCell>
+                          <TableCell>Pending</TableCell>
+                        </TableRow>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
 
                   {/* Items Table mock */}
                   <div className="border bg-background rounded-xl overflow-hidden shadow-sm">

@@ -6,14 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableEmpty } from "@/components/ui/table";
 import { Plus, Search, Edit2, Trash2, FileBarChart } from "lucide-react";
 import * as Icons from "lucide-react";
 import {
@@ -156,7 +149,7 @@ const SetupQuotationTypes = () => {
           </Button>
         </div>
 
-        <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <Card className="border shadow-sm rounded-lg overflow-hidden">
           <CardHeader className="bg-accent/5 border-b border-border/40 p-4">
             <div className="flex-1 max-w-sm relative group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
@@ -171,22 +164,22 @@ const SetupQuotationTypes = () => {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-accent/10">
-                  <TableRow className="hover:bg-transparent border-border/40">
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Icon</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Name</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Format</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Theme</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Order</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Active</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 text-right pr-6">Options</TableHead>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead>Icon</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Format</TableHead>
+                    <TableHead>Theme</TableHead>
+                    <TableHead>Order</TableHead>
+                    <TableHead>Active</TableHead>
+                    <TableHead className="text-right">Options</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     Array.from({ length: 3 }).map((_, i) => (
-                      <TableRow key={i} className="animate-pulse border-border/40">
-                        <TableCell colSpan={7} className="py-8">
+                      <TableRow key={i} className="animate-pulse">
+                        <TableCell colSpan={7}>
                           <div className="h-4 bg-muted rounded w-full" />
                         </TableCell>
                       </TableRow>
@@ -195,17 +188,17 @@ const SetupQuotationTypes = () => {
                     filteredData.map((item: any) => {
                       const IconComponent = (Icons as any)[item.icon] || FileBarChart;
                       return (
-                        <TableRow key={item._id} className="hover:bg-accent/5 transition-colors border-border/40 group">
-                          <TableCell className="py-4 text-muted-foreground">
+                        <TableRow key={item._id} className="group">
+                          <TableCell className="text-muted-foreground">
                             <IconComponent className="h-5 w-5" />
                           </TableCell>
-                          <TableCell className="py-4 font-bold text-gray-900">{item.name}</TableCell>
-                          <TableCell className="py-4 text-muted-foreground">
+                          <TableCell><span className="font-semibold">{item.name}</span></TableCell>
+                          <TableCell className="text-muted-foreground">
                             <span className="px-2 py-1 bg-accent/10 border border-border/40 rounded-full text-[10px] font-bold uppercase tracking-wider">
                               {item.format}
                             </span>
                           </TableCell>
-                          <TableCell className="py-4">
+                          <TableCell>
                             <div className="flex items-center gap-1">
                               {THEME_FIELDS.slice(0, 4).map((f) => (
                                 <span
@@ -217,13 +210,13 @@ const SetupQuotationTypes = () => {
                               ))}
                             </div>
                           </TableCell>
-                          <TableCell className="py-4 text-muted-foreground font-bold">{item.order}</TableCell>
-                          <TableCell className="py-4">
+                          <TableCell className="text-muted-foreground">{item.order}</TableCell>
+                          <TableCell>
                             <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${item.active !== false ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>
                               {item.active !== false ? "Active" : "Inactive"}
                             </span>
                           </TableCell>
-                          <TableCell className="py-4 text-right pr-6">
+                          <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1">
                               <Button
                                 variant="ghost"
@@ -247,18 +240,16 @@ const SetupQuotationTypes = () => {
                       );
                     })
                   ) : (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-64 text-center">
+                    <TableEmpty colSpan={7}>
                         <div className="flex flex-col items-center justify-center gap-3">
                           <div className="p-4 rounded-full bg-accent/10 text-muted-foreground/40">
                             <FileBarChart className="h-8 w-8" />
                           </div>
-                          <p className="text-sm font-bold text-muted-foreground italic tracking-wide">
+                          <p>
                             No quotation types yet — create one to add it to the "Quotation Maker" sidebar group
                           </p>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                    </TableEmpty>
                   )}
                 </TableBody>
               </Table>

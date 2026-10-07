@@ -7,6 +7,7 @@ import { Plus, FileText } from "lucide-react";
 import { formatDate } from "@/lib/dateFormat";
 import { useCurrency } from "@/context/CurrencyContext";
 import { salesService } from "@/api/services/sales.service";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 const STATUS_MAP: Record<string, { label: string; className: string }> = {
   "1": { label: "Draft", className: "bg-muted text-muted-foreground" },
@@ -51,39 +52,39 @@ export function LeadProposalsTab({ lead }: { lead: any }) {
           <p className="text-sm text-slate-400 font-medium">No proposals yet for this lead</p>
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-500">
-              <tr>
-                <th className="text-left px-4 py-3">Subject</th>
-                <th className="text-left px-4 py-3">Status</th>
-                <th className="text-left px-4 py-3">Date</th>
-                <th className="text-left px-4 py-3">Valid Until</th>
-                <th className="text-right px-4 py-3">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Subject</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Valid Until</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {proposals.map((p: any) => {
                 const status = getStatus(p.status);
                 return (
-                  <tr
+                  <TableRow
                     key={p._id}
-                    className="hover:bg-slate-50 cursor-pointer transition-colors"
+                    className="cursor-pointer"
                     onClick={() => navigate(`/admin/proposals/edit/${p._id}`)}
                   >
-                    <td className="px-4 py-3 font-bold text-slate-800">{p.subject}</td>
-                    <td className="px-4 py-3">
+                    <TableCell><span className="font-semibold">{p.subject}</span></TableCell>
+                    <TableCell>
                       <Badge className={`rounded-lg font-bold ${status.className}`}>{status.label}</Badge>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{p.date ? formatDate(p.date) : "—"}</td>
-                    <td className="px-4 py-3 text-slate-600">{p.open_till ? formatDate(p.open_till) : "—"}</td>
-                    <td className="px-4 py-3 text-right font-bold text-slate-800">{formatAmount(p.total || 0)}</td>
-                  </tr>
+                    </TableCell>
+                    <TableCell>{p.date ? formatDate(p.date) : "—"}</TableCell>
+                    <TableCell>{p.open_till ? formatDate(p.open_till) : "—"}</TableCell>
+                    <TableCell className="text-right"><span className="font-bold">{formatAmount(p.total || 0)}</span></TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </TableContainer>
       )}
     </div>
   );

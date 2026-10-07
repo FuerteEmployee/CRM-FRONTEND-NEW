@@ -23,7 +23,8 @@ import {
 } from "@/hrms/components/ui/select";
 import { Switch } from "@/hrms/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/hrms/components/ui/tabs";
-import { hrmsbranchService, getBranchTypeId, getQuotationTypeIds, type HRMSBranch } from "@/hrms/services/hrmsbranchService";
+import { hrmsbranchService, getBranchTypeId, getQuotationTypeIds, getSupervisorIds, type HRMSBranch } from "@/hrms/services/hrmsbranchService";
+import { staffService } from "@/hrms/services/staffService";
 import { branchTypeService, type BranchType } from "@/hrms/services/branchTypeService";
 import { toast } from "sonner";
 import { StateSelect, CitySelect } from "@/hrms/components/common/LocationSelector";
@@ -94,6 +95,11 @@ export default function StaffBranchFormPage() {
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
   const [initialCustomerIds, setInitialCustomerIds] = useState<string[]>([]);
 
+  // Branch-wise supervisors (only admins may change these — backend enforces it)
+  const [staffOptions, setStaffOptions] = useState<{ value: string; label: string }[]>([]);
+  const [selectedSupervisorIds, setSelectedSupervisorIds] = useState<string[]>([]);
+  const [initialSupervisorIds, setInitialSupervisorIds] = useState<string[]>([]);
+
   const [formData, setFormData] = useState<Partial<HRMSBranch>>({
     name: "",
     status: "Active",
@@ -117,12 +123,18 @@ export default function StaffBranchFormPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [types, quotationTypes, customers] = await Promise.all([
+        const [types, quotationTypes, customers, staff] = await Promise.all([
           branchTypeService.getAll(),
           quotationTypeService.getQuotationTypes(true),
           customerService.getAll(),
+          staffService.getAll().catch(() => []),
         ]);
         setBranchTypes(types.filter(t => t.isActive));
+        setStaffOptions(
+          (staff || [])
+            .filter((s: any) => s.status !== "inactive")
+            .map((s: any) => ({ value: String(s._id || s.id), label: s.email ? `${s.name} (${s.email})` : s.name }))
+        );
         setQuotationTypeOptions((quotationTypes || []).map((t: any) => ({ value: t._id, label: t.name })));
         setCustomerOptions((customers || []).map((c: any) => ({ value: c._id, label: c.company || "Unnamed customer" })));
 
@@ -134,6 +146,8 @@ export default function StaffBranchFormPage() {
             // Resolve branchType ObjectId from populated object or raw string
             setSelectedBranchTypeId(getBranchTypeId(res.branchType));
             setSelectedQuotationTypeIds(getQuotationTypeIds(res.quotationTypes));
+            setSelectedSupervisorIds(getSupervisorIds(res.supervisorIds));
+            setInitialSupervisorIds(getSupervisorIds(res.supervisorIds));
             setRadiusUnit((res.radiusUnit as "m" | "km") || "m");
             const r = Number(res.radius);
             const preset = RADIUS_PRESETS.find(p => p.value === r && p.value !== -1);
@@ -339,12 +353,19 @@ export default function StaffBranchFormPage() {
       return toast.error("Set the branch location before enabling geo-fence");
     setLoading(true);
     try {
+      const { supervisorIds: _loadedSupervisors, ...rest } = formData;
+      // Only send supervisors when they changed — the backend lets only admins
+      // set them, so re-sending the loaded list would block non-admin edits.
+      const supervisorsChanged =
+        selectedSupervisorIds.length !== initialSupervisorIds.length ||
+        selectedSupervisorIds.some(sid => !initialSupervisorIds.includes(sid));
       const payload = {
-        ...formData,
+        ...rest,
         branchType: selectedBranchTypeId || null,
         quotationTypes: selectedQuotationTypeIds,
         radius: effectiveRadiusMeters(),
         radiusUnit,
+        ...(supervisorsChanged ? { supervisorIds: selectedSupervisorIds } : {}),
       };
       const res = isEdit
         ? await hrmsbranchService.update(id, payload)
@@ -488,6 +509,24 @@ export default function StaffBranchFormPage() {
             />
             <p className="text-[10px] text-muted-foreground">
               These customers will be selectable in Quotation Maker for this branch's quotation type(s).
+            </p>
+          </div>
+        </div>
+
+        {/* Row 1c: Branch supervisors */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-5 gap-y-4">
+          <div className="col-span-2 space-y-1.5">
+            <Label className={lbl}>Branch Supervisors</Label>
+            <MultiSelect
+              options={staffOptions}
+              selected={selectedSupervisorIds}
+              onChange={setSelectedSupervisorIds}
+              placeholder="No supervisor"
+              className={inp}
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Supervisors see and approve attendance, leave and advance/loan requests only for staff of this branch.
+              What pages they can open comes from their role (Setup &gt; Roles). Only admins can change this.
             </p>
           </div>
         </div>

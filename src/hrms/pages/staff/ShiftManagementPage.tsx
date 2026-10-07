@@ -16,8 +16,10 @@ import {
     AlertCircle,
     TrendingUp,
     IndianRupee,
+    Users,
 } from "lucide-react";
 import { shiftService, Shift } from "@/hrms/services/shiftService";
+import { AssignShiftDialog } from "@/hrms/components/staff/AssignShiftDialog";
 import { useConfirm } from "@/hrms/contexts/ConfirmContext";
 import { toast } from "@/hrms/hooks/use-toast";
 import {
@@ -91,6 +93,7 @@ export default function ShiftManagementPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [isAddOpen, setIsAddOpen] = useState(false);
     const [editingShift, setEditingShift] = useState<Shift | null>(null);
+    const [assigningShift, setAssigningShift] = useState<Shift | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -770,6 +773,18 @@ export default function ShiftManagementPage() {
                             },
                         },
                         {
+                            header: "Staff",
+                            accessorKey: (s) => (
+                                <button
+                                    type="button"
+                                    onClick={() => setAssigningShift(s)}
+                                    className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                                >
+                                    <Users className="h-3.5 w-3.5" /> {s.employeeCount ?? 0}
+                                </button>
+                            ),
+                        },
+                        {
                             header: "Status",
                             accessorKey: (s) => (
                                 <Badge className={s.isActive ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-gray-50 text-gray-600 border-gray-100"}>
@@ -781,6 +796,15 @@ export default function ShiftManagementPage() {
                             header: "Actions",
                             accessorKey: (s) => (
                                 <div className="flex items-center justify-end gap-1">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        title="Assign staff to this shift"
+                                        className="h-8 w-8 rounded-lg text-emerald-600 hover:bg-emerald-50"
+                                        onClick={() => setAssigningShift(s)}
+                                    >
+                                        <Users className="h-4 w-4" />
+                                    </Button>
                                     <Button
                                         variant="ghost"
                                         size="icon"
@@ -803,6 +827,13 @@ export default function ShiftManagementPage() {
                     ]}
                 />
             </div>
+
+            <AssignShiftDialog
+                shift={assigningShift}
+                allShifts={shifts}
+                onClose={() => setAssigningShift(null)}
+                onAssigned={loadShifts}
+            />
         </div>
     );
 }

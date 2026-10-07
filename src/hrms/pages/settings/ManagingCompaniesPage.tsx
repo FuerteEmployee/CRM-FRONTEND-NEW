@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/hrms/components/ui/card";
+import { CardHeader, CardTitle } from "@/hrms/components/ui/card";
 import { Button } from "@/hrms/components/ui/button";
 import { Input } from "@/hrms/components/ui/input";
 import { Badge } from "@/hrms/components/ui/badge";
 import { Skeleton } from "@/hrms/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableContainer, TableEmpty, TableHead, TableHeader, TableRow } from "@/hrms/components/ui/table";
 import { Plus, Edit2, Power } from "lucide-react";
 import {
   Dialog,
@@ -111,42 +112,41 @@ const ManagingCompaniesPage = () => {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
+      <TableContainer>
+        <CardHeader className="py-4 border-b">
           <CardTitle className="text-base">Companies List</CardTitle>
         </CardHeader>
-        <CardContent>
+        <div>
           {isLoading ? (
-            <div className="space-y-2">
+            <div className="space-y-2 p-4">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full rounded" />
               ))}
             </div>
-          ) : companies.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">No companies yet</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b">
-                  <tr>
-                    <th className="text-left py-3 px-4 font-semibold">Name</th>
-                    <th className="text-left py-3 px-4 font-semibold">Status</th>
-                    <th className="text-right py-3 px-4 font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
+            <div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-left">Name</TableHead>
+                    <TableHead className="text-left">Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {companies.length === 0 && <TableEmpty colSpan={3}>No companies yet</TableEmpty>}
                   {companies.map((company) => (
-                    <tr key={company._id || company.id} className="hover:bg-muted/50">
-                      <td className="py-3 px-4 font-medium">{company.name}</td>
-                      <td className="py-3 px-4">
+                    <TableRow key={company._id || company.id}>
+                      <TableCell><span className="font-medium">{company.name}</span></TableCell>
+                      <TableCell>
                         <Badge
                           variant={company.active ? "default" : "secondary"}
                           className={company.active ? "bg-emerald-100 text-emerald-700" : ""}
                         >
                           {company.active ? "Active" : "Inactive"}
                         </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-right space-x-2">
+                      </TableCell>
+                      <TableCell className="text-right space-x-2">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -167,15 +167,15 @@ const ManagingCompaniesPage = () => {
                             <Power className="h-3.5 w-3.5" /> Deactivate
                           </Button>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </TableContainer>
 
       {/* Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

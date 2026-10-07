@@ -238,7 +238,7 @@ const Reports = () => {
             </div>
 
             {/* Master Table */}
-            <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden">
+            <Card className="overflow-hidden">
               <CardHeader className="bg-accent/5 border-b border-border/40 px-6 py-4 flex flex-row items-center justify-between">
                 <div>
                   <CardTitle className="text-base font-bold">All Modules — Live Summary</CardTitle>
@@ -254,14 +254,14 @@ const Reports = () => {
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader className="bg-accent/10">
-                      <TableRow className="border-border/40 hover:bg-transparent">
-                        <TableHead className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground pl-6 py-3">Module</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground py-3 text-center">Total</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground py-3">Amount / Value</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground py-3 text-center">Positive</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground py-3 text-center">Pending / Other</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground py-3 pr-6 text-center">Status</TableHead>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Module</TableHead>
+                        <TableHead className="text-center">Total</TableHead>
+                        <TableHead>Amount / Value</TableHead>
+                        <TableHead className="text-center">Positive</TableHead>
+                        <TableHead className="text-center">Pending / Other</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -269,27 +269,27 @@ const Reports = () => {
                         const posRatio = row.total > 0 ? (row.posVal / row.total) * 100 : 0;
                         const isHealthy = posRatio >= 50;
                         return (
-                          <TableRow key={row.module} className="border-border/30 hover:bg-accent/5 transition-colors">
-                            <TableCell className="pl-6 py-3 font-bold text-sm">{row.module}</TableCell>
-                            <TableCell className="py-3 text-center">
+                          <TableRow key={row.module}>
+                            <TableCell className="font-semibold">{row.module}</TableCell>
+                            <TableCell className="text-center">
                               <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-muted text-sm font-black">
                                 {isAnyLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : row.total}
                               </span>
                             </TableCell>
-                            <TableCell className="py-3 font-extrabold text-sm">{row.amount}</TableCell>
-                            <TableCell className="py-3 text-center">
+                            <TableCell className="font-semibold">{row.amount}</TableCell>
+                            <TableCell className="text-center">
                               <div className="flex flex-col items-center">
                                 <span className="text-[10px] text-muted-foreground font-semibold">{row.posKey}</span>
                                 <span className="font-black text-emerald-600 text-sm">{isAnyLoading ? "—" : row.posVal}</span>
                               </div>
                             </TableCell>
-                            <TableCell className="py-3 text-center">
+                            <TableCell className="text-center">
                               <div className="flex flex-col items-center">
                                 <span className="text-[10px] text-muted-foreground font-semibold">{row.negKey}</span>
                                 <span className="font-black text-amber-500 text-sm">{isAnyLoading ? "—" : row.negVal}</span>
                               </div>
                             </TableCell>
-                            <TableCell className="py-3 pr-6 text-center">
+                            <TableCell className="text-center">
                               <div className={`inline-flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-full ${isHealthy ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}`}>
                                 {isHealthy ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
                                 {isAnyLoading ? "..." : `${Math.round(posRatio)}%`}

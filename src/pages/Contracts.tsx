@@ -34,6 +34,7 @@ import { customerService } from "@/api/services/customer.service";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
 import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { useCurrency } from "@/context/CurrencyContext";
 
 const statusColors: Record<string, string> = {
@@ -402,40 +403,38 @@ const Contracts = () => {
             />
           </div>
         </div>
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px]">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="p-3 font-medium w-8">
+        <TableContainer>
+              <Table className="min-w-[800px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8">
                       <input
                         type="checkbox"
                         className="rounded border-border"
                         checked={allContractPageSelected}
                         onChange={(e) => handleSelectAll(e.target.checked)}
                       />
-                    </th>
-                    <th className="p-3 font-medium">Title</th>
-                    <th className="p-3 font-medium">Customer</th>
-                    <th className="p-3 font-medium">Value</th>
-                    <th className="p-3 font-medium">Status</th>
-                    <th className="p-3 font-medium">Start</th>
-                    <th className="p-3 font-medium">End</th>
-                    <th className="p-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+                    </TableHead>
+                    <TableHead>Title</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Value</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Start</TableHead>
+                    <TableHead>End</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {loading ? (
                     <SkeletonTableRows rows={6} colSpan={8} />
                   ) : paginatedContracts.length === 0 ? (
-                    <tr><td colSpan={8} className="text-center p-4">No contracts found.</td></tr>
+                    <TableEmpty colSpan={8}>No contracts found.</TableEmpty>
                   ) : paginatedContracts.map((c) => (
-                    <tr
+                    <TableRow
                       key={c._id}
-                      className={`border-b last:border-0 hover:bg-muted/50 ${selectedContracts.includes(c._id) ? 'bg-primary/5' : ''}`}
+                      className={selectedContracts.includes(c._id) ? 'bg-primary/5' : ''}
                     >
-                      <td className="p-3">
+                      <TableCell>
                         <input
                           type="checkbox"
                           className="rounded border-border"
@@ -445,24 +444,24 @@ const Contracts = () => {
                             else setSelectedContracts(prev => prev.filter(id => id !== c._id));
                           }}
                         />
-                      </td>
-                      <td className="p-3 text-sm font-medium">{c.subject}</td>
-                      <td className="p-3 text-sm">{c.client?.company || c.client?.firstname || "Unknown"}</td>
-                      <td className="p-3 text-sm font-medium">
+                      </TableCell>
+                      <TableCell className="font-medium">{c.subject}</TableCell>
+                      <TableCell>{c.client?.company || c.client?.firstname || "Unknown"}</TableCell>
+                      <TableCell className="font-medium">
                         {formatAmount(c.contract_value || 0)}
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell>
                         <Badge variant="outline" className={statusColors[getStatus(c)] || statusColors.Active}>
                           {getStatus(c)}
                         </Badge>
-                      </td>
-                      <td className="p-3 text-sm text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
                         {c.datestart ? formatDate(c.datestart) : "-"}
-                      </td>
-                      <td className="p-3 text-sm text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
                         {c.dateend ? formatDate(c.dateend) : "-"}
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell>
                         <TableActions
                           onView={() => window.open(`/admin/contracts/view/${c._id}`, "_blank")}
                           onEdit={
@@ -474,45 +473,13 @@ const Contracts = () => {
                               : undefined
                           }
                         />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pagination Footer */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-          <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {filteredTotal === 0 ? 0 : (safeContractPage - 1) * contractPageSize + 1} to {Math.min(safeContractPage * contractPageSize, filteredTotal)} of {filteredTotal} entries
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={safeContractPage <= 1}
-            >
-              Previous
-            </Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              {safeContractPage}
-            </div>
-            <span className="text-xs text-muted-foreground px-1">of {totalContractPages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.min(totalContractPages, p + 1))}
-              disabled={safeContractPage >= totalContractPages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+                </TableBody>
+              </Table>
+              <TablePagination page={safeContractPage} pageSize={contractPageSize} total={filteredTotal} onPageChange={setCurrentPage} />
+        </TableContainer>
       </div>
 
 

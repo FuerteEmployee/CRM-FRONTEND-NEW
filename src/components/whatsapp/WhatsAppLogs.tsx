@@ -12,8 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableContainer, TableEmpty, TablePagination } from "@/components/ui/table";
 
 const STATUS_STYLES: Record<string, string> = {
   Sent: "bg-slate-50 text-slate-600 border-slate-200",
@@ -40,7 +39,6 @@ export function WhatsAppLogs() {
   });
 
   const logs = data?.data || [];
-  const totalPages = data?.totalPages || 1;
 
   return (
     <div className="space-y-3">
@@ -64,6 +62,7 @@ export function WhatsAppLogs() {
         </Select>
       </div>
 
+      <TableContainer>
       <Table>
         <TableHeader>
           <TableRow>
@@ -78,26 +77,22 @@ export function WhatsAppLogs() {
           {isLoading ? (
             <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>
           ) : logs.length === 0 ? (
-            <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No messages yet</TableCell></TableRow>
+            <TableEmpty colSpan={5}>No messages yet</TableEmpty>
           ) : (
             logs.map((log: any) => (
               <TableRow key={log._id}>
                 <TableCell>{log.mobile}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{log.template_id}</TableCell>
+                <TableCell className="text-muted-foreground">{log.template_id}</TableCell>
                 <TableCell><Badge variant="outline" className={STATUS_STYLES[log.status]}>{log.status}</Badge></TableCell>
-                <TableCell className="text-xs text-red-600">{log.error || "—"}</TableCell>
-                <TableCell className="text-xs text-muted-foreground">{new Date(log.sent_at || log.createdAt).toLocaleString()}</TableCell>
+                <TableCell className="text-red-600">{log.error || "—"}</TableCell>
+                <TableCell className="text-muted-foreground">{new Date(log.sent_at || log.createdAt).toLocaleString()}</TableCell>
               </TableRow>
             ))
           )}
         </TableBody>
       </Table>
-
-      <div className="flex items-center justify-end gap-2">
-        <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
-        <span className="text-xs text-muted-foreground">Page {page} of {totalPages}</span>
-        <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>Next</Button>
-      </div>
+      <TablePagination page={page} pageSize={50} total={data?.total || 0} onPageChange={setPage} />
+      </TableContainer>
     </div>
   );
 }

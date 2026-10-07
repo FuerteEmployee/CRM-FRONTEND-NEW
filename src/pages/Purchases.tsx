@@ -42,6 +42,7 @@ import { VendorSelect, type VendorRecord } from "@/components/VendorSelect";
 import { vendorService } from "@/api/services/vendor.service";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemSelect";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 
 const PURCHASE_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Bill Date", sample: "27-08-2026", core: true },
@@ -1047,7 +1048,7 @@ const Purchases = () => {
         </div>
 
         {/* Table */}
-        <Card className="rounded-2xl border-slate-100 shadow-sm overflow-hidden">
+        <Card className="rounded-lg shadow-sm overflow-hidden">
           <CardContent className="p-0">
             {/* Toolbar: per-page, bulk actions, search */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border-b bg-white">
@@ -1188,74 +1189,70 @@ const Purchases = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-slate-50/50 text-left text-xs text-muted-foreground uppercase tracking-wider">
-                    <th className="p-4 font-bold w-12">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
                       <Checkbox className="border-slate-300" checked={allPageSelected} onCheckedChange={toggleSelectAll} />
-                    </th>
+                    </TableHead>
                     {/* Fixed 15-column Tally-style Purchase Day Book layout — kept in sync
                         with exportColumns above; no simplifiedRegister toggle here anymore. */}
-                    <th className="p-4 font-bold">Bill Date</th>
-                    <th className="p-4 font-bold">Particulars</th>
-                    <th className="p-4 font-bold">Voucher Type</th>
-                    <th className="p-4 font-bold">Voucher No.</th>
-                    {isPilot && <th className="p-4 font-bold">Sales Person</th>}
-                    <th className="p-4 font-bold">Quantity</th>
-                    <th className="p-4 font-bold">Rate</th>
-                    <th className="p-4 font-bold">Amount</th>
-                    <th className="p-4 font-bold">Total</th>
-                    <th className="p-4 font-bold">PURCHASE GST</th>
-                    <th className="p-4 font-bold">CGST 9%</th>
-                    <th className="p-4 font-bold">SGST 9%</th>
-                    <th className="p-4 font-bold">PURCHASE IGST</th>
-                    <th className="p-4 font-bold">Freight</th>
-                    <th className="p-4 font-bold">IGST 18%</th>
-                    <th className="p-4 font-bold">Round off</th>
-                    {canUseBranch && <th className="p-4 font-bold">Branch</th>}
-                    <th className="p-4 font-bold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+                    <TableHead>Bill Date</TableHead>
+                    <TableHead>Particulars</TableHead>
+                    <TableHead>Voucher Type</TableHead>
+                    <TableHead>Voucher No.</TableHead>
+                    {isPilot && <TableHead>Sales Person</TableHead>}
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Rate</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead>PURCHASE GST</TableHead>
+                    <TableHead>CGST 9%</TableHead>
+                    <TableHead>SGST 9%</TableHead>
+                    <TableHead>PURCHASE IGST</TableHead>
+                    <TableHead>Freight</TableHead>
+                    <TableHead>IGST 18%</TableHead>
+                    <TableHead>Round off</TableHead>
+                    {canUseBranch && <TableHead>Branch</TableHead>}
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {isLoading ? (
                     <SkeletonTableRows rows={6} colSpan={tableColSpan} />
                   ) : paginatedPurchases.length === 0 ? (
-                    <tr>
-                      <td colSpan={tableColSpan} className="p-10 text-center text-slate-400 font-medium">
-                        No purchase bills found. Create one or import from Excel.
-                      </td>
-                    </tr>
+                    <TableEmpty colSpan={tableColSpan}>No purchase bills found. Create one or import from Excel.</TableEmpty>
                   ) : (
                     paginatedPurchases.map((p: any) => (
-                      <tr key={p._id} className={`border-b hover:bg-slate-50/50 transition-colors ${selectedIds.includes(p._id) ? "bg-primary/5" : ""}`}>
-                        <td className="p-4">
+                      <TableRow key={p._id} className={`${selectedIds.includes(p._id) ? "bg-primary/5" : ""}`}>
+                        <TableCell>
                           <Checkbox
                             className="border-slate-300"
                             checked={selectedIds.includes(p._id)}
                             onCheckedChange={() => toggleSelect(p._id)}
                           />
-                        </td>
+                        </TableCell>
                         {/* Fixed Tally-style Purchase Day Book layout — kept in sync with exportColumns above. */}
-                        <td className="p-4 text-xs font-medium text-slate-600">{p.bill_date ? formatDate(p.bill_date) : "-"}</td>
-                        <td className="p-4 font-bold text-slate-800">{p.supplier_name || "-"}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{p.voucher_type || "-"}</td>
-                        <td className="p-4 font-bold text-slate-800">{p.bill_no || "-"}</td>
-                        {isPilot && <td className="p-4 text-xs font-medium text-slate-600">{p.sales_person || "-"}</td>}
-                        <td className="p-4 text-xs font-medium text-slate-600">{p.quantity ?? "-"}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.rate)}</td>
-                        <td className="p-4 font-bold text-slate-800">{money(p.amount)}</td>
-                        <td className="p-4 font-black text-green-700">{money(p.total)}</td>
+                        <TableCell>{p.bill_date ? formatDate(p.bill_date) : "-"}</TableCell>
+                        <TableCell className="font-medium">{p.supplier_name || "-"}</TableCell>
+                        <TableCell>{p.voucher_type || "-"}</TableCell>
+                        <TableCell>{p.bill_no || "-"}</TableCell>
+                        {isPilot && <TableCell>{p.sales_person || "-"}</TableCell>}
+                        <TableCell>{p.quantity ?? "-"}</TableCell>
+                        <TableCell>{money(p.rate)}</TableCell>
+                        <TableCell>{money(p.amount)}</TableCell>
+                        <TableCell className="font-semibold text-green-700">{money(p.total)}</TableCell>
                         {/* PURCHASE GST = taxable value (same as Amount) */}
-                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.amount)}</td>
+                        <TableCell>{money(p.amount)}</TableCell>
                         {/* Zero tax cells show "-" instead of ₹0.00 */}
-                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.cgst)}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.sgst)}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.igst)}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.freight_charge)}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{money(p.igst)}</td>
-                        <td className="p-4 text-xs font-medium text-slate-600">{p.round_off ? money(p.round_off) : "-"}</td>
-                        {canUseBranch && <td className="p-4 text-xs font-medium text-slate-600">{p.branch || "-"}</td>}
-                        <td className="p-4">
+                        <TableCell>{money(p.cgst)}</TableCell>
+                        <TableCell>{money(p.sgst)}</TableCell>
+                        <TableCell>{money(p.igst)}</TableCell>
+                        <TableCell>{money(p.freight_charge)}</TableCell>
+                        <TableCell>{money(p.igst)}</TableCell>
+                        <TableCell>{p.round_off ? money(p.round_off) : "-"}</TableCell>
+                        {canUseBranch && <TableCell>{p.branch || "-"}</TableCell>}
+                        <TableCell>
                           <div className="flex justify-end gap-1">
                             {can("Purchases", "Edit") && (
                               <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleEdit(p)}>
@@ -1273,47 +1270,25 @@ const Purchases = () => {
                               </Button>
                             )}
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
             {/* Pagination footer */}
             {totalItems > 0 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t bg-white">
-                <div className="text-xs font-medium text-slate-500">
-                  Showing {itemsPerPage === "all" ? 1 : (safePage - 1) * pageSize + 1} to {itemsPerPage === "all" ? totalItems : Math.min(safePage * pageSize, totalItems)} of {totalItems} entries
-                  {selectedIds.length > 0 && <span className="ml-2 text-primary font-bold">· {selectedIds.length} selected</span>}
-                </div>
-                {itemsPerPage !== "all" && totalPages > 1 && (
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 px-3 text-xs font-bold"
-                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                      disabled={safePage === 1}
-                    >
-                      Previous
-                    </Button>
-                    <Button variant="default" size="sm" className="h-8 w-8 p-0 text-xs font-bold bg-primary text-primary-foreground">
-                      {safePage}
-                    </Button>
-                    <span className="text-xs text-slate-400 px-1">of {totalPages}</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 px-3 text-xs font-bold"
-                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-                      disabled={safePage === totalPages}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                )}
+              <div className="flex items-center border-t bg-muted/30">
+                <TablePagination
+                  className="flex-1 border-t-0"
+                  page={safePage}
+                  pageSize={pageSize}
+                  total={totalItems}
+                  onPageChange={(p) => setCurrentPage(Math.min(Math.max(p, 1), totalPages))}
+                />
+                {selectedIds.length > 0 && <span className="px-4 text-xs text-primary font-bold whitespace-nowrap">{selectedIds.length} selected</span>}
               </div>
             )}
           </CardContent>
@@ -1538,48 +1513,48 @@ const Purchases = () => {
                 )}
 
                 {!simplifiedRegister && lineItems.length > 0 && (
-                  <div className="mt-4 rounded-xl border border-slate-200 overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead className="bg-slate-50 text-slate-500 font-black uppercase tracking-widest text-[10px]">
-                        <tr>
-                          <th className="p-3 text-left">Product</th>
-                          <th className="p-3 text-left">HSN</th>
-                          <th className="p-3 text-left">Qty</th>
-                          <th className="p-3 text-left">Rate</th>
-                          <th className="p-3 text-left">Sub Total</th>
-                          <th className="p-3 text-left">Freight</th>
-                          <th className="p-3 text-left">GST %</th>
-                          <th className="p-3 text-left">Tax Amount</th>
-                          <th className="p-3 text-left">Amount</th>
-                          <th className="p-3" />
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
+                  <TableContainer className="mt-4">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead>HSN</TableHead>
+                          <TableHead>Qty</TableHead>
+                          <TableHead>Rate</TableHead>
+                          <TableHead>Sub Total</TableHead>
+                          <TableHead>Freight</TableHead>
+                          <TableHead>GST %</TableHead>
+                          <TableHead>Tax Amount</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {lineItems.map((it) => {
                           const taxable = (Number(it.amount) || 0) + (Number(it.freight_charge) || 0);
                           const taxAmt = taxable * ((Number(it.gst_rate) || 0) / 100);
                           return (
-                            <tr key={it.id}>
-                              <td className="p-3 font-semibold text-slate-700">{it.product || "-"}</td>
-                              <td className="p-3 text-slate-500">{it.hsn_code || "-"}</td>
-                              <td className="p-3 text-slate-500">{it.quantity}</td>
-                              <td className="p-3 text-slate-500">{money(it.rate)}</td>
-                              <td className="p-3 font-semibold text-slate-700">{money(it.amount)}</td>
-                              <td className="p-3 text-slate-500">{money(it.freight_charge)}</td>
-                              <td className="p-3 text-slate-500">{it.gst_rate}%</td>
-                              <td className="p-3 text-slate-500">{money(taxAmt)}</td>
-                              <td className="p-3 font-bold text-slate-900">{money(taxable + taxAmt)}</td>
-                              <td className="p-3 text-right">
+                            <TableRow key={it.id}>
+                              <TableCell>{it.product || "-"}</TableCell>
+                              <TableCell>{it.hsn_code || "-"}</TableCell>
+                              <TableCell>{it.quantity}</TableCell>
+                              <TableCell>{money(it.rate)}</TableCell>
+                              <TableCell>{money(it.amount)}</TableCell>
+                              <TableCell>{money(it.freight_charge)}</TableCell>
+                              <TableCell>{it.gst_rate}%</TableCell>
+                              <TableCell>{money(taxAmt)}</TableCell>
+                              <TableCell className="font-semibold">{money(taxable + taxAmt)}</TableCell>
+                              <TableCell className="text-right">
                                 <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-rose-500 hover:bg-rose-50" onClick={() => removeLineItem(it.id)}>
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           );
                         })}
-                      </tbody>
-                    </table>
-                  </div>
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
                 )}
               </div>
 

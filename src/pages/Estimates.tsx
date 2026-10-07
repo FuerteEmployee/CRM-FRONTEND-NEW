@@ -15,6 +15,7 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { estimateService } from "@/api/services/estimate.service";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -486,33 +487,33 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
                 <div className="border border-border/40 rounded-xl p-5 min-h-[100px]">
                   {d.items?.length > 0 ? (
                     <>
-                      <table className="w-full text-xs mb-4">
-                        <thead className="bg-red-600 text-white text-[10px] font-black uppercase tracking-widest">
-                          <tr>
-                            <th className="px-3 py-2.5 text-left w-12">#</th>
-                            <th className="px-3 py-2.5 text-left">Item</th>
-                            <th className="px-3 py-2.5 text-left w-16">Qty</th>
-                            <th className="px-3 py-2.5 text-left w-24">Rate</th>
-                            <th className="px-3 py-2.5 text-left w-16">Tax</th>
-                            <th className="px-3 py-2.5 text-left w-28">Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/30">
+                      <Table className="mb-4">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-left w-12">#</TableHead>
+                            <TableHead className="text-left">Item</TableHead>
+                            <TableHead className="text-left w-16">Qty</TableHead>
+                            <TableHead className="text-left w-24">Rate</TableHead>
+                            <TableHead className="text-left w-16">Tax</TableHead>
+                            <TableHead className="text-left w-28">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {d.items.map((item: any, i: number) => (
-                            <tr key={i} className="hover:bg-muted/20">
-                              <td className="px-3 py-2.5 text-foreground font-medium">{i + 1}</td>
-                              <td className="px-3 py-2.5 text-foreground align-top">
+                            <TableRow key={i}>
+                              <TableCell className="text-foreground font-medium">{i + 1}</TableCell>
+                              <TableCell className="text-foreground align-top">
                                 <div className="font-bold">{item.description || item.name || "—"}</div>
                                 {item.long_description && <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.long_description}</div>}
-                              </td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.qty || item.quantity || 1}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</td>
-                              <td className="px-3 py-2.5 font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</td>
-                            </tr>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground align-top">{item.qty || item.quantity || 1}</TableCell>
+                              <TableCell className="text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</TableCell>
+                              <TableCell className="text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</TableCell>
+                              <TableCell className="font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                       <div className="flex flex-col items-end gap-1.5 pt-2 border-t border-border/30">
                         {d.subtotal !== undefined && (
                           <div className="flex gap-4 text-xs">
@@ -1101,44 +1102,39 @@ const Estimates = () => {
         </div>
 
         {/* Estimates Table */}
-        <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-              <tr>
-                <th className="w-10 px-3 py-4">
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10">
                   <Checkbox
                     checked={allPageSelected}
                     onCheckedChange={() => toggleSelectAll(pageEstIds)}
                   />
-                </th>
+                </TableHead>
                 {["Company Name", "Connect Person", "Phone Number", "Mail Id", "Item", "Quantity", "Rate", "Amount", "Sales Person", "Date", ...(canUseBranch ? ["Branch"] : []), ...(canUseBankDetails ? ["Bank Details"] : []), "Actions"].map(h => (
-                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                  <TableHead key={h}>{h}</TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {isLoadingEstimates ? (
                 <SkeletonTableRows rows={6} colSpan={12 + (canUseBranch ? 1 : 0) + (canUseBankDetails ? 1 : 0)} />
               ) : tableRows.length === 0 ? (
-                <tr>
-                  <td colSpan={12 + (canUseBranch ? 1 : 0) + (canUseBankDetails ? 1 : 0)} className="px-6 py-12 text-center text-muted-foreground italic">
-                    No estimates found.
-                  </td>
-                </tr>
+                <TableEmpty colSpan={12 + (canUseBranch ? 1 : 0) + (canUseBankDetails ? 1 : 0)}>No estimates found.</TableEmpty>
               ) : (
                 paginatedRows.map((row: any) => {
                   const est = row.estimate;
                   const estId = est._id || est.id;
                   return (
-                    <tr key={row.key} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(estId) ? 'bg-primary/5' : ''}`}>
-                      <td className="px-3 py-2">
+                    <TableRow key={row.key} className={`${selectedIds.includes(estId) ? 'bg-primary/5' : ''}`}>
+                      <TableCell>
                         <Checkbox
                           checked={selectedIds.includes(estId)}
                           onCheckedChange={() => toggleSelect(estId)}
                         />
-                      </td>
-                      <td className="px-6 py-4">
+                      </TableCell>
+                      <TableCell>
                         <div className="font-medium text-foreground">{row.companyName}</div>
                         <button
                           className="text-[10px] font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer text-left"
@@ -1146,77 +1142,48 @@ const Estimates = () => {
                         >
                           {est.number || estId?.slice(-6).toUpperCase()}
                         </button>
-                      </td>
-                      <td className="px-6 py-4 text-muted-foreground">{row.connectPerson || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{row.connectPerson || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">
                         {row.phone ? (
                           <WhatsAppQuickChat
                             phone={row.phone}
                             data={{ customer_name: row.companyName, invoice_no: est.number || estId?.slice(-6).toUpperCase() }}
                           />
                         ) : "-"}
-                      </td>
-                      <td className="px-6 py-4 text-muted-foreground">{row.mailId || "-"}</td>
-                      <td className="px-6 py-4 font-medium text-foreground">{row.itemDescription || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{row.qty !== "" ? row.qty : "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{row.rate !== "" ? formatRowAmount(est, Number(row.rate)) : "-"}</td>
-                      <td className="px-6 py-4 font-black text-foreground">{row.amount !== "" ? formatRowAmount(est, Number(row.amount)) : "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{row.salesPerson || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{row.date ? formatDate(row.date) : "-"}</td>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{row.mailId || "-"}</TableCell>
+                      <TableCell className="font-medium text-foreground">{row.itemDescription || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">{row.qty !== "" ? row.qty : "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">{row.rate !== "" ? formatRowAmount(est, Number(row.rate)) : "-"}</TableCell>
+                      <TableCell className="font-black text-foreground">{row.amount !== "" ? formatRowAmount(est, Number(row.amount)) : "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">{row.salesPerson || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">{row.date ? formatDate(row.date) : "-"}</TableCell>
                       {canUseBranch && (
-                        <td className="px-6 py-4 text-muted-foreground">
+                        <TableCell className="text-muted-foreground">
                           {getBranchName(est) || "-"}
-                        </td>
+                        </TableCell>
                       )}
                       {canUseBankDetails && (
-                        <td className="px-6 py-4 text-muted-foreground">
+                        <TableCell className="text-muted-foreground">
                           {est.bank_detail ? `${est.bank_detail.bankName || ""} — ${est.bank_detail.accountNumber || ""}` : "-"}
-                        </td>
+                        </TableCell>
                       )}
-                      <td className="px-6 py-4">
+                      <TableCell>
                         <TableActions
                           onView={() => setPreviewEstimate(est)}
                           onEdit={can("Estimates", "Edit") ? () => navigate(`/admin/estimates/edit/${estId}`) : undefined}
                           onDelete={can("Estimates", "Delete") ? () => deleteMutation.mutate(estId) : undefined}
                         />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })
               )}
-            </tbody>
-          </table>
-        </div>
-        </div>
-
-        {/* Pagination Footer */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-          <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {totalRows === 0 ? 0 : (safePage - 1) * pageSize + 1} to {Math.min(safePage * pageSize, totalRows)} of {totalRows} entries
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={safePage <= 1}
-            >
-              Previous
-            </Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">{safePage}</div>
-            <span className="text-xs text-muted-foreground px-1">of {totalPages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={safePage >= totalPages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+            </TableBody>
+          </Table>
+          <TablePagination page={safePage} pageSize={pageSize} total={totalRows} onPageChange={setCurrentPage} />
+        </TableContainer>
       </div>
 
       {/* Centered popup dialog */}

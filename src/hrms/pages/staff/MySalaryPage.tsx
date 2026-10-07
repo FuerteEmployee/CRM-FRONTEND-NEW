@@ -59,7 +59,7 @@ const MySalaryPage = () => {
   const latest = records[0];
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-6 space-y-6 animate-fade-in font-['Outfit']">
+    <div className="max-w-6xl mx-auto p-4 md:p-6 space-y-6 animate-fade-in">
       <div>
         <div className="flex items-center gap-2 text-muted-foreground mb-1">
           <LayoutDashboard className="h-4 w-4" />

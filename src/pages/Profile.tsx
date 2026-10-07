@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { SOUND_OPTIONS, playNotificationSound } from "@/lib/soundUtils";
 import { toast } from "sonner";
+import { AdvanceLoanSummary } from "@/hrms/components/staff/AdvanceLoanSummary";
 
 const statusConfig = [
   { id: 1, label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
@@ -297,6 +298,9 @@ const Profile = () => {
             )}
           </div>
         </div>
+
+        {/* HRMS: my advance salary + loans (hidden for logins with no HRMS employee record) */}
+        <AdvanceLoanSummary employeeId="me" hideWhenEmpty />
       </div>
     </DashboardLayout>
   );

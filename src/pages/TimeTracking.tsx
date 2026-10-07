@@ -12,6 +12,7 @@ import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { timeEntryService } from "@/api/services/time_entry.service";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 
 const TimeTracking = () => {
   const [entries, setEntries] = useState<any[]>([]);
@@ -161,35 +162,33 @@ const TimeTracking = () => {
           <Select value={projectFilter} onValueChange={setProjectFilter}><SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger><SelectContent>{projects.map(p => <SelectItem key={p} value={p}>{p === "all" ? "All Projects" : p}</SelectItem>)}</SelectContent></Select>
         </div>
 
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[800px]">
-                <thead>
-                  <tr className="border-b text-left text-xs text-muted-foreground">
-                    <th className="p-3 font-medium">Task</th>
-                    <th className="p-3 font-medium">Project</th>
-                    <th className="p-3 font-medium">Member</th>
-                    <th className="p-3 font-medium">Hours</th>
-                    <th className="p-3 font-medium">Billable</th>
-                    <th className="p-3 font-medium">Date</th>
-                    <th className="p-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+        <TableContainer>
+              <Table className="min-w-[800px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Task</TableHead>
+                    <TableHead>Project</TableHead>
+                    <TableHead>Member</TableHead>
+                    <TableHead>Hours</TableHead>
+                    <TableHead>Billable</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {loading ? (
-                    <tr><td colSpan={7} className="text-center p-4">Loading...</td></tr>
+                    <TableEmpty colSpan={7}>Loading...</TableEmpty>
                   ) : filtered.length === 0 ? (
-                    <tr><td colSpan={7} className="text-center p-4">No entries found.</td></tr>
+                    <TableEmpty colSpan={7}>No entries found.</TableEmpty>
                   ) : filtered.map((entry) => (
-                    <tr key={entry._id} className="border-b last:border-0 hover:bg-muted/50 transition-colors">
-                      <td className="p-3 text-sm font-medium">{entry.task}</td>
-                      <td className="p-3 text-sm text-muted-foreground">{entry.project || "-"}</td>
-                      <td className="p-3 text-sm text-muted-foreground">{entry.member || "-"}</td>
-                      <td className="p-3 text-sm font-medium">{entry.hours}h</td>
-                      <td className="p-3"><Badge variant="outline" className={entry.billable ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground"}>{entry.billable ? "Yes" : "No"}</Badge></td>
-                      <td className="p-3 text-sm text-muted-foreground">{entry.date ? formatDate(entry.date) : "-"}</td>
-                      <td className="p-3">
+                    <TableRow key={entry._id}>
+                      <TableCell className="font-medium">{entry.task}</TableCell>
+                      <TableCell className="text-muted-foreground">{entry.project || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">{entry.member || "-"}</TableCell>
+                      <TableCell>{entry.hours}h</TableCell>
+                      <TableCell><Badge variant="outline" className={entry.billable ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground"}>{entry.billable ? "Yes" : "No"}</Badge></TableCell>
+                      <TableCell className="text-muted-foreground">{entry.date ? formatDate(entry.date) : "-"}</TableCell>
+                      <TableCell>
                         <TableActions 
                           onView={() => setViewItem(entry)} 
                           onEdit={() => {
@@ -202,14 +201,12 @@ const TimeTracking = () => {
                           }} 
                           onDelete={() => handleDelete(entry._id)} 
                         />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                </TableBody>
+              </Table>
+        </TableContainer>
       </div>
 
       <Dialog open={!!viewItem} onOpenChange={() => setViewItem(null)}>

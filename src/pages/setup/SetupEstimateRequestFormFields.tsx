@@ -22,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 
 export default function SetupEstimateRequestFormFields() {
   const navigate = useNavigate();
@@ -60,39 +61,34 @@ export default function SetupEstimateRequestFormFields() {
           </Button>
         </div>
 
-        <Card>
-          <CardContent className="p-0">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase text-xs font-semibold">
-                <tr>
-                  <th className="px-6 py-4">Form Name</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
+        <TableContainer>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Form Name</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {isLoading ? (
-                  <tr>
-                    <td colSpan={3} className="px-6 py-8 text-center">
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-center">
                       <Loader2 className="h-8 w-8 animate-spin mx-auto text-slate-400" />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ) : forms.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className="px-6 py-8 text-center text-slate-500">
-                      No forms found. Create your first form to get started.
-                    </td>
-                  </tr>
+                  <TableEmpty colSpan={3}>No forms found. Create your first form to get started.</TableEmpty>
                 ) : (
                   forms.map((form: any) => (
-                    <tr key={form._id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-slate-900">{form.name}</td>
-                      <td className="px-6 py-4">
+                    <TableRow key={form._id}>
+                      <TableCell><span className="font-medium">{form.name}</span></TableCell>
+                      <TableCell>
                         <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
                           {form.status?.name || "Active"}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
+                      </TableCell>
+                      <TableCell className="text-right">
                         <div className="flex justify-end gap-2">
                           <Button 
                             variant="ghost" 
@@ -110,14 +106,13 @@ export default function SetupEstimateRequestFormFields() {
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))
                 )}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+              </TableBody>
+            </Table>
+        </TableContainer>
       </div>
     </DashboardLayout>
   );

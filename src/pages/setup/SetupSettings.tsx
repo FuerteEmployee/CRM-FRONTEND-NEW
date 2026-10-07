@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableContainer, TableEmpty } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandGroup, CommandItem } from "@/components/ui/command";
@@ -19,6 +19,7 @@ import { DataTable } from "@/components/shared/DataTable";
 import { DEFAULT_WHATSAPP_QC_TEMPLATES, type WhatsappQcTemplateEntry } from "@/lib/whatsappQuickChat";
 import { WhatsappQuickChatSettingsTab } from "./WhatsappQuickChatSettingsTab";
 import { usePermissions } from "@/hooks/usePermissions";
+import { getAvailableInvoicePdfFormats, DEFAULT_INVOICE_PDF_FORMAT } from "@/lib/invoicePdfFormats";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { settingsService } from "@/api/services/settings.service";
@@ -242,6 +243,7 @@ export default function SetupSettings() {
   const [invNumberFormat, setInvNumberFormat] = useState(() => getInit("invNumberFormat", "number_based"));
   const [invClientNote, setInvClientNote] = useState(() => getInit("invClientNote", ""));
   const [invTerms, setInvTerms] = useState(() => getInit("invTerms", ""));
+  const [invPdfFormat, setInvPdfFormat] = useState(() => getInit("invPdfFormat", DEFAULT_INVOICE_PDF_FORMAT));
   const [propPrefix, setPropPrefix] = useState(() => getInit("propPrefix", "PROP-"));
   const [propDueAfter, setPropDueAfter] = useState(() => getInit("propDueAfter", "7"));
   const [propPipelineLimit, setPropPipelineLimit] = useState(() => getInit("propPipelineLimit", "50"));
@@ -826,6 +828,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
     invNumberFormat: [invNumberFormat, setInvNumberFormat],
     invClientNote: [invClientNote, setInvClientNote],
     invTerms: [invTerms, setInvTerms],
+    invPdfFormat: [invPdfFormat, setInvPdfFormat],
     propPrefix: [propPrefix, setPropPrefix],
     propDueAfter: [propDueAfter, setPropDueAfter],
     propPipelineLimit: [propPipelineLimit, setPropPipelineLimit],
@@ -2043,24 +2046,20 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             </div>
                           </div>
 
-                          <div className="border rounded-md">
+                          <TableContainer>
                             <Table>
-                              <TableHeader className="bg-muted/50">
+                              <TableHeader>
                                 <TableRow>
-                                  <TableHead className="font-bold py-2 h-9">Subject</TableHead>
-                                  <TableHead className="font-bold py-2 h-9">To</TableHead>
-                                  <TableHead className="font-bold py-2 h-9">Status</TableHead>
+                                  <TableHead>Subject</TableHead>
+                                  <TableHead>To</TableHead>
+                                  <TableHead>Status</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                <TableRow>
-                                  <TableCell colSpan={3} className="text-center py-8 text-muted-foreground italic h-20">
-                                    No entries found
-                                  </TableCell>
-                                </TableRow>
+                                <TableEmpty colSpan={3}>No entries found</TableEmpty>
                               </TableBody>
                             </Table>
-                          </div>
+                          </TableContainer>
                         </div>
                       </CardContent>
                     </Card>
@@ -2148,10 +2147,10 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                 </CardHeader>
                 <CardContent className="p-0">
                   <Table>
-                    <TableHeader className="bg-muted/50">
+                    <TableHeader>
                       <TableRow>
-                        <TableHead className="w-[300px] font-bold">Variable Name</TableHead>
-                        <TableHead className="font-bold">Value</TableHead>
+                        <TableHead className="w-[300px]">Variable Name</TableHead>
+                        <TableHead>Value</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2192,8 +2191,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         { name: "React Extension 'GD'", value: "Yes", status: "success" },
                         { name: "React Extension 'zip'", value: "Yes", status: "success" },
                       ].map((item, idx) => (
-                        <TableRow key={idx} className="hover:bg-muted/20">
-                          <TableCell className="font-medium text-muted-foreground">{item.name}</TableCell>
+                        <TableRow key={idx}>
+                          <TableCell className="text-muted-foreground"><span className="font-medium">{item.name}</span></TableCell>
                           <TableCell>
                             {item.status ? (
                               <Badge variant={item.status as any} className="font-mono text-[10px] uppercase">
@@ -2458,6 +2457,21 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  {/* PDF Format Section */}
+                  <div className="space-y-2 pt-6 border-t">
+                    <Label className="text-sm font-semibold">Invoice PDF Format</Label>
+                    <Select value={invPdfFormat} onValueChange={setInvPdfFormat}>
+                      <SelectTrigger className="max-w-md">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {getAvailableInvoicePdfFormats(currentUser?.email).map((f) => (
+                          <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {/* Format Section */}

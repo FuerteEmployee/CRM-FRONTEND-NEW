@@ -15,6 +15,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  TableEmpty,
+  TablePagination,
 } from "@/components/ui/table";
 import {
   Select,
@@ -117,36 +119,6 @@ const TicketPipeLog = () => {
     ? filteredData 
     : filteredData.slice((activePage - 1) * sizeVal, activePage * sizeVal);
 
-  const getPaginationRange = () => {
-    const delta = 2;
-    const range = [];
-    const rangeWithDots = [];
-    let l;
-
-    range.push(1);
-    for (let i = activePage - delta; i <= activePage + delta; i++) {
-      if (i < totalPages && i > 1) {
-        range.push(i);
-      }
-    }
-    if (totalPages > 1) {
-      range.push(totalPages);
-    }
-
-    for (let i of range) {
-      if (l) {
-        if (i - l === 2) {
-          rangeWithDots.push(l + 1);
-        } else if (i - l > 2) {
-          rangeWithDots.push("...");
-        }
-      }
-      rangeWithDots.push(i);
-      l = i;
-    }
-
-    return rangeWithDots;
-  };
 
   const clearDate = () => {
     setFilterDate("");
@@ -182,7 +154,7 @@ const TicketPipeLog = () => {
         </div>
 
         {/* Filters Card */}
-        <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <Card className="overflow-hidden">
           <CardHeader className="bg-accent/5 border-b border-border/40 p-5 space-y-4">
             
             {/* Filter by Date controls */}
@@ -275,52 +247,52 @@ const TicketPipeLog = () => {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-accent/10">
-                  <TableRow className="hover:bg-transparent border-border/40">
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 pl-6">From Name</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Date</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">To</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">From Email</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Subject</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Message</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Status</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 text-center pr-6">Action</TableHead>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>From Name</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>To</TableHead>
+                    <TableHead>From Email</TableHead>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Message</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-center">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
-                      <TableRow key={i} className="animate-pulse border-border/40">
-                        <TableCell colSpan={8} className="py-7 pl-6">
+                      <TableRow key={i} className="animate-pulse">
+                        <TableCell colSpan={8}>
                           <div className="h-4 bg-muted rounded w-full" />
                         </TableCell>
                       </TableRow>
                     ))
                   ) : displayData.length > 0 ? (
                     displayData.map((log: any) => (
-                      <TableRow key={log._id} className="hover:bg-accent/5 transition-colors border-border/40 group">
-                        <TableCell className="py-4 pl-6 text-sm font-semibold text-gray-800 whitespace-nowrap">
+                      <TableRow key={log._id} className="group">
+                        <TableCell className="whitespace-nowrap">
                           {log.from_name}
                         </TableCell>
-                        <TableCell className="py-4 text-xs font-semibold text-muted-foreground whitespace-nowrap">
+                        <TableCell className="text-muted-foreground whitespace-nowrap">
                           {formatLogDate(log.date)}
                         </TableCell>
-                        <TableCell className="py-4 text-sm font-semibold text-gray-800 whitespace-nowrap">
+                        <TableCell className="whitespace-nowrap">
                           {log.to}
                         </TableCell>
-                        <TableCell className="py-4 text-sm font-medium text-muted-foreground whitespace-nowrap">
+                        <TableCell className="text-muted-foreground whitespace-nowrap">
                           {log.from_email}
                         </TableCell>
-                        <TableCell className="py-4 text-sm font-semibold text-gray-800 max-w-[180px] truncate">
+                        <TableCell className="max-w-[180px] truncate">
                           {log.subject}
                         </TableCell>
-                        <TableCell className="py-4 text-sm font-medium text-muted-foreground max-w-[220px] truncate">
+                        <TableCell className="text-muted-foreground max-w-[220px] truncate">
                           {log.message}
                         </TableCell>
-                        <TableCell className="py-4 whitespace-nowrap">
+                        <TableCell className="whitespace-nowrap">
                           {getStatusBadge(log.status)}
                         </TableCell>
-                        <TableCell className="py-4 text-center pr-6">
+                        <TableCell className="text-center">
                           <Button 
                             variant="ghost" 
                             size="icon" 
@@ -333,78 +305,20 @@ const TicketPipeLog = () => {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow>
-                      <TableCell colSpan={8} className="h-64 text-center">
-                        <div className="flex flex-col items-center justify-center gap-3">
-                          <div className="p-4 rounded-full bg-accent/10 text-muted-foreground/40">
-                            <Inbox className="h-8 w-8" />
-                          </div>
-                          <p className="text-sm font-bold text-muted-foreground italic tracking-wide">No ticket pipe logs found</p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <TableEmpty colSpan={8}>No ticket pipe logs found</TableEmpty>
                   )}
                 </TableBody>
               </Table>
             </div>
 
-            {/* Custom Pagination Footer */}
-            {!isLoading && totalEntries > 0 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 border-t border-border/40 bg-accent/5">
-                <div className="text-xs font-bold text-muted-foreground">
-                  Showing {startIndex} to {endIndex} of {totalEntries} entries
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  {/* Previous Button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs font-semibold rounded-lg"
-                    disabled={activePage === 1}
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  >
-                    Previous
-                  </Button>
-
-                  {/* Dynamic page numbers */}
-                  {getPaginationRange().map((page, index) => {
-                    if (page === "...") {
-                      return (
-                        <span key={index} className="text-xs text-muted-foreground font-semibold px-2">
-                          ...
-                        </span>
-                      );
-                    }
-                    return (
-                      <Button
-                        key={index}
-                        variant={activePage === page ? "default" : "outline"}
-                        size="sm"
-                        className={`h-8 w-8 text-xs font-bold rounded-lg transition-all ${
-                          activePage === page 
-                            ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20 scale-[1.05]" 
-                            : "hover:bg-accent/40"
-                        }`}
-                        onClick={() => setCurrentPage(page as number)}
-                      >
-                        {page}
-                      </Button>
-                    );
-                  })}
-
-                  {/* Next Button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs font-semibold rounded-lg"
-                    disabled={activePage === totalPages}
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+            {/* Pagination Footer */}
+            {!isLoading && (
+              <TablePagination
+                page={activePage}
+                pageSize={sizeVal || 1}
+                total={totalEntries}
+                onPageChange={setCurrentPage}
+              />
             )}
           </CardContent>
         </Card>

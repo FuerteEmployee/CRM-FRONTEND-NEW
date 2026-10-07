@@ -259,6 +259,14 @@ export default function StaffBranchListPage() {
     { header: "S.No", accessorKey: "sNo", minWidth: 70 },
     { header: "Branch Name", accessorKey: "name", minWidth: 220, className: "font-bold text-[#1a1a1a]" },
     { header: "Branch Type", accessorKey: (b: HRMSBranch) => getBranchTypeName(b.branchType) || "—", minWidth: 140 },
+    {
+      header: "Supervisors",
+      minWidth: 180,
+      accessorKey: (b: HRMSBranch) => {
+        const names = (b.supervisorIds || []).map((s) => (typeof s === "string" ? "" : s.name)).filter(Boolean);
+        return names.length ? <span className="text-xs font-medium text-slate-700">{names.join(", ")}</span> : <span className="text-slate-400">—</span>;
+      },
+    },
     { header: "City", accessorKey: "city", minWidth: 150 },
     { header: "State", accessorKey: "state", minWidth: 150 },
     { header: "Phone", accessorKey: "phone", minWidth: 140 },
@@ -286,7 +294,7 @@ export default function StaffBranchListPage() {
             </div>
           );
         }
-        const rawRadius = b.radius && b.radius > 0 ? b.radius : null;
+        const rawRadius = Number(b.radius) > 0 ? Number(b.radius) : null;
         if (!rawRadius) {
           return (
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200">
@@ -512,7 +520,7 @@ export default function StaffBranchListPage() {
             </div>
           </div>
 
-          <div className="animate-fade-in shadow-soft rounded-2xl overflow-hidden border border-border/40 bg-white/50 backdrop-blur-sm">
+          <div className="animate-fade-in">
             <DataTable
               data={formattedBranches}
               columns={branchColumns}
@@ -568,7 +576,7 @@ export default function StaffBranchListPage() {
             </div>
           </div>
 
-          <div className="animate-fade-in shadow-soft rounded-2xl overflow-hidden border border-border/40 bg-white/50 backdrop-blur-sm">
+          <div className="animate-fade-in">
             <DataTable
               data={filteredTypes}
               columns={typeColumns}

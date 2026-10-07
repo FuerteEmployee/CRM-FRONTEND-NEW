@@ -64,6 +64,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   SlidersHorizontal,
+  HandCoins,
+  PiggyBank,
 } from "lucide-react";
 import { Input } from "@/hrms/components/ui/input";
 import { ProfileDialog } from "./ProfileDialog";
@@ -221,11 +223,15 @@ const hrmsNav = [
   { title: "Salary Management", url: "/staff/payroll", icon: Landmark, permission: "view_payroll" },
   { title: "Salary Settlements", url: "/staff/salary-settlements", icon: ArrowLeftRight, permission: "manage_payroll" },
   { title: "Advance Salary", url: "/staff/advance-salary", icon: CreditCard, permission: "view_payroll" },
+  { title: "Loans", url: "/staff/loans", icon: HandCoins, permission: "view_payroll" },
+  { title: "PF Records", url: "/staff/pf-records", icon: PiggyBank, permission: "view_payroll" },
   // { title: "User Roles", url: "/staff/roles", icon: Shield, permission: "manage_roles" },
   { title: "My Attendance", url: "/staff/attendance", icon: Clock },
   { title: "My Leaves", url: "/staff/leaves", icon: Briefcase },
   { title: "My Expenses", url: "/staff/expenses", icon: Wallet },
   { title: "My Advance Salary", url: "/staff/advance-salary", icon: CreditCard },
+  { title: "My Loans", url: "/staff/loans", icon: HandCoins },
+  { title: "My PF", url: "/staff/my-pf", icon: PiggyBank },
   { title: "Branch Management", url: "/staff/branches", icon: Landmark, permission: "view_branches" },
 ];
 
@@ -945,9 +951,9 @@ export function AppSidebar() {
         // Admins see "Advance Salary"; employees/staff see "My Advance Salary"
         if (group.key === "hrms") {
           if (isAdminRole) {
-            items = items.filter(item => item.title !== "My Advance Salary");
+            items = items.filter(item => item.title !== "My Advance Salary" && item.title !== "My Loans" && item.title !== "My PF");
           } else {
-            items = items.filter(item => item.title !== "Advance Salary");
+            items = items.filter(item => item.title !== "Advance Salary" && item.title !== "Loans" && item.title !== "PF Records");
           }
         }
 

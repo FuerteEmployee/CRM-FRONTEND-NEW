@@ -49,6 +49,7 @@ import { useAuth } from "@/hrms/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/hrms/lib/utils";
 import { Progress } from "@/hrms/components/ui/progress";
+import { TablePagination } from "@/hrms/components/ui/table";
 import { toast } from "@/hrms/components/ui/use-toast";
 
 const WEEK_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -403,34 +404,13 @@ const LeaveManagementPage = () => {
             )}
 
             {/* Pagination Footer */}
-            {totalLeaves > 0 && (
-              <div className="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 mt-1 border-t border-slate-100">
-                <p className="text-[11px] font-semibold text-slate-400">
-                  Page {currentPage} of {totalLeavePages} · {totalLeaves} requests
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-3 rounded-lg font-semibold text-[11px]"
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    disabled={currentPage <= 1}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-[11px] text-slate-400 px-1">{currentPage} / {totalLeavePages}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-3 rounded-lg font-semibold text-[11px]"
-                    onClick={() => setCurrentPage((p) => Math.min(totalLeavePages, p + 1))}
-                    disabled={currentPage >= totalLeavePages}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
-            )}
+            <TablePagination
+              page={currentPage}
+              pageSize={itemsPerPage}
+              total={totalLeaves}
+              onPageChange={setCurrentPage}
+              className="mt-1 rounded-lg border"
+            />
           </CardContent>
         </Card>
 

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 const estimates = [
   {
@@ -85,7 +86,7 @@ export default function ClientEstimates() {
           </div>
         </Card>
 
-        <Card className="lg:col-span-2 border-none shadow-[0_4px_25px_rgb(0,0,0,0.03)] bg-white/90 backdrop-blur-md overflow-hidden rounded-2xl">
+        <Card className="lg:col-span-2 border shadow-sm bg-card overflow-hidden rounded-lg">
           <CardContent className="p-0">
             <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="relative w-full group">
@@ -106,39 +107,39 @@ export default function ClientEstimates() {
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 bg-slate-50/50">
-                    <th className="py-4 px-8">Estimate #</th>
-                    <th className="py-4 px-6">Subject</th>
-                    <th className="py-4 px-6">Amount</th>
-                    <th className="py-4 px-6">Date</th>
-                    <th className="py-4 px-6">Expiry</th>
-                    <th className="py-4 px-8 text-right">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Estimate #</TableHead>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Expiry</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {estimates.map((est) => (
-                    <tr
+                    <TableRow
                       key={est.id}
-                      className="group hover:bg-slate-50/50 transition-colors"
+                      className="group"
                     >
-                      <td className="py-5 px-8 font-bold text-slate-700">
+                      <TableCell>
                         {est.id}
-                      </td>
-                      <td className="py-5 px-6 font-bold text-slate-900">
-                        {est.subject}
-                      </td>
-                      <td className="py-5 px-6 font-black text-slate-900">
-                        {est.amount}
-                      </td>
-                      <td className="py-5 px-6 text-sm font-bold text-muted-foreground">
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-semibold">{est.subject}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-bold">{est.amount}</span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
                         {est.date}
-                      </td>
-                      <td className="py-5 px-6 text-sm font-bold text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
                         {est.expiry}
-                      </td>
-                      <td className="py-5 px-8 text-right">
+                      </TableCell>
+                      <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-3">
                           <Badge
                             className={`px-3 py-1 rounded-full font-black text-[10px] uppercase tracking-widest shadow-sm border-none ${
@@ -159,11 +160,11 @@ export default function ClientEstimates() {
                             <MoreHorizontal className="h-4 w-4" />
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>

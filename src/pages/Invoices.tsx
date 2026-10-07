@@ -54,6 +54,7 @@ import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
 import { ExportButton } from "@/components/ui/export-button";
@@ -65,7 +66,8 @@ import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { useSettings } from "@/context/SettingsContext";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { isEkagraUser } from "@/lib/ekagraTenant";
-import { EKAGRA_COMPANY_INFO, getPlaceOfSupply, amountToWords, getDefaultTermsText } from "@/lib/ekagraTaxInvoice";
+import { renderToStaticMarkup } from "react-dom/server";
+import { EkagraTaxInvoiceLayout, ClassicInvoiceLayout } from "@/components/invoiceFormatLayouts";
 
 const INVOICE_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Voucher Number", sample: "INV-2201", core: true },
@@ -267,25 +269,19 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
     return placement === "before" ? `${sym}${signed}` : `${signed}${sym}`;
   };
 
-  // Ekagra Engineering's Tax Invoice format — mirrors their existing
-  // Tally-printed invoice layout (GSTIN/PAN header, M/s buyer box, HSN-coded
-  // item table, CGST/SGST split, amount in words).
+  // Both custom formats render via the exact same React components the "View"
+  // eye-icon preview uses (components/invoiceFormatLayouts.tsx) — rendered
+  // here to a static HTML string instead of live DOM, so Print/Download can
+  // never drift from what Preview shows.
   const generateEkagraTaxInvoiceHtml = () => {
-    const client = d.client || {};
-    const items = d.items || [];
-    const subtotal = Number(d.subtotal || 0);
-    const cgst = Number(d.total_cgst || 0);
-    const sgst = Number(d.total_sgst || 0);
-    const igst = Number(d.total_igst || 0);
-    const cgstPct = subtotal > 0 ? (cgst / subtotal) * 100 : 0;
-    const sgstPct = subtotal > 0 ? (sgst / subtotal) * 100 : 0;
-    const igstPct = subtotal > 0 ? (igst / subtotal) * 100 : 0;
-    const money = (n: number) => Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const na = (v: any) => (v === undefined || v === null || v === "" ? "-" : v);
-    const buyerAddressLine = d.partyAddress || [client.address, client.city].filter(Boolean).join(", ");
-    const buyerLocationLine = [client.state, client.zip].filter(Boolean).join(" ");
-    const bd = d.bank_detail;
-
+    const markup = renderToStaticMarkup(
+      <EkagraTaxInvoiceLayout
+        data={d}
+        date={d.date ? formatDate(d.date) : "-"}
+        bankDetail={d.bank_detail}
+        compCity={compCity}
+      />
+    );
     return `
       <html>
         <head>
@@ -293,147 +289,52 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
           <style>
             * { box-sizing: border-box; }
             body { font-family: Arial, Helvetica, sans-serif; color: #111; padding: 24px; font-size: 12px; }
-            .frame { border: 1.5px solid #000; }
-            .row { display: flex; }
-            .cell { border: 1px solid #000; padding: 6px 10px; }
-            .no-border-top { border-top: none; }
-            .center { text-align: center; }
-            .right { text-align: right; }
-            .bold { font-weight: bold; }
-            table { width: 100%; border-collapse: collapse; }
-            table.items th, table.items td { border: 1px solid #000; padding: 5px 8px; font-size: 11.5px; }
-            table.items th { font-weight: bold; }
             @media print {
               body { padding: 0; }
               @page { margin: 1.2cm; }
             }
           </style>
         </head>
-        <body>
-          <div class="frame">
-            <div class="cell center no-border-top" style="border-top: none;">
-              <div class="bold" style="font-size: 20px; letter-spacing: 0.5px;">${EKAGRA_COMPANY_INFO.name}</div>
-              ${EKAGRA_COMPANY_INFO.addressLines.map((l) => `<div style="font-size:11.5px;">${l}</div>`).join("")}
-            </div>
-            <div class="row">
-              <div class="cell" style="flex:1;">GSTIN No. : ${EKAGRA_COMPANY_INFO.gstin}</div>
-              <div class="cell" style="flex:1; border-left:none;">State : ${EKAGRA_COMPANY_INFO.state} &nbsp; State Code : ${EKAGRA_COMPANY_INFO.stateCode}</div>
-              <div class="cell" style="flex:1; border-left:none;">PAN No. : ${EKAGRA_COMPANY_INFO.pan}</div>
-            </div>
+        <body>${markup}</body>
+      </html>
+    `;
+  };
 
-            <div class="row">
-              <div class="cell bold" style="flex:1;">${d.voucherType || "Debit Memo"}</div>
-              <div class="cell bold center" style="flex:2; border-left:none; font-size:16px;">Tax Invoice</div>
-              <div class="cell right" style="flex:1; border-left:none;">ORIGINAL</div>
-            </div>
-
-            <div class="row">
-              <div class="cell" style="flex:2;">
-                <div class="bold">M/s.&nbsp;&nbsp;${na(client.company)}</div>
-                <div>${na(buyerAddressLine)}</div>
-                <div>${na(buyerLocationLine)}</div>
-                <div>${na(client.country)}</div>
-                <div style="margin-top:6px;">GSTIN No. : ${na(d.gstin || client.gst_number)}</div>
-                <div>Place of Supply : ${getPlaceOfSupply(client.state)}</div>
-                <div>PAN No. : ${na(client.pan_number)}</div>
-              </div>
-              <div class="cell" style="flex:1; border-left:none;">
-                <div><b>Invoice No.</b> &nbsp;: ${na(d.number)}</div>
-                <div><b>Invoice Date</b> : ${d.date ? formatDate(d.date) : "-"}</div>
-                <div><b>Party Group</b> &nbsp;: ${na(d.partyGroup)}</div>
-                <div><b>Terms of Payment</b> : ${na(d.termsOfPayment)}</div>
-                <div><b>Sales Person</b> : ${na(d.salesPerson)}</div>
-                <div><b>Branch</b> &nbsp;&nbsp;&nbsp;&nbsp;: ${na(typeof d.branch === "object" ? d.branch?.name : d.branch)}</div>
-              </div>
-            </div>
-
-            <table class="items">
-              <thead>
-                <tr>
-                  <th style="width:6%;">Sr.</th>
-                  <th>Particular</th>
-                  <th style="width:12%;">HSN Code</th>
-                  <th style="width:10%;">Quantity</th>
-                  <th style="width:8%;">Unit</th>
-                  <th style="width:12%;" class="right">Rate</th>
-                  <th style="width:14%;" class="right">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${items.map((item: any, i: number) => `
-                  <tr>
-                    <td class="center">${i + 1}</td>
-                    <td>${na(item.description || item.name)}</td>
-                    <td class="center">${na(item.itemHSN)}</td>
-                    <td class="right">${Number(item.qty || item.quantity || 0).toLocaleString("en-IN")}</td>
-                    <td class="center">${na(item.unit)}</td>
-                    <td class="right">${money(item.rate || item.price || 0)}</td>
-                    <td class="right">${money(item.amount ?? ((item.qty || 0) * (item.rate || 0)))}</td>
-                  </tr>
-                `).join("")}
-                ${Array.from({ length: Math.max(0, 3 - items.length) }).map(() => `
-                  <tr><td class="center">&nbsp;</td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
-                `).join("")}
-              </tbody>
-            </table>
-
-            <div class="row">
-              <div class="cell" style="flex:2;">&nbsp;</div>
-              <div class="cell" style="flex:1; border-left:none; padding:0;">
-                <div class="row" style="border-bottom:1px solid #000;">
-                  <div class="cell" style="flex:1; border:none;">Sub Total</div>
-                  <div class="cell right" style="flex:1; border:none;">${money(subtotal)}</div>
-                </div>
-                ${igst > 0 ? `
-                  <div class="row" style="border-bottom:1px solid #000;">
-                    <div class="cell" style="flex:1; border:none;">IGST ${igstPct.toFixed(2)} %</div>
-                    <div class="cell right" style="flex:1; border:none;">${money(igst)}</div>
-                  </div>
-                ` : `
-                  <div class="row" style="border-bottom:1px solid #000;">
-                    <div class="cell" style="flex:1; border:none;">CGST ${cgstPct.toFixed(2)} %</div>
-                    <div class="cell right" style="flex:1; border:none;">${money(cgst)}</div>
-                  </div>
-                  <div class="row" style="border-bottom:1px solid #000;">
-                    <div class="cell" style="flex:1; border:none;">SGST ${sgstPct.toFixed(2)} %</div>
-                    <div class="cell right" style="flex:1; border:none;">${money(sgst)}</div>
-                  </div>
-                `}
-                <div class="row">
-                  <div class="cell bold" style="flex:1; border:none;">Grand Total</div>
-                  <div class="cell bold right" style="flex:1; border:none;">${money(d.total)}</div>
-                </div>
-              </div>
-            </div>
-
-            <div class="cell" style="border-top:none;">
-              <b>Rs. In Words</b> &nbsp;: ${amountToWords(Number(d.total || 0))}
-            </div>
-
-            <div class="cell" style="border-top:none;">
-              <b>Payment / Bank Details</b>
-              <div>${bd ? `${na(bd.accountHolderName)} — Bank: ${na(bd.bankName)}` : "-"}</div>
-              ${bd ? `<div>A/C No: ${na(bd.accountNumber)} &nbsp; IFSC: ${na(bd.ifscCode)}${bd.branch?.name ? ` · Branch: ${bd.branch.name}` : ""}</div>` : ""}
-            </div>
-
-            <div class="row">
-              <div class="cell" style="flex:1; border-top:none;">
-                <div class="bold">Terms &amp; Conditions</div>
-                <div>${d.notes || d.adminnote || getDefaultTermsText(compCity)}</div>
-              </div>
-              <div class="cell right" style="flex:1; border-top:none; border-left:none;">
-                <div class="bold">For, ${EKAGRA_COMPANY_INFO.name}</div>
-                <div style="margin-top:36px;">Authorised Signatory</div>
-              </div>
-            </div>
-          </div>
-        </body>
+  const generateClassicInvoiceHtml = () => {
+    const markup = renderToStaticMarkup(
+      <ClassicInvoiceLayout
+        data={d}
+        date={d.date ? formatDate(d.date) : "-"}
+        companyName={companyName}
+        compPhone={getSetting("compPhone", "")}
+      />
+    );
+    return `
+      <html>
+        <head>
+          <title>Invoice ${invoiceNumber}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { font-family: Arial, Helvetica, sans-serif; color: #111; padding: 24px; font-size: 12px; }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 1.2cm; }
+            }
+          </style>
+        </head>
+        <body>${markup}</body>
       </html>
     `;
   };
 
   const generatePdfHtml = () => {
-    if (isEkagraUser(user?.email)) return generateEkagraTaxInvoiceHtml();
+    const pdfFormat = getSetting("invPdfFormat", "generic");
+    if (pdfFormat === "ekagra_tax_invoice" && isEkagraUser(user?.email)) {
+      return generateEkagraTaxInvoiceHtml();
+    }
+    if (pdfFormat === "classic_invoice") {
+      return generateClassicInvoiceHtml();
+    }
     const bd = d.bank_detail;
     const bankDetailsHtml = (canUseBankDetails && bd)
       ? `
@@ -775,33 +676,33 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                 <div className="border border-border/40 rounded-xl p-5 min-h-[100px]">
                   {d.items?.length > 0 ? (
                     <>
-                      <table className="w-full text-xs mb-4">
-                        <thead className="bg-red-600 text-white text-[10px] font-black uppercase tracking-widest">
-                          <tr>
-                            <th className="px-3 py-2.5 text-left w-12">#</th>
-                            <th className="px-3 py-2.5 text-left">Item</th>
-                            <th className="px-3 py-2.5 text-left w-16">Qty</th>
-                            <th className="px-3 py-2.5 text-left w-24">Rate</th>
-                            <th className="px-3 py-2.5 text-left w-16">Tax</th>
-                            <th className="px-3 py-2.5 text-left w-28">Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/30">
+                      <Table className="mb-4">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-left w-12">#</TableHead>
+                            <TableHead className="text-left">Item</TableHead>
+                            <TableHead className="text-left w-16">Qty</TableHead>
+                            <TableHead className="text-left w-24">Rate</TableHead>
+                            <TableHead className="text-left w-16">Tax</TableHead>
+                            <TableHead className="text-left w-28">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {d.items.map((item: any, i: number) => (
-                            <tr key={i} className="hover:bg-muted/20">
-                              <td className="px-3 py-2.5 text-foreground font-medium">{i + 1}</td>
-                              <td className="px-3 py-2.5 text-foreground align-top">
+                            <TableRow key={i}>
+                              <TableCell className="text-foreground font-medium">{i + 1}</TableCell>
+                              <TableCell className="text-foreground align-top">
                                 <div className="font-bold">{item.description || item.name || "—"}</div>
                                 {item.long_description && <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.long_description}</div>}
-                              </td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.qty || item.quantity || 1}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</td>
-                              <td className="px-3 py-2.5 font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</td>
-                            </tr>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground align-top">{item.qty || item.quantity || 1}</TableCell>
+                              <TableCell className="text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</TableCell>
+                              <TableCell className="text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</TableCell>
+                              <TableCell className="font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                       <div className="flex flex-col items-end gap-1.5 pt-2 border-t border-border/30">
                         {d.subtotal !== undefined && (
                           <div className="flex gap-4 text-xs">
@@ -1558,47 +1459,42 @@ const Invoices = () => {
         </div>
 
         {/* Invoices Table */}
-        <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-              <tr>
-                <th className="w-10 px-3 py-4">
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10">
                   <Checkbox
                     checked={pageInvoices.length > 0 && pageInvoices.every((i: any) => selectedIds.includes(i._id))}
                     onCheckedChange={() => toggleSelectAll(pageInvoices)}
                   />
-                </th>
+                </TableHead>
                 {tableHeaders.map((h) => (
-                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px] whitespace-nowrap">
+                  <TableHead key={h} className="whitespace-nowrap">
                     {h}
-                  </th>
+                  </TableHead>
                 ))}
-                <th className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {isLoading ? (
                 <SkeletonTableRows rows={6} colSpan={TABLE_COLUMN_COUNT} />
               ) : flatRows.length === 0 ? (
-                <tr>
-                  <td colSpan={TABLE_COLUMN_COUNT} className="px-6 py-12 text-center text-muted-foreground italic">
-                    No invoices found.
-                  </td>
-                </tr>
+                <TableEmpty colSpan={TABLE_COLUMN_COUNT}>No invoices found.</TableEmpty>
               ) : (
                 flatRows.map((row: any) => {
                   const inv = row.invoice;
                   const status = statusMap[inv.status] || statusMap["unpaid"];
                   return (
-                    <tr key={row.rowKey} className={`hover:bg-muted/30 transition-colors ${selectedIds.includes(inv._id) ? 'bg-primary/5' : ''}`}>
-                      <td className="px-3 py-2">
+                    <TableRow key={row.rowKey} className={`${selectedIds.includes(inv._id) ? 'bg-primary/5' : ''}`}>
+                      <TableCell>
                         <Checkbox
                           checked={selectedIds.includes(inv._id)}
                           onCheckedChange={() => toggleSelect(inv._id)}
                         />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <button
                             className="font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer text-left"
@@ -1610,77 +1506,46 @@ const Invoices = () => {
                             {status.label}
                           </Badge>
                         </div>
-                      </td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">
                         {row.billDate ? formatDate(row.billDate) : "-"}
-                      </td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.voucherType || "-"}</td>
-                      {isPilot && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.salesPerson || "-"}</td>}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.voucherType || "-"}</TableCell>
+                      {isPilot && <TableCell className="text-muted-foreground whitespace-nowrap">{row.salesPerson || "-"}</TableCell>}
 
-                      <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">{row.partyName}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.partyAddress || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.partyGroup || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.termsOfPayment || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.gstin || "-"}</td>
-                      <td className="px-6 py-4 font-medium text-foreground whitespace-nowrap">{row.itemName || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.itemGroup || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.itemHSN || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.gstPercentage || 0}%</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.itemBatch || "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.quantity || 0}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.rate || 0)}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.unit || "-"}</td>
-                      <td className="px-6 py-4 font-black text-foreground whitespace-nowrap">{formatRowAmount(inv, row.amount || 0)}</td>
-                      <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.freight || 0)}</td>
-                      <td className="px-6 py-4 font-black text-primary whitespace-nowrap">{formatRowAmount(inv, row.total || 0)}</td>
-                      {canUseBranch && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.branch || "-"}</td>}
-                      {canUseBankDetails && <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">{row.bankDetails || "-"}</td>}
-                      <td className="px-6 py-4">
+                      <TableCell className="font-medium text-foreground whitespace-nowrap">{row.partyName}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.partyAddress || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.partyGroup || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.termsOfPayment || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.gstin || "-"}</TableCell>
+                      <TableCell className="font-medium text-foreground whitespace-nowrap">{row.itemName || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.itemGroup || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.itemHSN || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.gstPercentage || 0}%</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.itemBatch || "-"}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.quantity || 0}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.rate || 0)}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{row.unit || "-"}</TableCell>
+                      <TableCell className="font-black text-foreground whitespace-nowrap">{formatRowAmount(inv, row.amount || 0)}</TableCell>
+                      <TableCell className="text-muted-foreground whitespace-nowrap">{formatRowAmount(inv, row.freight || 0)}</TableCell>
+                      <TableCell className="font-black text-primary whitespace-nowrap">{formatRowAmount(inv, row.total || 0)}</TableCell>
+                      {canUseBranch && <TableCell className="text-muted-foreground whitespace-nowrap">{row.branch || "-"}</TableCell>}
+                      {canUseBankDetails && <TableCell className="text-muted-foreground whitespace-nowrap">{row.bankDetails || "-"}</TableCell>}
+                      <TableCell>
                         <TableActions
                           onView={() => setPreviewInvoice(inv)}
                           onEdit={can("Invoices", "Edit") ? () => navigate(`/admin/invoices/edit/${inv._id}`) : undefined}
                           onDelete={can("Invoices", "Delete") ? () => deleteMutation.mutate(inv._id) : undefined}
                         />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })
               )}
-            </tbody>
-          </table>
-          </div>
-        </div>
-
-        {/* Pagination Footer */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-          <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {totalInvoiceRows === 0 ? 0 : (safeInvoicePage - 1) * invoicePageSize + 1} to {Math.min(safeInvoicePage * invoicePageSize, totalInvoiceRows)} of {totalInvoiceRows} entries
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={safeInvoicePage <= 1}
-            >
-              Previous
-            </Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">
-              {safeInvoicePage}
-            </div>
-            <span className="text-xs text-muted-foreground px-1">of {totalInvoicePages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.min(totalInvoicePages, p + 1))}
-              disabled={safeInvoicePage >= totalInvoicePages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+            </TableBody>
+          </Table>
+          <TablePagination page={safeInvoicePage} pageSize={invoicePageSize} total={totalInvoiceRows} onPageChange={setCurrentPage} />
+        </TableContainer>
       </div>
 
       {/* Centered popup dialog */}

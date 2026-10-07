@@ -14,6 +14,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { salesService } from "@/api/services/sales.service";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -329,33 +330,33 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
                 <div className="border border-border/40 rounded-xl p-5 min-h-[100px]">
                   {d.items?.length > 0 ? (
                     <>
-                      <table className="w-full text-xs mb-4">
-                        <thead className="bg-red-600 text-white text-[10px] font-black uppercase tracking-widest">
-                          <tr>
-                            <th className="px-3 py-2.5 text-left w-12">#</th>
-                            <th className="px-3 py-2.5 text-left">Item</th>
-                            <th className="px-3 py-2.5 text-left w-16">Qty</th>
-                            <th className="px-3 py-2.5 text-left w-24">Rate</th>
-                            <th className="px-3 py-2.5 text-left w-16">Tax</th>
-                            <th className="px-3 py-2.5 text-left w-28">Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/30">
+                      <Table className="mb-4">
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-left w-12">#</TableHead>
+                            <TableHead className="text-left">Item</TableHead>
+                            <TableHead className="text-left w-16">Qty</TableHead>
+                            <TableHead className="text-left w-24">Rate</TableHead>
+                            <TableHead className="text-left w-16">Tax</TableHead>
+                            <TableHead className="text-left w-28">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {d.items.map((item: any, i: number) => (
-                            <tr key={i} className="hover:bg-muted/20">
-                              <td className="px-3 py-2.5 text-foreground font-medium">{i + 1}</td>
-                              <td className="px-3 py-2.5 text-foreground align-top">
+                            <TableRow key={i}>
+                              <TableCell className="text-foreground font-medium">{i + 1}</TableCell>
+                              <TableCell className="text-foreground align-top">
                                 <div className="font-bold">{item.description || item.name || "—"}</div>
                                 {item.long_description && <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.long_description}</div>}
-                              </td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.qty || item.quantity || 1}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
-                              <td className="px-3 py-2.5 text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</td>
-                              <td className="px-3 py-2.5 font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</td>
-                            </tr>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground align-top">{item.qty || item.quantity || 1}</TableCell>
+                              <TableCell className="text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</TableCell>
+                              <TableCell className="text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</TableCell>
+                              <TableCell className="font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                       <div className="flex flex-col items-end gap-1.5 pt-2 border-t border-border/30">
                         {d.subtotal !== undefined && (
                           <div className="flex gap-4 text-xs">
@@ -829,46 +830,42 @@ const Proposals = () => {
         </div>
 
         {/* Proposals Table */}
-        <div className="rounded-3xl border border-border/50 overflow-hidden bg-background shadow-sm">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-muted/50 text-muted-foreground border-b border-border/50">
-              <tr>
-                <th className="p-3 font-medium w-8">
+        <TableContainer>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-8">
                   <input
                     type="checkbox"
                     className="rounded border-border"
                     checked={allPageSelected}
                     onChange={handleSelectAll}
                   />
-                </th>
+                </TableHead>
                 {[
                   "Proposal #", "Subject", "To", "Total", "Date", "Open Till", "Tags", "Date Created", "Status",
                   ...(canUseBranch ? ["Branch"] : []),
                   "Actions",
                 ].map(h => (
-                  <th key={h} className="px-6 py-4 font-black uppercase tracking-wider text-[10px]">{h}</th>
+                  <TableHead key={h}>{h}</TableHead>
                 ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/50">
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {isLoadingProposals ? (
                 <SkeletonTableRows rows={6} colSpan={11 + (canUseBranch ? 1 : 0)} />
               ) : paginatedProposals.length === 0 ? (
-                <tr>
-                  <td colSpan={11 + (canUseBranch ? 1 : 0)} className="px-6 py-12 text-center text-muted-foreground italic">
-                    No proposals found.
-                  </td>
-                </tr>
+                <TableEmpty colSpan={11 + (canUseBranch ? 1 : 0)}>No proposals found.</TableEmpty>
               ) : (
                 paginatedProposals.map((prop: any) => {
                   const status = getStatus(prop.status);
                   const proposalNum = (prop._id || prop.id)?.slice(-6).toUpperCase();
                   return (
-                    <tr
+                    <TableRow
                       key={prop._id || prop.id}
-                      className={`hover:bg-muted/30 transition-colors ${selectedProposals.includes(prop._id || prop.id) ? 'bg-primary/5' : ''}`}
+                      className={selectedProposals.includes(prop._id || prop.id) ? 'bg-primary/5' : ''}
                     >
-                      <td className="p-3">
+                      <TableCell>
                         <input
                           type="checkbox"
                           className="rounded border-border"
@@ -878,21 +875,21 @@ const Proposals = () => {
                             else setSelectedProposals(prev => prev.filter(id => id !== (prop._id || prop.id)));
                           }}
                         />
-                      </td>
-                      <td className="px-6 py-4">
+                      </TableCell>
+                      <TableCell>
                         <button
                           className="font-bold text-primary hover:underline hover:text-primary/80 transition-colors cursor-pointer"
                           onClick={() => setSelectedProposal(prop)}
                         >
                           {proposalNum}
                         </button>
-                      </td>
-                      <td className="px-6 py-4 font-medium text-foreground">{prop.subject || prop.title}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{prop.rel_id || prop.customer || "N/A"}</td>
-                      <td className="px-6 py-4 font-black text-foreground">{formatRowAmount(prop, prop.total || prop.amount || 0)}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{prop.date ? formatDate(prop.date) : "-"}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{prop.open_till ? formatDate(prop.open_till) : "-"}</td>
-                      <td className="px-6 py-4">
+                      </TableCell>
+                      <TableCell className="font-medium text-foreground">{prop.subject || prop.title}</TableCell>
+                      <TableCell className="text-muted-foreground">{prop.rel_id || prop.customer || "N/A"}</TableCell>
+                      <TableCell className="font-black text-foreground">{formatRowAmount(prop, prop.total || prop.amount || 0)}</TableCell>
+                      <TableCell className="text-muted-foreground">{prop.date ? formatDate(prop.date) : "-"}</TableCell>
+                      <TableCell className="text-muted-foreground">{prop.open_till ? formatDate(prop.open_till) : "-"}</TableCell>
+                      <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {prop.tags?.map((tag: string, i: number) => (
                             <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
@@ -900,61 +897,33 @@ const Proposals = () => {
                             </Badge>
                           ))}
                         </div>
-                      </td>
-                      <td className="px-6 py-4 text-muted-foreground">{prop.createdAt ? formatDate(prop.createdAt) : "-"}</td>
-                      <td className="px-6 py-4">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{prop.createdAt ? formatDate(prop.createdAt) : "-"}</TableCell>
+                      <TableCell>
                         <Badge className={cn("text-[10px] font-black uppercase tracking-widest border-none px-3 py-1", status.className)}>
                           {status.label}
                         </Badge>
-                      </td>
+                      </TableCell>
                       {canUseBranch && (
-                        <td className="px-6 py-4 text-muted-foreground whitespace-nowrap">
+                        <TableCell className="text-muted-foreground whitespace-nowrap">
                           {typeof prop.branch === "object" ? (prop.branch?.name || "-") : (prop.branch || "-")}
-                        </td>
+                        </TableCell>
                       )}
-                      <td className="px-6 py-4">
+                      <TableCell>
                         <TableActions
                           onView={() => setPreviewProposal(prop)}
                           onEdit={can("Proposals", "Edit") ? () => navigate(`/admin/proposals/edit/${prop._id || prop.id}`) : undefined}
                           onDelete={can("Proposals", "Delete") ? () => deleteMutation.mutate(prop._id || prop.id) : undefined}
                         />
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })
               )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination Footer */}
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4 px-4 mb-4">
-          <p className="text-xs font-bold text-muted-foreground italic">
-            Showing {totalRows === 0 ? 0 : (safePage - 1) * pageSize + 1} to {Math.min(safePage * pageSize, totalRows)} of {totalRows} entries
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={safePage <= 1}
-            >
-              Previous
-            </Button>
-            <div className="h-8 w-8 flex items-center justify-center rounded-lg bg-primary text-white font-bold text-xs shadow-lg shadow-primary/20">{safePage}</div>
-            <span className="text-xs text-muted-foreground px-1">of {totalPages}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 px-4 rounded-lg font-bold text-xs"
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={safePage >= totalPages}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+            </TableBody>
+          </Table>
+          <TablePagination page={safePage} pageSize={pageSize} total={totalRows} onPageChange={setCurrentPage} />
+        </TableContainer>
       </div>
 
       {/* Centered popup dialog */}

@@ -16,6 +16,7 @@ import { staffService } from "@/api/services/staff.service";
 import { mainSidebarService } from "@/api/services/mainsidebar.service";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
+import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 interface Permission {
   feature: string;
@@ -145,6 +146,7 @@ const FEATURES_CONFIG = [
   },
   { name: "Goals", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "WhatsApp", caps: ["View(Global)", "Create", "Edit", "Delete"] },
+  { name: "Marketing Spend", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "HRMS Staff Directory", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "HRMS Attendance", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "HRMS Leave Management", caps: ["View(Global)", "Create", "Edit", "Delete"] },
@@ -535,25 +537,25 @@ export default function SetupRolesLegacy() {
             })()}
           </div>
 
-          <div className="border rounded-md overflow-hidden">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-4 py-3 font-semibold text-foreground w-1/3 border-r">
+          <TableContainer>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-1/3">
                     features
-                  </th>
-                  <th className="px-4 py-3 font-semibold text-foreground">
+                  </TableHead>
+                  <TableHead>
                     Capabilities
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {FEATURES_CONFIG.map((feature) => (
-                  <tr key={feature.name}>
-                    <td className="px-4 py-3 text-foreground font-medium border-r">
-                      {feature.name}
-                    </td>
-                    <td className="px-4 py-3">
+                  <TableRow key={feature.name}>
+                    <TableCell>
+                      <span className="font-medium">{feature.name}</span>
+                    </TableCell>
+                    <TableCell>
                       <div className="flex flex-col gap-2">
                         {feature.caps.map((cap) => (
                           <div
@@ -584,12 +586,12 @@ export default function SetupRolesLegacy() {
                           </div>
                         ))}
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </TableBody>
+            </Table>
+          </TableContainer>
         </div>
 
         <div className="flex justify-end">

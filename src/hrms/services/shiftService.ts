@@ -21,6 +21,7 @@ export interface Shift {
   overtimeRatePerHour: number;
   lunch?: ShiftLunch;
   isActive: boolean;
+  employeeCount?: number; // active employees allocated to this shift (from GET /shifts)
 }
 
 // EXPECTED WORK hours = shift span minus configured lunch. Classification and
@@ -85,5 +86,10 @@ export const shiftService = {
 
   delete: async (id: string): Promise<void> => {
     await apiClient.delete(`/shifts/${id}`);
-  }
+  },
+
+  // Bulk shift allocation — moves all given employees onto this shift.
+  assign: async (id: string, userIds: string[]): Promise<{ message: string; data: { matched: number; modified: number } }> => {
+    return apiClient.post(`/shifts/${id}/assign`, { userIds }) as any;
+  },
 };

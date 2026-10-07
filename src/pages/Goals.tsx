@@ -12,7 +12,8 @@ import {
   TableCell,
   TableHead,
   TableHeader,
-  TableRow
+  TableRow,
+  TableEmpty,
 } from "@/components/ui/table";
 import {
   Plus,
@@ -136,7 +137,7 @@ const Goals = () => {
         </div>
 
         {/* Table Controls Card */}
-        <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <Card className="overflow-hidden">
           <CardHeader className="bg-accent/5 border-b border-border/40 p-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -218,38 +219,38 @@ const Goals = () => {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-accent/10">
-                  <TableRow className="hover:bg-transparent border-border/40">
-                    <TableHead className="w-12 px-4 py-4">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
                       <Checkbox
                         checked={selectedItems.length > 0 && selectedItems.length === displayData.length}
                         onCheckedChange={handleSelectAll}
                         className="border-muted-foreground/30"
                       />
                     </TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Subject</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Staff Member</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Achievement</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Start Date</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">End Date</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Goal Type</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Progress</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 text-right pr-6">Options</TableHead>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Staff Member</TableHead>
+                    <TableHead>Achievement</TableHead>
+                    <TableHead>Start Date</TableHead>
+                    <TableHead>End Date</TableHead>
+                    <TableHead>Goal Type</TableHead>
+                    <TableHead>Progress</TableHead>
+                    <TableHead className="text-right">Options</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     Array.from({ length: 3 }).map((_, i) => (
-                      <TableRow key={i} className="animate-pulse border-border/40">
-                        <TableCell colSpan={9} className="py-8">
+                      <TableRow key={i} className="animate-pulse">
+                        <TableCell colSpan={9}>
                           <div className="h-4 bg-muted rounded w-full" />
                         </TableCell>
                       </TableRow>
                     ))
                   ) : displayData.length > 0 ? (
                     displayData.map((goal: any) => (
-                      <TableRow key={goal._id} className="hover:bg-accent/5 transition-colors border-border/40 group">
-                        <TableCell className="px-4 py-4">
+                      <TableRow key={goal._id} className="group">
+                        <TableCell>
                           <Checkbox
                             checked={selectedItems.includes(goal._id)}
                             onCheckedChange={(checked) => {
@@ -259,30 +260,30 @@ const Goals = () => {
                             className="border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                           />
                         </TableCell>
-                        <TableCell className="py-4 font-bold text-gray-900 group-hover:text-primary transition-colors cursor-pointer" onClick={() => {
+                        <TableCell className="font-medium group-hover:text-primary transition-colors cursor-pointer" onClick={() => {
                           setSelectedGoal(goal);
                           setIsViewOpen(true);
                         }}>
                           {goal.subject}
                         </TableCell>
-                        <TableCell className="py-4 text-muted-foreground font-medium">
+                        <TableCell className="text-muted-foreground">
                           {goal.staff_member?.firstname} {goal.staff_member?.lastname}
                         </TableCell>
-                        <TableCell className="py-4 text-muted-foreground font-bold">
+                        <TableCell className="text-muted-foreground">
                           {goal.achievement}
                         </TableCell>
-                        <TableCell className="py-4 text-muted-foreground font-medium">
+                        <TableCell className="text-muted-foreground">
                           {format(new Date(goal.start_date), "MMM dd, yyyy")}
                         </TableCell>
-                        <TableCell className="py-4 text-muted-foreground font-medium text-destructive/80">
+                        <TableCell className="text-destructive/80">
                           {format(new Date(goal.end_date), "MMM dd, yyyy")}
                         </TableCell>
-                        <TableCell className="py-4">
+                        <TableCell>
                           <div className="flex items-center px-3 py-1 rounded-full bg-accent/10 border border-border/40 w-fit">
                             <span className="text-[10px] font-bold uppercase tracking-tight text-muted-foreground">{goal.goal_type}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="py-4">
+                        <TableCell>
                           <div className="w-full max-w-[120px] space-y-1.5">
                             <div className="flex justify-between text-[10px] font-bold">
                               <span className="text-muted-foreground">Progress</span>
@@ -291,7 +292,7 @@ const Goals = () => {
                             <Progress value={goal.progress} className="h-1.5 bg-accent/20" />
                           </div>
                         </TableCell>
-                        <TableCell className="py-4 text-right pr-6">
+                        <TableCell className="text-right">
                           <div className="flex items-center justify-end gap-1">
                             <Button
                               variant="ghost"
@@ -325,16 +326,7 @@ const Goals = () => {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow>
-                      <TableCell colSpan={9} className="h-64 text-center">
-                        <div className="flex flex-col items-center justify-center gap-3">
-                          <div className="p-4 rounded-full bg-accent/10 text-muted-foreground/40">
-                            <Target className="h-8 w-8" />
-                          </div>
-                          <p className="text-sm font-bold text-muted-foreground italic tracking-wide">No entries found</p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <TableEmpty colSpan={9} />
                   )}
                 </TableBody>
               </Table>

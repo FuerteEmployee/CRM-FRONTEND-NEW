@@ -5,6 +5,7 @@ import {
   DialogContent,
 } from "@/hrms/components/ui/dialog";
 import { toast } from "@/hrms/components/ui/use-toast";
+import { Table, TableBody, TableCell, TableContainer, TableEmpty, TableHead, TableHeader, TableRow } from "@/hrms/components/ui/table";
 import {
   Trash2, Star, Pencil, Loader2, LayoutTemplate, PlusCircle,
   Palette, Upload,
@@ -330,30 +331,27 @@ export default function SalaryTemplateBuilder() {
       </div>
 
       {/* ── Table ── */}
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-slate-200 bg-slate-50">
-              <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 w-8">#</th>
-              <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3">Template Name</th>
-              <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 hidden md:table-cell">Sections</th>
-              <th className="text-left text-xs font-semibold text-slate-500 px-4 py-3 hidden sm:table-cell">Status</th>
-              <th className="text-right text-xs font-semibold text-slate-500 px-4 py-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
+      <TableContainer>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="text-left w-8">#</TableHead>
+              <TableHead className="text-left">Template Name</TableHead>
+              <TableHead className="text-left hidden md:table-cell">Sections</TableHead>
+              <TableHead className="text-left hidden sm:table-cell">Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {isLoading ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-14 text-center">
-                  <div className="flex items-center justify-center gap-2 text-slate-400">
+              <TableEmpty colSpan={5} className="not-italic">
+                  <div className="flex items-center justify-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span className="text-sm">Loading templates…</span>
                   </div>
-                </td>
-              </tr>
+              </TableEmpty>
             ) : templates.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-4 py-14 text-center">
+              <TableEmpty colSpan={5} className="not-italic py-10">
                   <div className="flex flex-col items-center gap-3">
                     <div className="h-12 w-12 rounded-xl bg-slate-100 flex items-center justify-center">
                       <LayoutTemplate className="h-5 w-5 text-slate-400" />
@@ -366,8 +364,7 @@ export default function SalaryTemplateBuilder() {
                       <PlusCircle className="h-3 w-3 mr-1.5" /> Create Template
                     </Button>
                   </div>
-                </td>
-              </tr>
+              </TableEmpty>
             ) : null}
             {templates.map((t, idx) => {
               const elementTypes = [...new Set((t.elements || []).map(e => e.type))];
@@ -377,12 +374,12 @@ export default function SalaryTemplateBuilder() {
               const isCanvas = !!(t.elements?.length);
 
               return (
-                <tr key={t._id} className="hover:bg-slate-50 transition-colors">
+                <TableRow key={t._id}>
                   {/* # */}
-                  <td className="px-4 py-3 text-xs text-slate-400 font-medium">{idx + 1}</td>
+                  <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
 
                   {/* Name */}
-                  <td className="px-4 py-3">
+                  <TableCell>
                     <div className="flex items-center gap-2.5">
                       <div
                         className="h-7 w-7 rounded-lg flex-shrink-0 flex items-center justify-center text-white text-xs font-bold shadow-sm"
@@ -397,10 +394,10 @@ export default function SalaryTemplateBuilder() {
                         )}
                       </div>
                     </div>
-                  </td>
+                  </TableCell>
 
                   {/* Sections */}
-                  <td className="px-4 py-3 hidden md:table-cell">
+                  <TableCell className="hidden md:table-cell">
                     {elementTypes.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {elementTypes.slice(0, 5).map(type => (
@@ -417,10 +414,10 @@ export default function SalaryTemplateBuilder() {
                     ) : (
                       <span className="text-xs text-slate-300">—</span>
                     )}
-                  </td>
+                  </TableCell>
 
                   {/* Status */}
-                  <td className="px-4 py-3 hidden sm:table-cell">
+                  <TableCell className="hidden sm:table-cell">
                     <div className="flex items-center gap-1.5">
                       {t.isDefault && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-full">
@@ -436,10 +433,10 @@ export default function SalaryTemplateBuilder() {
                         <span className="text-xs text-slate-300">—</span>
                       )}
                     </div>
-                  </td>
+                  </TableCell>
 
                   {/* Actions */}
-                  <td className="px-4 py-3">
+                  <TableCell>
                     <div className="flex items-center justify-end gap-1">
                       <Button
                         size="sm"
@@ -468,13 +465,13 @@ export default function SalaryTemplateBuilder() {
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </TableContainer>
 
       {/* ── Delete Confirmation ── */}
       <Dialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>

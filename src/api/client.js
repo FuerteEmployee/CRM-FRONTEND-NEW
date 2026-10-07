@@ -6,7 +6,9 @@ import {
   handleSessionExpired,
 } from "@/lib/session";
 
-const BASE_URL = import.meta.env.VITE_API_URL;
+// Fall back to the Vite dev proxy path (same as lib/session.ts) so a missing
+// .env doesn't produce requests to "<page>/undefined/...".
+const BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 // Endpoints where a 401 means "wrong credentials", not "session expired".
 const AUTH_ENDPOINTS = ["/auth/login", "/auth/verify-2fa", "/auth/refresh", "/auth/logout"];

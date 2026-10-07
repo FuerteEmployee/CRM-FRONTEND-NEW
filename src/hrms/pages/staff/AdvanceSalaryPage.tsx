@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { staffService } from "@/hrms/services/staffService";
+import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { apiClient } from "@/hrms/services/apiClient";
 import { useAuth } from "@/hrms/contexts/AuthContext";
 import { toast } from "@/hrms/components/ui/use-toast";
@@ -56,6 +57,9 @@ interface Installment {
   year: number;
   amount: number;
   deductedAt: string;
+  // "payroll" = deducted by a payroll run, "manual" = recorded via Record Repayment
+  source?: "payroll" | "manual";
+  note?: string;
 }
 
 interface SalaryLoanRecord {
@@ -127,8 +131,21 @@ function StatCard({
   );
 }
 
-/* ─── Main Page ─── */
-const AdvanceSalaryPage = () => {
+// Employee-picker value for "my own request" (branch supervisors).
+const SELF = "__self__";
+
+interface AdvanceLimit {
+  fixedSalary: number;
+  capPercent: number;
+  maxAllowed: number;
+  outstanding: number;
+  available: number;
+}
+
+/* ─── Main Page ───
+ * `only` narrows the page to one request type: "Loan" is the dedicated Loan
+ * screen, "Advance Salary" the advance-only screen. Omitted = both, with tabs. */
+const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
   const { user: authUser } = useAuth();
 
   /* Role helpers
@@ -148,7 +165,14 @@ const AdvanceSalaryPage = () => {
   const isSuperAdmin = !!authUser?.is_superadmin || ["super_admin", "superadmin", "owner"].includes(roleKey);
   const isAdmin     = roleKey === "admin" ||
     authUser?.admin === true || authUser?.admin === 1 || authUser?.admin === "1" || authUser?.admin === "true";
-  const canManage   = isSuperAdmin || isAdmin;
+  // Branch supervisors manage their branches' staff here too — the backend
+  // scopes the list and approvals to those branches (utils/branchScope.js).
+  const [isSupervisor, setIsSupervisor] = useState(false);
+  useEffect(() => {
+    if (isSuperAdmin || isAdmin) return;
+    hrmsbranchService.getMyScope().then((s) => setIsSupervisor(s.isSupervisor));
+  }, [isSuperAdmin, isAdmin]);
+  const canManage   = isSuperAdmin || isAdmin || isSupervisor;
   const isEmployee  = !canManage;
 
   const myId = String(authUser?.id || (authUser as any)?._id || "");
@@ -158,7 +182,7 @@ const AdvanceSalaryPage = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   /* Filters */
-  const [activeTab, setActiveTab] = useState<"all" | RequestType>("all");
+  const [activeTab, setActiveTab] = useState<"all" | RequestType>(only || "all");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
@@ -166,12 +190,34 @@ const AdvanceSalaryPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState({
-    type: "Advance Salary" as RequestType,
+    type: (only || "Advance Salary") as RequestType,
     employeeId: isEmployee ? myId : "",
     amount: "",
     reason: "",
     notes: "",
   });
+
+  /* Fixed-salary cap for Advance Salary (backend enforces it; shown here so
+   * the employee/admin sees the limit before submitting). */
+  const [advanceLimit, setAdvanceLimit] = useState<AdvanceLimit | null>(null);
+  useEffect(() => {
+    if (!isDialogOpen || form.type !== "Advance Salary" || !form.employeeId) {
+      setAdvanceLimit(null);
+      return;
+    }
+    // Employees look up "me" — their authUser id may be the Staff id, not the HRMS User id.
+    const target = isEmployee || form.employeeId === SELF ? "me" : form.employeeId;
+    let cancelled = false;
+    apiClient
+      .get(`/advance-salary/limit/${target}`, { silent: true })
+      .then((res: any) => { if (!cancelled) setAdvanceLimit(res?.data?.data ?? res?.data ?? null); })
+      .catch(() => { if (!cancelled) setAdvanceLimit(null); });
+    return () => { cancelled = true; };
+  }, [isDialogOpen, form.type, form.employeeId, isEmployee]);
+  const overLimit = !!advanceLimit && form.type === "Advance Salary" && Number(form.amount) > advanceLimit.available;
+
+  /* Which loan's repayment history is expanded */
+  const [openHistory, setOpenHistory] = useState<string | null>(null);
 
   /* ─── Load ─── */
   const load = useCallback(async () => {
@@ -180,7 +226,7 @@ const AdvanceSalaryPage = () => {
     // Load employees and records independently so one failure can't block the other
     const [staffResult, recordsResult] = await Promise.allSettled([
       canManage ? staffService.getAll() : Promise.resolve([]),
-      apiClient.get("/advance-salary").catch(() => ({ data: [] })),
+      apiClient.get("/advance-salary", only ? { params: { type: only } } : undefined).catch(() => ({ data: [] })),
     ]);
 
     if (staffResult.status === "fulfilled") {
@@ -192,7 +238,7 @@ const AdvanceSalaryPage = () => {
     }
 
     setIsLoading(false);
-  }, [canManage]);
+  }, [canManage, only]);
 
   useEffect(() => {
     load();
@@ -208,7 +254,7 @@ const AdvanceSalaryPage = () => {
 
   const resetForm = () =>
     setForm({
-      type: "Advance Salary",
+      type: only || "Advance Salary",
       employeeId: isEmployee ? myId : "",
       amount: "",
       reason: "",
@@ -247,7 +293,8 @@ const AdvanceSalaryPage = () => {
     try {
       await apiClient.post("/advance-salary", {
         type: form.type,
-        employeeId: form.employeeId,
+        // SELF → omit, so the backend files it under the logged-in user.
+        employeeId: form.employeeId === SELF ? undefined : form.employeeId,
         amount: Number(form.amount),
         reason: form.reason,
         notes: form.notes,
@@ -281,6 +328,35 @@ const AdvanceSalaryPage = () => {
   // in full, see advance_salary_controller.js).
   const [installmentDrafts, setInstallmentDrafts] = useState<Record<string, string>>({});
 
+  /* ─── Record Repayment (partial or full, outside payroll) ─── */
+  const [repayTarget, setRepayTarget] = useState<SalaryLoanRecord | null>(null);
+  const [repayAmount, setRepayAmount] = useState("");
+  const [repayNote, setRepayNote] = useState("");
+  const [isRepaying, setIsRepaying] = useState(false);
+  const outstandingOf = (r: SalaryLoanRecord) => Number(r.remainingAmount ?? r.amount) || 0;
+  const openRepay = (r: SalaryLoanRecord) => {
+    setRepayTarget(r);
+    setRepayAmount(String(outstandingOf(r)));
+    setRepayNote("");
+  };
+  const repayValue = Number(repayAmount);
+  const repayInvalid = !repayTarget || !(repayValue > 0) || repayValue > outstandingOf(repayTarget);
+  const handleRepay = async () => {
+    if (!repayTarget || repayInvalid) return;
+    setIsRepaying(true);
+    try {
+      const res: any = await apiClient.post(`/advance-salary/${repayTarget._id}/repay`, { amount: repayValue, note: repayNote });
+      const updated = res?.data;
+      if (updated) setRecords((p) => p.map((r) => (r._id === repayTarget._id ? { ...r, ...updated } : r)));
+      toast({ title: "Repayment recorded", description: res?.message });
+      setRepayTarget(null);
+    } catch (err: any) {
+      toast({ title: "Repayment failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsRepaying(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     try {
       await apiClient.delete(`/advance-salary/${id}`);
@@ -299,13 +375,21 @@ const AdvanceSalaryPage = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-slate-800 flex items-center gap-2">
-            <HandCoins className="h-5 w-5 text-indigo-500" />
-            {canManage ? "Advance Salary & Loan" : "My Advance Salary"}
+            {only === "Loan" ? <Landmark className="h-5 w-5 text-violet-500" /> : <HandCoins className="h-5 w-5 text-indigo-500" />}
+            {only === "Loan"
+              ? (canManage ? "Loans" : "My Loans")
+              : only === "Advance Salary"
+                ? (canManage ? "Advance Salary" : "My Advance Salary")
+                : (canManage ? "Advance Salary & Loan" : "My Advance Salary")}
           </h1>
           <p className="text-slate-400 text-sm mt-0.5">
-            {canManage
-              ? "Manage employee advance salary and loan requests"
-              : "View and submit your advance salary or loan requests"}
+            {only === "Loan"
+              ? "Loans with monthly EMI deducted in payroll, and their repayment history"
+              : only === "Advance Salary"
+                ? "Advances are capped at the employee's fixed monthly salary and recovered in the next payroll"
+                : canManage
+                  ? "Manage employee advance salary and loan requests"
+                  : "View and submit your advance salary or loan requests"}
           </p>
         </div>
 
@@ -321,15 +405,15 @@ const AdvanceSalaryPage = () => {
               <ShieldCheck className="h-3 w-3" /> Admin
             </Badge>
           )}
-          {!canManage && (
-            <Button
-              size="sm"
-              className="h-9 px-4 gradient-primary text-white border-0 font-medium shadow-sm rounded-lg flex items-center gap-2"
-              onClick={() => { resetForm(); setIsDialogOpen(true); }}
-            >
-              <Plus className="h-3.5 w-3.5" /> New Request
-            </Button>
-          )}
+          {/* Admins can raise a request on an employee's behalf (the dialog
+              already has an employee picker for them), e.g. issuing a loan. */}
+          <Button
+            size="sm"
+            className="h-9 px-4 gradient-primary text-white border-0 font-medium shadow-sm rounded-lg flex items-center gap-2"
+            onClick={() => { resetForm(); setIsDialogOpen(true); }}
+          >
+            <Plus className="h-3.5 w-3.5" /> {only === "Loan" ? (canManage ? "New Loan" : "Request Loan") : "New Request"}
+          </Button>
         </div>
       </div>
 
@@ -345,7 +429,8 @@ const AdvanceSalaryPage = () => {
       <Card className="border border-slate-200 bg-white shadow-sm overflow-hidden">
         <CardHeader className="py-3 border-b border-slate-100">
           <div className="flex items-center justify-between gap-3 flex-wrap">
-            {/* Type tabs */}
+            {/* Type tabs (hidden on the single-type Advance / Loan screens) */}
+            {only ? <div /> : (
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
               <TabsList className="h-8 bg-slate-100 rounded-lg p-0.5 gap-0.5">
                 {(["all", "Advance Salary", "Loan"] as const).map((t) => (
@@ -364,6 +449,7 @@ const AdvanceSalaryPage = () => {
                 ))}
               </TabsList>
             </Tabs>
+            )}
 
             {/* Search + filter */}
             <div className="flex gap-2">
@@ -501,8 +587,10 @@ const AdvanceSalaryPage = () => {
                     "{r.reason}"
                   </p>
 
-                  {/* Installment plan / repayment progress — Loan only, once approved */}
-                  {isLoan && r.status !== "Pending" && r.status !== "Rejected" && (Number(r.monthlyInstallmentAmount) > 0 || (r.installments && r.installments.length > 0)) && (
+                  {/* Repayment progress — any approved/repaid advance or loan */}
+                  {r.status !== "Pending" && r.status !== "Rejected" && (
+                    r.status === "Approved" || Number(r.monthlyInstallmentAmount) > 0 || (r.installments && r.installments.length > 0)
+                  ) && (
                     <div className="text-[11px] text-slate-500 bg-violet-50/60 border border-violet-100 rounded-lg px-3 py-2 mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                       <span>₹{(r.amount || 0).toLocaleString("en-IN")} total</span>
                       <span className="text-violet-400">·</span>
@@ -516,7 +604,64 @@ const AdvanceSalaryPage = () => {
                         </>
                       )}
                       <span className="text-violet-400">·</span>
-                      <span>{r.installments?.length || 0} installment(s) paid</span>
+                      <span>{r.installments?.length || 0} repayment(s)</span>
+                      {!!r.installments?.length && (
+                        <button
+                          type="button"
+                          className="ml-auto text-violet-600 font-semibold hover:underline"
+                          onClick={() => setOpenHistory((h) => (h === r._id ? null : r._id))}
+                        >
+                          {openHistory === r._id ? "Hide history" : "Repayment history"}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Repayment history — payroll deductions and manual repayments */}
+                  {openHistory === r._id && !!r.installments?.length && (
+                    <div className="mb-2 rounded-lg border border-violet-100 bg-white overflow-hidden">
+                      <table className="w-full text-[11px]">
+                        <thead className="bg-violet-50/60 text-slate-500">
+                          <tr>
+                            <th className="text-left font-semibold px-3 py-1.5">Date</th>
+                            <th className="text-left font-semibold px-3 py-1.5">How</th>
+                            <th className="text-right font-semibold px-3 py-1.5">Repaid</th>
+                            <th className="text-right font-semibold px-3 py-1.5">Balance after</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(() => {
+                            let balance = r.amount || 0;
+                            return [...(r.installments || [])]
+                              .sort((a, b) => new Date(a.deductedAt).getTime() - new Date(b.deductedAt).getTime())
+                              .map((ins, i) => {
+                                balance = Math.max(0, balance - (ins.amount || 0));
+                                const manual = ins.source === "manual";
+                                return (
+                                  <tr key={i} className="border-t border-slate-100">
+                                    <td className="px-3 py-1.5 text-slate-600 whitespace-nowrap">
+                                      {manual && ins.deductedAt
+                                        ? format(new Date(ins.deductedAt), "dd MMM yyyy")
+                                        : format(new Date(ins.year, ins.month - 1, 1), "MMM yyyy")}
+                                    </td>
+                                    <td className="px-3 py-1.5 text-slate-500">
+                                      <Badge className={cn("border-0 text-[9px] mr-1", manual ? "bg-amber-100 text-amber-700" : "bg-violet-100 text-violet-700")}>
+                                        {manual ? "Manual" : "Payroll"}
+                                      </Badge>
+                                      {ins.note}
+                                    </td>
+                                    <td className="px-3 py-1.5 text-right font-semibold text-slate-700">
+                                      ₹{(ins.amount || 0).toLocaleString("en-IN")}
+                                    </td>
+                                    <td className="px-3 py-1.5 text-right text-slate-500">
+                                      ₹{balance.toLocaleString("en-IN")}
+                                    </td>
+                                  </tr>
+                                );
+                              });
+                          })()}
+                        </tbody>
+                      </table>
                     </div>
                   )}
 
@@ -561,9 +706,9 @@ const AdvanceSalaryPage = () => {
                             size="sm"
                             variant="outline"
                             className="h-7 px-3 text-[11px] text-slate-600 border-slate-200 hover:bg-slate-50 rounded-lg"
-                            onClick={() => handleStatusChange(r._id, "Repaid")}
+                            onClick={() => openRepay(r)}
                           >
-                            <Wallet className="h-3 w-3 mr-1" /> Mark Repaid
+                            <Wallet className="h-3 w-3 mr-1" /> Record Repayment
                           </Button>
                         )}
                         {/* Only super_admin can delete */}
@@ -607,8 +752,8 @@ const AdvanceSalaryPage = () => {
           </DialogHeader>
 
           <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
-            {/* Request type toggle */}
-            <div className="space-y-1.5">
+            {/* Request type toggle (fixed on the single-type screens) */}
+            <div className={cn("space-y-1.5", only && "hidden")}>
               <Label className="text-xs font-semibold text-slate-600">Request Type *</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {(["Advance Salary", "Loan"] as RequestType[]).map((t) => (
@@ -648,6 +793,7 @@ const AdvanceSalaryPage = () => {
                     <SelectValue placeholder="Select employee" />
                   </SelectTrigger>
                   <SelectContent className="max-h-56 bg-white">
+                    {isSupervisor && <SelectItem value={SELF}>Myself</SelectItem>}
                     {employees
                       .filter((u) => {
                         const r =
@@ -674,9 +820,22 @@ const AdvanceSalaryPage = () => {
                   placeholder="e.g. 10000"
                   value={form.amount}
                   onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                  className="pl-8 h-9 rounded-lg bg-slate-50 border-slate-200 text-sm"
+                  className={cn("pl-8 h-9 rounded-lg bg-slate-50 border-slate-200 text-sm", overLimit && "border-red-300 bg-red-50")}
                 />
               </div>
+              {form.type === "Advance Salary" && advanceLimit && (
+                <p className={cn("text-[11px]", overLimit ? "text-red-600 font-semibold" : "text-slate-500")}>
+                  {advanceLimit.fixedSalary > 0 ? (
+                    <>
+                      Available: ₹{advanceLimit.available.toLocaleString("en-IN")} of ₹
+                      {advanceLimit.maxAllowed.toLocaleString("en-IN")} ({advanceLimit.capPercent}% of fixed salary
+                      {advanceLimit.outstanding > 0 && `, ₹${advanceLimit.outstanding.toLocaleString("en-IN")} already outstanding`})
+                    </>
+                  ) : (
+                    "No fixed salary is set for this employee, so an advance can't be requested yet."
+                  )}
+                </p>
+              )}
             </div>
 
 
@@ -719,7 +878,7 @@ const AdvanceSalaryPage = () => {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={isSaving || !form.employeeId || !form.amount || !form.reason}
+              disabled={isSaving || !form.employeeId || !form.amount || !form.reason || overLimit}
               className={cn(
                 "rounded-lg text-white border-0 font-semibold shadow-sm px-6 text-sm flex items-center gap-2",
                 form.type === "Loan" ? "bg-violet-500 hover:bg-violet-600" : "gradient-primary"
@@ -731,6 +890,83 @@ const AdvanceSalaryPage = () => {
                 <Plus className="h-4 w-4" />
               )}
               Submit Request
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Record Repayment Dialog (partial or full) ── */}
+      <Dialog open={!!repayTarget} onOpenChange={(open) => !open && setRepayTarget(null)}>
+        <DialogContent className="max-w-sm rounded-2xl border border-slate-200 shadow-2xl bg-white p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100">
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2 text-slate-800">
+              <Wallet className="h-5 w-5 text-emerald-500" /> Record Repayment
+            </DialogTitle>
+            {repayTarget && (
+              <p className="text-sm text-slate-500 mt-0.5">
+                {getEmployeeName(repayTarget.employeeId)} · {repayTarget.type} of ₹{(repayTarget.amount || 0).toLocaleString("en-IN")}
+              </p>
+            )}
+          </DialogHeader>
+          {repayTarget && (
+            <div className="px-6 py-5 space-y-4">
+              <div className="flex items-center justify-between rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
+                <span className="text-xs text-slate-500">Outstanding balance</span>
+                <span className="text-base font-bold text-slate-800">₹{outstandingOf(repayTarget).toLocaleString("en-IN")}</span>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-600">Amount repaid (₹) *</Label>
+                <div className="relative">
+                  <IndianRupee className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    type="number"
+                    min={0}
+                    value={repayAmount}
+                    onChange={(e) => setRepayAmount(e.target.value)}
+                    className={cn("pl-8 h-9 rounded-lg bg-slate-50 border-slate-200 text-sm", repayAmount !== "" && repayInvalid && "border-red-300 bg-red-50")}
+                  />
+                </div>
+                <div className="flex gap-1.5">
+                  {[
+                    { label: "Full", value: outstandingOf(repayTarget) },
+                    { label: "Half", value: Math.round(outstandingOf(repayTarget) / 2) },
+                  ].map((q) => (
+                    <button
+                      key={q.label}
+                      type="button"
+                      onClick={() => setRepayAmount(String(q.value))}
+                      className="px-2.5 py-1 rounded-md border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                    >
+                      {q.label} (₹{q.value.toLocaleString("en-IN")})
+                    </button>
+                  ))}
+                </div>
+                <p className={cn("text-[11px]", repayAmount !== "" && repayInvalid ? "text-red-600 font-semibold" : "text-slate-500")}>
+                  {repayAmount !== "" && repayInvalid
+                    ? `Enter between ₹1 and ₹${outstandingOf(repayTarget).toLocaleString("en-IN")}`
+                    : repayValue >= outstandingOf(repayTarget)
+                      ? "This clears the balance — the record will be marked Repaid."
+                      : `₹${Math.max(0, outstandingOf(repayTarget) - (repayValue || 0)).toLocaleString("en-IN")} will still be outstanding${repayTarget.type === "Loan" ? " (EMIs continue in payroll)" : " (recovered in the next payroll)"}.`}
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-600">Note (optional)</Label>
+                <Input
+                  placeholder="e.g. Paid in cash, bank transfer ref..."
+                  value={repayNote}
+                  onChange={(e) => setRepayNote(e.target.value)}
+                  className="h-9 rounded-lg bg-slate-50 border-slate-200 text-sm"
+                />
+              </div>
+            </div>
+          )}
+          <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50">
+            <Button variant="ghost" onClick={() => setRepayTarget(null)} disabled={isRepaying} className="rounded-lg font-semibold text-sm">
+              Cancel
+            </Button>
+            <Button onClick={handleRepay} disabled={isRepaying || repayInvalid} className="rounded-lg text-white border-0 font-semibold shadow-sm px-6 text-sm bg-emerald-500 hover:bg-emerald-600">
+              {isRepaying ? <RefreshCw className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
+              Save Repayment
             </Button>
           </div>
         </DialogContent>

@@ -25,7 +25,9 @@ import {
   TableCell, 
   TableHead, 
   TableHeader, 
-  TableRow 
+  TableRow,
+  TableEmpty,
+  TablePagination,
 } from "@/components/ui/table";
 import {
   Search,
@@ -110,33 +112,6 @@ const ActivityLogs = () => {
     ? filteredData 
     : filteredData.slice((activePage - 1) * sizeVal, activePage * sizeVal);
 
-  // Pagination page list helper
-  const getPaginationRange = () => {
-    const delta = 2;
-    const range = [];
-    const rangeWithDots = [];
-    let l;
-
-    for (let i = 1; i <= totalPages; i++) {
-      if (i === 1 || i === totalPages || (i >= activePage - delta && i <= activePage + delta)) {
-        range.push(i);
-      }
-    }
-
-    for (let i of range) {
-      if (l) {
-        if (i - l === 2) {
-          rangeWithDots.push(l + 1);
-        } else if (i - l > 2) {
-          rangeWithDots.push("...");
-        }
-      }
-      rangeWithDots.push(i);
-      l = i;
-    }
-
-    return rangeWithDots;
-  };
 
   // Export handlers
   const clearDate = () => {
@@ -189,7 +164,7 @@ const ActivityLogs = () => {
         </div>
 
         {/* Filters Card */}
-        <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden">
+        <Card className="overflow-hidden">
           <CardHeader className="bg-accent/5 border-b border-border/40 p-5 space-y-4">
             
             {/* Filter by Date controls */}
@@ -313,33 +288,33 @@ const ActivityLogs = () => {
           <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
-                <TableHeader className="bg-accent/10">
-                  <TableRow className="hover:bg-transparent border-border/40">
-                    <TableHead className="w-12 px-4 py-4">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
                       <Checkbox 
                         checked={selectedItems.length > 0 && selectedItems.length === displayData.length}
                         onCheckedChange={handleSelectAll}
                         className="border-muted-foreground/30"
                       />
                     </TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4 pl-6">Description</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Date</TableHead>
-                    <TableHead className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground py-4">Staff</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Staff</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
                     Array.from({ length: 4 }).map((_, i) => (
-                      <TableRow key={i} className="animate-pulse border-border/40">
-                        <TableCell colSpan={4} className="py-7 pl-6">
+                      <TableRow key={i} className="animate-pulse">
+                        <TableCell colSpan={4}>
                           <div className="h-4 bg-muted rounded w-full" />
                         </TableCell>
                       </TableRow>
                     ))
                   ) : displayData.length > 0 ? (
                     displayData.map((log: any) => (
-                      <TableRow key={log._id} className="hover:bg-accent/5 transition-colors border-border/40 group">
-                        <TableCell className="px-4 py-4">
+                      <TableRow key={log._id} className="group">
+                        <TableCell>
                           <Checkbox 
                             checked={selectedItems.includes(log._id)}
                             onCheckedChange={(checked) => {
@@ -349,13 +324,13 @@ const ActivityLogs = () => {
                             className="border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                           />
                         </TableCell>
-                        <TableCell className="py-4 pl-6 text-sm font-semibold text-gray-800 leading-relaxed">
+                        <TableCell>
                           {log.description}
                         </TableCell>
-                        <TableCell className="py-4 text-xs font-semibold text-muted-foreground whitespace-nowrap">
+                        <TableCell className="text-muted-foreground whitespace-nowrap">
                           {formatLogDate(log.date)}
                         </TableCell>
-                        <TableCell className="py-4 text-sm font-medium text-muted-foreground">
+                        <TableCell className="text-muted-foreground">
                           <div className="flex items-center gap-2">
                             <User className="h-3.5 w-3.5 text-primary/70 opacity-80" />
                             <span>
@@ -366,78 +341,20 @@ const ActivityLogs = () => {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow>
-                      <TableCell colSpan={4} className="h-64 text-center">
-                        <div className="flex flex-col items-center justify-center gap-3">
-                          <div className="p-4 rounded-full bg-accent/10 text-muted-foreground/40">
-                            <Calendar className="h-8 w-8" />
-                          </div>
-                          <p className="text-sm font-bold text-muted-foreground italic tracking-wide">No activity logs found</p>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <TableEmpty colSpan={4}>No activity logs found</TableEmpty>
                   )}
                 </TableBody>
               </Table>
             </div>
 
-            {/* Custom Pagination Footer */}
-            {!isLoading && totalEntries > 0 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 border-t border-border/40 bg-accent/5">
-                <div className="text-xs font-bold text-muted-foreground">
-                  Showing {startIndex} to {endIndex} of {totalEntries} entries
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  {/* Previous Button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs font-semibold rounded-lg"
-                    disabled={activePage === 1}
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  >
-                    Previous
-                  </Button>
-
-                  {/* Dynamic page numbers */}
-                  {getPaginationRange().map((page, index) => {
-                    if (page === "...") {
-                      return (
-                        <span key={`dots-${index}`} className="px-2.5 text-xs text-muted-foreground select-none">
-                          ...
-                        </span>
-                      );
-                    }
-                    return (
-                      <Button
-                        key={`page-${page}`}
-                        variant={activePage === page ? "default" : "outline"}
-                        size="sm"
-                        className={`h-8 w-8 text-xs font-bold rounded-lg ${
-                          activePage === page 
-                            ? "shadow-md shadow-primary/10" 
-                            : "hover:bg-accent/20"
-                        }`}
-                        onClick={() => setCurrentPage(Number(page))}
-                      >
-                        {page}
-                      </Button>
-                    );
-                  })}
-
-                  {/* Next Button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs font-semibold rounded-lg"
-                    disabled={activePage === totalPages}
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  >
-                    Next
-                  </Button>
-                </div>
-              </div>
+            {/* Pagination Footer */}
+            {!isLoading && (
+              <TablePagination
+                page={activePage}
+                pageSize={sizeVal || 1}
+                total={totalEntries}
+                onPageChange={setCurrentPage}
+              />
             )}
           </CardContent>
         </Card>
