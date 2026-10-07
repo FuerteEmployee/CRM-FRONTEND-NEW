@@ -1,0 +1,20 @@
+name: Sync to FuerteEmployee
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+jobs:
+  sync:
+    if: github.repository == 'TirthAghara/CRM-FRONTEND'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Push to FuerteEmployee repo
+        env:
+          FUERTE_TOKEN: ${{ secrets.FUERTE_TOKEN }}
+        run: |
+          git remote add fuerte "https://FuerteEmployee:${FUERTE_TOKEN}@github.com/FuerteEmployee/TirthAghara-CRM-FRONTEND.git"
+          git push fuerte "HEAD:refs/heads/${GITHUB_REF_NAME}"
