@@ -27,6 +27,9 @@ interface Connection {
   display_phone_number?: string;
   access_token_masked: string;
   app_secret_configured: boolean;
+  app_id?: string;
+  webhook_registered?: boolean;
+  webhook_registration_error?: string;
   is_live: boolean;
   last_synced?: string;
 }
@@ -35,9 +38,9 @@ export function ConnectAccountPanel() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ phone_number_id: "", waba_id: "", access_token: "", app_secret: "" });
+  const [form, setForm] = useState({ phone_number_id: "", waba_id: "", access_token: "", app_secret: "", app_id: "" });
   const [tokenDialogFor, setTokenDialogFor] = useState<Connection | null>(null);
-  const [tokenForm, setTokenForm] = useState({ access_token: "", app_secret: "" });
+  const [tokenForm, setTokenForm] = useState({ access_token: "", app_secret: "", app_id: "" });
 
   const { data, isLoading } = useQuery({
     queryKey: ["whatsapp-integrations"],
@@ -47,10 +50,22 @@ export function ConnectAccountPanel() {
 
   const connectMutation = useMutation({
     mutationFn: () => whatsappService.connect(form),
-    onSuccess: () => {
-      toast({ title: "WhatsApp number connected" });
+    onSuccess: (result: Connection) => {
+      if (result.app_id) {
+        if (result.webhook_registered) {
+          toast({ title: "WhatsApp number connected", description: "Webhook registered automatically." });
+        } else {
+          toast({
+            title: "Number connected, but webhook registration failed",
+            description: result.webhook_registration_error || "Register it manually in Meta's dashboard instead.",
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({ title: "WhatsApp number connected" });
+      }
       setOpen(false);
-      setForm({ phone_number_id: "", waba_id: "", access_token: "", app_secret: "" });
+      setForm({ phone_number_id: "", waba_id: "", access_token: "", app_secret: "", app_id: "" });
       queryClient.invalidateQueries({ queryKey: ["whatsapp-integrations"] });
     },
     onError: (err: any) => toast({ title: "Connection failed", description: err.message, variant: "destructive" }),
@@ -61,11 +76,20 @@ export function ConnectAccountPanel() {
       whatsappService.updateToken(tokenDialogFor!._id, {
         ...(tokenForm.access_token ? { access_token: tokenForm.access_token } : {}),
         ...(tokenForm.app_secret ? { app_secret: tokenForm.app_secret } : {}),
+        ...(tokenForm.app_id ? { app_id: tokenForm.app_id } : {}),
       }),
-    onSuccess: () => {
-      toast({ title: "Credentials updated" });
+    onSuccess: (result: Connection) => {
+      if (result.app_id && result.app_secret_configured) {
+        toast(
+          result.webhook_registered
+            ? { title: "Credentials updated", description: "Webhook registered automatically." }
+            : { title: "Credentials updated, but webhook registration failed", description: result.webhook_registration_error, variant: "destructive" }
+        );
+      } else {
+        toast({ title: "Credentials updated" });
+      }
       setTokenDialogFor(null);
-      setTokenForm({ access_token: "", app_secret: "" });
+      setTokenForm({ access_token: "", app_secret: "", app_id: "" });
       queryClient.invalidateQueries({ queryKey: ["whatsapp-integrations"] });
     },
     onError: (err: any) => toast({ title: "Update failed", description: err.message, variant: "destructive" }),
@@ -125,15 +149,28 @@ export function ConnectAccountPanel() {
                 />
               </div>
               <div>
-                <Label>App Secret (optional)</Label>
+                <Label>App ID (optional)</Label>
+                <Input
+                  value={form.app_id}
+                  onChange={(e) => setForm({ ...form, app_id: e.target.value })}
+                  placeholder="Enables automatic webhook registration"
+                />
+              </div>
+              <div>
+                <Label>App Secret {form.app_id ? "" : "(optional)"}</Label>
                 <Input
                   type="password"
                   autoComplete="new-password"
                   value={form.app_secret}
                   onChange={(e) => setForm({ ...form, app_secret: e.target.value })}
-                  placeholder="Enables webhook signature verification"
+                  placeholder="Enables webhook signature verification + auto-registration"
                 />
               </div>
+              {form.app_id && form.app_secret && (
+                <p className="text-xs text-muted-foreground">
+                  With both filled in, the webhook will be registered with Meta automatically — no need to set it up by hand in Meta's dashboard.
+                </p>
+              )}
             </div>
             <DialogFooter>
               <Button
@@ -167,6 +204,17 @@ export function ConnectAccountPanel() {
                     Token {c.access_token_masked} · WABA {c.waba_id}
                     {c.app_secret_configured && " · App Secret set"}
                   </div>
+                  {c.app_id && (
+                    <div className="text-xs mt-0.5">
+                      {c.webhook_registered ? (
+                        <span className="text-green-600">Webhook registered automatically</span>
+                      ) : (
+                        <span className="text-destructive" title={c.webhook_registration_error}>
+                          Auto webhook registration failed — set it up manually in Meta's dashboard
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-4">
                   <Badge variant={c.is_live ? "default" : "secondary"}>
@@ -183,7 +231,7 @@ export function ConnectAccountPanel() {
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      setTokenForm({ access_token: "", app_secret: "" });
+                      setTokenForm({ access_token: "", app_secret: "", app_id: "" });
                       setTokenDialogFor(c);
                     }}
                   >
@@ -230,11 +278,19 @@ export function ConnectAccountPanel() {
                 placeholder="Enables webhook signature verification"
               />
             </div>
+            <div>
+              <Label>New App ID</Label>
+              <Input
+                value={tokenForm.app_id}
+                onChange={(e) => setTokenForm({ ...tokenForm, app_id: e.target.value })}
+                placeholder="Add this (with App Secret) to enable auto webhook registration"
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button
               onClick={() => updateTokenMutation.mutate()}
-              disabled={updateTokenMutation.isPending || (!tokenForm.access_token && !tokenForm.app_secret)}
+              disabled={updateTokenMutation.isPending || (!tokenForm.access_token && !tokenForm.app_secret && !tokenForm.app_id)}
             >
               {updateTokenMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Update
