@@ -66,12 +66,14 @@ import {
   SlidersHorizontal,
   HandCoins,
   PiggyBank,
+  ScanFace,
 } from "lucide-react";
 import { Input } from "@/hrms/components/ui/input";
 import { ProfileDialog } from "./ProfileDialog";
 
 
 import { NavLink } from "@/hrms/components/common/NavLink";
+import { useFaceAttendanceEnabled } from "@/hrms/services/faceService";
 import { useAuth } from "@/hrms/contexts/AuthContext";
 import { useStore } from "@/hrms/contexts/StoreContext";
 import { useTheme } from "@/hrms/contexts/ThemeContext";
@@ -214,6 +216,7 @@ const hrmsNav = [
   { title: "Device Approvals", url: "/staff/device-approvals", icon: ShieldCheck, permission: "manage_staff" },
   { title: "Session Logs", url: "/staff/session-logs", icon: Clock, permission: "view_attendance" },
   { title: "Attendance Dashboard", url: "/employees", icon: LayoutDashboard, permission: "view_attendance" },
+  { title: "Face Attendance", url: "/staff/face-attendance", icon: ScanFace, permission: "view_attendance" },
   { title: "Live Tracking", url: "/staff/live-tracking", icon: RadioTower, permission: "view_live_tracking" },
   { title: "Geofence Audit", url: "/staff/geofence-audit", icon: ShieldAlert, permission: "view_live_tracking" },
   { title: "Leave Management", url: "/staff/leave-management", icon: CalendarDays, permission: "view_leaves" },
@@ -919,6 +922,7 @@ export function AppSidebar() {
   // Build ordered groups, filtering items based on role
   const roleKey = String(typeof user?.role === 'string' ? user.role : user?.role?.role || "").toLowerCase();
   const isAdminRole = roleKey === "admin" || roleKey === "super_admin";
+  const faceEnabled = useFaceAttendanceEnabled();
 
   const orderedGroups = useMemo(() => {
     return groupOrder
@@ -955,13 +959,15 @@ export function AppSidebar() {
           } else {
             items = items.filter(item => item.title !== "Advance Salary" && item.title !== "Loans" && item.title !== "PF Records");
           }
+          // Face Attendance is a per-company add-on switched on by the super admin
+          if (!faceEnabled) items = items.filter(item => item.url !== "/staff/face-attendance");
         }
 
         return { ...group, items };
       })
       // Hide groups that have no visible items for this user
       .filter(group => group.items.length > 0);
-  }, [groupOrder, itemOrders, isAdminRole, hasPermission]);
+  }, [groupOrder, itemOrders, isAdminRole, hasPermission, faceEnabled]);
 
   // Handle Search and Auto-Expand
   const searchedGroups = useMemo(() => {

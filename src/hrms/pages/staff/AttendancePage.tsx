@@ -834,6 +834,13 @@ const AttendancePage = () => {
           variant: "destructive",
           duration: 8000,
         });
+      } else if (responseData?.faceMismatch) {
+        toast({
+          title: action === "punch-out" ? "Punch Out Denied — Face Not Verified" : "Punch In Denied — Face Not Verified",
+          description: responseData.message,
+          variant: "destructive",
+          duration: 8000,
+        });
       } else {
         toast({
           title: "Action Failed",

@@ -1479,7 +1479,7 @@ export default function StaffFormPage() {
                                       <p className="text-[10px] text-slate-500">
                                         {form.watch("salaryConfig.pf.mode") === "fixed_monthly"
                                           ? "Full amount every month, regardless of attendance."
-                                          : "Scaled by payable days in the month."}
+                                          : "PF per day × paid days in the month."}
                                       </p>
                                     </FormItem>
                                   )}
@@ -1489,11 +1489,17 @@ export default function StaffFormPage() {
                                   name="salaryConfig.pf.value"
                                   render={({ field }) => (
                                     <FormItem>
-                                      <FormLabel className="text-[11px] font-bold text-slate-500 uppercase">PF (Employee) / month</FormLabel>
+                                      <FormLabel className="text-[11px] font-bold text-slate-500 uppercase">
+                                        PF (Employee) / {form.watch("salaryConfig.pf.mode") === "fixed_monthly" ? "month" : "day"}
+                                      </FormLabel>
                                       <FormControl>
                                         <Input type="number" className={inputClass} disabled={!form.watch("salaryConfig.pf.isIncluded")} {...field} onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)} />
                                       </FormControl>
-                                      <p className="text-[10px] text-slate-500">Leave 0 to use 12% of Basic.</p>
+                                      <p className="text-[10px] text-slate-500">
+                                        {form.watch("salaryConfig.pf.mode") === "fixed_monthly"
+                                          ? "Leave 0 to use 12% of Basic."
+                                          : "e.g. 20 = ₹20 × each paid day. Leave 0 to use 12% of earned Basic."}
+                                      </p>
                                       <FormMessage />
                                     </FormItem>
                                   )}

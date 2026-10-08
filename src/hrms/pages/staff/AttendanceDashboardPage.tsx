@@ -29,6 +29,7 @@ import {
   ArrowRight,
   Edit2,
   ShieldCheck,
+  ScanFace,
   AlertTriangle,
   PartyPopper,
 } from "lucide-react";
@@ -63,6 +64,7 @@ import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { StatCard, safeFormat, statusColor } from "@/hrms/components/staff/HRMSShared";
 import { realtimeService } from "@/hrms/services/RealtimeService";
 import { holidayService, type Holiday } from "@/hrms/services/holidayService";
+import { ImportAttendanceDialog } from "@/hrms/components/staff/ImportAttendanceDialog";
 
 const fmtTime = (time?: string) => {
   if (!time) return null;
@@ -499,7 +501,7 @@ const AttendanceDashboardPage: React.FC = () => {
                   placeholder="Search..."
                   value={searchQuery}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
-                  className="w-64 h-8 text-xs"
+                  className="w-48 h-8 text-xs"
                 />
                 {branches.length > 0 && (
                   <Select value={selectedBranch} onValueChange={setSelectedBranch}>
@@ -547,14 +549,18 @@ const AttendanceDashboardPage: React.FC = () => {
                   />
                   <Button variant="ghost" size="icon" className="h-7 w-7" disabled={isAfter(selectedMonth, new Date())} onClick={() => { const d = new Date(selectedMonth); d.setDate(d.getDate() + 1); setSelectedMonth(d); }}><ChevronRight className="h-4 w-4" /></Button>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 gap-1.5 text-xs font-semibold bg-white"
-                  onClick={handleExportExcel}
-                >
-                  <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> Export Excel
-                </Button>
+                {/* Export + Import stay together — never wrap apart */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 gap-1.5 text-xs font-semibold bg-white"
+                    onClick={handleExportExcel}
+                  >
+                    <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" /> Export Excel
+                  </Button>
+                  <ImportAttendanceDialog onImported={fetchAtt} />
+                </div>
               </div>
             </div>
             {/* Status filter chips */}
@@ -846,6 +852,11 @@ const AttendanceDashboardPage: React.FC = () => {
                       {att.source === "admin" && (
                         <span className="flex items-center gap-0.5 text-[9px] font-bold text-violet-600 uppercase tracking-wide">
                           <ShieldCheck className="h-2.5 w-2.5" /> Admin Entry
+                        </span>
+                      )}
+                      {att.source === "face" && (
+                        <span className="flex items-center gap-0.5 text-[9px] font-bold text-indigo-600 uppercase tracking-wide">
+                          <ScanFace className="h-2.5 w-2.5" /> Face Kiosk
                         </span>
                       )}
                       {att.autoPunchOut && (

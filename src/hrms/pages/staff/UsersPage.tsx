@@ -32,6 +32,9 @@ import {
   Zap,
   Edit2,
   Trash2,
+  Upload,
+  ChevronDown,
+  ChevronRight,
   X
 } from "lucide-react";
 import { staffService, type BulkResult } from "@/hrms/services/staffService";
@@ -435,9 +438,24 @@ export default function UsersPage() {
     { key: "emergencyRelation", label: "Emergency Contact Relation", default: "Emergency Contact Relation" },
   ];
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // "Import" modal: drop zone + sample-file builder (replaces the old Demo button).
+  const CORE_IMPORT_COLUMNS = ["Employee Code", "Employee Name", "Email", "Mobile No", "Department", "Designation", "Branch", "Shift", "Date of Joining"];
+  const REQUIRED_IMPORT_COLUMNS = ["Employee Name", "Email"];
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [showMoreColumns, setShowMoreColumns] = useState(false);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const [sampleColumns, setSampleColumns] = useState<string[]>(CORE_IMPORT_COLUMNS);
+  const toggleSampleColumn = (col: string) =>
+    setSampleColumns((prev) => (prev.includes(col) ? prev.filter((c) => c !== col) : [...prev, col]));
+
+  const handleFileSelect = (file: File | undefined) => {
     if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext !== "xlsx" && ext !== "xls" && ext !== "csv") {
+      toast({ title: "Error", description: "Unsupported file type. Use .xlsx, .xls, or .csv", variant: "destructive" });
+      return;
+    }
+    setIsImportOpen(false);
     setPendingFile(file);
     const reader = new FileReader();
     reader.onload = (evt) => {
@@ -542,9 +560,13 @@ export default function UsersPage() {
     }
   };
 
-  // Blank sheet with every importable column, header row = the default column names.
+  // Sample sheet with the columns ticked in the Import modal, header row = the default column names.
   const downloadTemplate = () => {
-    const headers = SYSTEM_FIELDS.map((f) => f.default);
+    const headers = SYSTEM_FIELDS.map((f) => f.default).filter((h) => sampleColumns.includes(h));
+    if (!headers.length) {
+      toast({ title: "Error", description: "Select at least one column to download.", variant: "destructive" });
+      return;
+    }
     const sample: Record<string, string> = {
       "Employee Code": "EMP001", "Employee Name": "Ravi Kumar", "Email": "ravi@example.com", "Mobile No": "9876543210",
       "Gender": "Male", "Department": "Sales", "Designation": "Executive",
@@ -603,15 +625,10 @@ export default function UsersPage() {
               are the bulk onboarding paths — both also create the CRM Staff login. */}
           {(hasPermission("create_staff") || hasPermission("manage_users")) && (
             <>
-              <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={downloadTemplate}>
-                <FileIcon className="h-3.5 w-3.5" /> Demo
+              <input type="file" id="import-excel" className="hidden" accept=".xlsx,.xls,.csv" onChange={(e) => { handleFileSelect(e.target.files?.[0]); e.target.value = ""; }} />
+              <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={() => setIsImportOpen(true)}>
+                <Upload className="h-3.5 w-3.5" /> Import
               </Button>
-              <div className="relative">
-                <input type="file" id="import-excel" className="hidden" accept=".xlsx, .xls" onChange={(e) => { handleFileSelect(e); e.target.value = ""; }} />
-                <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={() => document.getElementById('import-excel')?.click()}>
-                  <FileSpreadsheet className="h-3.5 w-3.5" /> Import Excel
-                </Button>
-              </div>
               <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={() => navigate(`${hrmsBasePath}/staff/users/bulk-add`)}>
                 <Plus className="h-3.5 w-3.5" /> Bulk Add
               </Button>
@@ -811,6 +828,84 @@ export default function UsersPage() {
       )}
 
       {/* Excel Mapping Dialog */}
+      {/* Import Staff — pick a file (opens the column-mapping step) or build a sample sheet */}
+      <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+        <DialogContent className="max-w-xl w-full max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold">Import Staff</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div
+              onClick={() => document.getElementById("import-excel")?.click()}
+              onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
+              onDragLeave={(e) => { e.preventDefault(); setIsDraggingFile(false); }}
+              onDrop={(e) => { e.preventDefault(); setIsDraggingFile(false); handleFileSelect(e.dataTransfer.files?.[0]); }}
+              className={cn(
+                "border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-3 group",
+                isDraggingFile
+                  ? "border-primary bg-primary/10 scale-[1.01]"
+                  : "border-primary/30 hover:border-primary/60 bg-primary/5 hover:bg-primary/10"
+              )}
+            >
+              <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform">
+                <FileSpreadsheet className="h-7 w-7 text-primary" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-slate-800">
+                  {isDraggingFile ? "Drop the file to upload" : "Drag & drop your file here, or click to choose"}
+                </p>
+                <p className="text-xs text-slate-500">Supports .xlsx, .xls, and .csv formats</p>
+              </div>
+              <Button type="button" className="mt-2 rounded-xl font-bold gap-2 px-6 h-10 text-xs shadow-md">
+                <Upload className="h-4 w-4" /> Choose File
+              </Button>
+            </div>
+
+            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 text-[11.5px] text-slate-500 space-y-1">
+              <p className="font-semibold text-slate-800 flex items-center gap-1.5">
+                <span>✨</span> Automatic Column Mapping:
+              </p>
+              <p>
+                Your spreadsheet's columns (Employee Code, Name, Email, Department, Branch, Shift, Salary & PF,
+                Bank and Identity details) will be automatically detected — you can review and adjust the mapping
+                before importing. Each imported employee also gets a CRM Staff login.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 p-3 space-y-2">
+              <p className="text-xs font-semibold text-slate-800">Select columns to include in sample file:</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5">
+                {SYSTEM_FIELDS.map((f) => f.default)
+                  .filter((col) => CORE_IMPORT_COLUMNS.includes(col) || showMoreColumns)
+                  .map((col) => (
+                    <label key={col} className="flex items-center gap-2 text-xs cursor-pointer select-none">
+                      <Checkbox checked={sampleColumns.includes(col)} onCheckedChange={() => toggleSampleColumn(col)} />
+                      <span className="whitespace-nowrap">
+                        {col}
+                        {REQUIRED_IMPORT_COLUMNS.includes(col) && <span className="text-red-500"> *</span>}
+                      </span>
+                    </label>
+                  ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMoreColumns((v) => !v)}
+                className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+              >
+                {showMoreColumns ? (
+                  <><ChevronDown className="h-3 w-3" /> Hide optional fields</>
+                ) : (
+                  <><ChevronRight className="h-3 w-3" /> Show {SYSTEM_FIELDS.length - CORE_IMPORT_COLUMNS.length} more optional fields</>
+                )}
+              </button>
+              <Button type="button" variant="outline" size="sm" className="w-full rounded-xl font-bold gap-2 text-xs mt-1" onClick={downloadTemplate}>
+                <Download className="h-3.5 w-3.5" /> Download Sample Data
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isMappingOpen} onOpenChange={setIsMappingOpen}>
         <DialogContent className="max-w-3xl rounded-lg border border-slate-200 shadow-2xl bg-white">
           <DialogHeader><DialogTitle className="text-lg font-semibold">Import Field Mapping</DialogTitle></DialogHeader>

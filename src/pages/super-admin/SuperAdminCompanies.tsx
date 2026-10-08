@@ -44,13 +44,14 @@ interface Tenant {
   createdAt: string;
 }
 
-// Optional Leads add-ons enabled per company — must match
+// Optional add-ons enabled per company — must match
 // Backend/src/config/tenantFeatures.js.
 const TENANT_FEATURES: { key: string; label: string; hint: string }[] = [
   { key: "whatsapp_leads", label: "WhatsApp lead capture", hint: "Incoming WhatsApp enquiries auto-create leads" },
   { key: "marketing_spend", label: "Marketing spend / Meta Ads", hint: "Daily burning amount, cost per lead, Meta ad account sync" },
   { key: "patient_conversion", label: "Patient conversion & treatment", hint: "Convert with treatment + amount, treatment totals" },
   { key: "lead_followups", label: "Follow-up reminders dashboard", hint: "Today / overdue / upcoming follow-ups on Leads" },
+  { key: "face_attendance", label: "HRMS Face Attendance (BOT Lens)", hint: "Face kiosk punch in/out + selfie face check for enrolled staff" },
 ];
 
 const STATUS_CONFIG = {
@@ -829,9 +830,9 @@ export default function SuperAdminCompanies() {
                 </div>
               </div>
 
-              {/* Optional Leads features for this company */}
+              {/* Optional add-on features for this company */}
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Lead features</label>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Add-on features</label>
                 <div className="space-y-2">
                   {TENANT_FEATURES.map((f) => {
                     const on = manageForm.enabled_features.includes(f.key);
