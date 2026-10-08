@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { RefreshCw, Link2, Trash2, KeyRound, Pause, Play, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { RefreshCw, Link2, Trash2, KeyRound, Pause, Play, AlertTriangle, CheckCircle2, Flag, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +14,52 @@ interface MetaAdsAccountsPanelProps {
   canSync: boolean;
 }
 
+interface AdPage {
+  page_id: string;
+  name: string;
+  spend: number;
+  campaigns: string[];
+}
+
+const toggle = (list: string[], id: string) => (list.includes(id) ? list.filter((p) => p !== id) : [...list, id]);
+
+// Checkbox list of the Facebook Pages an ad account advertises. Picking none
+// counts the whole ad account; picking some counts only those Pages' campaigns
+// (for an agency ad account shared by several clients).
+function PagePicker({ pages, selected, onChange }: { pages: AdPage[]; selected: string[]; onChange: (ids: string[]) => void }) {
+  if (!pages.length) return <p className="text-[11px] text-slate-500">No Facebook Pages found in the last 90 days of ads.</p>;
+  return (
+    <div className="space-y-1.5">
+      <p className="text-[11px] text-slate-500">
+        Tick only <b>your</b> Facebook Page(s) if this ad account also runs ads for other businesses. Leave all unticked to count
+        the whole ad account.
+      </p>
+      <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+        {pages.map((p) => (
+          <label
+            key={p.page_id}
+            className="flex items-start gap-2.5 rounded-lg border border-slate-200 bg-white p-2.5 cursor-pointer hover:bg-slate-50"
+          >
+            <input
+              type="checkbox"
+              checked={selected.includes(p.page_id)}
+              onChange={() => onChange(toggle(selected, p.page_id))}
+              className="mt-0.5 h-4 w-4 accent-primary"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="flex flex-wrap items-baseline justify-between gap-x-2">
+                <span className="text-xs font-black text-slate-800">{p.name || `Page ${p.page_id}`}</span>
+                <span className="text-[10px] font-bold text-slate-500">Spent {p.spend.toLocaleString("en-IN")} (90 days)</span>
+              </span>
+              <span className="block text-[10px] text-slate-500 truncate">{p.campaigns.join(" · ")}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Each company connects its own Meta ad account(s) with its own token; the
 // token is encrypted server-side and never sent back to the browser.
 export function MetaAdsAccountsPanel({ isAdmin, canSync }: MetaAdsAccountsPanelProps) {
@@ -23,6 +69,13 @@ export function MetaAdsAccountsPanel({ isAdmin, canSync }: MetaAdsAccountsPanelP
   const [showForm, setShowForm] = useState(false);
   const [replacing, setReplacing] = useState<string | null>(null);
   const [newToken, setNewToken] = useState("");
+  // Connect form: Pages found for the entered account, and the ones ticked.
+  const [formPages, setFormPages] = useState<AdPage[] | null>(null);
+  const [formSelected, setFormSelected] = useState<string[]>([]);
+  // Editing a connected account's Page filter.
+  const [editingPages, setEditingPages] = useState<string | null>(null);
+  const [editPages, setEditPages] = useState<AdPage[] | null>(null);
+  const [editSelected, setEditSelected] = useState<string[]>([]);
 
   const { data, isLoading } = useQuery<any>({
     queryKey: ["meta-ads-accounts"],
@@ -36,26 +89,62 @@ export function MetaAdsAccountsPanel({ isAdmin, canSync }: MetaAdsAccountsPanelP
   };
   const errMsg = (err: any, fallback: string) => err?.response?.data?.message || err?.message || fallback;
 
+  const resetForm = () => {
+    setAdAccountId("");
+    setToken("");
+    setFormPages(null);
+    setFormSelected([]);
+    setShowForm(false);
+  };
+
+  const findPagesMutation = useMutation({
+    mutationFn: () => metaAdsService.previewPages({ ad_account_id: adAccountId.trim(), access_token: token.trim() }),
+    onSuccess: (res: any) => {
+      setFormPages(res?.pages || []);
+      setFormSelected([]);
+    },
+    onError: (err: any) => toast.error(errMsg(err, "Could not read Pages from this ad account")),
+  });
+
   const connectMutation = useMutation({
-    mutationFn: () => metaAdsService.connect({ ad_account_id: adAccountId.trim(), access_token: token.trim() }),
+    mutationFn: () =>
+      metaAdsService.connect({ ad_account_id: adAccountId.trim(), access_token: token.trim(), page_ids: formSelected }),
     onSuccess: () => {
       toast.success("Ad account connected — importing the last 30 days of spend");
-      setAdAccountId("");
-      setToken("");
-      setShowForm(false);
+      resetForm();
       refresh();
       setTimeout(refresh, 8000);
     },
     onError: (err: any) => toast.error(errMsg(err, "Failed to connect ad account")),
   });
 
+  const loadEditPagesMutation = useMutation({
+    mutationFn: (id: string) => metaAdsService.accountPages(id),
+    onSuccess: (res: any) => setEditPages(res?.pages || []),
+    onError: (err: any) => {
+      toast.error(errMsg(err, "Could not read Pages from this ad account"));
+      setEditingPages(null);
+    },
+  });
+
+  const openPageEditor = (a: any) => {
+    if (editingPages === a._id) return setEditingPages(null);
+    setEditingPages(a._id);
+    setEditSelected(a.page_ids || []);
+    setEditPages(null);
+    loadEditPagesMutation.mutate(a._id);
+  };
+
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: any }) => metaAdsService.update(id, payload),
-    onSuccess: () => {
+    onSuccess: (_res: any, vars: { id: string; payload: any }) => {
       toast.success("Ad account updated");
       setReplacing(null);
       setNewToken("");
+      setEditingPages(null);
       refresh();
+      // A new Page filter changes which campaigns count — re-pull right away.
+      if (vars.payload.page_ids !== undefined && canSync) syncMutation.mutate();
     },
     onError: (err: any) => toast.error(errMsg(err, "Failed to update ad account")),
   });
@@ -122,7 +211,11 @@ export function MetaAdsAccountsPanel({ isAdmin, canSync }: MetaAdsAccountsPanelP
               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Ad Account ID</Label>
               <Input
                 value={adAccountId}
-                onChange={(e) => setAdAccountId(e.target.value)}
+                onChange={(e) => {
+                  setAdAccountId(e.target.value);
+                  setFormPages(null);
+                  setFormSelected([]);
+                }}
                 placeholder="act_1234567890"
                 autoComplete="off"
                 className="h-10 text-xs"
@@ -133,7 +226,11 @@ export function MetaAdsAccountsPanel({ isAdmin, canSync }: MetaAdsAccountsPanelP
               <Input
                 type="password"
                 value={token}
-                onChange={(e) => setToken(e.target.value)}
+                onChange={(e) => {
+                  setToken(e.target.value);
+                  setFormPages(null);
+                  setFormSelected([]);
+                }}
                 placeholder="System User token"
                 autoComplete="new-password"
                 className="h-10 text-xs"
@@ -144,8 +241,22 @@ export function MetaAdsAccountsPanel({ isAdmin, canSync }: MetaAdsAccountsPanelP
             Meta Business Settings → System Users → Generate token with <b>ads_read</b> for this ad account. The token is
             checked with Meta, stored encrypted, and never shown again.
           </p>
+          {formPages ? (
+            <PagePicker pages={formPages} selected={formSelected} onChange={setFormSelected} />
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={findPagesMutation.isPending || !adAccountId.trim() || token.trim().length < 20}
+              onClick={() => findPagesMutation.mutate()}
+              className="h-8 rounded-xl gap-1.5 text-[11px] font-bold"
+            >
+              <Search className="h-3.5 w-3.5" />
+              {findPagesMutation.isPending ? "Reading ads from Meta..." : "Shared agency ad account? Choose your Facebook Page"}
+            </Button>
+          )}
           <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setShowForm(false)} className="h-8 rounded-xl font-bold">Cancel</Button>
+            <Button variant="ghost" size="sm" onClick={resetForm} className="h-8 rounded-xl font-bold">Cancel</Button>
             <Button
               size="sm"
               disabled={connectMutation.isPending || !adAccountId.trim() || token.trim().length < 20}
@@ -173,6 +284,11 @@ export function MetaAdsAccountsPanel({ isAdmin, canSync }: MetaAdsAccountsPanelP
                     act_{a.ad_account_id}
                     {a.currency ? ` · ${a.currency}` : ""} · token {a.token_hint}
                   </p>
+                  <p className="text-[11px] text-slate-500">
+                    {a.page_ids?.length
+                      ? `Counting only Facebook Page${a.page_ids.length > 1 ? "s" : ""} ${a.page_ids.join(", ")}`
+                      : "Counting the whole ad account"}
+                  </p>
                 </div>
                 <div className="flex items-center gap-1.5">
                   {!a.is_active ? (
@@ -188,6 +304,14 @@ export function MetaAdsAccountsPanel({ isAdmin, canSync }: MetaAdsAccountsPanelP
                   )}
                   {isAdmin && (
                     <>
+                      <button
+                        type="button"
+                        title="Choose Facebook Pages"
+                        onClick={() => openPageEditor(a)}
+                        className="h-8 w-8 flex items-center justify-center rounded-lg text-slate-500 hover:text-primary hover:bg-primary/10"
+                      >
+                        <Flag className="h-3.5 w-3.5" />
+                      </button>
                       <button
                         type="button"
                         title="Replace token"
@@ -243,6 +367,30 @@ export function MetaAdsAccountsPanel({ isAdmin, canSync }: MetaAdsAccountsPanelP
                   >
                     Save token
                   </Button>
+                </div>
+              )}
+              {isAdmin && editingPages === a._id && (
+                <div className="space-y-2 pt-1">
+                  {!editPages ? (
+                    <p className="text-[11px] text-slate-500">Reading ads from Meta...</p>
+                  ) : (
+                    <>
+                      <PagePicker pages={editPages} selected={editSelected} onChange={setEditSelected} />
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => setEditingPages(null)} className="h-8 rounded-xl font-bold">
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          disabled={updateMutation.isPending}
+                          onClick={() => updateMutation.mutate({ id: a._id, payload: { page_ids: editSelected } })}
+                          className="h-8 rounded-xl text-[10px] font-black uppercase tracking-widest"
+                        >
+                          Save Pages
+                        </Button>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
