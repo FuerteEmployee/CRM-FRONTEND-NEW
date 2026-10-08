@@ -1,5 +1,23 @@
 import {apiClient} from "./apiClient";
 
+export interface AttendanceImportRow {
+  rowNumber: number;
+  employee: string;
+  date: string; // YYYY-MM-DD
+  punchIn?: string; // HH:mm
+  punchOut?: string; // HH:mm
+  lunchIn?: string; // HH:mm
+  lunchOut?: string; // HH:mm
+  status?: "Full Day" | "Half Day" | "Absent";
+  note?: string;
+}
+export interface AttendanceImportResult {
+  total: number;
+  success: number;
+  failed: number;
+  results: { row: number; employee: string; date: string; ok: boolean; error?: string }[];
+}
+
 export const attendanceService = {
   punchIn: async (selfieBlob: Blob | null, location: { lat: number, lng: number, address?: string, accuracy?: number, fixAt?: number }, faceDetected?: boolean) => {
     const formData = new FormData();
@@ -78,6 +96,12 @@ export const attendanceService = {
 
   adminCorrectPunch: async (data: { userId: string; date: string; punchInTime?: string; punchOutTime?: string; note: string; statusOverride?: "Full Day" | "Half Day" | "Absent" }) => {
     const response = await apiClient.patch("/attendance/admin-correct", data);
+    return response.data;
+  },
+
+  // Offline attendance (Wi-Fi down / power cut) entered later from Excel.
+  importAttendance: async (rows: AttendanceImportRow[]): Promise<AttendanceImportResult> => {
+    const response: any = await apiClient.post("/attendance/import", { rows });
     return response.data;
   },
 };

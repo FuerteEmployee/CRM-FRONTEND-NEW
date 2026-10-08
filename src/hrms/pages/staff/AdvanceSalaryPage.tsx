@@ -47,6 +47,7 @@ import {
   DropdownMenuTrigger,
 } from "@/hrms/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/hrms/components/ui/tabs";
+import { LoanLimitsDialog } from "@/hrms/components/staff/LoanLimitsDialog";
 
 /* ─── Types ─── */
 type RequestType = "Advance Salary" | "Loan";
@@ -142,6 +143,16 @@ interface AdvanceLimit {
   available: number;
 }
 
+interface LoanLimit {
+  fixedSalary: number;
+  configured: boolean;
+  slab: { minSalary: number; maxSalary: number | null; maxLoan: number } | null;
+  multiple: number | null; // set when no slab matched → salary × multiple
+  maxAllowed: number | null;
+  outstanding: number;
+  available: number | null;
+}
+
 /* ─── Main Page ───
  * `only` narrows the page to one request type: "Loan" is the dedicated Loan
  * screen, "Advance Salary" the advance-only screen. Omitted = both, with tabs. */
@@ -214,7 +225,27 @@ const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
       .catch(() => { if (!cancelled) setAdvanceLimit(null); });
     return () => { cancelled = true; };
   }, [isDialogOpen, form.type, form.employeeId, isEmployee]);
-  const overLimit = !!advanceLimit && form.type === "Advance Salary" && Number(form.amount) > advanceLimit.available;
+  /* Salary-slab cap for Loans (Loan Limits; backend enforces it too). */
+  const [loanLimit, setLoanLimit] = useState<LoanLimit | null>(null);
+  useEffect(() => {
+    if (!isDialogOpen || form.type !== "Loan" || !form.employeeId) {
+      setLoanLimit(null);
+      return;
+    }
+    const target = isEmployee || form.employeeId === SELF ? "me" : form.employeeId;
+    let cancelled = false;
+    apiClient
+      .get(`/advance-salary/loan-limit/${target}`, { silent: true })
+      .then((res: any) => { if (!cancelled) setLoanLimit(res?.data?.data ?? res?.data ?? null); })
+      .catch(() => { if (!cancelled) setLoanLimit(null); });
+    return () => { cancelled = true; };
+  }, [isDialogOpen, form.type, form.employeeId, isEmployee]);
+  // No fixed salary = no loan limit can be worked out, so no loan.
+  const loanBlocked = !!loanLimit && form.type === "Loan" && loanLimit.fixedSalary <= 0;
+  const loanOver = !!loanLimit && form.type === "Loan" && loanLimit.available != null && Number(form.amount) > loanLimit.available;
+
+  const overLimit =
+    (!!advanceLimit && form.type === "Advance Salary" && Number(form.amount) > advanceLimit.available) || loanBlocked || loanOver;
 
   /* Which loan's repayment history is expanded */
   const [openHistory, setOpenHistory] = useState<string | null>(null);
@@ -312,9 +343,9 @@ const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
     }
   };
 
-  const handleStatusChange = async (id: string, status: RequestStatus, extra?: { monthlyInstallmentAmount?: number }) => {
+  const handleStatusChange = async (id: string, status: RequestStatus) => {
     try {
-      const res = await apiClient.put(`/advance-salary/${id}`, { status, ...extra });
+      const res = await apiClient.put(`/advance-salary/${id}`, { status });
       const updated = res?.data ?? res;
       setRecords((p) => p.map((r) => (r._id === id ? { ...r, ...updated } : r)));
       toast({ title: `Marked as ${status}` });
@@ -323,10 +354,42 @@ const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
     }
   };
 
-  // Per-row draft value for the optional Loan installment amount, entered
-  // just before clicking Approve (Loan only — Advance Salary always deducts
-  // in full, see advance_salary_controller.js).
-  const [installmentDrafts, setInstallmentDrafts] = useState<Record<string, string>>({});
+  /* ─── Loan EMI — fixed monthly salary deduction, set by the admin on
+         approval (required) and changeable later. Payroll deducts only this
+         much per month, never the whole loan. Advance Salary has no EMI. ─── */
+  const [emiTarget, setEmiTarget] = useState<{ record: SalaryLoanRecord; approve: boolean } | null>(null);
+  const [emiAmount, setEmiAmount] = useState("");
+  const [isSavingEmi, setIsSavingEmi] = useState(false);
+  const openEmi = (record: SalaryLoanRecord, approve: boolean) => {
+    setEmiTarget({ record, approve });
+    setEmiAmount(Number(record.monthlyInstallmentAmount) > 0 ? String(record.monthlyInstallmentAmount) : "");
+  };
+  const emiValue = Number(emiAmount);
+  const emiLoanAmount = emiTarget ? Number(emiTarget.record.amount) || 0 : 0;
+  const emiBalance = emiTarget ? (emiTarget.approve ? emiLoanAmount : Number(emiTarget.record.remainingAmount ?? emiTarget.record.amount) || 0) : 0;
+  const emiInvalid = !emiTarget || !(emiValue > 0) || emiValue > emiLoanAmount;
+  const emiMonths = !emiInvalid && emiBalance > 0 ? Math.ceil(emiBalance / emiValue) : 0;
+  const handleSaveEmi = async () => {
+    if (!emiTarget || emiInvalid) return;
+    setIsSavingEmi(true);
+    try {
+      const body = emiTarget.approve
+        ? { status: "Approved", monthlyInstallmentAmount: emiValue }
+        : { monthlyInstallmentAmount: emiValue };
+      const res = await apiClient.put(`/advance-salary/${emiTarget.record._id}`, body);
+      const updated = res?.data ?? res;
+      setRecords((p) => p.map((r) => (r._id === emiTarget.record._id ? { ...r, ...updated } : r)));
+      toast({
+        title: emiTarget.approve ? "Loan approved" : "Monthly deduction updated",
+        description: `₹${emiValue.toLocaleString("en-IN")} will be deducted from each month's salary.`,
+      });
+      setEmiTarget(null);
+    } catch (err: any) {
+      toast({ title: "Update failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsSavingEmi(false);
+    }
+  };
 
   /* ─── Record Repayment (partial or full, outside payroll) ─── */
   const [repayTarget, setRepayTarget] = useState<SalaryLoanRecord | null>(null);
@@ -405,6 +468,8 @@ const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
               <ShieldCheck className="h-3 w-3" /> Admin
             </Badge>
           )}
+          {/* Salary-slab loan limits — tenant admins only (not branch supervisors) */}
+          {(isSuperAdmin || isAdmin) && only !== "Advance Salary" && <LoanLimitsDialog />}
           {/* Admins can raise a request on an employee's behalf (the dialog
               already has an employee picker for them), e.g. issuing a loan. */}
           <Button
@@ -672,22 +737,10 @@ const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
                       <div className="flex gap-1.5 items-center flex-wrap justify-end">
                         {r.status === "Pending" && (
                           <>
-                            {isLoan && (
-                              <Input
-                                type="number"
-                                placeholder="Monthly installment (optional)"
-                                value={installmentDrafts[r._id] || ""}
-                                onChange={(e) => setInstallmentDrafts((p) => ({ ...p, [r._id]: e.target.value }))}
-                                className="h-7 w-44 text-[11px] rounded-lg"
-                              />
-                            )}
                             <Button
                               size="sm"
                               className="h-7 px-3 text-[11px] bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg"
-                              onClick={() => {
-                                const draft = Number(installmentDrafts[r._id]);
-                                handleStatusChange(r._id, "Approved", isLoan && draft > 0 ? { monthlyInstallmentAmount: draft } : undefined);
-                              }}
+                              onClick={() => (isLoan ? openEmi(r, true) : handleStatusChange(r._id, "Approved"))}
                             >
                               <CheckCircle2 className="h-3 w-3 mr-1" /> Approve
                             </Button>
@@ -700,6 +753,16 @@ const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
                               <XCircle className="h-3 w-3 mr-1" /> Reject
                             </Button>
                           </>
+                        )}
+                        {r.status === "Approved" && isLoan && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-3 text-[11px] text-violet-600 border-violet-200 hover:bg-violet-50 rounded-lg"
+                            onClick={() => openEmi(r, false)}
+                          >
+                            <CalendarDays className="h-3 w-3 mr-1" /> {Number(r.monthlyInstallmentAmount) > 0 ? "Change EMI" : "Set EMI"}
+                          </Button>
                         )}
                         {r.status === "Approved" && (
                           <Button
@@ -836,6 +899,18 @@ const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
                   )}
                 </p>
               )}
+              {form.type === "Loan" && loanLimit && (
+                <p className={cn("text-[11px]", overLimit ? "text-red-600 font-semibold" : "text-slate-500")}>
+                  {loanLimit.fixedSalary <= 0
+                    ? "No fixed salary is set for this employee, so a loan can't be requested yet."
+                    : <>
+                        Max loan ₹{(loanLimit.maxAllowed || 0).toLocaleString("en-IN")} for a salary of ₹{loanLimit.fixedSalary.toLocaleString("en-IN")}
+                        {loanLimit.multiple ? ` (${loanLimit.multiple}× salary)` : ""}
+                        {loanLimit.outstanding > 0 && ` · ₹${loanLimit.outstanding.toLocaleString("en-IN")} already outstanding`}
+                        {" "}· Available: ₹{(loanLimit.available || 0).toLocaleString("en-IN")}
+                      </>}
+                </p>
+              )}
             </div>
 
 
@@ -890,6 +965,79 @@ const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
                 <Plus className="h-4 w-4" />
               )}
               Submit Request
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Loan EMI Dialog — approve with a fixed monthly deduction, or change it ── */}
+      <Dialog open={!!emiTarget} onOpenChange={(open) => !open && !isSavingEmi && setEmiTarget(null)}>
+        <DialogContent className="max-w-sm rounded-2xl border border-slate-200 shadow-2xl bg-white p-0 overflow-hidden">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-100">
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2 text-slate-800">
+              <Landmark className="h-5 w-5 text-violet-500" /> {emiTarget?.approve ? "Approve Loan" : "Change Monthly Deduction"}
+            </DialogTitle>
+            {emiTarget && (
+              <p className="text-sm text-slate-500 mt-0.5">
+                {getEmployeeName(emiTarget.record.employeeId)} · Loan of ₹{emiLoanAmount.toLocaleString("en-IN")}
+              </p>
+            )}
+          </DialogHeader>
+          {emiTarget && (
+            <div className="px-6 py-5 space-y-4">
+              <div className="flex items-center justify-between rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
+                <span className="text-xs text-slate-500">{emiTarget.approve ? "Loan amount" : "Outstanding balance"}</span>
+                <span className="text-base font-bold text-slate-800">₹{emiBalance.toLocaleString("en-IN")}</span>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-600">Fixed deduction from salary every month (₹) *</Label>
+                <div className="relative">
+                  <IndianRupee className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    type="number"
+                    min={1}
+                    autoFocus
+                    placeholder="e.g. 5000"
+                    value={emiAmount}
+                    onChange={(e) => setEmiAmount(e.target.value)}
+                    className={cn("pl-8 h-9 rounded-lg bg-slate-50 border-slate-200 text-sm", emiAmount !== "" && emiInvalid && "border-red-300 bg-red-50")}
+                  />
+                </div>
+                <div className="flex gap-1.5 flex-wrap">
+                  {[6, 10, 12, 24].map((m) => {
+                    const v = Math.ceil(emiBalance / m);
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setEmiAmount(String(v))}
+                        className="px-2.5 py-1 rounded-md border border-slate-200 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                      >
+                        {m} months (₹{v.toLocaleString("en-IN")})
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className={cn("text-[11px]", emiAmount !== "" && emiInvalid ? "text-red-600 font-semibold" : "text-slate-500")}>
+                  {emiAmount !== "" && emiInvalid
+                    ? `Enter between ₹1 and ₹${emiLoanAmount.toLocaleString("en-IN")}`
+                    : emiMonths > 0
+                      ? `₹${emiValue.toLocaleString("en-IN")} is deducted from salary each month — loan cleared in about ${emiMonths} month${emiMonths === 1 ? "" : "s"}.`
+                      : "Only this amount is deducted from each month's salary — never the whole loan."}
+                </p>
+              </div>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                Deducted when salary is generated and shown on the salary slip. If a month's salary is too low, only what's available is deducted and the rest carries forward.
+              </p>
+            </div>
+          )}
+          <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50">
+            <Button variant="ghost" onClick={() => setEmiTarget(null)} disabled={isSavingEmi} className="rounded-lg font-semibold text-sm">
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEmi} disabled={isSavingEmi || emiInvalid} className="rounded-lg text-white border-0 font-semibold shadow-sm px-6 text-sm bg-violet-500 hover:bg-violet-600">
+              {isSavingEmi ? <RefreshCw className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
+              {emiTarget?.approve ? "Approve Loan" : "Save"}
             </Button>
           </div>
         </DialogContent>

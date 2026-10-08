@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { format, addMonths, subMonths } from "date-fns";
-import { PiggyBank, ChevronLeft, ChevronRight, Download, RefreshCw, Users, CalendarClock, CalendarDays, AlertCircle } from "lucide-react";
+import { PiggyBank, ChevronLeft, ChevronRight, Download, RefreshCw, Users, CalendarClock, CalendarDays, AlertCircle, Search, X } from "lucide-react";
 import { Button } from "@/hrms/components/ui/button";
 import { Badge } from "@/hrms/components/ui/badge";
 import { apiClient } from "@/hrms/services/apiClient";
@@ -72,6 +72,7 @@ function AdminPfView() {
   const [summary, setSummary] = useState<PfSummary | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     hrmsbranchService.getAll({ limit: 1000 }).then((r) => setBranches(r.data || []));
@@ -93,9 +94,16 @@ function AdminPfView() {
     return () => { cancelled = true; };
   }, [month, branchId]);
 
+  // Client-side search over the loaded month — name, employee code or branch.
+  const q = search.trim().toLowerCase();
+  const visibleRows = q
+    ? rows.filter((r) => [r.name, r.employeeCode, r.branch].some((v) => String(v || "").toLowerCase().includes(q)))
+    : rows;
+  const visiblePfTotal = q ? visibleRows.reduce((s, r) => s + (r.payrollGenerated ? Number(r.pfDeducted) || 0 : 0), 0) : summary?.totalPfDeducted;
+
   const exportCsv = () => {
     const header = ["Employee", "Code", "Branch", "PF Applicable", "PF Mode", "PF Configured (per month)", "Payable Days", "Gross", "PF Deducted", "Payroll Status"];
-    const lines = rows.map((r) => [
+    const lines = visibleRows.map((r) => [
       r.name, r.employeeCode, r.branch, r.pfApplicable ? "Yes" : "No", r.pfApplicable ? modeLabel(r.pfMode) : "",
       r.pfConfigured > 0 ? r.pfConfigured : `${r.pfRate ?? 12}% of Basic`, r.payableDays ?? "", r.grossSalary ?? "", r.pfDeducted,
       r.payrollGenerated ? r.paymentStatus || "" : "Not generated",
@@ -117,6 +125,20 @@ function AdminPfView() {
           <p className="text-slate-400 text-sm mt-0.5">Each employee's PF setting and the PF deducted in that month's payroll</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search name, code, branch..."
+              className="h-9 w-56 rounded-lg border border-slate-200 bg-white pl-8 pr-7 text-xs shadow-sm outline-none focus:border-slate-300"
+            />
+            {search && (
+              <button type="button" onClick={() => setSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
           <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold shadow-sm">
             <option value="">All Branches</option>
             {branches.map((b) => <option key={b._id || b.id} value={b._id || b.id}>{b.name}</option>)}
@@ -126,7 +148,7 @@ function AdminPfView() {
             <span className="text-xs font-bold text-slate-700 px-2 min-w-[90px] text-center uppercase tracking-wider">{format(month, "MMM yyyy")}</span>
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setMonth((m) => addMonths(m, 1))}><ChevronRight className="h-4 w-4" /></Button>
           </div>
-          <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={exportCsv} disabled={!rows.length}>
+          <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={exportCsv} disabled={!visibleRows.length}>
             <Download className="h-3.5 w-3.5" /> Export CSV
           </Button>
         </div>
@@ -153,6 +175,8 @@ function AdminPfView() {
           <div className="py-12 text-center text-sm text-red-500">{error}</div>
         ) : rows.length === 0 ? (
           <div className="py-12 text-center text-sm text-slate-400">No employees with PF {branchId ? "in this branch" : ""}. Turn PF on in the staff form (Salary &amp; Banking).</div>
+        ) : visibleRows.length === 0 ? (
+          <div className="py-12 text-center text-sm text-slate-400">No PF records match "{search}".</div>
         ) : (
           <table className="w-full text-xs min-w-[820px]">
             <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
@@ -167,7 +191,7 @@ function AdminPfView() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {visibleRows.map((r) => (
                 <tr key={r.employeeId} className="border-b border-slate-100 last:border-0">
                   <td className="px-4 py-2.5">
                     <p className="font-semibold text-slate-700">{r.name}</p>
@@ -192,8 +216,8 @@ function AdminPfView() {
             </tbody>
             <tfoot className="bg-slate-50 border-t border-slate-200">
               <tr>
-                <td colSpan={5} className="px-4 py-2.5 text-right font-semibold text-slate-600">Total PF deducted</td>
-                <td className="px-4 py-2.5 text-right font-bold text-emerald-700">{inr(summary?.totalPfDeducted)}</td>
+                <td colSpan={5} className="px-4 py-2.5 text-right font-semibold text-slate-600">Total PF deducted{q && ` (${visibleRows.length} shown)`}</td>
+                <td className="px-4 py-2.5 text-right font-bold text-emerald-700">{inr(visiblePfTotal)}</td>
                 <td />
               </tr>
             </tfoot>
