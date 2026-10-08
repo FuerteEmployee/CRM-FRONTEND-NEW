@@ -1669,11 +1669,13 @@ export default function SetupStaffForm() {
                           <p className="text-[10px] text-slate-500">
                             {formData.salaryConfig.pf.mode === "fixed_monthly"
                               ? "Full amount every month, regardless of attendance."
-                              : "Scaled by payable days in the month."}
+                              : "PF per day × paid days in the month."}
                           </p>
                         </div>
                         <div className="space-y-2">
-                          <label className="text-[11px] font-bold text-slate-500 uppercase">PF (Employee) / month</label>
+                          <label className="text-[11px] font-bold text-slate-500 uppercase">
+                            PF (Employee) / {formData.salaryConfig.pf.mode === "fixed_monthly" ? "month" : "day"}
+                          </label>
                           <Input
                             type="number"
                             value={formData.salaryConfig.pf.value}
@@ -1681,7 +1683,11 @@ export default function SetupStaffForm() {
                             onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, pf: { ...formData.salaryConfig.pf, value: e.target.value } } })}
                             className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                           />
-                          <p className="text-[10px] text-slate-500">Leave 0 to use 12% of Basic.</p>
+                          <p className="text-[10px] text-slate-500">
+                            {formData.salaryConfig.pf.mode === "fixed_monthly"
+                              ? "Leave 0 to use 12% of Basic."
+                              : "e.g. 20 = ₹20 × each paid day. Leave 0 to use 12% of earned Basic."}
+                          </p>
                         </div>
                       </div>
                       <div className="space-y-2">

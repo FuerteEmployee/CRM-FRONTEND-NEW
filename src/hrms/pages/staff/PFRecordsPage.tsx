@@ -21,6 +21,7 @@ interface PfRow {
   pfMode: "fixed_monthly" | "per_day";
   pfConfigured: number;
   pfRate?: number;
+  pfPerDayAmount?: boolean;
   basic: number;
   payrollGenerated: boolean;
   payableDays: number | null;
@@ -35,6 +36,7 @@ interface MyPf {
   pfMode: "fixed_monthly" | "per_day";
   pfConfigured: number;
   pfRate?: number;
+  pfPerDayAmount?: boolean;
   basic: number;
   year: number;
   months: { month: number; year: number; payableDays: number; grossSalary: number; pfDeducted: number; paymentStatus: string }[];
@@ -43,9 +45,11 @@ interface MyPf {
 
 const inr = (n?: number | null) => `₹${Math.round(Number(n) || 0).toLocaleString("en-IN")}`;
 const modeLabel = (m: string) => (m === "fixed_monthly" ? "Fixed monthly" : "Per day");
-const pfSettingText = (r: { pfApplicable: boolean; pfMode: string; pfConfigured: number; basic: number; pfRate?: number }) => {
+const pfSettingText = (r: { pfApplicable: boolean; pfMode: string; pfConfigured: number; basic: number; pfRate?: number; pfPerDayAmount?: boolean }) => {
   const rate = r.pfRate ?? 12;
-  return !r.pfApplicable ? "No PF" : `${modeLabel(r.pfMode)} · ${r.pfConfigured > 0 ? `${inr(r.pfConfigured)}/mo` : `${rate}% of Basic (${inr((r.basic * rate) / 100)})`}`;
+  // An explicit "Per day" amount is ₹X per paid day (payroll_controller.generatePayroll).
+  const amount = r.pfConfigured > 0 ? `${inr(r.pfConfigured)}/${r.pfPerDayAmount ? "day" : "mo"}` : `${rate}% of Basic (${inr((r.basic * rate) / 100)})`;
+  return !r.pfApplicable ? "No PF" : `${modeLabel(r.pfMode)} · ${amount}`;
 };
 
 function Tile({ icon: Icon, label, value, tone }: { icon: React.ElementType; label: string; value: string | number; tone: string }) {
