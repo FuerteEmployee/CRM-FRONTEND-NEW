@@ -1,5 +1,5 @@
 import { toast } from "@/hrms/hooks/use-toast";
-import { getAccessToken, refreshAccessToken, handleSessionExpired, isTokenExpired } from "@/lib/session";
+import { getAccessToken, refreshAccessToken, handleSessionExpired, isTokenExpired, TENANT_BLOCK_CODES } from "@/lib/session";
 
 export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5000/api";
 
@@ -142,6 +142,17 @@ const _request = async (endpoint: string, method: HttpMethod, options: FetchOpti
     body: data ? (isFormData ? data : JSON.stringify(data)) : undefined,
     ...rest,
   });
+
+  // Suspended / deleted company (backend utils/tenantAccess.js): refreshing
+  // can't help — sign out to the "account suspended" screen.
+  if (response.status === 401 || response.status === 403) {
+    const peek = await response.clone().json().catch(() => ({}));
+    const blockReason = TENANT_BLOCK_CODES[peek?.code];
+    if (blockReason) {
+      handleSessionExpired(blockReason);
+      throw new Error(peek.message || "Company account blocked");
+    }
+  }
 
   // 401 received from server — try refresh once, then retry the original request
   if (response.status === 401 && token) {

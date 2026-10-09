@@ -60,6 +60,7 @@ import { customerService } from "@/api/services/customer.service";
 import { quotationService } from "@/api/services/quotation.service";
 import { formatDate } from "@/lib/dateFormat";
 import { useCurrency } from "@/context/CurrencyContext";
+import { isTenantExpired } from "@/lib/tenantExpiry";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 
 const OverviewSection = ({ title, icon: Icon, items }: { title: string; icon: React.ElementType; items: { label: string; value: number; percentage: string; color?: string }[] }) => (
@@ -143,47 +144,8 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const basePath = isStaff ? "/staff" : "/admin";
 
-  const getDaysRemaining = (): number | null => {
-    if (!user?.tenant) return null;
-    const t = user.tenant as any;
-
-    // Prefer explicit dates set by the backend
-    const explicit = t.billing_cycle_end || t.trial_ends_at;
-    if (explicit) {
-      const ms = new Date(explicit).getTime();
-      if (!isNaN(ms)) return Math.ceil((ms - Date.now()) / (1000 * 3600 * 24));
-    }
-
-    // Fallback: use billing_cycle_start or createdAt + plan days
-    const startStr = t.billing_cycle_start || t.createdAt;
-    if (!startStr) return null;
-    const startMs = new Date(startStr).getTime();
-    if (isNaN(startMs)) return null;
-
-    const trialDays = t.plan_id?.trial_days ?? 14;
-    const cycleDays = t.plan_id?.billing_cycle === "yearly" ? 365 : t.plan_id?.billing_cycle === "lifetime" ? 36500 : 30;
-    const spanDays = t.status === "trial" ? trialDays : cycleDays;
-    const endMs = startMs + spanDays * 24 * 60 * 60 * 1000;
-    return Math.ceil((endMs - Date.now()) / (1000 * 3600 * 24));
-  };
-
-  const daysRemaining = getDaysRemaining();
-
-  // How many days before expiry the banner starts showing — set per-plan in Super Admin.
-  // Falls back to 30 days if the plan field is not set.
-  const bannerWarningDays: number = (user?.tenant as any)?.plan_id?.banner_warning_days ?? 30;
-
-  // Banner is visible only within the warning window defined on the plan.
-  const bannerVisible =
-    !user?.is_superadmin &&
-    user?.tenant &&
-    daysRemaining !== null &&
-    daysRemaining > 0 &&
-    daysRemaining <= bannerWarningDays;
-
-  const isExpired = !user?.is_superadmin && (
-    user?.tenant?.status === "expired" || (daysRemaining !== null && daysRemaining <= 0)
-  );
+  // The "expiring soon" banner lives in DashboardLayout (every page) now.
+  const isExpired = !user?.is_superadmin && isTenantExpired(user?.tenant as any);
 
   // Show expired popup immediately on every page load when expired — no delay, no dismiss state.
   // useState initialises directly from isExpired so it's true on first render when expired.
@@ -924,38 +886,6 @@ const Dashboard = () => {
             Start Demo Tour
           </Button>
         </div>
-
-        {/* Subscription Expiring Banner */}
-        {bannerVisible && daysRemaining !== null && daysRemaining <= 7 && (
-          <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4 md:p-5 shadow-sm mb-6 flex flex-col md:flex-row justify-between items-center gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
-            <div className="flex items-start md:items-center gap-3">
-              <div className="bg-amber-100 dark:bg-amber-900/40 p-2 rounded-lg mt-0.5 md:mt-0 shrink-0">
-                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-500" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-amber-800 dark:text-amber-400">
-                  Subscription expiring soon
-                </h3>
-                <p className="text-sm font-medium text-amber-700/80 dark:text-amber-500/80 mt-0.5">
-                  Your plan expires in {daysRemaining} days. Renew now to keep your CRM running.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-5 w-full md:w-auto justify-between md:justify-end shrink-0 pl-11 md:pl-0">
-              <div className="text-left md:text-right flex flex-col">
-                <span className="text-[10px] font-bold text-amber-600/70 dark:text-amber-500/70 uppercase tracking-widest">Days Left</span>
-                <span className="text-xl font-black text-amber-700 dark:text-amber-400 leading-none mt-0.5">{daysRemaining}</span>
-              </div>
-              <Button
-                onClick={() => window.location.href = '/admin/pricing'}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 h-10 rounded-lg flex items-center gap-2 shadow-sm transition-all"
-              >
-                Renew Plan
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
 
         {/* Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="tour-stats">

@@ -8,11 +8,24 @@ import { Search, ExternalLink, Trash2, Bookmark as BookmarkIcon, Folder as Folde
 import { useState, useMemo } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { usePermissionContext } from "@/context/PermissionContext";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export default function Bookmarks() {
   const [search, setSearch] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isAdmin } = usePermissionContext();
 
   const { data: bookmarks = [], isLoading } = useQuery({
     queryKey: ["bookmarks"],
@@ -27,6 +40,17 @@ export default function Bookmarks() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["bookmarks"] });
       toast({ title: "Deleted", description: "Bookmark removed." });
+    },
+  });
+
+  const deleteAllMutation = useMutation({
+    mutationFn: () => bookmarkService.deleteAllBookmarks(),
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ["bookmarks"] });
+      toast({ title: "Deleted", description: `${res?.deleted ?? 0} bookmarks removed from the CRM.` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Could not delete", description: err?.message || "Something went wrong.", variant: "destructive" });
     },
   });
 
@@ -94,15 +118,42 @@ export default function Bookmarks() {
             </h1>
             <p className="text-sm text-muted-foreground">Manage your synced Chrome bookmarks</p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => queryClient.invalidateQueries({ queryKey: ["bookmarks"] })}
-            className="self-start sm:self-auto gap-2"
-          >
-            <Search className="h-4 w-4 hidden" />
-            Refresh List
-          </Button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            {isAdmin && bookmarks.length > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2 text-red-600 hover:text-red-700 hover:bg-red-50" disabled={deleteAllMutation.isPending}>
+                    <Trash2 className="h-4 w-4" />
+                    Delete All
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete all {bookmarks.length} bookmarks?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This removes every bookmark from the CRM for your whole company, including ones synced by other staff.
+                      Bookmarks in Chrome are not touched. This cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={() => deleteAllMutation.mutate()}>
+                      Delete All
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => queryClient.invalidateQueries({ queryKey: ["bookmarks"] })}
+              className="gap-2"
+            >
+              <Search className="h-4 w-4 hidden" />
+              Refresh List
+            </Button>
+          </div>
         </div>
 
         <Card>

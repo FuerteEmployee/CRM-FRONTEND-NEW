@@ -4,6 +4,7 @@ import {
   isTokenExpired,
   refreshAccessToken,
   handleSessionExpired,
+  TENANT_BLOCK_CODES,
 } from "@/lib/session";
 
 // Fall back to the Vite dev proxy path (same as lib/session.ts) so a missing
@@ -53,7 +54,11 @@ class ApiClient {
     // clear the session and show the "session expired" page instead of leaving
     // the user on a blank screen.
     if (response.status === 401 && !isAuthEndpoint) {
-      if (!_retried && getRefreshToken() && (await refreshAccessToken())) {
+      // A deleted company's login can't be fixed by refreshing the token.
+      const peek = await response.clone().json().catch(() => ({}));
+      if (TENANT_BLOCK_CODES[peek.code]) {
+        handleSessionExpired(TENANT_BLOCK_CODES[peek.code]);
+      } else if (!_retried && getRefreshToken() && (await refreshAccessToken())) {
         return this.request(endpoint, options, true);
       }
       if (token || getRefreshToken()) handleSessionExpired();
@@ -61,6 +66,9 @@ class ApiClient {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      // Suspended / deleted company: sign out to the "account suspended" screen.
+      const blockReason = TENANT_BLOCK_CODES[errorData.code];
+      if (blockReason && !isAuthEndpoint && (token || getRefreshToken())) handleSessionExpired(blockReason);
       const error = new Error(errorData.message || `HTTP error! status: ${response.status}`);
       // NB: spreading a fetch Response does NOT copy `status`/`statusText` (they
       // are prototype getters), which made every status check downstream
