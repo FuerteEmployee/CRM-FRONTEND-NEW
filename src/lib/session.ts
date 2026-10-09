@@ -70,7 +70,11 @@ export const refreshAccessToken = (): Promise<boolean> => {
         credentials: "include",
         body: JSON.stringify({ refreshToken }),
       });
-      if (!res.ok) return false;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (TENANT_BLOCK_CODES[err?.code]) handleSessionExpired(TENANT_BLOCK_CODES[err.code]);
+        return false;
+      }
 
       const data = await res.json();
       if (!data?.token) return false;
@@ -118,7 +122,14 @@ let expiring = false;
  * page, which links on to the right login screen. Safe to call many times —
  * parallel failing requests only trigger one redirect.
  */
-export const handleSessionExpired = () => {
+// Backend codes (utils/tenantAccess.js) meaning the whole company is blocked,
+// not just this session — shown as a "suspended" screen instead of "expired".
+export const TENANT_BLOCK_CODES: Record<string, string> = {
+  TENANT_SUSPENDED: "suspended",
+  TENANT_NOT_FOUND: "company_missing",
+};
+
+export const handleSessionExpired = (reason?: string) => {
   if (expiring) return;
 
   const here = window.location.pathname;
@@ -136,5 +147,6 @@ export const handleSessionExpired = () => {
   });
 
   const params = new URLSearchParams({ login: loginPath, from: here + window.location.search });
+  if (reason) params.set("reason", reason);
   window.location.replace(`${SESSION_EXPIRED_PATH}?${params.toString()}`);
 };

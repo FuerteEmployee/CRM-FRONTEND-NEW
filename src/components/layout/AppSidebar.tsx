@@ -101,6 +101,7 @@ import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { Badge } from "@/components/ui/badge";
 import { useNotificationContext } from "@/context/NotificationContext";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isTenantExpired } from "@/lib/tenantExpiry";
 
 const fallbackNav = [
   { title: "Dashboard", url: "/admin/dashboard", icon: "LayoutDashboard", group: "Main" },
@@ -338,20 +339,7 @@ export function AppSidebar() {
   const isPilot = canAccessBankDetails(user?.email);
   const hasSetupAccess = !isHrmsOnly && (isAdmin || canView("Settings"));
 
-  const getDaysRemaining = () => {
-    if (!user?.tenant) return null;
-    const endDate = user.tenant.billing_cycle_end || user.tenant.trial_ends_at || 
-      (user.tenant.status === "trial" 
-        ? new Date(new Date(user.tenant.createdAt).getTime() + 14 * 24 * 60 * 60 * 1000).toISOString()
-        : new Date(new Date(user.tenant.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      );
-    if (!endDate) return null;
-    const diff = new Date(endDate).getTime() - new Date().getTime();
-    return Math.ceil(diff / (1000 * 3600 * 24));
-  };
-
-  const daysRemaining = getDaysRemaining();
-  const isExpired = !user?.is_superadmin && (user?.tenant?.status === "expired" || (daysRemaining !== null && daysRemaining <= 0));
+  const isExpired = !user?.is_superadmin && isTenantExpired(user?.tenant as any);
 
   const [menuMode, setMenuMode] = useState<"main" | "setup">(
     () =>

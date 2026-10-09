@@ -141,7 +141,10 @@ const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isAdmin, isStaff, permissions, loading } = usePermissionContext();
   if (loading) return null;
   if (!user) return <Navigate to="/admin/login" replace />;
-  if (!isAdmin && !user.is_superadmin) return <Navigate to={getLandingPath(user, permissions, isStaff)} replace />;
+  // A super admin has no company of their own — the company CRM would only
+  // show empty "Fuerte CRM" data. Keep them in the Super Admin panel.
+  if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
+  if (!isAdmin) return <Navigate to={getLandingPath(user, permissions, isStaff)} replace />;
   return <>{children}</>;
 };
 
@@ -159,6 +162,8 @@ const AuthProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = usePermissionContext();
   if (loading) return null;
   if (!user) return <Navigate to="/admin/login" replace />;
+  // Same as AdminProtectedRoute: company pages (incl. HRMS) aren't for super admins.
+  if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
   return <>{children}</>;
 };
 

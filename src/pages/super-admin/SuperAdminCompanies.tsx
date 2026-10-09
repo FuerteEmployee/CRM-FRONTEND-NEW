@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Building2, Plus, Search, Activity, Trash2,
+  Building2, Plus, Search, Activity, Ban, PlayCircle,
   Package, CheckCircle2, XCircle, Settings, Clock,
   AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell, Globe, RefreshCw
 } from "lucide-react";
@@ -12,6 +12,7 @@ import { format } from "date-fns";
 import { SuperAdminTablePageSkeleton } from "@/components/ui/page-skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TablePagination } from "@/components/ui/table";
+import { getDaysLeft, getExpiryDate, isLifetimePlan, planPriceLabel } from "@/lib/tenantExpiry";
 
 interface SaasPlan {
   _id: string;
@@ -56,7 +57,7 @@ const TENANT_FEATURES: { key: string; label: string; hint: string }[] = [
 
 const STATUS_CONFIG = {
   active:   { label: "Active",   icon: CheckCircle2, cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  inactive: { label: "Inactive", icon: XCircle,      cls: "bg-red-50 text-red-700 border-red-200" },
+  inactive: { label: "Suspended", icon: XCircle,     cls: "bg-red-50 text-red-700 border-red-200" },
   trial:    { label: "Trial",    icon: Clock,        cls: "bg-blue-50 text-blue-700 border-blue-200" },
   expired:  { label: "Expired",  icon: AlertTriangle, cls: "bg-orange-50 text-orange-700 border-orange-200" },
 };
@@ -66,34 +67,6 @@ const DEFAULT_MANAGE = { company_name: "", email: "", password: "", plan_id: "",
 
 const parseDomains = (value: string) =>
   value.split(",").map((d) => d.trim().toLowerCase()).filter(Boolean);
-
-// Days remaining until the tenant's plan expires, or null when there's no
-// meaningful expiry (e.g. an active lifetime plan). Mirrors the "Joined"
-// column's own date math so the Renew button lines up with what's displayed.
-const getDaysLeft = (tenant: Tenant): number | null => {
-  if (tenant.plan_id?.billing_cycle === "lifetime" && tenant.status === "active") return null;
-
-  let expiryDate: Date | null = null;
-  if (tenant.status === "trial") {
-    const trialDays = tenant.plan_id?.trial_days ?? 14;
-    expiryDate = tenant.trial_ends_at
-      ? new Date(tenant.trial_ends_at)
-      : new Date(new Date(tenant.createdAt).getTime() + trialDays * 86400000);
-  } else if (tenant.status === "active") {
-    const cycle = tenant.plan_id?.billing_cycle;
-    const cycleDays = cycle === "yearly" ? 365 : 30;
-    const startDate = tenant.billing_cycle_start || tenant.createdAt;
-    expiryDate = tenant.billing_cycle_end
-      ? new Date(tenant.billing_cycle_end)
-      : new Date(new Date(startDate).getTime() + cycleDays * 86400000);
-  } else if (tenant.billing_cycle_end || tenant.trial_ends_at) {
-    expiryDate = new Date(tenant.billing_cycle_end || tenant.trial_ends_at!);
-  } else {
-    return null;
-  }
-
-  return Math.ceil((expiryDate.getTime() - Date.now()) / 86400000);
-};
 
 const DEFAULT_COUNTS = { active: 0, inactive: 0, trial: 0, expired: 0 };
 
@@ -154,6 +127,12 @@ export default function SuperAdminCompanies() {
         setPages(1);
         setCounts(DEFAULT_COUNTS);
       } else {
+        // The last row of a later page changed status out of the filter —
+        // step back a page instead of showing an empty table with no pager.
+        if ((res?.data || []).length === 0 && currentPage > 1) {
+          setCurrentPage((p) => p - 1);
+          return;
+        }
         setTenants(res?.data || []);
         setTotal(res?.total || 0);
         setPages(res?.pages || 1);
@@ -221,14 +200,20 @@ export default function SuperAdminCompanies() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  // Companies are never deleted (their leads/HRMS data would be orphaned) —
+  // suspending blocks the CRM, the HRMS module and the HRMS app until re-activated.
+  const handleToggleSuspend = async (tenant: Tenant) => {
+    const suspend = tenant.status !== "inactive";
+    const question = suspend
+      ? `Suspend "${tenant.company_name}"? Its staff won't be able to log in to the CRM or HRMS until you re-activate it. No data is deleted.`
+      : `Re-activate "${tenant.company_name}"? Its staff will be able to log in again.`;
+    if (!window.confirm(question)) return;
     try {
-      await api.delete(`/super-admin/tenants/${id}`);
-      toast.success("Customer deleted");
+      await api.put(`/super-admin/tenants/${tenant._id}`, { status: suspend ? "inactive" : "active" });
+      toast.success(suspend ? "Customer suspended" : "Customer re-activated");
       fetchData();
     } catch (error: any) {
-      toast.error(error.message || "Failed to delete");
+      toast.error(error.message || "Failed to update status");
     }
   };
 
@@ -409,25 +394,17 @@ export default function SuperAdminCompanies() {
                       <div className="flex flex-col gap-1">
                         <StatusBadge status={tenant.status} />
                         {tenant.status === "trial" && (() => {
-                          const trialDays = tenant.plan_id?.trial_days ?? 14;
-                          const trialEnd = tenant.trial_ends_at
-                            || new Date(new Date(tenant.createdAt).getTime() + trialDays * 24 * 60 * 60 * 1000).toISOString();
-                          const days = Math.ceil((new Date(trialEnd).getTime() - Date.now()) / (1000 * 3600 * 24));
+                          const days = getDaysLeft(tenant) ?? 0;
                           if (days > 0) {
                             return <span className={`text-[11px] font-semibold ${days <= 3 ? "text-red-500" : days <= 7 ? "text-amber-600" : "text-gray-500"}`}>{days} day{days !== 1 ? "s" : ""} left in trial</span>;
                           }
                           return <span className="text-[11px] text-red-500 font-semibold">Trial ended</span>;
                         })()}
                         {tenant.status === "active" && (() => {
-                          const cycle = tenant.plan_id?.billing_cycle;
-                          if (cycle === "lifetime") {
+                          if (isLifetimePlan(tenant)) {
                             return <span className="text-[11px] font-semibold text-emerald-600">Lifetime Plan</span>;
                           }
-                          const cycleDays = cycle === "yearly" ? 365 : 30;
-                          const startDate = tenant.billing_cycle_start || tenant.createdAt;
-                          const billingEnd = tenant.billing_cycle_end
-                            || new Date(new Date(startDate).getTime() + cycleDays * 24 * 60 * 60 * 1000).toISOString();
-                          const days = Math.ceil((new Date(billingEnd).getTime() - Date.now()) / (1000 * 3600 * 24));
+                          const days = getDaysLeft(tenant) ?? 0;
                           if (days > 0) {
                             return <span className={`text-[11px] font-semibold ${days <= 3 ? "text-red-500" : days <= 7 ? "text-amber-600" : "text-gray-500"}`}>{days} day{days !== 1 ? "s" : ""} left</span>;
                           }
@@ -442,34 +419,8 @@ export default function SuperAdminCompanies() {
                     <TableCell>
                       {(() => {
                         const joinedDate = new Date(tenant.billing_cycle_start || tenant.createdAt);
-
-                        let expiryDate: Date | null = null;
-                        if (tenant.plan_id?.billing_cycle === "lifetime" && tenant.status === "active") {
-                          // Lifetime plans do not expire
-                          expiryDate = null;
-                        } else if (tenant.status === "trial") {
-                          const trialDays = tenant.plan_id?.trial_days ?? 14;
-                          expiryDate = tenant.trial_ends_at
-                            ? new Date(tenant.trial_ends_at)
-                            : new Date(new Date(tenant.createdAt).getTime() + trialDays * 86400000);
-                        } else if (tenant.status === "active") {
-                          const cycle = tenant.plan_id?.billing_cycle;
-                          const cycleDays = cycle === "yearly" ? 365 : 30;
-                          expiryDate = tenant.billing_cycle_end
-                            ? new Date(tenant.billing_cycle_end)
-                            : new Date(joinedDate.getTime() + cycleDays * 86400000);
-                        } else if (tenant.billing_cycle_end || tenant.trial_ends_at) {
-                          expiryDate = new Date(tenant.billing_cycle_end || tenant.trial_ends_at!);
-                        } else {
-                          // Fallback for expired/inactive without specific end dates
-                          const cycle = tenant.plan_id?.billing_cycle;
-                          const cycleDays = cycle === "yearly" ? 365 : 30;
-                          expiryDate = new Date(joinedDate.getTime() + cycleDays * 86400000);
-                        }
-
-                        const daysLeft = expiryDate
-                          ? Math.ceil((expiryDate.getTime() - Date.now()) / 86400000)
-                          : null;
+                        const expiryDate = getExpiryDate(tenant);
+                        const daysLeft = getDaysLeft(tenant);
 
                         const expiryColor = daysLeft === null
                           ? "text-gray-400"
@@ -486,7 +437,7 @@ export default function SuperAdminCompanies() {
                             <span className="text-sm text-gray-700">
                               {format(joinedDate, "MMM d, yyyy")}
                             </span>
-                            {tenant.plan_id?.billing_cycle === "lifetime" && tenant.status === "active" ? (
+                            {isLifetimePlan(tenant) && tenant.status !== "trial" ? (
                               <span className="text-[11px] text-emerald-600 font-medium">No expiry (Lifetime)</span>
                             ) : expiryDate && (
                               <span className={`text-[11px] ${expiryColor}`}>
@@ -507,6 +458,8 @@ export default function SuperAdminCompanies() {
                     <TableCell className="text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
                         {(() => {
+                          // A suspended company is re-activated, not renewed.
+                          if (tenant.status === "inactive") return null;
                           const daysLeft = getDaysLeft(tenant);
                           if (daysLeft === null || daysLeft > 30) return null;
                           return (
@@ -530,14 +483,27 @@ export default function SuperAdminCompanies() {
                           <Edit className="h-3.5 w-3.5 mr-1.5" />
                           Edit
                         </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(tenant._id, tenant.company_name)}
-                          className="h-8 text-xs font-medium text-red-600 hover:text-red-700 hover:border-red-200 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        {tenant.status === "inactive" ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleSuspend(tenant)}
+                            className="h-8 text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:border-emerald-300 hover:bg-emerald-50"
+                          >
+                            <PlayCircle className="h-3.5 w-3.5 mr-1.5" />
+                            Re-activate
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleToggleSuspend(tenant)}
+                            className="h-8 text-xs font-medium text-red-600 hover:text-red-700 hover:border-red-200 hover:bg-red-50"
+                          >
+                            <Ban className="h-3.5 w-3.5 mr-1.5" />
+                            Suspend
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -658,7 +624,7 @@ export default function SuperAdminCompanies() {
                           <span className="flex items-center gap-2">
                             <Package className="h-3.5 w-3.5 text-gray-400" />
                             <span>{p.name}</span>
-                            <span className="text-gray-400 text-xs">— ₹{p.price}/mo</span>
+                            <span className="text-gray-400 text-xs">— {planPriceLabel(p.price, p.billing_cycle)}</span>
                           </span>
                         </SelectItem>
                       ))}
@@ -788,7 +754,7 @@ export default function SuperAdminCompanies() {
                           <span className="flex items-center gap-2">
                             <Package className="h-3.5 w-3.5 text-gray-400" />
                             <span>{p.name}</span>
-                            <span className="text-gray-400 text-xs">— ₹{p.price}/mo</span>
+                            <span className="text-gray-400 text-xs">— {planPriceLabel(p.price, p.billing_cycle)}</span>
                           </span>
                         </SelectItem>
                       ))}
