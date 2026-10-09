@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { staffService } from "@/api/services/staff.service";
 import { toast } from "sonner";
 import { Mail, Phone, Shield, Save, Loader2, Eye, EyeOff, Lock, User } from "lucide-react";
+import { phone10Error } from "@/lib/validation";
 
 export default function SuperAdminProfile() {
   const { user, refreshPermissions } = usePermissionContext();
@@ -53,6 +54,8 @@ export default function SuperAdminProfile() {
     if (!user?._id) return;
     if (!firstname.trim()) { toast.error("First name is required"); return; }
     if (!email.trim()) { toast.error("Email is required"); return; }
+    const phoneErr = phone10Error(phonenumber);
+    if (phoneErr) { toast.error(phoneErr); return; }
     updateMutation.mutate({ firstname: firstname.trim(), lastname: lastname.trim(), email: email.trim(), phonenumber: phonenumber.trim() });
   };
 

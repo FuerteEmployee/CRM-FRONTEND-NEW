@@ -5,14 +5,25 @@ import { toast } from "sonner";
 import { formatDistanceToNow, differenceInDays } from "date-fns";
 import { SuperAdminAlertsSkeleton } from "@/components/ui/page-skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
+import { getDaysLeft, getExpiryDate, isLifetimePlan } from "@/lib/tenantExpiry";
 
 interface Tenant {
   _id: string;
   company_name: string;
   status: "active" | "inactive" | "trial" | "expired";
-  plan_id: { name: string; price: number } | null;
+  plan_id: {
+    _id: string;
+    name: string;
+    price: number;
+    billing_cycle?: string;
+    trial_days?: number;
+    banner_warning_days?: number;
+    active?: boolean;
+  } | null;
   createdAt: string;
+  updatedAt?: string;
   trial_ends_at?: string;
+  billing_cycle_start?: string;
   billing_cycle_end?: string;
 }
 
@@ -59,101 +70,131 @@ const TYPE_CONFIG = {
 function generateAlerts(tenants: Tenant[]): Alert[] {
   const alerts: Alert[] = [];
   const now = new Date();
+  const ago = (d?: Date | string) => (d ? formatDistanceToNow(new Date(d), { addSuffix: true }) : "");
+  // Alert ids carry the end date, so a company that is renewed and later
+  // expires again raises a fresh alert instead of staying dismissed forever.
+  const day = (d?: Date | string | null) => (d ? new Date(d).toISOString().slice(0, 10) : "none");
+  const bannerWarned = new Set<string>();
 
   tenants.forEach((tenant) => {
-    const joined = new Date(tenant.createdAt);
-    const daysSinceJoined = differenceInDays(now, joined);
+    // Same date math as the Customers page (lib/tenantExpiry.ts, days rounded up).
+    const end = getExpiryDate(tenant as any);
+    const daysLeft = getDaysLeft(tenant as any);
+    const lifetime = isLifetimePlan(tenant as any);
+    const plan = tenant.plan_id;
 
     if (tenant.status === "expired") {
       alerts.push({
-        id: `expired-${tenant._id}`,
+        id: `expired-${tenant._id}-${day(end)}`,
         type: "danger",
         title: "Plan Expired",
-        message: `${tenant.company_name}'s subscription has expired. They have lost access to the platform.`,
-        time: formatDistanceToNow(joined, { addSuffix: true }),
+        message: `${tenant.company_name}'s plan has expired. Renew it from Customers to restore full access.`,
+        time: end ? `ended ${ago(end)}` : ago(tenant.updatedAt),
         tenant: tenant.company_name,
       });
     }
 
     if (tenant.status === "inactive") {
       alerts.push({
-        id: `inactive-${tenant._id}`,
+        id: `suspended-${tenant._id}-${day(tenant.updatedAt)}`,
         type: "warning",
-        title: "Account Inactive",
-        message: `${tenant.company_name}'s account has been suspended and is currently inactive.`,
-        time: formatDistanceToNow(joined, { addSuffix: true }),
+        title: "Account Suspended",
+        message: `${tenant.company_name} is suspended — its staff can't log in to the CRM or HRMS until it is re-activated.`,
+        time: ago(tenant.updatedAt || tenant.createdAt),
         tenant: tenant.company_name,
       });
     }
 
-    if (tenant.status === "trial") {
-      if (tenant.trial_ends_at) {
-        const trialEnd = new Date(tenant.trial_ends_at);
-        const daysLeft = differenceInDays(trialEnd, now);
-        if (daysLeft >= 0 && daysLeft <= 7) {
-          alerts.push({
-            id: `trial-expiring-${tenant._id}`,
-            type: "warning",
-            title: "Trial Expiring Soon",
-            message: `${tenant.company_name}'s trial ends in ${daysLeft === 0 ? "today" : `${daysLeft} day${daysLeft !== 1 ? "s" : ""}`}. Upgrade them to a paid plan.`,
-            time: formatDistanceToNow(joined, { addSuffix: true }),
-            tenant: tenant.company_name,
-          });
-        } else if (daysLeft < 0) {
-          alerts.push({
-            id: `trial-ended-${tenant._id}`,
-            type: "danger",
-            title: "Trial Period Ended",
-            message: `${tenant.company_name}'s trial has ended. No paid plan assigned yet.`,
-            time: formatDistanceToNow(joined, { addSuffix: true }),
-            tenant: tenant.company_name,
-          });
-        }
-      } else if (daysSinceJoined > 14) {
-        alerts.push({
-          id: `trial-long-${tenant._id}`,
-          type: "info",
-          title: "Long Trial Period",
-          message: `${tenant.company_name} has been on trial for ${daysSinceJoined} days with no plan assigned.`,
-          time: formatDistanceToNow(joined, { addSuffix: true }),
-          tenant: tenant.company_name,
-        });
-      }
+    // A plan switched to Inactive blocks every company on it.
+    if (plan && plan.active === false && tenant.status !== "inactive") {
+      alerts.push({
+        id: `plan-inactive-${tenant._id}-${plan._id}`,
+        type: "danger",
+        title: "Plan Inactive — Company Blocked",
+        message: `${tenant.company_name} is on "${plan.name}", which is Inactive, so it can't log in. Make the plan Active or move the company to another plan.`,
+        time: ago(tenant.updatedAt || tenant.createdAt),
+        tenant: tenant.company_name,
+      });
     }
 
-    if (tenant.status === "active" && !tenant.plan_id) {
+    if (tenant.status === "active" && !plan) {
       alerts.push({
         id: `no-plan-${tenant._id}`,
         type: "warning",
         title: "Active Without Plan",
         message: `${tenant.company_name} is marked active but has no plan assigned. Assign a plan immediately.`,
-        time: formatDistanceToNow(joined, { addSuffix: true }),
+        time: ago(tenant.createdAt),
         tenant: tenant.company_name,
       });
     }
 
-    if (tenant.billing_cycle_end) {
-      const billingEnd = new Date(tenant.billing_cycle_end);
-      const daysLeft = differenceInDays(billingEnd, now);
-      if (daysLeft >= 0 && daysLeft <= 5) {
+    if (tenant.status === "active" && plan && !lifetime && daysLeft !== null && end) {
+      if (daysLeft <= 0) {
         alerts.push({
-          id: `billing-${tenant._id}`,
+          id: `active-ended-${tenant._id}-${day(end)}`,
+          type: "danger",
+          title: "Plan Ended (still Active)",
+          message: `${tenant.company_name}'s paid period has ended but it is still marked Active. Renew it, or the daily check will mark it Expired.`,
+          time: `ended ${ago(end)}`,
+          tenant: tenant.company_name,
+        });
+      } else if (daysLeft <= 5) {
+        alerts.push({
+          id: `billing-${tenant._id}-${day(end)}`,
           type: "info",
           title: "Billing Cycle Ending",
-          message: `${tenant.company_name}'s billing cycle ends in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}. Ensure renewal is processed.`,
-          time: formatDistanceToNow(joined, { addSuffix: true }),
+          message: `${tenant.company_name}'s plan ends ${daysLeft === 1 ? "within a day" : `in ${daysLeft} days`}. Ensure renewal is processed.`,
+          time: `ends ${ago(end)}`,
           tenant: tenant.company_name,
         });
       }
     }
 
-    if (tenant.status === "active" && daysSinceJoined <= 3) {
+    if (tenant.status === "trial" && daysLeft !== null && end) {
+      if (daysLeft <= 0) {
+        alerts.push({
+          id: `trial-ended-${tenant._id}-${day(end)}`,
+          type: "danger",
+          title: "Trial Period Ended",
+          message: `${tenant.company_name}'s trial has ended. Move them to a paid plan (Customers → Renew or Edit).`,
+          time: `ended ${ago(end)}`,
+          tenant: tenant.company_name,
+        });
+      } else if (daysLeft <= 7) {
+        alerts.push({
+          id: `trial-expiring-${tenant._id}-${day(end)}`,
+          type: "warning",
+          title: "Trial Expiring Soon",
+          message: `${tenant.company_name}'s trial ends ${daysLeft === 1 ? "within a day" : `in ${daysLeft} days`}. Upgrade them to a paid plan.`,
+          time: `ends ${ago(end)}`,
+          tenant: tenant.company_name,
+        });
+      }
+    }
+
+    // A banner window longer than the plan itself shows the whole time.
+    if (plan?._id && !bannerWarned.has(plan._id) && plan.banner_warning_days && plan.billing_cycle !== "lifetime") {
+      const maxDays = plan.billing_cycle === "yearly" ? 365 : 30;
+      if (plan.banner_warning_days > maxDays) {
+        bannerWarned.add(plan._id);
+        alerts.push({
+          id: `banner-too-long-${plan._id}-${plan.banner_warning_days}`,
+          type: "info",
+          title: "Expiry Banner Always Showing",
+          message: `Plan "${plan.name}" shows the expiry banner ${plan.banner_warning_days} days before expiry, but a ${plan.billing_cycle || "monthly"} plan only lasts ${maxDays} days — so its companies see the banner all the time. Edit the plan to fix it.`,
+          time: "",
+          tenant: plan.name,
+        });
+      }
+    }
+
+    if (tenant.status === "active" && differenceInDays(now, new Date(tenant.createdAt)) <= 3) {
       alerts.push({
         id: `new-${tenant._id}`,
         type: "success",
         title: "New Customer Active",
         message: `${tenant.company_name} just activated their account and is now live on the platform.`,
-        time: formatDistanceToNow(joined, { addSuffix: true }),
+        time: ago(tenant.createdAt),
         tenant: tenant.company_name,
       });
     }
@@ -238,7 +279,7 @@ export default function SuperAdminAlerts() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">Alerts</h1>
           <p className="text-gray-500 text-sm mt-1">
-            Live system alerts based on {tenants.length} customer{tenants.length !== 1 ? "s" : ""} — trial status, inactive accounts, and billing events.
+            Live system alerts based on {tenants.length} customer{tenants.length !== 1 ? "s" : ""} — trials, expired and suspended accounts, inactive plans and billing events.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -322,10 +363,12 @@ export default function SuperAdminAlerts() {
                       </span>
                       <p className="text-sm font-semibold text-gray-900">{alert.title}</p>
                     </div>
-                    <span className="text-xs text-gray-400 whitespace-nowrap flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      {alert.time}
-                    </span>
+                    {alert.time && (
+                      <span className="text-xs text-gray-400 whitespace-nowrap flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {alert.time}
+                      </span>
+                    )}
                   </div>
                   <p className="text-sm text-gray-500 mt-1">{alert.message}</p>
                   <div className="flex items-center justify-between mt-2">

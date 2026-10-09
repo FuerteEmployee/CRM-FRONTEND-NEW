@@ -127,6 +127,7 @@ let expiring = false;
 export const TENANT_BLOCK_CODES: Record<string, string> = {
   TENANT_SUSPENDED: "suspended",
   TENANT_NOT_FOUND: "company_missing",
+  PLAN_INACTIVE: "plan_inactive",
 };
 
 export const handleSessionExpired = (reason?: string) => {

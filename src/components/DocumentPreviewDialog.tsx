@@ -13,6 +13,7 @@ import { isEkagraUser } from "@/lib/ekagraTenant";
 import { EkagraTaxInvoiceLayout, ClassicInvoiceLayout } from "@/components/invoiceFormatLayouts";
 import { usePermissions } from "@/hooks/usePermissions";
 import { settingsService } from "@/api/services/settings.service";
+import { customerBillingParts } from "@/lib/customerAutofill";
 
 interface DocumentPreviewDialogProps {
   open: boolean;
@@ -93,13 +94,28 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
   }
 
   // Client
-  const clientCompany = isProposal ? (data.company || data.proposal_to || "N/A") : isEstimate ? (data.client_id?.company || data.contact_name || "N/A") : (data.client?.company || "N/A");
-  const clientAddress = isProposal ? data.address : isEstimate ? data.billing_street : data.client?.address;
-  const clientCityStateZip = isProposal ? [data.city, data.state, data.zip].filter(Boolean).join(", ") : isEstimate ? [data.billing_city, data.billing_state, data.billing_zip].filter(Boolean).join(", ") : [data.client?.city, data.client?.state, data.client?.zip].filter(Boolean).join(", ");
-  const clientCountry = isProposal ? data.country : isEstimate ? data.billing_country : data.client?.country;
-  const clientEmail = isProposal ? data.email : isEstimate ? (data.email || data.client_id?.email) : data.client?.email;
-  const clientPhone = data.client?.phone || data.client?.phonenumber || "";
-  const clientGstin = isInvoice ? (data.client?.vat || data.client?.gstin || "") : "";
+  // Customer block. Documents save their own buyer details where they have
+  // them (estimate billing_*, proposal address...); otherwise the populated
+  // customer is used — billing address first (lib/customerAutofill.ts).
+  const cust = (data.client && typeof data.client === "object" ? data.client : null) || (data.client_id && typeof data.client_id === "object" ? data.client_id : null);
+  const custBilling = customerBillingParts(cust);
+  const docHasBilling = !!(data.billing_street || data.billing_city || data.billing_state || data.billing_zip);
+  const clientCompany = isProposal
+    ? (data.company || data.proposal_to || "N/A")
+    : (cust?.company || data.contact_name || data.proposal_to || "N/A");
+  const clientAddress = isProposal ? data.address : docHasBilling ? data.billing_street : custBilling.street;
+  const clientCityStateZip = isProposal
+    ? [data.city, data.state, data.zip].filter(Boolean).join(", ")
+    : docHasBilling
+    ? [data.billing_city, data.billing_state, data.billing_zip].filter(Boolean).join(", ")
+    : [custBilling.city, custBilling.state, custBilling.zip].filter(Boolean).join(", ");
+  const clientCountry = isProposal ? data.country : docHasBilling ? data.billing_country : custBilling.country;
+  const clientEmail = isProposal ? data.email : (data.mailId || data.email || cust?.email || "");
+  const clientPhone = (isProposal ? data.phone : data.phone) || cust?.phonenumber || cust?.phone || "";
+  // GSTIN: the document's own value, else the customer's GST number. VAT is
+  // shown on its own line (it used to be printed labelled as "GSTIN").
+  const clientGstin = (data.gstin || cust?.gst_number || "").toString();
+  const clientVat = (data.vat || cust?.vat || "").toString();
 
   const items = data.items || [];
   const subtotal = data.subtotal || 0;
@@ -294,9 +310,9 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                       GSTIN: {clientGstin}
                     </div>
                   )}
-                  {isInvoice && data.gstin && !clientGstin && (
-                    <div style={{ marginTop: "6px", fontSize: "10px", fontWeight: 700, color: "#065f46", background: "#d1fae5", display: "inline-block", padding: "2px 8px", borderRadius: "4px", fontFamily: "monospace" }}>
-                      GSTIN: {data.gstin}
+                  {clientVat && (
+                    <div style={{ marginTop: "6px", marginLeft: clientGstin ? "6px" : 0, fontSize: "10px", fontWeight: 700, color: "#1e3a8a", background: "#dbeafe", display: "inline-block", padding: "2px 8px", borderRadius: "4px", fontFamily: "monospace" }}>
+                      VAT: {clientVat}
                     </div>
                   )}
                 </div>

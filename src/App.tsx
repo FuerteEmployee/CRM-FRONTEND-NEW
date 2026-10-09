@@ -6,6 +6,7 @@ import { queryClient } from "@/lib/queryClient";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PermissionProvider, usePermissionContext } from "@/context/PermissionContext";
 import { getLandingPath } from "@/lib/landingPath";
+import { ModuleGuard } from "@/components/layout/ModuleGuard";
 import { Loader2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import Login from "./pages/Login";
@@ -145,7 +146,7 @@ const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   // show empty "Fuerte CRM" data. Keep them in the Super Admin panel.
   if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
   if (!isAdmin) return <Navigate to={getLandingPath(user, permissions, isStaff)} replace />;
-  return <>{children}</>;
+  return <ModuleGuard>{children}</ModuleGuard>;
 };
 
 // Staff Route Protection
@@ -154,7 +155,7 @@ const StaffProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (loading) return null;
   if (!user) return <Navigate to="/staff/login" replace />;
   if (!isStaff) return <Navigate to={getLandingPath(user, permissions, false)} replace />;
-  return <>{children}</>;
+  return <ModuleGuard>{children}</ModuleGuard>;
 };
 
 // Generic Auth Route Protection (Any logged in user)
@@ -164,7 +165,7 @@ const AuthProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (!user) return <Navigate to="/admin/login" replace />;
   // Same as AdminProtectedRoute: company pages (incl. HRMS) aren't for super admins.
   if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
-  return <>{children}</>;
+  return <ModuleGuard>{children}</ModuleGuard>;
 };
 
 

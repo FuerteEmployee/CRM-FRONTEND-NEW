@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { customerDetails } from "@/lib/customerAutofill";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -98,6 +99,8 @@ export default function EstimateCreate() {
     shipping_state: "",
     shipping_zip: "",
     shipping_country: "",
+    gstin: "",
+    vat: "",
     branch: "",
     bank_detail: "",
   });
@@ -205,7 +208,12 @@ export default function EstimateCreate() {
   useEffect(() => {
     if (estimate && taxesFetched) {
       setFormData({
+        ...formData,
         ...estimate,
+        // getById populates the customer object; the Select needs its id.
+        client: (estimate.client?._id || estimate.client || "").toString(),
+        gstin: estimate.gstin || "",
+        vat: estimate.vat || "",
         date: estimate.date ? new Date(estimate.date).toISOString().split('T')[0] : formData.date,
         expirydate: estimate.expirydate ? new Date(estimate.expirydate).toISOString().split('T')[0] : formData.expirydate,
         discount_type: estimate.discount_percent > 0 ? "percent" : "no_discount",
@@ -450,20 +458,30 @@ export default function EstimateCreate() {
                   options={filteredCustomers.map((c: any) => ({ value: c._id, label: c.company || `${c.firstname || ''} ${c.lastname || ''}`.trim() || c.email }))}
                   value={formData.client}
                   onValueChange={(val) => {
-                    const client = customers.find((c: any) => c._id === val);
+                    // Fill the buyer details from the customer (billing address
+                    // first) — all still editable (lib/customerAutofill.ts).
+                    const d = customerDetails(customers.find((c: any) => c._id === val));
+                    const knownCurrency = currencies.some((c: any) => c.name === d.currency) ? d.currency : "";
                     setFormData(p => ({
                       ...p,
                       client: val,
-                      billing_street: client?.address || "",
-                      billing_city: client?.city || "",
-                      billing_state: client?.state || "",
-                      billing_zip: client?.zip || "",
-                      billing_country: client?.country || "",
-                      shipping_street: client?.shipping_street || client?.address || "",
-                      shipping_city: client?.shipping_city || client?.city || "",
-                      shipping_state: client?.shipping_state || client?.state || "",
-                      shipping_zip: client?.shipping_zip || client?.zip || "",
-                      shipping_country: client?.shipping_country || client?.country || ""
+                      connectPerson: d.contactPerson,
+                      phone: d.phone,
+                      mailId: d.email,
+                      gstin: d.gstNumber,
+                      vat: d.vat,
+                      currency: knownCurrency || p.currency,
+                      salesPerson: d.salesPerson.name || p.salesPerson,
+                      billing_street: d.billing.street,
+                      billing_city: d.billing.city,
+                      billing_state: d.billing.state,
+                      billing_zip: d.billing.zip,
+                      billing_country: d.billing.country,
+                      shipping_street: d.shipping.street,
+                      shipping_city: d.shipping.city,
+                      shipping_state: d.shipping.state,
+                      shipping_zip: d.shipping.zip,
+                      shipping_country: d.shipping.country,
                     }));
                   }}
                 />
@@ -496,6 +514,27 @@ export default function EstimateCreate() {
                   value={formData.mailId}
                   onChange={(e) => setFormData(p => ({ ...p, mailId: e.target.value }))}
                 />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">GSTIN</Label>
+                  <Input
+                    placeholder="Customer GSTIN"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.gstin}
+                    onChange={(e) => setFormData(p => ({ ...p, gstin: e.target.value.toUpperCase() }))}
+                  />
+                </div>
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">VAT Number</Label>
+                  <Input
+                    placeholder="Customer VAT number"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.vat}
+                    onChange={(e) => setFormData(p => ({ ...p, vat: e.target.value }))}
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 py-4 border-y border-border/30 border-dashed">

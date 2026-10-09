@@ -237,7 +237,7 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
             <div style="text-align: right">
               <div style="margin-bottom: 15px;">
                 <div style="font-size: 12px; color: #64748b; font-weight: bold; margin-bottom: 5px;">BILL TO</div>
-                <div class="company" style="color: #2563eb;">${d.contact_name || d.client_id?.company || d.rel_id || 'Customer'}</div>
+                <div class="company" style="color: #2563eb;">${d.client?.company || d.contact_name || d.client_id?.company || 'Customer'}</div>
               </div>
               <div class="meta">
                 <b>Estimate Date:</b> ${d.date ? formatDate(d.date) : '-'}<br/>
@@ -478,7 +478,7 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-xs text-muted-foreground mb-0.5">To:</p>
-                      <p className="text-sm font-semibold text-primary">{d.contact_name || d.client_id?.company || d.rel_id || "—"}</p>
+                      <p className="text-sm font-semibold text-primary">{d.client?.company || d.contact_name || d.client_id?.company || "—"}</p>
                     </div>
                   </div>
                 </div>
@@ -677,6 +677,18 @@ const Estimates = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedEstimate, setSelectedEstimate] = useState<any>(null);
   const [previewEstimate, setPreviewEstimate] = useState<any>(null);
+  // The list row only carries the customer's company; load the full estimate
+  // (saved buyer details + customer GST/VAT/contact) for the print preview.
+  const openEstimatePreview = async (est: any) => {
+    setPreviewEstimate(est);
+    try {
+      const full: any = await estimateService.getEstimateById(est._id || est.id);
+      const doc = full?.data || full;
+      if (doc && doc._id) setPreviewEstimate(doc);
+    } catch {
+      /* keep the list-row preview */
+    }
+  };
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const navigate = useNavigate();
@@ -1171,7 +1183,7 @@ const Estimates = () => {
                       )}
                       <TableCell>
                         <TableActions
-                          onView={() => setPreviewEstimate(est)}
+                          onView={() => openEstimatePreview(est)}
                           onEdit={can("Estimates", "Edit") ? () => navigate(`/admin/estimates/edit/${estId}`) : undefined}
                           onDelete={can("Estimates", "Delete") ? () => deleteMutation.mutate(estId) : undefined}
                         />
@@ -1194,7 +1206,7 @@ const Estimates = () => {
               estimate={selectedEstimate}
               onClose={() => setSelectedEstimate(null)}
               onView={() => {
-                setPreviewEstimate(selectedEstimate);
+                openEstimatePreview(selectedEstimate);
                 setSelectedEstimate(null);
               }}
               isFullscreen={isFullscreen}

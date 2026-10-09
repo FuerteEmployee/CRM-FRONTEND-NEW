@@ -22,6 +22,7 @@ import {
 import { SOUND_OPTIONS, playNotificationSound } from "@/lib/soundUtils";
 import { toast } from "sonner";
 import { AdvanceLoanSummary } from "@/hrms/components/staff/AdvanceLoanSummary";
+import { phone10Error } from "@/lib/validation";
 
 const statusConfig = [
   { id: 1, label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
@@ -85,6 +86,13 @@ const Profile = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?._id) return;
+
+    // Mobile is required, exactly 10 digits (one mobile = one account).
+    const phoneErr = phone10Error(formData.phonenumber);
+    if (phoneErr) {
+      toast.error(phoneErr);
+      return;
+    }
 
     if (formData.password) {
       if (formData.password.length < 8) {

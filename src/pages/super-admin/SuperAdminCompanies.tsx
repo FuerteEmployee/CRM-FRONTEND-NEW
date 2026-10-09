@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Building2, Plus, Search, Activity, Ban, PlayCircle,
   Package, CheckCircle2, XCircle, Settings, Clock,
-  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell, Globe, RefreshCw
+  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell, Globe, RefreshCw, Phone
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,6 +13,7 @@ import { SuperAdminTablePageSkeleton } from "@/components/ui/page-skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TablePagination } from "@/components/ui/table";
 import { getDaysLeft, getExpiryDate, isLifetimePlan, planPriceLabel } from "@/lib/tenantExpiry";
+import { clampPhone10, phone10Error } from "@/lib/validation";
 
 interface SaasPlan {
   _id: string;
@@ -21,10 +22,12 @@ interface SaasPlan {
   billing_cycle?: "monthly" | "yearly" | "lifetime";
   trial_days?: number;
   banner_warning_days?: number;
+  active?: boolean;
 }
 
 interface Owner {
   _id: string;
+  phonenumber?: string;
   firstname: string;
   lastname: string;
   email: string;
@@ -62,8 +65,15 @@ const STATUS_CONFIG = {
   expired:  { label: "Expired",  icon: AlertTriangle, cls: "bg-orange-50 text-orange-700 border-orange-200" },
 };
 
-const DEFAULT_CREATE = { company_name: "", email: "", password: "", plan_id: "", custom_domains: "" };
-const DEFAULT_MANAGE = { company_name: "", email: "", password: "", plan_id: "", status: "trial" as Tenant["status"], custom_domains: "", enabled_features: [] as string[] };
+const DEFAULT_CREATE = { company_name: "", email: "", phonenumber: "", password: "", plan_id: "", custom_domains: "" };
+const DEFAULT_MANAGE = { company_name: "", email: "", phonenumber: "", password: "", plan_id: "", status: "trial" as Tenant["status"], custom_domains: "", enabled_features: [] as string[] };
+
+type FieldErrors = { email?: string; phone?: string };
+// Backend account rules answer 400 { message, field: "email" | "phone" }.
+const fieldErrorFrom = (error: any): FieldErrors | null => {
+  const field = error?.response?.data?.field;
+  return field === "email" || field === "phone" ? { [field]: error.message } : null;
+};
 
 const parseDomains = (value: string) =>
   value.split(",").map((d) => d.trim().toLowerCase()).filter(Boolean);
@@ -91,6 +101,8 @@ export default function SuperAdminCompanies() {
   const [createForm, setCreateForm] = useState(DEFAULT_CREATE);
   const [manageForm, setManageForm] = useState(DEFAULT_MANAGE);
   const [showPassword, setShowPassword] = useState(false);
+  const [createErrors, setCreateErrors] = useState<FieldErrors>({});
+  const [manageErrors, setManageErrors] = useState<FieldErrors>({});
 
   // Debounce the search box the same way Estimates.tsx does (350ms) so we
   // don't fire a request on every keystroke.
@@ -158,6 +170,9 @@ export default function SuperAdminCompanies() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    const phoneErr = phone10Error(createForm.phonenumber);
+    setCreateErrors(phoneErr ? { phone: phoneErr } : {});
+    if (phoneErr) return;
     try {
       await api.post("/super-admin/tenants", {
         ...createForm,
@@ -168,6 +183,8 @@ export default function SuperAdminCompanies() {
       setCreateForm(DEFAULT_CREATE);
       fetchData();
     } catch (error: any) {
+      const fieldErr = fieldErrorFrom(error);
+      if (fieldErr) setCreateErrors(fieldErr);
       toast.error(error.message || "Failed to create customer");
     }
   };
@@ -175,6 +192,9 @@ export default function SuperAdminCompanies() {
   const handleManageSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTenant) return;
+    const phoneErr = phone10Error(manageForm.phonenumber);
+    setManageErrors(phoneErr ? { phone: phoneErr } : {});
+    if (phoneErr) return;
     try {
       await api.put(`/super-admin/tenants/${selectedTenant._id}`, {
         ...manageForm,
@@ -184,6 +204,8 @@ export default function SuperAdminCompanies() {
       setIsManageOpen(false);
       fetchData();
     } catch (error: any) {
+      const fieldErr = fieldErrorFrom(error);
+      if (fieldErr) setManageErrors(fieldErr);
       toast.error(error.message || "Failed to update");
     }
   };
@@ -222,12 +244,14 @@ export default function SuperAdminCompanies() {
     setManageForm({
       company_name: tenant.company_name,
       email: tenant.owner_id?.email || "",
+      phonenumber: clampPhone10(tenant.owner_id?.phonenumber || ""),
       password: "",
       plan_id: tenant.plan_id?._id || "",
       status: tenant.status,
       custom_domains: (tenant.custom_domains || []).join(", "),
       enabled_features: tenant.enabled_features || [],
     });
+    setManageErrors({});
     setIsManageOpen(true);
   };
 
@@ -258,7 +282,7 @@ export default function SuperAdminCompanies() {
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">Customer</h1>
           <p className="text-gray-500 text-sm mt-1">Manage tenant customers, subscriptions, and account status.</p>
         </div>
-        <Button onClick={() => { setCreateForm(DEFAULT_CREATE); setIsCreateOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+        <Button onClick={() => { setCreateForm(DEFAULT_CREATE); setCreateErrors({}); setIsCreateOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
           <Plus className="h-4 w-4" />
           Add Customer
         </Button>
@@ -367,6 +391,14 @@ export default function SuperAdminCompanies() {
                         <span className="text-sm text-gray-700 font-medium">
                           {tenant.plan_id ? tenant.plan_id.name : <span className="text-gray-400 italic font-normal">No Plan</span>}
                         </span>
+                        {tenant.plan_id?.active === false && (
+                          <span
+                            title="This plan is Inactive — the company can't log in until the plan is Active again or the company is moved to another plan."
+                            className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-600 border border-red-200 whitespace-nowrap"
+                          >
+                            Plan inactive
+                          </span>
+                        )}
                       </div>
                     </TableCell>
                     {/* Banner Shows */}
@@ -581,6 +613,26 @@ export default function SuperAdminCompanies() {
                     placeholder="admin@company.com"
                   />
                 </div>
+                {createErrors.email && <p className="text-[11px] font-medium text-red-600">{createErrors.email}</p>}
+              </div>
+
+              {/* Owner mobile — one mobile = one account, exactly 10 digits */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Mobile Number</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    required
+                    maxLength={10}
+                    value={createForm.phonenumber}
+                    onChange={(e) => setCreateForm({ ...createForm, phonenumber: clampPhone10(e.target.value) })}
+                    className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    placeholder="10-digit mobile"
+                  />
+                </div>
+                {createErrors.phone && <p className="text-[11px] font-medium text-red-600">{createErrors.phone}</p>}
               </div>
 
               {/* Password */}
@@ -619,7 +671,7 @@ export default function SuperAdminCompanies() {
                       <SelectValue placeholder="Select a plan" />
                     </SelectTrigger>
                     <SelectContent>
-                      {plans.map((p) => (
+                      {plans.filter((p) => p.active !== false).map((p) => (
                         <SelectItem key={p._id} value={p._id}>
                           <span className="flex items-center gap-2">
                             <Package className="h-3.5 w-3.5 text-gray-400" />
@@ -712,6 +764,26 @@ export default function SuperAdminCompanies() {
                     placeholder="admin@company.com"
                   />
                 </div>
+                {manageErrors.email && <p className="text-[11px] font-medium text-red-600">{manageErrors.email}</p>}
+              </div>
+
+              {/* Owner mobile — required; older companies without one are asked here */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Owner Mobile Number</label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    required
+                    maxLength={10}
+                    value={manageForm.phonenumber}
+                    onChange={(e) => setManageForm({ ...manageForm, phonenumber: clampPhone10(e.target.value) })}
+                    className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    placeholder="10-digit mobile"
+                  />
+                </div>
+                {manageErrors.phone && <p className="text-[11px] font-medium text-red-600">{manageErrors.phone}</p>}
               </div>
 
               {/* Password */}
@@ -749,7 +821,7 @@ export default function SuperAdminCompanies() {
                       <SelectValue placeholder="Select a plan" />
                     </SelectTrigger>
                     <SelectContent>
-                      {plans.map((p) => (
+                      {plans.filter((p) => p.active !== false || p._id === manageForm.plan_id).map((p) => (
                         <SelectItem key={p._id} value={p._id}>
                           <span className="flex items-center gap-2">
                             <Package className="h-3.5 w-3.5 text-gray-400" />

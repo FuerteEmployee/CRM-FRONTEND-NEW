@@ -10,6 +10,7 @@ import { designationService } from "@/hrms/services/designationService";
 import { shiftService } from "@/hrms/services/shiftService";
 import { toast } from "@/hrms/hooks/use-toast";
 import { cn } from "@/hrms/lib/utils";
+import { clampPhone10, isValidPhone10 } from "@/lib/validation";
 
 /* Row keys match the backend's import system keys (import_employees_controller.js),
  * so POST /users/bulk-create runs the exact same validation as the Excel import. */
@@ -92,6 +93,8 @@ export default function BulkAddStaffPage() {
         if (!r.name.trim() && !r.email.trim() && !r.mobile.trim()) return null; // blank row, ignored
         if (!r.name.trim()) return "Name required";
         if (!isEmail(r.email)) return "Valid email required";
+        // One mobile = one account, exactly 10 digits (backend checks it's not already used).
+        if (!isValidPhone10(r.mobile)) return "10-digit mobile required";
         return null;
     };
     const hasProblems = filledRows.some((r) => rowProblem(r));
@@ -208,7 +211,7 @@ export default function BulkAddStaffPage() {
                                     </td>
                                     <td className="px-1 py-1.5 min-w-[150px]"><input className={cell} value={r.name} onChange={(e) => update(r.key, "name", e.target.value)} /></td>
                                     <td className="px-1 py-1.5 min-w-[190px]"><input type="email" className={cell} value={r.email} onChange={(e) => update(r.key, "email", e.target.value)} /></td>
-                                    <td className="px-1 py-1.5 min-w-[120px]"><input className={cell} value={r.mobile} onChange={(e) => update(r.key, "mobile", e.target.value)} /></td>
+                                    <td className="px-1 py-1.5 min-w-[120px]"><input className={cell} inputMode="numeric" maxLength={10} placeholder="10 digits" value={r.mobile} onChange={(e) => update(r.key, "mobile", clampPhone10(e.target.value))} /></td>
                                     <td className="px-1 py-1.5 min-w-[90px]">
                                         <select className={cell} value={r.gender} onChange={(e) => update(r.key, "gender", e.target.value)}>
                                             <option value="">—</option><option>Male</option><option>Female</option><option>Other</option>

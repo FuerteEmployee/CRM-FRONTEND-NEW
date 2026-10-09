@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { customerDetails } from "@/lib/customerAutofill";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -104,6 +105,8 @@ export default function ProposalCreate() {
     country: "United States",
     email: "",
     phone: "",
+    gstin: "",
+    vat: "",
     branch: ""
   });
 
@@ -222,16 +225,22 @@ export default function ProposalCreate() {
       if (formData.rel_type === "customer") {
         const client = customers.find((c: any) => c._id === formData.rel_id);
         if (client) {
+          // Billing address first, plus GSTIN/VAT and the customer's sales
+          // person (lib/customerAutofill.ts) — all still editable.
+          const d = customerDetails(client);
           setFormData(prev => ({
             ...prev,
-            proposal_to: client.company,
-            address: client.address,
-            city: client.city,
-            state: client.state,
-            zip: client.zip,
-            country: client.country || "United States",
-            email: client.email,
-            phone: client.phonenumber
+            proposal_to: d.company,
+            address: d.billing.street,
+            city: d.billing.city,
+            state: d.billing.state,
+            zip: d.billing.zip,
+            country: d.billing.country || "United States",
+            email: d.email,
+            phone: d.phone,
+            gstin: d.gstNumber,
+            vat: d.vat,
+            assigned: d.salesPerson.id || prev.assigned,
           }));
         }
       } else if (formData.rel_type === "lead") {
@@ -277,6 +286,8 @@ export default function ProposalCreate() {
         country: proposal.country || "United States",
         email: proposal.email || "",
         phone: proposal.phone || "",
+        gstin: proposal.gstin || "",
+        vat: proposal.vat || "",
         branch: typeof proposal.branch === "object" ? (proposal.branch?.name || "") : (proposal.branch || "")
       });
       
@@ -734,6 +745,27 @@ export default function ProposalCreate() {
                       />
                       <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
                     </div>
+                  </div>
+                </div>
+                {/* Filled from the customer — editable */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="space-y-2.5">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">GSTIN</Label>
+                    <Input
+                      placeholder="Customer GSTIN"
+                      className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
+                      value={formData.gstin}
+                      onChange={(e) => setFormData(p => ({ ...p, gstin: e.target.value.toUpperCase() }))}
+                    />
+                  </div>
+                  <div className="space-y-2.5">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">VAT Number</Label>
+                    <Input
+                      placeholder="Customer VAT number"
+                      className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
+                      value={formData.vat}
+                      onChange={(e) => setFormData(p => ({ ...p, vat: e.target.value }))}
+                    />
                   </div>
                 </div>
               </div>

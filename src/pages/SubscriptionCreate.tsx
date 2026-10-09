@@ -92,7 +92,14 @@ const SubscriptionCreate = () => {
 
   const handleSelectChange = (name: string, value: any) => {
     setFormData((prev: any) => ({ ...prev, [name]: value }));
-    
+
+    // A customer with a saved currency sets the subscription currency (still editable).
+    if (name === "client") {
+      const cur = String((customers as any[]).find((c: any) => c._id === value)?.currency || "").trim();
+      const match = (currencies as any[]).find((c: any) => c.name === cur);
+      if (match) setFormData((prev: any) => ({ ...prev, currency: match.name }));
+    }
+
     if (name === "plan") {
       const selectedItem = items.find((i: any) => i._id === value);
       if (selectedItem) {
