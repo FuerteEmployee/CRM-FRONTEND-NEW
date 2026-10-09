@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Sparkles, Mic, MicOff, X, Volume2, VolumeX, Trash2 } from "lucide-react";
 import { usePermissionContext } from "@/context/PermissionContext";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
+import { startListening, stopListening } from "@/lib/speechControl";
 import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
 import { assistantService } from "@/api/services/assistant.service";
 import { logVoiceEvent, voiceLogMeta } from "@/lib/voiceLog";
@@ -140,11 +141,11 @@ export function FuerteAIAssistant() {
     setAutoListen(next);
     localStorage.setItem("fuerte_auto_listen", next ? "on" : "off");
     if (next) {
-      SpeechRecognition.startListening({ continuous: true, language: "en-US" });
+      startListening({ continuous: true, language: "en-US" });
       changeState("listening");
       toast({ title: "Fuerte AI", description: 'Hands-free mode on — just say "Hey CRM" anytime.' });
     } else {
-      SpeechRecognition.stopListening();
+      stopListening();
       stopSpeaking();
       changeState("sleeping");
       toast({ title: "Fuerte AI", description: "Hands-free mode off. Click the button to use voice." });
@@ -171,14 +172,14 @@ export function FuerteAIAssistant() {
       onStart: () => {
         setIsSpeaking(true);
         wasListeningRef.current = aiStateRef.current !== "sleeping";
-        if (wasListeningRef.current) SpeechRecognition.stopListening();
+        if (wasListeningRef.current) stopListening();
       },
       onEnd: () => {
         setIsSpeaking(false);
         if (wasListeningRef.current && aiStateRef.current !== "sleeping") {
           resetTranscript();
           consumedRef.current = 0;
-          SpeechRecognition.startListening({ continuous: true, language: "en-US" });
+          startListening({ continuous: true, language: "en-US" });
         }
       },
     });
@@ -316,7 +317,7 @@ useEffect(() => {
     });
     return;
   }
-  SpeechRecognition.startListening({ continuous: true, language: "en-US" });
+  startListening({ continuous: true, language: "en-US" });
   changeState("listening");
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
@@ -335,7 +336,7 @@ useEffect(() => {
   const delay = speechError === "network" ? 5000 : 800;
   const t = setTimeout(() => {
     if (aiStateRef.current !== "sleeping") {
-      SpeechRecognition.startListening({ continuous: true, language: "en-US" });
+      startListening({ continuous: true, language: "en-US" });
     }
   }, delay);
   return () => clearTimeout(t);
@@ -351,7 +352,7 @@ if (!browserSupportsSpeechRecognition) return null;
 // it; a second click while awake turns it off.
 const toggleListening = () => {
   if (aiState === "awake") {
-    SpeechRecognition.stopListening();
+    stopListening();
     stopSpeaking();
     changeState("sleeping");
     resetTranscript();
@@ -380,7 +381,7 @@ const toggleListening = () => {
     setSpeechError(null);
     resetTranscript();
     consumedRef.current = 0;
-    SpeechRecognition.startListening({ continuous: true, language: "en-US" });
+    startListening({ continuous: true, language: "en-US" });
 
     logVoiceEvent("mic_on");
     // Start directly in "awake" state when button is clicked manually

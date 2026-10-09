@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Calendar, Clock, Users, Trash2, Edit, Video, Copy, Sparkles, Mic, StopCircle } from "lucide-react";
-import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
+import { useSpeechRecognition } from "react-speech-recognition";
+import { startListening, stopListening } from "@/lib/speechControl";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { meetingService } from "@/api/services/meeting.service";
 import { staffService } from "@/api/services/staff.service";
@@ -426,7 +427,7 @@ export default function Meetings() {
     scribeProcessedLenRef.current = 0;
     scribeAnsweredRef.current = new Map();
     resetSpeechTranscript();
-    SpeechRecognition.startListening({ continuous: true, language: scribeLanguage });
+    startListening({ continuous: true, language: scribeLanguage });
     setIsScribing(true);
     toast({ title: "FuerteAI Scribe Active", description: "Listening continuously — it answers any CRM question immediately, in Hindi, no wake word needed." });
   };
@@ -454,12 +455,12 @@ export default function Meetings() {
 
   const toggleScribeRecording = () => {
     if (isScribing) {
-      SpeechRecognition.stopListening();
+      stopListening();
       setIsScribing(false);
       toast({ title: "AI Scribe Paused", description: "Stopped recording meeting speech." });
     } else {
       resetSpeechTranscript();
-      SpeechRecognition.startListening({ continuous: true, language: scribeLanguage });
+      startListening({ continuous: true, language: scribeLanguage });
       setIsScribing(true);
       toast({ title: "AI Scribe Recording", description: "Listening to Google Meet discussion..." });
     }
@@ -602,7 +603,7 @@ export default function Meetings() {
       await meetingService.summarizeMeeting(scribeMeeting._id, scribeText);
       toast({ title: "AI Scribe Complete!", description: "Structured summary saved to meeting." });
       queryClient.invalidateQueries({ queryKey: ["meetings"] });
-      if (isScribing) SpeechRecognition.stopListening();
+      if (isScribing) stopListening();
       setIsScribing(false);
       setScribeMeeting(null);
     } catch (err: any) {
@@ -880,7 +881,7 @@ export default function Meetings() {
         </Card>
         <Dialog open={!!scribeMeeting} onOpenChange={(open) => {
           if (!open) {
-            if (isScribing) SpeechRecognition.stopListening();
+            if (isScribing) stopListening();
             if (isCapturingMedia) handleStopAndUploadRecording(scribeMeeting);
             setIsScribing(false);
             setRecordingUrls({});
@@ -1078,7 +1079,7 @@ export default function Meetings() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  if (isScribing) SpeechRecognition.stopListening();
+                  if (isScribing) stopListening();
                   if (isCapturingMedia) handleStopAndUploadRecording(scribeMeeting);
                   setIsScribing(false);
                   setRecordingUrls({});
