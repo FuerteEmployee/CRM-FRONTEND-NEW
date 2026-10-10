@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--
+      TEMPORARY DIAGNOSTIC — remove once the iPhone white-screen root cause
+      is confirmed and fixed. Renders any JS error, or a stuck-mount
+      timeout, directly on screen instead of a blank white screen, so it's
+      readable on the phone itself without a Mac + Safari Web Inspector.
+      Must be the very first script in <head> so it can catch errors from
+      everything that loads after it, including the SW kill-switch below.
+    -->
+    <script>
+      // ── Google Translate ↔ React DOM conflict patch ──────────────────────────
+      // Google Translate wraps text nodes in <font> elements. When React later
+      // tries to removeChild/insertBefore the original text node (now a child of
+      // the injected <font>, not the original parent), the browser throws a
+      // NotFoundError. This patch swallows those specific mismatches silently
+      // so the app never crashes, while letting every other DOM operation through
+      // normally. Must run BEFORE React (and Google Translate) boots.
+      (function patchDOMForGoogleTranslate() {
+        var _removeChild = Node.prototype.removeChild;
+        Node.prototype.removeChild = function(child) {
+          if (child.parentNode !== this) {
+            // The node was moved by Google Translate — skip silently.
+            return child;
+          }
+          return _removeChild.apply(this, arguments);
+        };
+        var _insertBefore = Node.prototype.insertBefore;
+        Node.prototype.insertBefore = function(newNode, ref) {
+          if (ref && ref.parentNode !== this) {
+            // Reference node moved by Google Translate — append instead.
+            return this.appendChild(newNode);
+          }
+          return _insertBefore.apply(this, arguments);
+        };
+      })();
+    </script>
+    <script>
+      (function () {
+        function show(label, detail, watchForMount) {
+          try {
+            var pre = document.createElement("pre");
+            pre.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#fff;color:#b91c1c;padding:16px;font:12px/1.5 monospace;white-space:pre-wrap;overflow:auto;margin:0;";
+            pre.textContent = "[" + label + "]\n" + detail;
+            document.documentElement.appendChild(pre);
+
+            // Only the stuck-mount report can be a false positive — it's a
+            // fixed check at 4s, so a load that's merely slow (not truly
+            // stuck) trips it too, and this overlay (position:fixed;inset:0)
+            // then permanently covers the whole page — capturing every
+            // click/tap — even once the real app finishes mounting right
+            // behind it. Watch #root and remove this the moment it actually
+            // gets content, so a false alarm can't lock out the whole page.
+            // A genuine JS error/unhandledrejection has no such "maybe it
+            // resolves itself" case, so those stay up regardless of #root —
+            // that's the whole point of showing them.
+            if (watchForMount) {
+              var root = document.getElementById("root");
+              if (root && root.childNodes.length === 0) {
+                var observer = new MutationObserver(function () {
+                  if (root.childNodes.length === 0) return;
+                  try { pre.remove(); } catch (e) {}
+                  observer.disconnect();
+                });
+                observer.observe(root, { childList: true });
+              }
+            }
+          } catch (e) {}
+        }
+        // Shown first when a load is merely slow past 4s — a real crash is
+        // far rarer than a slow cold load, so a friendly spinner (which
+        // auto-removes itself the instant #root actually mounts) is far
+        // less alarming than jumping straight to a wall of red diagnostic
+        // text for what usually resolves on its own a moment later.
+        function showSpinner() {
+          var overlay = document.createElement("div");
+          overlay.id = "__boot_loading__";
+          overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;font:14px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#475569;";
+          var style = document.createElement("style");
+          style.textContent = "@keyframes __boot_spin__ { to { transform: rotate(360deg); } }";
+          var spinnerEl = document.createElement("div");
+          spinnerEl.style.cssText = "width:36px;height:36px;border:3px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;animation:__boot_spin__ 0.8s linear infinite;";
+          var text = document.createElement("div");
+          text.textContent = "Still loading…";
+          overlay.appendChild(style);
+          overlay.appendChild(spinnerEl);
+          overlay.appendChild(text);
+          document.documentElement.appendChild(overlay);
+
+          var root = document.getElementById("root");
+          var observer = null;
+          if (root) {
+            observer = new MutationObserver(function () {
+              if (root.childNodes.length === 0) return;
+              try { overlay.remove(); } catch (e) {}
+              observer.disconnect();
+            });
+            observer.observe(root, { childList: true });
+          }
+          return {
+            remove: function () {
+              try { overlay.remove(); } catch (e) {}
+              if (observer) observer.disconnect();
+            },
+          };
+        }
+        // Browser extensions (chrome-extension://, moz-extension://, etc.) inject
+        // their own scripts that can throw independently of this page — those
+        // errors aren't ours to show and would otherwise blank out the real app
+        // for any visitor who happens to have a buggy extension installed.
+        function isFromExtension(text) {
+          return typeof text === "string" && /-extension:\/\//.test(text);
+        }
+        window.addEventListener("error", function (e) {
+          if (isFromExtension(e.filename) || isFromExtension(e.error && e.error.stack)) return;
+          show("error", (e.error && (e.error.stack || e.error.message)) || e.message || "unknown error");
+        });
+        window.addEventListener("unhandledrejection", function (e) {
+          var r = e.reason;
+          var detail = (r && (r.stack || r.message)) || String(r);
+          if (isFromExtension(detail)) return;
+          show("unhandledrejection", detail);
+        });
+        setTimeout(function () {
+          var root = document.getElementById("root");
+          if (!root || root.childNodes.length !== 0) return;
+
+          // Stage 1 (4s): still nothing — almost always just a slow cold
+          // load, so show a friendly spinner rather than alarming red text.
+          // It removes itself the moment #root actually mounts (see
+          // showSpinner's own observer).
+          var spinner = showSpinner();
+
+          // Stage 2 (+6s = 10s total): if it's STILL empty by then, this
+          // stopped looking like "just slow" — escalate to the full
+          // technical diagnostic dump.
+          setTimeout(function () {
+            if (root.childNodes.length !== 0) return;
+            spinner.remove();
+
+            var lines = ["React never rendered into #root after 10s.", "cookies: " + (document.cookie || "(none)")];
+
+            function reportResources() {
+              try {
+                var entries = performance.getEntriesByType("resource");
+                lines.push("--- resources (" + entries.length + ") ---");
+                entries.forEach(function (e) {
+                  var short = e.name.indexOf(location.origin) === 0 ? e.name.slice(location.origin.length) : e.name;
+                  lines.push(short + " | dur=" + Math.round(e.duration) + "ms | size=" + e.transferSize + " | status=" + (e.responseStatus || "?"));
+                });
+              } catch (e) {
+                lines.push("resource timing failed: " + e.message);
+              }
+              show("stuck-mount", lines.join("\n"), true);
+            }
+
+            if ("serviceWorker" in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function (rs) {
+                lines.push("serviceWorker: controller=" + !!navigator.serviceWorker.controller + ", registrations=" + rs.length);
+                rs.forEach(function (r, i) {
+                  lines.push("  [" + i + "] scope=" + r.scope + " active=" + (r.active ? r.active.state : "none") + " waiting=" + (r.waiting ? r.waiting.state : "none"));
+                });
+                reportResources();
+              }).catch(function (e) {
+                lines.push("serviceWorker: getRegistrations failed: " + e.message);
+                reportResources();
+              });
+            } else {
+              lines.push("serviceWorker: unsupported");
+              reportResources();
+            }
+          }, 6000);
+        }, 4000);
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <title>CRMPro - Management Dashboard</title>
+    <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <meta name="theme-color" content="#1e293b" />
+    <style>
+      /* Google Translate normally injects a top banner iframe and pushes
+         <body> down with an inline "top" offset. We drive translation from
+         our own profile-menu dropdown, not Google's UI, so hide all of it. */
+      .goog-te-banner-frame.skiptranslate,
+      .goog-te-gadget-icon,
+      #goog-gt-tt,
+      .goog-te-balloon-frame {
+        display: none !important;
+      }
+      body {
+        top: 0 !important;
+      }
+      .goog-text-highlight {
+        background: none !important;
+        box-shadow: none !important;
+      }
+    </style>
+    <!--
+      One-time kill-switch for the stale-Service-Worker bug (users stuck on
+      an old cached build getting a white screen / chunk-import errors).
+      Ship once with this deploy, then remove in the NEXT deploy — its job
+      is only to flush out whatever bad SW+cache a visitor already has.
+    -->
+    <script>
+      (function () {
+        var KILL = "sw-reset-2026-08-force-kill";
+        if ("serviceWorker" in navigator && localStorage.getItem(KILL) !== "1") {
+          navigator.serviceWorker.getRegistrations().then(function (rs) {
+            if (rs.length === 0) {
+              // Nothing stale to clean up on this visit. Mark done and stop —
+              // do NOT reload. iOS Safari evicts localStorage far more
+              // aggressively than desktop browsers (ITP's 7-day cutoff,
+              // Private Browsing not persisting it at all), so without this
+              // check every iPhone visit looked "fresh" and re-ran the
+              // unregister/wipe/reload cycle below — which raced against
+              // src/pwa.ts's own registerSW() call for this same page load
+              // and could tear down the service worker it was mid-installing.
+              // WebKit handles that torn-down-mid-install state far worse
+              // than Chromium, which is why this only ever showed up as a
+              // blank white screen on iPhone (Safari and Chrome-on-iOS both
+              // run on WebKit) and not on desktop.
+              localStorage.setItem(KILL, "1");
+              return;
+            }
+            Promise.all(rs.map(function (r) { return r.unregister(); })).then(function () {
+              caches.keys().then(function (ks) {
+                return Promise.all(ks.map(function (k) { return caches.delete(k); }));
+              }).then(function () {
+                localStorage.setItem(KILL, "1");
+                location.reload();
+              });
+            });
+          }).catch(function (e) { console.error("SW kill-switch failed:", e); });
+        }
+      })();
+    </script>
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest" id="app-manifest" />
+    <script>
+      (function() {
+        if ("serviceWorker" in navigator) {
+          window.addEventListener("load", function () {
+            navigator.serviceWorker.register("/pwa-sw.js").catch(function (err) {
+              console.error("Safe PWA SW registration failed:", err);
+            });
+          });
+        }
+      })();
+    </script>
+    <script>
+      (function() {
+        try {
+          const host = window.location.hostname;
+          const isTrinetra = host.includes("trinetratechnoworld") || host.includes("erp.");
+          
+          // Dynamically change the manifest file link for PWA install based on domain
+          const updateManifest = () => {
+            const manifestEl = document.getElementById("app-manifest");
+            if (manifestEl) {
+              const manifestUrl = isTrinetra ? "/manifest-trinetra.json" : "/manifest.webmanifest";
+              manifestEl.setAttribute("href", manifestUrl);
+            }
+          };
+          updateManifest();
+          window.addEventListener("DOMContentLoaded", updateManifest);
+          
+          // Determine default favicon and title
+          const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : "/favicon.ico";
+          const defaultTitle = isTrinetra ? "Trinetra TechnoWorld" : "Fuerte Developers";
+          
+          const cachedFavicon = localStorage.getItem("crm_favicon") || defaultFavicon;
+          if (cachedFavicon) {
+            const link = document.querySelector("link[rel*='icon']");
+            if (link) {
+              link.href = cachedFavicon;
+            }
+          }
+          const cachedTitle = localStorage.getItem("crm_company_name") || defaultTitle;
+          if (cachedTitle) {
+            document.title = cachedTitle;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      })();
+    </script>
+    <meta name="description" content="CRMPro - Complete CRM and team management platform" />
+    <meta name="author" content="Lovable" />
+
+    <!-- Open Graph Metadata -->
+    <meta property="og:title" content="CRMPro Dashboard" />
+    <meta property="og:description" content="A powerful CRM, sales, and team management platform." />
+    <meta property="og:type" content="website" />
+    <!--
+      og:image / twitter:image are intentionally left without a static value.
+      Social crawlers (Facebook/Slack/WhatsApp/Twitter etc.) are proxied by
+      nginx to the backend /api/bot-preview route which serves live OG tags
+      fetched directly from the database — so they never see this static file.
+      Real browser visitors get the dynamic values injected by SettingsContext.tsx.
+      Keeping a wrong image here (logo-icon.png is the mislabeled Trinetra
+      asset) would only ever show up if nginx misconfigures the bot proxy.
+    -->
+    <meta property="og:image" content="" />
+
+    <!-- Twitter Metadata -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="CRMPro Dashboard" />
+    <meta name="twitter:description" content="A powerful CRM, sales, and team management platform." />
+    <meta name="twitter:image" content="" />
+    <script type="module" crossorigin src="/assets/index--apNYELm.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-react-core-cYTHTp_A.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-socket-Dt9WlFfT.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-radix-CmkY3ghJ.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-misc-BdtV_2YH.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-CC88q7qh.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-capacitor-CYe_MP9l.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-export-CpGUF8tv.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-forms-CzT3Jj22.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-utils-CHg-vWhe.js">
+    <link rel="modulepreload" crossorigin href="/assets/app-ui-C9mOxd0A.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-query-BNm_BCwc.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-router-By_qBC5F.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-dnd-D3zH3uEi.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-charts-CITIkWQW.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-quotations-C0uQbXiP.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-setup-Bb9Z0J7T.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-maps-D3veph1S.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-superadmin-Bu06kJoH.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-hrms-DUp1aJ1b.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-reports-B6S4Cv_1.js">
+    <link rel="modulepreload" crossorigin href="/assets/auth.service-BX4cFrMn.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-motion-DpyVRL9N.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-editor-BMsgla8R.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-emoji-oW_P6YP8.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-jitsi-D1mt3Ugg.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-client-Bfe_lBLJ.js">
+    <link rel="stylesheet" crossorigin href="/assets/vendor-misc-DB0Q8XAf.css">
+    <link rel="stylesheet" crossorigin href="/assets/vendor-maps-MGNviBeR.css">
+    <link rel="stylesheet" crossorigin href="/assets/vendor-editor-DZrYvFpI.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-BmffysHu.css">
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <!--
+      Powers the "Language" item in the profile-picture dropdown menu
+      (Frontend/src/components/layout/TopNavbar.tsx). That menu only sets a
+      `googtrans` cookie and reloads — it relies on this widget actually
+      being present to read that cookie and translate the page. Hidden
+      off-screen: we drive it entirely via the cookie + profile-menu UI,
+      never Google's own dropdown widget.
+    -->
+    <div id="google_translate_element" style="position:absolute;top:-9999px;left:-9999px;"></div>
+    <script type="text/javascript">
+      function googleTranslateElementInit() {
+        new google.translate.TranslateElement(
+          {
+            pageLanguage: "en",
+            includedLanguages: "en,gu,hi,mr,bn,pa,ta,te,kn,ml,ur,ar,fr,de,es,it,ja,ko,zh-CN,zh-TW,pt,ru,id,ms,tr,fa,nl,pl,uk,vi,th",
+            autoDisplay: false,
+            multilanguagePage: false
+          },
+          "google_translate_element"
+        );
+      }
+      // Load Google Translate widget after our own app JS has initialised so it
+      // never races React's startup (the earlier cookie-only guard was too strict:
+      // first-time visitors selecting a language had to reload twice). A short
+      // defer keeps it out of the critical render path without blocking translate.
+      window.addEventListener("load", function() {
+        var gt = document.createElement("script");
+        gt.async = true;
+        gt.src = "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
+        document.head.appendChild(gt);
+      });
+    </script>
+  </body>
+</html>
