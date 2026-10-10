@@ -194,7 +194,7 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 // "localhost"/"127.0.0.1" included so this is testable from a local dev
 // server too — remove before deploying if you need to see the signup page locally.
 const isWhiteLabelHost = () =>
-  ["rudraverse.trinetratechnoworld.com", "crm.beontimeofficial.com", "localhost", "127.0.0.1"].includes(
+  ["rudraverse.trinetratechnoworld.com", "crm.beontimeofficial.com", "crm.citysmile.in", "localhost", "127.0.0.1"].includes(
     window.location.hostname
   );
 
