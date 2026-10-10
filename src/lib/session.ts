@@ -28,6 +28,30 @@ export const setTokens = (access?: string | null, refresh?: string | null) => {
   }
 };
 
+/** True while any part of a CRM login is still stored in this browser. */
+export const hasStoredSession = (): boolean =>
+  !!(getAccessToken() || getRefreshToken() || safeGet("crm_user"));
+
+// ─── Timeouts ─────────────────────────────────────────────────────────────────
+
+// A request that never answers (a hung token refresh sat "pending" forever)
+// must fail, so the app can recover instead of waiting indefinitely.
+export const REQUEST_TIMEOUT_MS = 30_000;
+export const UPLOAD_TIMEOUT_MS = 120_000;
+export const REFRESH_TIMEOUT_MS = 15_000;
+
+/** fetch() that aborts after `ms`. A caller-supplied signal is left alone. */
+export const fetchWithTimeout = (
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  ms: number = REQUEST_TIMEOUT_MS,
+): Promise<Response> => {
+  if (init.signal) return fetch(input, init);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() => clearTimeout(timer));
+};
+
 /** Decode the JWT `exp` claim (seconds) without verifying the signature. */
 export const getTokenExpiry = (token: string): number | null => {
   try {
@@ -64,12 +88,16 @@ export const refreshAccessToken = (): Promise<boolean> => {
       const refreshToken = getRefreshToken();
       if (!refreshToken) return false;
 
-      const res = await fetch(`${CRM_API_URL}/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ refreshToken }),
-      });
+      const res = await fetchWithTimeout(
+        `${CRM_API_URL}/auth/refresh`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ refreshToken }),
+        },
+        REFRESH_TIMEOUT_MS,
+      );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         if (TENANT_BLOCK_CODES[err?.code]) handleSessionExpired(TENANT_BLOCK_CODES[err.code]);

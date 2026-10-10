@@ -6,6 +6,7 @@ import React, {
   ReactNode,
 } from "react";
 import { queryClient } from "@/lib/queryClient";
+import { getAccessToken, getRefreshToken, refreshAccessToken } from "@/lib/session";
 
 interface User {
   _id: string;
@@ -70,10 +71,23 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
   );
   const [loading, setLoading] = useState(true);
 
+  const clearCachedSession = () => {
+    setUser(null);
+    setPermissions({});
+    setPlanModules(null);
+    ["crm_token", "crm_refresh_token", "crm_user", "crm_permissions", "crm_plan_modules"].forEach((k) =>
+      localStorage.removeItem(k)
+    );
+  };
+
   const syncPermissions = async () => {
-    // No token yet (e.g. on the public login page) — nothing to sync, and
-    // calling /auth/me here would just be a guaranteed 401.
-    if (!localStorage.getItem("crm_token")) {
+    // No access token (public login page, or the token was cleared/expired
+    // elsewhere): try the refresh token once; if that fails there is no live
+    // session. Every login stores crm_token, so a cached user without one is
+    // stale — drop it so the route guards send the user to login instead of
+    // rendering an empty app shell.
+    if (!getAccessToken() && !(getRefreshToken() && (await refreshAccessToken()))) {
+      if (user || localStorage.getItem("crm_user")) clearCachedSession();
       setLoading(false);
       return;
     }
@@ -104,16 +118,7 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
       console.error("Error syncing permissions:", error);
       // Only clear session on actual auth failures (401/403), not network errors
       const status = error?.response?.status ?? error?.status ?? error?.response?.data?.status;
-      if (status === 401 || status === 403) {
-        setUser(null);
-        setPermissions({});
-        setPlanModules(null);
-        localStorage.removeItem("crm_token");
-        localStorage.removeItem("crm_refresh_token");
-        localStorage.removeItem("crm_user");
-        localStorage.removeItem("crm_permissions");
-        localStorage.removeItem("crm_plan_modules");
-      }
+      if (status === 401 || status === 403) clearCachedSession();
     } finally {
       setLoading(false);
     }

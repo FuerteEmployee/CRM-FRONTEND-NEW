@@ -137,10 +137,17 @@ import { HRMSEntry } from "./hrms/HRMSEntry";
 
 
 
+// Shown while the session check runs, instead of a blank page.
+const SessionCheck = () => (
+  <div className="flex h-screen items-center justify-center">
+    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+  </div>
+);
+
 // Admin Route Protection
 const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isAdmin, isStaff, permissions, loading } = usePermissionContext();
-  if (loading) return null;
+  if (loading) return <SessionCheck />;
   if (!user) return <Navigate to="/admin/login" replace />;
   // A super admin has no company of their own — the company CRM would only
   // show empty "Fuerte CRM" data. Keep them in the Super Admin panel.
@@ -152,7 +159,7 @@ const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 // Staff Route Protection
 const StaffProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isStaff, permissions, loading } = usePermissionContext();
-  if (loading) return null;
+  if (loading) return <SessionCheck />;
   if (!user) return <Navigate to="/staff/login" replace />;
   if (!isStaff) return <Navigate to={getLandingPath(user, permissions, false)} replace />;
   return <ModuleGuard>{children}</ModuleGuard>;
@@ -161,7 +168,7 @@ const StaffProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 // Generic Auth Route Protection (Any logged in user)
 const AuthProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = usePermissionContext();
-  if (loading) return null;
+  if (loading) return <SessionCheck />;
   if (!user) return <Navigate to="/admin/login" replace />;
   // Same as AdminProtectedRoute: company pages (incl. HRMS) aren't for super admins.
   if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
@@ -172,7 +179,7 @@ const AuthProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 // Redirect logged-out users away from super-admin protected pages
 const SuperAdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = usePermissionContext();
-  if (loading) return null;
+  if (loading) return <SessionCheck />;
   if (!user) return <Navigate to="/super-admin/login" replace />;
   if (!user.is_superadmin) return <Navigate to="/admin/login" replace />;
   return <>{children}</>;
@@ -185,7 +192,7 @@ const SuperAdminProtectedRoute = ({ children }: { children: React.ReactNode }) =
 // to their dashboard or log out, instead of silently bouncing them there.
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { loading } = usePermissionContext();
-  if (loading) return null;
+  if (loading) return <SessionCheck />;
   return <>{children}</>;
 };
 
@@ -204,7 +211,7 @@ const isWhiteLabelHost = () =>
 //  - Nobody           → /admin/login
 const SmartRoot = () => {
   const { user, permissions, isStaff, loading } = usePermissionContext();
-  if (loading) return null; // wait for admin session check
+  if (loading) return <SessionCheck />; // wait for admin session check
 
   if (user) {
     return <Navigate to={getLandingPath(user, permissions, isStaff)} replace />;
