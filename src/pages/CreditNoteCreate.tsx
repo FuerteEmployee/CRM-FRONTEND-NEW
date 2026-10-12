@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { customerDetails } from "@/lib/customerAutofill";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -99,7 +100,9 @@ export default function CreditNoteCreate() {
     shipping_city: "",
     shipping_state: "",
     shipping_zip: "",
-    shipping_country: ""
+    shipping_country: "",
+    gstin: "",
+    vat: "",
   });
 
   const [showQtyAs, setShowQtyAs] = useState("qty");
@@ -219,7 +222,9 @@ export default function CreditNoteCreate() {
         shipping_city: creditNote.shipping_city || "",
         shipping_state: creditNote.shipping_state || "",
         shipping_zip: creditNote.shipping_zip || "",
-        shipping_country: creditNote.shipping_country || ""
+        shipping_country: creditNote.shipping_country || "",
+        gstin: creditNote.gstin || "",
+        vat: creditNote.vat || "",
       });
       
       if (creditNote.items) {
@@ -236,18 +241,22 @@ export default function CreditNoteCreate() {
     if (formData.rel_id && customers.length > 0 && !isEdit) {
       const client = customers.find((c: any) => c._id === formData.rel_id);
       if (client) {
-        setFormData(p => ({ 
-          ...p, 
-          billing_street: p.billing_street || client.address || "",
-          billing_city: p.billing_city || client.city || "",
-          billing_state: p.billing_state || client.state || "",
-          billing_zip: p.billing_zip || client.zip || "",
-          billing_country: p.billing_country || client.country || "",
-          shipping_street: p.shipping_street || client.shipping_street || client.address || "",
-          shipping_city: p.shipping_city || client.shipping_city || client.city || "",
-          shipping_state: p.shipping_state || client.shipping_state || client.state || "",
-          shipping_zip: p.shipping_zip || client.shipping_zip || client.zip || "",
-          shipping_country: p.shipping_country || client.shipping_country || client.country || ""
+        // Pre-filled form (e.g. "Credit note for invoice"): fill only what's empty.
+        const d = customerDetails(client);
+        setFormData(p => ({
+          ...p,
+          gstin: p.gstin || d.gstNumber,
+          vat: p.vat || d.vat,
+          billing_street: p.billing_street || d.billing.street,
+          billing_city: p.billing_city || d.billing.city,
+          billing_state: p.billing_state || d.billing.state,
+          billing_zip: p.billing_zip || d.billing.zip,
+          billing_country: p.billing_country || d.billing.country,
+          shipping_street: p.shipping_street || d.shipping.street,
+          shipping_city: p.shipping_city || d.shipping.city,
+          shipping_state: p.shipping_state || d.shipping.state,
+          shipping_zip: p.shipping_zip || d.shipping.zip,
+          shipping_country: p.shipping_country || d.shipping.country,
         }));
       }
     }
@@ -393,20 +402,26 @@ export default function CreditNoteCreate() {
                 options={filteredCustomers.map((c: any) => ({ value: c._id, label: c.company }))}
                 value={formData.rel_id}
                 onValueChange={(val) => {
-                  const client = filteredCustomers.find((c: any) => c._id === val);
+                  // Buyer details from the customer, billing address first
+                  // (lib/customerAutofill.ts) — all still editable.
+                  const d = customerDetails(filteredCustomers.find((c: any) => c._id === val));
+                  const knownCurrency = (currencies as any[]).some((c: any) => c.name === d.currency) ? d.currency : "";
                   setFormData(p => ({
                     ...p,
                     rel_id: val,
-                    billing_street: client?.address || "",
-                    billing_city: client?.city || "",
-                    billing_state: client?.state || "",
-                    billing_zip: client?.zip || "",
-                    billing_country: client?.country || "",
-                    shipping_street: client?.shipping_street || client?.address || "",
-                    shipping_city: client?.shipping_city || client?.city || "",
-                    shipping_state: client?.shipping_state || client?.state || "",
-                    shipping_zip: client?.shipping_zip || client?.zip || "",
-                    shipping_country: client?.shipping_country || client?.country || ""
+                    gstin: d.gstNumber,
+                    vat: d.vat,
+                    currency: knownCurrency || p.currency,
+                    billing_street: d.billing.street,
+                    billing_city: d.billing.city,
+                    billing_state: d.billing.state,
+                    billing_zip: d.billing.zip,
+                    billing_country: d.billing.country,
+                    shipping_street: d.shipping.street,
+                    shipping_city: d.shipping.city,
+                    shipping_state: d.shipping.state,
+                    shipping_zip: d.shipping.zip,
+                    shipping_country: d.shipping.country,
                   }));
                 }}
               />
@@ -425,6 +440,28 @@ export default function CreditNoteCreate() {
                   {projects.length === 0 && <p className="p-3 text-xs text-muted-foreground italic text-center">No projects found</p>}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Filled from the customer — editable */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-[13px] font-bold text-slate-700">GSTIN</Label>
+                <Input
+                  placeholder="Customer GSTIN"
+                  className="h-11 rounded-xl bg-white border-slate-200 shadow-none"
+                  value={formData.gstin}
+                  onChange={(e) => setFormData(p => ({ ...p, gstin: e.target.value.toUpperCase() }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[13px] font-bold text-slate-700">VAT Number</Label>
+                <Input
+                  placeholder="Customer VAT number"
+                  className="h-11 rounded-xl bg-white border-slate-200 shadow-none"
+                  value={formData.vat}
+                  onChange={(e) => setFormData(p => ({ ...p, vat: e.target.value }))}
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-4">

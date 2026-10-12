@@ -39,7 +39,7 @@ import { Textarea } from "@/hrms/components/ui/textarea";
 const profileSchema = z.object({
     name: z.string().min(2, "Name must be at least 2 characters"),
     email: z.string().email("Invalid email address"),
-    mobile: z.string().min(10, "Mobile number must be at least 10 digits"),
+    mobile: z.string().regex(/^\d{10}$/, "Mobile number must be exactly 10 digits"),
     gender: z.string().optional(),
     dob: z.string().optional(),
     bloodGroup: z.string().optional(),
@@ -249,7 +249,13 @@ export function ProfileDialog({ isOpen, onOpenChange }: ProfileDialogProps) {
                                                     <FormControl>
                                                         <div className="relative">
                                                             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary/60" />
-                                                            <Input {...field} className="h-10 pl-9 rounded-xl bg-white/50 border-0 focus-visible:ring-primary/20 font-bold text-sm" />
+                                                            <Input
+                                                                {...field}
+                                                                inputMode="numeric"
+                                                                maxLength={10}
+                                                                onChange={(e) => field.onChange(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                                                                className="h-10 pl-9 rounded-xl bg-white/50 border-0 focus-visible:ring-primary/20 font-bold text-sm"
+                                                            />
                                                         </div>
                                                     </FormControl>
                                                     <FormMessage className="text-[9px]" />

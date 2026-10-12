@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { formatCustomerAddress } from "@/lib/customerAutofill";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -533,15 +534,22 @@ export default function QuotationModule() {
 
   // Auto-fill contact/address from the CRM's real customer record once selected —
   // still editable afterwards in case the quotation needs a different contact.
+  // Runs once per newly picked customer: editing a saved quotation marks its
+  // customer as already filled (handleEdit), so the saved contact/address are
+  // never overwritten by the live customer record. Billing address first.
+  const autofilledCustomer = useRef<string>("");
   useEffect(() => {
-    if (!selectedCustomer) return;
+    if (!selectedCustomer?._id) return;
+    const id = String(selectedCustomer._id);
+    if (autofilledCustomer.current === id) return;
+    autofilledCustomer.current = id;
     setContactNumber((selectedCustomer.phonenumber || "").replace(/\D/g, "").slice(0, 10));
-    const parts = [selectedCustomer.address, selectedCustomer.city, selectedCustomer.state, selectedCustomer.zip, selectedCustomer.country].filter(Boolean);
-    setAddress(parts.join(", "));
+    setAddress(formatCustomerAddress(selectedCustomer));
   }, [selectedCustomer]);
 
   const resetForm = () => {
     setEditingId(null);
+    autofilledCustomer.current = "";
     setClientId("");
     setSelectedBranchId("");
     setContactNumber("");
@@ -775,7 +783,9 @@ export default function QuotationModule() {
 
   const handleEdit = (q: Quotation) => {
     setEditingId(q._id);
-    setClientId(q.client?._id || q.client?.id || (typeof q.client === "string" ? q.client : ""));
+    const editClientId = q.client?._id || q.client?.id || (typeof q.client === "string" ? q.client : "");
+    autofilledCustomer.current = String(editClientId || ""); // keep the saved contact/address
+    setClientId(editClientId);
     setContactNumber((q as any).contact_number || q.client?.phonenumber || "");
     setAddress((q as any).client_address || [q.client?.address, q.client?.city, q.client?.state, q.client?.zip, q.client?.country].filter(Boolean).join(", ") || "");
     setQuotationDate(q.date ? new Date(q.date).toISOString().split("T")[0] : todayISO());

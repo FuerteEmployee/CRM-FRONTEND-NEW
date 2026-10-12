@@ -102,6 +102,7 @@ import { Badge } from "@/components/ui/badge";
 import { useNotificationContext } from "@/context/NotificationContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isTenantExpired } from "@/lib/tenantExpiry";
+import { moduleForPath } from "@/lib/planModules";
 
 const fallbackNav = [
   { title: "Dashboard", url: "/admin/dashboard", icon: "LayoutDashboard", group: "Main" },
@@ -321,17 +322,30 @@ export function AppSidebar() {
   const logoLight = resolveImageUrl(getSetting("compLogoLight", ""));
   const [logoError, setLogoError] = useState(false);
 
-  const visibleSetupItems = setupMenuItems.filter((item) => {
-    // If the item has a permission key, check it
-    if (item.permission && !canView(item.permission)) return false;
+  // Setup pages of a module switched off in the plan are hidden too
+  // (e.g. Support > Departments when Support is off) — see lib/planModules.ts.
+  const inPlan = (url?: string) => {
+    const key = url ? moduleForPath(url) : null;
+    return !key || isModuleEnabled(key);
+  };
+  const visibleSetupItems = setupMenuItems
+    .map((item: any) =>
+      item.subItems ? { ...item, subItems: item.subItems.filter((sub: any) => inPlan(sub.url)) } : item
+    )
+    .filter((item: any) => {
+      if (!inPlan(item.url)) return false;
+      if (item.subItems && item.subItems.length === 0) return false;
 
-    if (!item.permission && !isAdmin) {
-      if (item.title === "Help") return true;
-      return false;
-    }
+      // If the item has a permission key, check it
+      if (item.permission && !canView(item.permission)) return false;
 
-    return true;
-  });
+      if (!item.permission && !isAdmin) {
+        if (item.title === "Help") return true;
+        return false;
+      }
+
+      return true;
+    });
 
   // The Setup button is ONLY visible when the user has Settings > View permission (or is admin).
   // HRMS-only self-service staff (added via HRMS Staff Directory) never get Setup access,
@@ -644,71 +658,15 @@ export function AppSidebar() {
       if (isMobile) setOpenMobile(false);
     };
 
-    // Map sidebar URLs → plan module keys (SaasPlan.module_access)
-    // Note: staff users have basePath=/staff so URLs are rewritten; include both variants.
-    const URL_MODULE_MAP: Record<string, string> = {
-      // Finance module
-      "/admin/invoices": "finance",
-      "/admin/payments": "finance",
-      "/admin/credit-notes": "finance",
-      "/admin/items": "finance",
-      "/staff/invoices": "finance",
-      "/staff/payments": "finance",
-      "/staff/credit-notes": "finance",
-      "/staff/items": "finance",
-      // Individual modules
-      "/admin/tasks": "tasks",
-      "/admin/projects": "projects",
-      "/admin/support": "support",
-      "/admin/leads": "leads",
-      "/admin/contracts": "contracts",
-      "/admin/chat": "chat",
-      "/admin/meetings": "meetings",
-      "/admin/subscriptions": "subscriptions",
-      "/admin/expenses": "expenses",
-      "/admin/proposals": "proposals",
-      "/admin/estimates": "estimates",
-      "/admin/estimate-request": "estimate_request",
-      "/admin/knowledge-base": "knowledge_base",
-      "/admin/time-tracking": "time_tracking",
-      "/admin/goals": "goals",
-      "/admin/announcements": "announcements",
-      "/admin/calendar": "calendar",
-      "/admin/bookmarks": "bookmarks",
-      "/admin/website-forms": "website_forms",
-      "/admin/whatsapp": "whatsapp",
-      // Staff URL variants
-      "/staff/tasks": "tasks",
-      "/staff/projects": "projects",
-      "/staff/support": "support",
-      "/staff/leads": "leads",
-      "/staff/contracts": "contracts",
-      "/staff/chat": "chat",
-      "/staff/meetings": "meetings",
-      "/staff/subscriptions": "subscriptions",
-      "/staff/expenses": "expenses",
-      "/staff/proposals": "proposals",
-      "/staff/estimates": "estimates",
-      "/staff/announcements": "announcements",
-      "/staff/goals": "goals",
-      "/staff/calendar": "calendar",
-      "/staff/bookmarks": "bookmarks",
-      "/staff/website-forms": "website_forms",
-      "/staff/whatsapp": "whatsapp",
-      // Reports sub-routes
-      "/admin/reports/expenses": "reports",
-      "/admin/reports/expenses-vs-income": "reports",
-      "/admin/reports/sales": "reports",
-      "/admin/reports/purchase": "reports",
-      "/admin/reports/leads": "reports",
-      "/admin/reports": "reports",
-    };
+    // Page -> plan module key comes from lib/planModules.ts (shared with the
+    // route guard), so /admin and /staff links, Setup pages and the tenant
+    // sidebar override's inline groups are all hidden the same way.
 
     const visible = items
       .filter((item: any) => !item.permission || canView(item.permission))
       .filter((item: any) => {
         // Hide modules disabled in the tenant's plan
-        const moduleKey = URL_MODULE_MAP[getUrl(item.url)];
+        const moduleKey = moduleForPath(getUrl(item.url));
         return !moduleKey || isModuleEnabled(moduleKey);
       });
 
@@ -1129,7 +1087,7 @@ export function AppSidebar() {
                     {renderDraggableSection(dynamicNav.customersNav, mainSidebarDragCtx)}
                     {/* Direct top-level link, not a collapsible section — its own
                         module gate ("whatsapp") is applied per-item inside
-                        renderItems via URL_MODULE_MAP, independent of Sales. */}
+                        renderItems via moduleForPath, independent of Sales. */}
                     {renderDraggableSection(dynamicNav.marketingNav, mainSidebarDragCtx)}
                     {renderSectionGroup(salesGroupOrder, "sidebarSalesGroupOrder", setSalesGroupOrder)}
                     {renderDraggableSection(dynamicNav.managementNav, mainSidebarDragCtx)}

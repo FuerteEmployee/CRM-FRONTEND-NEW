@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   Building2, Package, TrendingUp, Activity,
   ShieldCheck, Clock, AlertTriangle, CheckCircle2, RefreshCw,
+  Ban, PlayCircle, UserPlus, UserMinus,
 } from "lucide-react";
 import { apiClient as api } from "@/api/client";
 import { SuperAdminDashboardSkeleton } from "@/components/ui/page-skeleton";
@@ -12,12 +13,15 @@ interface DashboardMetrics {
   active_customers: number;
   trial_customers: number;
   expired_customers: number;
+  suspended_customers: number;
   total_customers: number;
   active_plans: number;
-  admin_count: number;
+  owner_count: number;
   new_this_month: number;
   expiring_soon: number;
-  monthly_revenue: string;
+  trials_expiring_soon: number;
+  monthly_revenue: number; // ₹, same rule as the Billing page
+  paying_customers: number;
   recent_logs: Array<{
     _id: string;
     action: string;
@@ -35,21 +39,37 @@ const LOG_ICON: Record<string, { icon: React.ElementType; color: string }> = {
   "Created Plan":      { icon: Package,     color: "text-emerald-600 bg-emerald-50" },
   "Updated Plan":      { icon: Package,     color: "text-teal-600 bg-teal-50" },
   "Deleted Plan":      { icon: Package,     color: "text-orange-600 bg-orange-50" },
+  "Renewed Plan":      { icon: RefreshCw,   color: "text-emerald-600 bg-emerald-50" },
+  "Suspended Customer":    { icon: Ban,          color: "text-red-600 bg-red-50" },
+  "Re-activated Customer": { icon: PlayCircle,   color: "text-emerald-600 bg-emerald-50" },
+  "Auto-Expired Customer": { icon: Clock,        color: "text-orange-600 bg-orange-50" },
+  "Updated Sidebar Config": { icon: Building2,   color: "text-indigo-600 bg-indigo-50" },
+  CREATE_ADMIN:        { icon: UserPlus,    color: "text-blue-600 bg-blue-50" },
+  UPDATE_ADMIN:        { icon: ShieldCheck, color: "text-indigo-600 bg-indigo-50" },
+  DELETE_ADMIN:        { icon: UserMinus,   color: "text-red-600 bg-red-50" },
 };
+
+const formatINR = (n: number) =>
+  `₹${(Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function SuperAdminDashboard() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   const fetchMetrics = async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
     try {
       const response = await api.get("/super-admin/dashboard");
+      // The api client turns a 404/network failure into [] — that's not data.
+      if (!response || Array.isArray(response)) throw new Error("No response from server");
       setMetrics(response);
-    } catch (error) {
+      setLoadError("");
+    } catch (error: any) {
       console.error("Failed to fetch super admin metrics", error);
+      setLoadError(error?.message || "Couldn't load the dashboard");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -69,21 +89,21 @@ export default function SuperAdminDashboard() {
     {
       title: "On Trial",
       value: metrics?.trial_customers ?? 0,
-      sub: metrics?.expiring_soon ? `${metrics.expiring_soon} expiring in 7d` : "all healthy",
+      sub: metrics?.trials_expiring_soon ? `${metrics.trials_expiring_soon} trial${metrics.trials_expiring_soon > 1 ? "s" : ""} ending in 7 days` : "none ending this week",
       icon: Clock,
       color: "from-amber-400 to-orange-500",
     },
     {
       title: "Active Plans",
       value: metrics?.active_plans ?? 0,
-      sub: `${metrics?.admin_count ?? 0} admins`,
+      sub: `${metrics?.owner_count ?? 0} company owners`,
       icon: Package,
       color: "from-indigo-500 to-purple-500",
     },
     {
       title: "Est. Monthly Revenue",
-      value: metrics?.monthly_revenue?.replace('$', '₹') ?? "₹0.00",
-      sub: `${metrics?.new_this_month ?? 0} new this month`,
+      value: formatINR(metrics?.monthly_revenue ?? 0),
+      sub: `from ${metrics?.paying_customers ?? 0} paying · ${metrics?.new_this_month ?? 0} new this month`,
       icon: TrendingUp,
       color: "from-emerald-500 to-teal-500",
     },
@@ -98,7 +118,7 @@ export default function SuperAdminDashboard() {
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">Super Admin Overview</h1>
-          <p className="text-gray-500 text-sm mt-1">Real-time metrics across your entire SaaS platform.</p>
+          <p className="text-gray-500 text-sm mt-1">Live metrics across your entire SaaS platform — press Refresh for the latest.</p>
         </div>
         <button
           onClick={() => fetchMetrics(true)}
@@ -108,6 +128,13 @@ export default function SuperAdminDashboard() {
           Refresh
         </button>
       </div>
+
+      {loadError && (
+        <div className="flex items-center justify-between gap-3 p-4 rounded-xl border border-red-200 bg-red-50">
+          <p className="text-sm font-medium text-red-700">Couldn't load the dashboard: {loadError}. The numbers below may be out of date.</p>
+          <button onClick={() => fetchMetrics(true)} className="text-sm font-semibold text-red-700 hover:underline shrink-0">Retry</button>
+        </div>
+      )}
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -174,7 +201,8 @@ export default function SuperAdminDashboard() {
           {[
             { label: "Active",   value: metrics?.active_customers  ?? 0, color: "bg-emerald-500", text: "text-emerald-700 bg-emerald-50" },
             { label: "On Trial", value: metrics?.trial_customers   ?? 0, color: "bg-amber-400",   text: "text-amber-700 bg-amber-50" },
-            { label: "Expired",  value: metrics?.expired_customers ?? 0, color: "bg-red-400",     text: "text-red-700 bg-red-50" },
+            { label: "Expired",  value: metrics?.expired_customers ?? 0, color: "bg-orange-400",  text: "text-orange-700 bg-orange-50" },
+            { label: "Suspended", value: metrics?.suspended_customers ?? 0, color: "bg-red-400",  text: "text-red-700 bg-red-50" },
           ].map(({ label, value, color, text }) => {
             const total = metrics?.total_customers || 1;
             const pct = Math.round((value / total) * 100);
@@ -195,7 +223,7 @@ export default function SuperAdminDashboard() {
             <div className="mt-2 flex items-center gap-2 p-3 bg-amber-50 rounded-lg border border-amber-200">
               <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
               <p className="text-xs text-amber-700 font-medium">
-                {metrics!.expiring_soon} customer{metrics!.expiring_soon > 1 ? "s" : ""} expiring within 7 days
+                {metrics!.expiring_soon} active/trial customer{metrics!.expiring_soon > 1 ? "s" : ""} expiring within 7 days
               </p>
             </div>
           )}

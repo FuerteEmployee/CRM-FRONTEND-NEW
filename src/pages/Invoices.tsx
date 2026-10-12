@@ -957,6 +957,18 @@ const Invoices = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [previewInvoice, setPreviewInvoice] = useState<any>(null);
+  // The list row only carries the customer's company name; load the full
+  // invoice (customer GST/VAT/address/email/phone) for the print preview.
+  const openInvoicePreview = async (inv: any) => {
+    setPreviewInvoice(inv);
+    try {
+      const full: any = await salesService.getInvoiceById(inv._id);
+      const doc = full?.data || full;
+      if (doc && doc._id) setPreviewInvoice(doc);
+    } catch {
+      /* keep the list-row preview */
+    }
+  };
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const navigate = useNavigate();
@@ -1533,7 +1545,7 @@ const Invoices = () => {
                       {canUseBankDetails && <TableCell className="text-muted-foreground whitespace-nowrap">{row.bankDetails || "-"}</TableCell>}
                       <TableCell>
                         <TableActions
-                          onView={() => setPreviewInvoice(inv)}
+                          onView={() => openInvoicePreview(inv)}
                           onEdit={can("Invoices", "Edit") ? () => navigate(`/admin/invoices/edit/${inv._id}`) : undefined}
                           onDelete={can("Invoices", "Delete") ? () => deleteMutation.mutate(inv._id) : undefined}
                         />
@@ -1556,7 +1568,7 @@ const Invoices = () => {
               invoice={selectedInvoice}
               onClose={() => setSelectedInvoice(null)}
               onView={() => {
-                setPreviewInvoice(selectedInvoice);
+                openInvoicePreview(selectedInvoice);
                 setSelectedInvoice(null);
               }}
               isFullscreen={isFullscreen}

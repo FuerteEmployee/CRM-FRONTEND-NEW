@@ -6,6 +6,7 @@ import { queryClient } from "@/lib/queryClient";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PermissionProvider, usePermissionContext } from "@/context/PermissionContext";
 import { getLandingPath } from "@/lib/landingPath";
+import { ModuleGuard } from "@/components/layout/ModuleGuard";
 import { Loader2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
 import Login from "./pages/Login";
@@ -136,42 +137,49 @@ import { HRMSEntry } from "./hrms/HRMSEntry";
 
 
 
+// Shown while the session check runs, instead of a blank page.
+const SessionCheck = () => (
+  <div className="flex h-screen items-center justify-center">
+    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+  </div>
+);
+
 // Admin Route Protection
 const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isAdmin, isStaff, permissions, loading } = usePermissionContext();
-  if (loading) return null;
+  if (loading) return <SessionCheck />;
   if (!user) return <Navigate to="/admin/login" replace />;
   // A super admin has no company of their own — the company CRM would only
   // show empty "Fuerte CRM" data. Keep them in the Super Admin panel.
   if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
   if (!isAdmin) return <Navigate to={getLandingPath(user, permissions, isStaff)} replace />;
-  return <>{children}</>;
+  return <ModuleGuard>{children}</ModuleGuard>;
 };
 
 // Staff Route Protection
 const StaffProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isStaff, permissions, loading } = usePermissionContext();
-  if (loading) return null;
+  if (loading) return <SessionCheck />;
   if (!user) return <Navigate to="/staff/login" replace />;
   if (!isStaff) return <Navigate to={getLandingPath(user, permissions, false)} replace />;
-  return <>{children}</>;
+  return <ModuleGuard>{children}</ModuleGuard>;
 };
 
 // Generic Auth Route Protection (Any logged in user)
 const AuthProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = usePermissionContext();
-  if (loading) return null;
+  if (loading) return <SessionCheck />;
   if (!user) return <Navigate to="/admin/login" replace />;
   // Same as AdminProtectedRoute: company pages (incl. HRMS) aren't for super admins.
   if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
-  return <>{children}</>;
+  return <ModuleGuard>{children}</ModuleGuard>;
 };
 
 
 // Redirect logged-out users away from super-admin protected pages
 const SuperAdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = usePermissionContext();
-  if (loading) return null;
+  if (loading) return <SessionCheck />;
   if (!user) return <Navigate to="/super-admin/login" replace />;
   if (!user.is_superadmin) return <Navigate to="/admin/login" replace />;
   return <>{children}</>;
@@ -184,7 +192,7 @@ const SuperAdminProtectedRoute = ({ children }: { children: React.ReactNode }) =
 // to their dashboard or log out, instead of silently bouncing them there.
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { loading } = usePermissionContext();
-  if (loading) return null;
+  if (loading) return <SessionCheck />;
   return <>{children}</>;
 };
 
@@ -193,7 +201,7 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 // "localhost"/"127.0.0.1" included so this is testable from a local dev
 // server too — remove before deploying if you need to see the signup page locally.
 const isWhiteLabelHost = () =>
-  ["rudraverse.trinetratechnoworld.com", "crm.beontimeofficial.com", "localhost", "127.0.0.1"].includes(
+  ["rudraverse.trinetratechnoworld.com", "crm.beontimeofficial.com", "crm.citysmile.in", "crm.kiranenginers.com", "localhost", "127.0.0.1"].includes(
     window.location.hostname
   );
 
@@ -203,7 +211,7 @@ const isWhiteLabelHost = () =>
 //  - Nobody           → /admin/login
 const SmartRoot = () => {
   const { user, permissions, isStaff, loading } = usePermissionContext();
-  if (loading) return null; // wait for admin session check
+  if (loading) return <SessionCheck />; // wait for admin session check
 
   if (user) {
     return <Navigate to={getLandingPath(user, permissions, isStaff)} replace />;

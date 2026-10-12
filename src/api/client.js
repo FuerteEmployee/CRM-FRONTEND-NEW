@@ -4,6 +4,10 @@ import {
   isTokenExpired,
   refreshAccessToken,
   handleSessionExpired,
+  hasStoredSession,
+  fetchWithTimeout,
+  REQUEST_TIMEOUT_MS,
+  UPLOAD_TIMEOUT_MS,
   TENANT_BLOCK_CODES,
 } from "@/lib/session";
 
@@ -44,11 +48,11 @@ class ApiClient {
       delete headers["content-type"];
     }
 
-    const response = await fetch(`${BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-      credentials: "include",
-    });
+    const response = await fetchWithTimeout(
+      `${BASE_URL}${endpoint}`,
+      { ...options, headers, credentials: "include" },
+      isFormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+    );
 
     // Expired / invalid token: renew once and replay the request; if that fails,
     // clear the session and show the "session expired" page instead of leaving
@@ -61,14 +65,16 @@ class ApiClient {
       } else if (!_retried && getRefreshToken() && (await refreshAccessToken())) {
         return this.request(endpoint, options, true);
       }
-      if (token || getRefreshToken()) handleSessionExpired();
+      // Also when only the cached user is left (token already gone) — otherwise
+      // the app shell stays up with every request failing.
+      if (hasStoredSession()) handleSessionExpired();
     }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       // Suspended / deleted company: sign out to the "account suspended" screen.
       const blockReason = TENANT_BLOCK_CODES[errorData.code];
-      if (blockReason && !isAuthEndpoint && (token || getRefreshToken())) handleSessionExpired(blockReason);
+      if (blockReason && !isAuthEndpoint && hasStoredSession()) handleSessionExpired(blockReason);
       const error = new Error(errorData.message || `HTTP error! status: ${response.status}`);
       // NB: spreading a fetch Response does NOT copy `status`/`statusText` (they
       // are prototype getters), which made every status check downstream

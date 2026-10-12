@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
+import { clampPhone10, phone10Error } from "@/lib/validation";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 
 interface Admin {
@@ -12,6 +13,7 @@ interface Admin {
   firstname: string;
   lastname: string;
   email: string;
+  phonenumber?: string;
   is_superadmin: boolean;
   active: boolean;
   tenant_id: { _id: string; company_name: string } | null;
@@ -43,10 +45,13 @@ export default function SuperAdminAdmins() {
   const [editingAdmin, setEditingAdmin] = useState<Admin | null>(null);
   
   // Form state
+  const [phoneError, setPhoneError] = useState("");
+  const [emailError, setEmailError] = useState("");
   const [formData, setFormData] = useState({
     firstname: "",
     lastname: "",
     email: "",
+    phonenumber: "",
     password: "",
     is_superadmin: false,
     tenant_id: "",
@@ -80,11 +85,14 @@ export default function SuperAdminAdmins() {
       firstname: "",
       lastname: "",
       email: "",
+      phonenumber: "",
       password: "",
       is_superadmin: false,
       tenant_id: "",
       active: true,
     });
+    setPhoneError("");
+    setEmailError("");
     setIsModalOpen(true);
   };
 
@@ -94,11 +102,14 @@ export default function SuperAdminAdmins() {
       firstname: admin.firstname,
       lastname: admin.lastname,
       email: admin.email,
+      phonenumber: clampPhone10(admin.phonenumber || ""),
       password: "", // empty for edit
       is_superadmin: admin.is_superadmin,
       tenant_id: admin.tenant_id?._id || "",
       active: admin.active,
     });
+    setPhoneError("");
+    setEmailError("");
     setIsModalOpen(true);
   };
 
@@ -115,6 +126,11 @@ export default function SuperAdminAdmins() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // One mobile = one account, exactly 10 digits (backend: utils/accountUniqueness.js).
+    const pErr = phone10Error(formData.phonenumber);
+    setPhoneError(pErr);
+    setEmailError("");
+    if (pErr) return;
     try {
       if (editingAdmin) {
         // Update
@@ -134,6 +150,9 @@ export default function SuperAdminAdmins() {
       setIsModalOpen(false);
       fetchData();
     } catch (error: any) {
+      const field = error?.response?.data?.field;
+      if (field === "phone") setPhoneError(error.message);
+      if (field === "email") setEmailError(error.message);
       toast.error(error.message || "Failed to save admin");
     }
   };
@@ -196,7 +215,7 @@ export default function SuperAdminAdmins() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <div className="h-9 w-9 rounded-full bg-blue-600 flex items-center justify-center text-white text-sm font-bold">
-                          {admin.firstname[0]}{admin.lastname[0]}
+                          {admin.firstname?.[0]}{admin.lastname?.[0]}
                         </div>
                         <div>
                           <div className="text-gray-900 font-medium text-sm">{admin.firstname} {admin.lastname}</div>
@@ -316,6 +335,22 @@ export default function SuperAdminAdmins() {
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
                   className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
                 />
+                {emailError && <p className="text-[11px] font-medium text-red-600">{emailError}</p>}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Mobile Number</label>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  required
+                  maxLength={10}
+                  placeholder="10-digit mobile"
+                  value={formData.phonenumber}
+                  onChange={(e) => setFormData({...formData, phonenumber: clampPhone10(e.target.value)})}
+                  className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-colors"
+                />
+                {phoneError && <p className="text-[11px] font-medium text-red-600">{phoneError}</p>}
               </div>
 
               <div className="space-y-1.5">

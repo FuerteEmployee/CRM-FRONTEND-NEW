@@ -185,7 +185,7 @@ const Dashboard = () => {
       const res = await quotationService.getQuotations();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("quotations") && canView("Quotations")
+    enabled: !isExpired && isModuleEnabled("sales") && canView("Quotations")
   });
 
   const { data: rawTasksList = [] } = useQuery({
@@ -937,10 +937,10 @@ const Dashboard = () => {
           {((isModuleEnabled("finance") && canView("Invoices")) ||
             (isModuleEnabled("estimates") && canView("Estimates")) ||
             (isModuleEnabled("proposals") && canView("Proposals")) ||
-            (isModuleEnabled("quotations") && canView("Quotations"))) && (
+            (isModuleEnabled("sales") && canView("Quotations"))) && (
               <Card className="lg:col-span-3" id="tour-overview">
                 <CardContent className="p-5">
-                  <div className={`grid grid-cols-1 ${[isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("quotations") && canView("Quotations")].filter(Boolean).length > 1 ? 'md:grid-cols-' + Math.min(4, [isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("quotations") && canView("Quotations")].filter(Boolean).length) : ''} gap-6 divide-y md:divide-y-0 md:divide-x divide-border`}>
+                  <div className={`grid grid-cols-1 ${[isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("sales") && canView("Quotations")].filter(Boolean).length > 1 ? 'md:grid-cols-' + Math.min(4, [isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("sales") && canView("Quotations")].filter(Boolean).length) : ''} gap-6 divide-y md:divide-y-0 md:divide-x divide-border`}>
                     {isModuleEnabled("finance") && canView("Invoices") && (
                       <OverviewSection
                         title="Invoice overview"
@@ -966,7 +966,7 @@ const Dashboard = () => {
                         />
                       </div>
                     )}
-                    {isModuleEnabled("quotations") && canView("Quotations") && (
+                    {isModuleEnabled("sales") && canView("Quotations") && (
                       <div className={(isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) || (isModuleEnabled("proposals") && canView("Proposals")) ? "pt-4 md:pt-0 md:pl-6" : ""}>
                         <OverviewSection
                           title="Quotation overview"
@@ -981,7 +981,7 @@ const Dashboard = () => {
             )}
 
           {/* To Do Items */}
-          <Card className={!((isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) || (isModuleEnabled("proposals") && canView("Proposals")) || (isModuleEnabled("quotations") && canView("Quotations"))) ? "lg:col-span-4" : ""} id="tour-todo">
+          <Card className={!((isModuleEnabled("finance") && canView("Invoices")) || (isModuleEnabled("estimates") && canView("Estimates")) || (isModuleEnabled("proposals") && canView("Proposals")) || (isModuleEnabled("sales") && canView("Quotations"))) ? "lg:col-span-4" : ""} id="tour-todo">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -1055,7 +1055,7 @@ const Dashboard = () => {
           {/* My Tasks / Projects / Reminders / Tickets / Announcements */}
           <Card className="lg:col-span-2">
             <CardContent className="p-0">
-              <Tabs defaultValue={isModuleEnabled("tasks") ? "tasks" : isModuleEnabled("projects") ? "projects" : isModuleEnabled("support") ? "tickets" : isModuleEnabled("announcements") ? "announcements" : isModuleEnabled("quotations") ? "quotations" : "reminders"}>
+              <Tabs defaultValue={isModuleEnabled("tasks") ? "tasks" : isModuleEnabled("projects") ? "projects" : isModuleEnabled("support") ? "tickets" : isModuleEnabled("announcements") ? "announcements" : isModuleEnabled("sales") ? "quotations" : "reminders"}>
                 <TabsList className="w-full justify-start rounded-none border-b bg-transparent h-auto p-0 flex-wrap">
                   {isModuleEnabled("tasks") && (
                     <TabsTrigger value="tasks" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent gap-1.5 text-xs">
@@ -1080,7 +1080,7 @@ const Dashboard = () => {
                       <Megaphone className="h-3.5 w-3.5" /> Announcements
                     </TabsTrigger>
                   )}
-                  {isModuleEnabled("quotations") && (
+                  {isModuleEnabled("sales") && (
                     <TabsTrigger value="quotations" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent gap-1.5 text-xs">
                       <FileBarChart className="h-3.5 w-3.5" /> Recent Quotations
                     </TabsTrigger>
@@ -1255,7 +1255,7 @@ const Dashboard = () => {
                     </TabsContent>
                   )}
 
-                  {isModuleEnabled("quotations") && (
+                  {isModuleEnabled("sales") && (
                     <TabsContent value="quotations" className="m-0">
                       <div className="overflow-x-auto">
                         <Table>

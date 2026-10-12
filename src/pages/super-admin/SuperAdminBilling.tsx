@@ -7,14 +7,18 @@ import { apiClient as api } from "@/api/client";
 import { SuperAdminBillingSkeleton } from "@/components/ui/page-skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { format } from "date-fns";
+import { getDaysLeft, getExpiryDate, isLifetimePlan, planPriceLabel } from "@/lib/tenantExpiry";
 
 interface Tenant {
   _id: string;
   company_name: string;
   status: "active" | "inactive" | "trial" | "expired";
-  plan_id: { name: string; price: number } | null;
+  plan_id: { name: string; price: number; billing_cycle?: string } | null;
   createdAt: string;
+  billing_cycle_start?: string;
   billing_cycle_end?: string;
+  trial_ends_at?: string;
 }
 
 const PAYMENT_GATEWAYS = [
@@ -67,27 +71,32 @@ const BILLING_FEATURES = [
 
 export default function SuperAdminBilling() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [revenue, setRevenue] = useState<{ monthly: number; paying: number }>({ monthly: 0, paying: 0 });
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const showBillingSkeleton = useMinimumLoading(loading);
 
   useEffect(() => {
-    api.get("/super-admin/tenants")
-      .then((res: Tenant[]) => setTenants(res))
-      .catch(() => {})
+    // Revenue comes from the dashboard endpoint so both pages always show
+    // the same figure (one backend rule: utils/saasRevenue.js).
+    Promise.all([api.get("/super-admin/tenants"), api.get("/super-admin/dashboard")])
+      .then(([tenantRes, dash]: [Tenant[], any]) => {
+        setTenants(Array.isArray(tenantRes) ? tenantRes : []);
+        setRevenue({ monthly: Number(dash?.monthly_revenue) || 0, paying: Number(dash?.paying_customers) || 0 });
+        setLoadError("");
+      })
+      .catch((err: any) => setLoadError(err?.message || "Couldn't load billing"))
       .finally(() => setLoading(false));
   }, []);
 
   const activeTenants = tenants.filter((t) => t.status === "active");
   const trialTenants = tenants.filter((t) => t.status === "trial");
-
-  const mrr = activeTenants.reduce((sum, t) => {
-    const price = t.plan_id && typeof t.plan_id === "object" ? t.plan_id.price : 0;
-    return sum + price;
-  }, 0);
+  const formatINR = (n: number) =>
+    `₹${(Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const stats = [
-    { label: "Est. Monthly Revenue", value: `₹${mrr.toFixed(2)}`, icon: IndianRupee, color: "bg-blue-50 text-blue-600", sub: "From active subscriptions" },
-    { label: "Active Subscriptions", value: activeTenants.length.toString(), icon: CreditCard, color: "bg-emerald-50 text-emerald-600", sub: "Paying customers" },
+    { label: "Est. Monthly Revenue", value: formatINR(revenue.monthly), icon: IndianRupee, color: "bg-blue-50 text-blue-600", sub: "Yearly ÷ 12 · lifetime and ended plans not counted" },
+    { label: "Paying Subscriptions", value: revenue.paying.toString(), icon: CreditCard, color: "bg-emerald-50 text-emerald-600", sub: `${activeTenants.length} marked Active` },
     { label: "Trial Customers", value: trialTenants.length.toString(), icon: TrendingUp, color: "bg-indigo-50 text-indigo-600", sub: "Pending conversion" },
   ];
 
@@ -100,6 +109,12 @@ export default function SuperAdminBilling() {
           CRM subscription billing overview and upcoming payment gateway integration roadmap.
         </p>
       </div>
+
+      {loadError && (
+        <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-sm font-medium text-red-700">
+          Couldn't load billing: {loadError}. Refresh the page to try again.
+        </div>
+      )}
 
       {/* Stats */}
       {showBillingSkeleton ? (
@@ -139,6 +154,7 @@ export default function SuperAdminBilling() {
                 <TableHead>Customer</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead>Amount</TableHead>
+                <TableHead>Expires / Next renewal</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -153,8 +169,25 @@ export default function SuperAdminBilling() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <span className="font-semibold">₹{t.plan_id && typeof t.plan_id === "object" ? t.plan_id.price.toFixed(2) : "0.00"}</span>
-                    <span className="text-xs font-normal text-gray-400">/mo</span>
+                    <span className="font-semibold">
+                      {t.plan_id && typeof t.plan_id === "object" ? planPriceLabel(t.plan_id.price, t.plan_id.billing_cycle) : "—"}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    {(() => {
+                      if (isLifetimePlan(t as any)) return <span className="text-xs text-emerald-600 font-medium">Never (lifetime)</span>;
+                      const end = getExpiryDate(t as any);
+                      const days = getDaysLeft(t as any);
+                      if (!end) return <span className="text-xs text-gray-400">—</span>;
+                      return (
+                        <div className="flex flex-col">
+                          <span className="text-sm text-gray-700">{format(end, "MMM d, yyyy")}</span>
+                          <span className={`text-[11px] font-semibold ${days !== null && days <= 0 ? "text-red-500" : days !== null && days <= 7 ? "text-amber-600" : "text-gray-400"}`}>
+                            {days !== null && days <= 0 ? "Ended — not counted in revenue" : `${days} day${days === 1 ? "" : "s"} left`}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">

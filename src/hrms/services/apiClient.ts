@@ -1,5 +1,16 @@
 import { toast } from "@/hrms/hooks/use-toast";
-import { getAccessToken, refreshAccessToken, handleSessionExpired, isTokenExpired, TENANT_BLOCK_CODES } from "@/lib/session";
+import {
+  getAccessToken,
+  refreshAccessToken,
+  handleSessionExpired,
+  hasStoredSession,
+  isTokenExpired,
+  fetchWithTimeout,
+  REQUEST_TIMEOUT_MS,
+  UPLOAD_TIMEOUT_MS,
+  REFRESH_TIMEOUT_MS,
+  TENANT_BLOCK_CODES,
+} from "@/lib/session";
 
 export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5000/api";
 
@@ -67,10 +78,11 @@ const attemptRefresh = (): Promise<boolean> => {
       const currentToken = getAuthToken();
       if (!currentToken) return false;
 
-      const res = await fetch(`${API_BASE_URL}/users/refresh`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${currentToken}` },
-      });
+      const res = await fetchWithTimeout(
+        `${API_BASE_URL}/users/refresh`,
+        { method: "POST", headers: { "Authorization": `Bearer ${currentToken}` } },
+        REFRESH_TIMEOUT_MS,
+      );
       if (!res.ok) return false;
 
       const data = await res.json();
@@ -136,12 +148,16 @@ const _request = async (endpoint: string, method: HttpMethod, options: FetchOpti
     finalEndpoint += `${separator}_t=${Date.now()}`;
   }
 
-  const response = await fetch(`${API_BASE_URL}${finalEndpoint}`, {
-    method,
-    headers: { ...defaultHeaders, ...headers },
-    body: data ? (isFormData ? data : JSON.stringify(data)) : undefined,
-    ...rest,
-  });
+  const response = await fetchWithTimeout(
+    `${API_BASE_URL}${finalEndpoint}`,
+    {
+      method,
+      headers: { ...defaultHeaders, ...headers },
+      body: data ? (isFormData ? data : JSON.stringify(data)) : undefined,
+      ...rest,
+    },
+    isFormData ? UPLOAD_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
+  );
 
   // Suspended / deleted company (backend utils/tenantAccess.js): refreshing
   // can't help — sign out to the "account suspended" screen.
@@ -167,6 +183,8 @@ const _request = async (endpoint: string, method: HttpMethod, options: FetchOpti
   }
 
   if (response.status === 401) {
+    // No token was sent but a cached login is still around — a dead session.
+    if (hasStoredSession()) forceLogout();
     throw new Error("Unauthorized");
   }
 

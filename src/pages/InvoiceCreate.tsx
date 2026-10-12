@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { customerDetails } from "@/lib/customerAutofill";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -98,6 +99,7 @@ export default function InvoiceCreate() {
     partyGroup: "",
     termsOfPayment: "",
     gstin: "",
+    vat: "",
     salesPerson: "",
     branch: "",
     bank_detail: "",
@@ -220,6 +222,35 @@ export default function InvoiceCreate() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Picking a customer fills its GSTIN, VAT, billing address, currency and
+  // sales person (lib/customerAutofill.ts) — all still editable. When editing
+  // a saved invoice, only fields that are still empty are filled; what was
+  // saved is never overwritten.
+  const autofilledFor = useRef<string>("");
+  useEffect(() => {
+    if (!formData.client || autofilledFor.current === formData.client) return;
+    if (!customer || String((customer as any)._id) !== formData.client) return;
+    if (isEdit && !(invoice as any)?._id) return; // wait for the saved invoice first
+    autofilledFor.current = formData.client;
+
+    const keepSaved = isEdit && String(invoice?.client?._id || invoice?.client || "") === formData.client;
+    const d = customerDetails(customer);
+    const knownCurrency = currencies.some((c: any) => c.name === d.currency) ? d.currency : "";
+    // New pick: take the customer's value. Saved invoice: keep what's there.
+    const pick = (current: string, value: string) => (keepSaved ? current || value : value);
+    const pickIfAny = (current: string, value: string) => (value ? pick(current, value) : current);
+
+    setFormData((p) => ({
+      ...p,
+      gstin: pick(p.gstin, d.gstNumber),
+      vat: pick(p.vat, d.vat),
+      partyAddress: pick(p.partyAddress, d.billingText),
+      currency: pickIfAny(p.currency, knownCurrency),
+      sale_agent: pickIfAny(p.sale_agent, d.salesPerson.id),
+      salesPerson: pickIfAny(p.salesPerson, d.salesPerson.name),
+    }));
+  }, [customer, formData.client, isEdit, invoice, currencies]);
+
   const activeCurrency = currencies.find((c: any) => c.name === formData.currency) || currencies.find((c: any) => c.isdefault) || null;
   const activeSymbol = activeCurrency?.symbol ?? symbol;
   const formatDocAmount = (value: number, fractionDigits = 2): string => {
@@ -284,6 +315,7 @@ export default function InvoiceCreate() {
         partyGroup: invoice.partyGroup || "",
         termsOfPayment: invoice.termsOfPayment || "",
         gstin: invoice.gstin || "",
+        vat: invoice.vat || "",
         salesPerson: invoice.salesPerson || "",
         branch: typeof invoice.branch === "object" ? (invoice.branch?.name || "") : (invoice.branch || ""),
         bank_detail: (invoice.bank_detail?._id || invoice.bank_detail || "").toString(),
@@ -494,6 +526,7 @@ export default function InvoiceCreate() {
       partyGroup: formData.partyGroup,
       termsOfPayment: formData.termsOfPayment,
       gstin: formData.gstin,
+      vat: formData.vat || "",
       salesPerson: formData.salesPerson || "",
       branch: formData.branch || "",
       bank_detail: formData.bank_detail || undefined,
@@ -716,6 +749,22 @@ export default function InvoiceCreate() {
                     onChange={(e) => setFormData(p => ({ ...p, gstin: e.target.value.toUpperCase() }))}
                   />
                 </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="space-y-2.5">
+                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">VAT Number</Label>
+                  <Input
+                    placeholder="Party VAT number"
+                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    value={formData.vat}
+                    onChange={(e) => setFormData(p => ({ ...p, vat: e.target.value }))}
+                  />
+                </div>
+                {customer && (
+                  <p className="self-end pb-3 text-[11px] text-muted-foreground">
+                    GSTIN, VAT, address, currency and sales person are filled from the customer — you can change them.
+                  </p>
+                )}
               </div>
               <div className="space-y-2.5">
                 <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Party Address</Label>

@@ -21,6 +21,7 @@ interface SaasPlan {
   trial_days: number;
   banner_warning_days: number;
   active: boolean;
+  tenant_count?: number; // companies on this plan (from GET /super-admin/plans)
   features: {
     max_users: number;
     max_storage_gb: number;
@@ -141,8 +142,18 @@ export default function SuperAdminPlans() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this plan? Existing subscriptions may be affected.")) return;
+  // A monthly plan lasts 30 days and a yearly one 365, so a longer "banner
+  // before expiry" would show the banner the whole time. Lifetime: no limit.
+  const maxBannerDays = formData.billing_cycle === "monthly" ? 30 : formData.billing_cycle === "yearly" ? 365 : 0;
+  const bannerTooLong = !!maxBannerDays && (formData.banner_warning_days ?? 0) > maxBannerDays;
+
+  const handleDelete = async (plan: SaasPlan) => {
+    if (plan.tenant_count) {
+      toast.error(`"${plan.name}" is used by ${plan.tenant_count} compan${plan.tenant_count === 1 ? "y" : "ies"}. Move them to another plan first, or mark it inactive.`);
+      return;
+    }
+    const id = plan._id;
+    if (!window.confirm(`Delete the plan "${plan.name}"? No company uses it.`)) return;
     try {
       await api.delete(`/super-admin/plans/${id}`);
       toast.success("Plan deleted");
@@ -154,6 +165,18 @@ export default function SuperAdminPlans() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (bannerTooLong) {
+      toast.error(`Banner days can be at most ${maxBannerDays} for a ${formData.billing_cycle} plan`);
+      return;
+    }
+    // Making a used plan Inactive blocks those companies (like Suspend).
+    const used = editingPlan?.tenant_count || 0;
+    if (editingPlan && editingPlan.active !== false && formData.active === false && used > 0) {
+      const ok = window.confirm(
+        `${used} compan${used === 1 ? "y is" : "ies are"} on "${editingPlan.name}". Making it Inactive will BLOCK their CRM and HRMS login until the plan is Active again or they are moved to another plan. Continue?`
+      );
+      if (!ok) return;
+    }
     setSaving(true);
     try {
       if (editingPlan) {
@@ -237,8 +260,25 @@ export default function SuperAdminPlans() {
                 {plan.description && <p className="text-sm text-gray-500 mt-1 line-clamp-2">{plan.description}</p>}
                 <div className="mt-3 flex items-end gap-1">
                   <span className="text-3xl font-extrabold text-gray-900">₹{plan.price}</span>
-                  <span className="text-gray-400 text-sm mb-1">/{plan.billing_cycle}</span>
+                  <span className="text-gray-400 text-sm mb-1">
+                    {plan.billing_cycle === "lifetime" ? "one-time" : plan.billing_cycle === "yearly" ? "/year" : "/month"}
+                  </span>
                 </div>
+                <p className="text-xs font-medium text-gray-500 mt-1 flex items-center gap-1">
+                  <Users className="h-3 w-3" /> Used by {plan.tenant_count ?? 0} compan{plan.tenant_count === 1 ? "y" : "ies"}
+                </p>
+                {!plan.active && !!plan.tenant_count && (
+                  <p className="text-xs font-semibold text-red-600 mt-0.5">
+                    ⛔ Inactive — these {plan.tenant_count} compan{plan.tenant_count === 1 ? "y is" : "ies are"} blocked from logging in
+                  </p>
+                )}
+                {!!plan.banner_warning_days &&
+                  plan.billing_cycle !== "lifetime" &&
+                  plan.banner_warning_days > (plan.billing_cycle === "yearly" ? 365 : 30) && (
+                    <p className="text-xs font-semibold text-red-600 mt-0.5">
+                      ⚠ Banner ({plan.banner_warning_days} days) is longer than the plan — it always shows. Edit to fix.
+                    </p>
+                  )}
                 {plan.trial_days > 0 && (
                   <p className="text-xs text-blue-500 font-medium mt-1">{plan.trial_days}-day free trial</p>
                 )}
@@ -296,7 +336,7 @@ export default function SuperAdminPlans() {
                 <button onClick={() => openEditModal(plan)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors">
                   <Edit2 className="h-3.5 w-3.5" /> Edit
                 </button>
-                <button onClick={() => handleDelete(plan._id)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors">
+                <button onClick={() => handleDelete(plan)} className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors">
                   <Trash2 className="h-3.5 w-3.5" /> Delete
                 </button>
               </div>
@@ -409,13 +449,18 @@ export default function SuperAdminPlans() {
                     <div className="flex flex-wrap gap-1.5 mb-1">
                       {BANNER_PRESETS.map(preset => {
                         const active = formData.banner_warning_days === preset.days;
+                        const tooLong = !!maxBannerDays && preset.days > maxBannerDays;
                         return (
                           <button
                             key={preset.days}
                             type="button"
+                            disabled={tooLong}
+                            title={tooLong ? `Longer than a ${formData.billing_cycle} plan` : undefined}
                             onClick={() => setFormData({ ...formData, banner_warning_days: preset.days })}
                             className={`px-2.5 py-1 text-xs font-semibold rounded-md border transition-all ${
-                              active
+                              tooLong
+                                ? "bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed"
+                                : active
                                 ? "bg-amber-500 text-white border-amber-500"
                                 : "bg-white text-gray-600 border-gray-300 hover:border-amber-400 hover:text-amber-600"
                             }`}
@@ -427,15 +472,20 @@ export default function SuperAdminPlans() {
                     </div>
                     <div className="flex items-center gap-2">
                       <input
-                        type="number" min="1"
+                        type="number" min="1" max={maxBannerDays || undefined}
                         value={formData.banner_warning_days ?? 30}
                         onChange={(e) => setFormData({ ...formData, banner_warning_days: parseInt(e.target.value) || 30 })}
                         className="w-24 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
                       />
                       <span className="text-xs text-gray-500">days before expiry</span>
                     </div>
+                    {bannerTooLong && (
+                      <p className="text-[11px] font-medium text-red-600">
+                        A {formData.billing_cycle} plan lasts {maxBannerDays} days, so the banner can be at most {maxBannerDays} days — otherwise it shows all the time.
+                      </p>
+                    )}
                     <p className="text-[10px] text-gray-400">
-                      The renewal banner appears in the admin's dashboard this many days before their subscription expires. Colors: 🔵 healthy → 🟡 ≤30d → 🟠 ≤7d → 🔴 ≤3d.
+                      The renewal banner appears on every CRM page this many days before the plan expires (red in the last 7 days).
                     </p>
                   </div>
 
