@@ -336,7 +336,9 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="setup/gdpr" element={<Wrapper><SetupGDPR /></Wrapper>} />
     <Route path="setup/roles" element={<Wrapper><SetupRoles /></Wrapper>} />
     <Route path="setup/theme" element={<Wrapper><SetupThemeStyle /></Wrapper>} />
-    <Route path="setup/fuerte-ai-logs" element={<Wrapper><SetupFuerteAILogs /></Wrapper>} />
+    <Route path="setup/crm-agent-logs" element={<Wrapper><SetupFuerteAILogs /></Wrapper>} />
+    {/* Old URL from before the CRM Agent rename — keeps saved bookmarks working */}
+    <Route path="setup/fuerte-ai-logs" element={<Navigate to="../crm-agent-logs" relative="path" replace />} />
     <Route path="setup/settings" element={<Wrapper><SetupSettings /></Wrapper>} />
     <Route path="setup/help" element={<Wrapper><SetupHelp /></Wrapper>} />
     <Route path="setup/mainsidebar" element={<Wrapper><SetupMainSidebar /></Wrapper>} />

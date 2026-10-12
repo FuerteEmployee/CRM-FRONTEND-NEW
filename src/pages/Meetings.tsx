@@ -62,10 +62,10 @@ export default function Meetings() {
   const [scribeText, setScribeText] = useState("");
   const [isScribing, setIsScribing] = useState(false);
   const [isSummarizing, setIsSummarizing] = useState(false);
-  // FuerteAI Scribe defaults to Hindi — most meetings this is built for run in Hindi/Hinglish.
+  // CRM Agent Scribe defaults to Hindi — most meetings this is built for run in Hindi/Hinglish.
   const [scribeLanguage, setScribeLanguage] = useState("hi-IN");
   const [isScribeThinking, setIsScribeThinking] = useState(false);
-  // Manual diagnostic test box — lets you type a single line and see FuerteAI's
+  // Manual diagnostic test box — lets you type a single line and see CRM Agent's
   // full reasoning (verdict + reason), instead of needing a live meeting and
   // guessing why it stayed silent.
   const [diagnosticInput, setDiagnosticInput] = useState("");
@@ -96,7 +96,7 @@ export default function Meetings() {
     { value: "en-US", label: "English" },
   ];
 
-  // No wake word — FuerteAI decides per RULE 1/4 in the backend prompt whether
+  // No wake word — CRM Agent decides per RULE 1/4 in the backend prompt whether
   // a transcript chunk is a CRM question worth answering. Client-side we only
   // gate on (a) a lightweight local "does this look like a question" check so
   // we don't spam the API on pure statements, and (b) a short cooldown so we
@@ -131,7 +131,7 @@ export default function Meetings() {
     window.speechSynthesis.speak(utterance);
   };
 
-  // FuerteAI is always on — no wake word needed. Every fresh, finalized chunk
+  // CRM Agent is always on — no wake word needed. Every fresh, finalized chunk
   // of speech that looks like a question is sent to the backend, which picks
   // the right module first (RULE 1) then decides "a": ans/clarify/none/silent/
   // blocked/no_module itself, after running the RULE 5 data checks.
@@ -172,7 +172,7 @@ export default function Meetings() {
         // question_en/asked_by aren't in this schema — fall back to the raw
         // speech chunk that triggered this turn as the "question heard" line.
         const qLine = newChunk.trim() ? `\n❓ ${newChunk.trim()}` : "";
-        const aLine = turn.r ? `\n✅ FuerteAI: ${turn.r}` : "";
+        const aLine = turn.r ? `\n✅ CRM Agent: ${turn.r}` : "";
         const updated = `${prev}${qLine}${aLine}`;
         scribeProcessedLenRef.current = updated.length; // don't answer our own Q&A entry
         return updated;
@@ -181,7 +181,7 @@ export default function Meetings() {
       if (turn.r) speakScribeReply(turn.r);
     } catch (err) {
       // A failed live-answer attempt should never interrupt the meeting itself.
-      console.error("FuerteAI Scribe live turn failed:", err);
+      console.error("CRM Agent Scribe live turn failed:", err);
     } finally {
       scribeProcessingRef.current = false;
       setIsScribeThinking(false);
@@ -417,7 +417,7 @@ export default function Meetings() {
     scribeAnsweredRef.current = new Map();
   };
 
-  // FuerteAI Scribe starts automatically the moment the user joins the meeting —
+  // CRM Agent Scribe starts automatically the moment the user joins the meeting —
   // nobody has to remember to click "AI Scribe" separately.
   const handleJoinAndScribe = (meeting: any) => {
     openGoogleMeet(meeting.meeting_link || "https://meet.google.com/new");
@@ -429,12 +429,12 @@ export default function Meetings() {
     resetSpeechTranscript();
     startListening({ continuous: true, language: scribeLanguage });
     setIsScribing(true);
-    toast({ title: "FuerteAI Scribe Active", description: "Listening continuously — it answers any CRM question immediately, in Hindi, no wake word needed." });
+    toast({ title: "CRM Agent Scribe Active", description: "Listening continuously — it answers any CRM question immediately, in Hindi, no wake word needed." });
   };
 
   // Manually test a single line without a live meeting — always returns a
   // verdict + reason (no "stay_silent" in diagnostic mode), so you can see
-  // exactly why FuerteAI would or wouldn't answer a given sentence.
+  // exactly why CRM Agent would or wouldn't answer a given sentence.
   const handleRunDiagnostic = async () => {
     if (!scribeMeeting || !diagnosticInput.trim()) return;
     setIsDiagnosing(true);
@@ -895,7 +895,7 @@ export default function Meetings() {
                 <span className="truncate">AI Meeting Scribe — {scribeMeeting?.topic}</span>
               </DialogTitle>
               <DialogDescription>
-                Live Hindi transcript and FuerteAI Q&amp;A log for this meeting — recording starts automatically on Join Meet.
+                Live Hindi transcript and CRM Agent Q&amp;A log for this meeting — recording starts automatically on Join Meet.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-3">
@@ -905,7 +905,7 @@ export default function Meetings() {
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
                       {isScribing ? "Listening Continuously..." : "Ready to Record"}
-                      {isScribeThinking && <span className="text-purple-500 normal-case font-semibold animate-pulse">FuerteAI is answering…</span>}
+                      {isScribeThinking && <span className="text-purple-500 normal-case font-semibold animate-pulse">CRM Agent is answering…</span>}
                     </p>
                     <p className="text-xs text-purple-700/80">
                       {isScribing ? "No wake word needed — answers any CRM question immediately, in Hindi." : "Click Record to start capturing meeting audio automatically."}

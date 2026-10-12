@@ -1,4 +1,4 @@
-// ─── Phase 5: FuerteAI voice replies (browser SpeechSynthesis, no API cost) ──
+// ─── Phase 5: CRM Agent voice replies (browser SpeechSynthesis, no API cost) ──
 // speak() reads assistant replies aloud. Callers can pass onStart/onEnd so the
 // assistant can pause the microphone while talking — otherwise the mic hears
 // the assistant's own voice and re-triggers the wake word.

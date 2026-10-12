@@ -1,4 +1,4 @@
-// FuerteAI Logs (Setup → FuerteAI Logs): records what the "Hey CRM" assistant
+// CRM Agent Logs (Setup → CRM Agent Logs): records what the "Hey CRM" assistant
 // heard and did, so admins can see whether voice works for their users and
 // find what to fix. Events are batched and sent every few seconds; logging
 // failures are swallowed so they can never break the assistant itself.

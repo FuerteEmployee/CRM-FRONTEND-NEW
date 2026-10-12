@@ -57,7 +57,7 @@ const SetupFuerteAILogs = () => {
   const [page, setPage] = useState(1);
 
   const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ["fuerte-ai-logs", event, userId, range, query, page],
+    queryKey: ["crm-agent-logs", event, userId, range, query, page],
     queryFn: () =>
       assistantService.getVoiceLogs({
         event: event === "all" ? undefined : event,
@@ -86,7 +86,7 @@ const SetupFuerteAILogs = () => {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
-              <AudioLines className="h-6 w-6 text-primary" /> FuerteAI Logs
+              <AudioLines className="h-6 w-6 text-primary" /> CRM Agent Logs
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Everything the "Hey CRM" assistant heard and did — use it to check voice is working for your team and to
@@ -201,7 +201,7 @@ const SetupFuerteAILogs = () => {
                   ) : logs.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
-                        No FuerteAI activity in this range yet. Say "Hey CRM" or ask the assistant something, then refresh.
+                        No CRM Agent activity in this range yet. Say "Hey CRM" or ask the assistant something, then refresh.
                       </TableCell>
                     </TableRow>
                   ) : (

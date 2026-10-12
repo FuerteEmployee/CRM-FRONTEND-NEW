@@ -2,7 +2,7 @@ import { apiClient } from "../client";
 
 class AssistantService {
   // History is kept server-side per user (Phase 6) — only the message is sent.
-  // `log` = { source, page, browser, session_id } for Setup → FuerteAI Logs.
+  // `log` = { source, page, browser, session_id } for Setup → CRM Agent Logs.
   async chat(message, log) {
     return apiClient.post("/assistant/chat", { message, ...(log ? { log } : {}) });
   }

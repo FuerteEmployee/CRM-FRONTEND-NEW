@@ -1,4 +1,4 @@
-// ─── Shared command routing for the Fuerte AI assistant & global search bar ──
+// ─── Shared command routing for the CRM Agent assistant & global search bar ──
 // Both the floating voice assistant (FuerteAIAssistant) and the top-bar search
 // box resolve a spoken/typed phrase to a route using the maps below.
 

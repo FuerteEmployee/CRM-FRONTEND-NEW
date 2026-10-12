@@ -199,7 +199,7 @@ const setupMenuItems = [
     permission: "Staff Roles",
   },
   { title: "Theme Style", url: "/admin/setup/theme", icon: Palette },
-  { title: "FuerteAI Logs", url: "/admin/setup/fuerte-ai-logs", icon: AudioLines },
+  { title: "CRM Agent Logs", url: "/admin/setup/crm-agent-logs", icon: AudioLines },
   {
     title: "Settings",
     url: "/admin/setup/settings",
@@ -593,7 +593,7 @@ export function AppSidebar() {
     localStorage.setItem("sidebar:openSections", JSON.stringify(openSections));
   }, [openSections]);
 
-  // Open a specific collapsible section when Fuerte AI voice command navigates here
+  // Open a specific collapsible section when CRM Agent voice command navigates here
   useEffect(() => {
     const handler = (e: Event) => {
       const section = (e as CustomEvent<{ section: string }>).detail?.section;

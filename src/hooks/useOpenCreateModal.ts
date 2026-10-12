@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 /**
  * Opens a page's "create" modal when the URL carries `?new=1`.
  *
- * Used by the Fuerte AI voice assistant: when the user says e.g.
+ * Used by the CRM Agent voice assistant: when the user says e.g.
  * "create new task", the assistant navigates to /admin/tasks?new=1 and this
  * hook fires the page's modal-open callback, then strips the param so a
  * refresh/back-navigation doesn't re-open it.
