@@ -41,6 +41,7 @@ import { staffService } from "@/api/services/staff.service";
 import { mainSidebarService } from "@/api/services/mainsidebar.service";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
+import { hasQuotationApproval, QUOTATION_APPROVE_PERMISSION } from "@/lib/quotationApproval";
 
 interface Role {
   _id: string;
@@ -201,6 +202,7 @@ const FEATURE_GROUP_META: Record<string, { group: string; emoji: string }> = {
   "Credit Notes": { group: "Sales & CRM", emoji: "🛍️" },
   "Proposals": { group: "Sales & CRM", emoji: "🛍️" },
   "Contracts": { group: "Sales & CRM", emoji: "🛍️" },
+  "Quotations": { group: "Sales & CRM", emoji: "🛍️" },
 
   "Purchases": { group: "Purchases & Vendors", emoji: "📦" },
   "Vendors": { group: "Purchases & Vendors", emoji: "📦" },
@@ -241,10 +243,10 @@ const FEATURE_GROUP_META: Record<string, { group: string; emoji: string }> = {
 
 type FeatureGroup = { group: string; emoji: string; features: typeof FEATURES_CONFIG };
 
-const GROUPED_FEATURES: FeatureGroup[] = (() => {
+const groupFeatures = (features: typeof FEATURES_CONFIG): FeatureGroup[] => {
   const order: string[] = [];
   const byGroup: Record<string, FeatureGroup> = {};
-  FEATURES_CONFIG.forEach((feature) => {
+  features.forEach((feature) => {
     const meta = FEATURE_GROUP_META[feature.name] || { group: "Other", emoji: "🔧" };
     if (!byGroup[meta.group]) {
       byGroup[meta.group] = { group: meta.group, emoji: meta.emoji, features: [] };
@@ -253,7 +255,7 @@ const GROUPED_FEATURES: FeatureGroup[] = (() => {
     byGroup[meta.group].features.push(feature);
   });
   return order.map((g) => byGroup[g]);
-})();
+};
 
 // ─── Deterministic card icon/color per role, computed from its name — the
 // reference project stores icon/color on the Role document itself, but this
@@ -451,7 +453,13 @@ export default function SetupRolesNew() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, user } = usePermissions();
+  const approvalOn = hasQuotationApproval(user);
+  const features = useMemo(
+    () => (approvalOn ? [...FEATURES_CONFIG, QUOTATION_APPROVE_PERMISSION] : FEATURES_CONFIG),
+    [approvalOn],
+  );
+  const groupedFeatures = useMemo(() => groupFeatures(features), [features]);
 
   const { data: sidebarItems = [] } = useQuery<any[]>({
     queryKey: ["mainsidebar"],
@@ -605,7 +613,7 @@ export default function SetupRolesNew() {
 
   const handleAllPermissionsOn = () => {
     const next: Record<string, string[]> = {};
-    FEATURES_CONFIG.forEach((f) => {
+    features.forEach((f) => {
       next[f.name] = [...f.caps];
     });
     setFormData((prev) => ({ ...prev, permissions: next }));
@@ -700,7 +708,7 @@ export default function SetupRolesNew() {
               const activeFeatures = new Set(
                 Object.keys(frontendPerms).filter((f) => (frontendPerms[f]?.length || 0) > 0),
               );
-              const matchedGroups = GROUPED_FEATURES.filter((g) =>
+              const matchedGroups = groupedFeatures.filter((g) =>
                 g.features.some((f) => activeFeatures.has(f.name)),
               );
               const landingLabel =
@@ -941,7 +949,7 @@ export default function SetupRolesNew() {
                 </div>
 
                 <div className="space-y-2">
-                  {GROUPED_FEATURES.map((group) => (
+                  {groupedFeatures.map((group) => (
                     <PermissionGroupPanel
                       key={group.group}
                       group={group}

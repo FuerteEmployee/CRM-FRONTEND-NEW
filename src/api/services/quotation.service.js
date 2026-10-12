@@ -36,6 +36,27 @@ class QuotationService {
   async delete(id) {
     return apiClient.delete(`/quotations/${id}`);
   }
+
+  // Approval flow (tenant add-on "quotation_approval").
+  async requestApproval(id) {
+    return apiClient.post(`/quotations/${id}/request-approval`);
+  }
+
+  async approve(id, comment) {
+    return apiClient.post(`/quotations/${id}/approve`, { comment });
+  }
+
+  async reject(id, comment) {
+    return apiClient.post(`/quotations/${id}/reject`, { comment });
+  }
+
+  async getPendingApprovals() {
+    return apiClient.get("/quotations/approvals/pending");
+  }
+
+  async getApprovalHistory(id) {
+    return apiClient.get(`/quotations/${id}/approval-history`);
+  }
 }
 
 export const quotationService = new QuotationService();

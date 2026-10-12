@@ -41,6 +41,7 @@ import { supportService } from "@/api/services/support.service";
 import { customerService } from "@/api/services/customer.service";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
+import { hasQuotationApproval, QUOTATION_APPROVE_PERMISSION } from "@/lib/quotationApproval";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -257,7 +258,9 @@ export default function SetupStaffForm() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showPassword, setShowPassword] = useState(false);
-  const { can, isStaff, isModuleEnabled } = usePermissions();
+  const { can, isStaff, isModuleEnabled, user } = usePermissions();
+  // Quotation approval add-on adds a "Quotations > Approve" row.
+  const permissionFeatures = hasQuotationApproval(user) ? [...FEATURES_CONFIG, QUOTATION_APPROVE_PERMISSION] : FEATURES_CONFIG;
   const basePath = isStaff ? "/staff" : "/admin";
   // Employment Details / Salary & Banking / Legal Documents are HRMS-only
   // fields — a tenant whose plan doesn't include the HRMS module shouldn't
@@ -2038,7 +2041,7 @@ export default function SetupStaffForm() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {FEATURES_CONFIG.map((feature) => (
+                  {permissionFeatures.map((feature) => (
                     <TableRow
                       key={feature.name}
                      

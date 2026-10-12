@@ -16,6 +16,7 @@ import { staffService } from "@/api/services/staff.service";
 import { mainSidebarService } from "@/api/services/mainsidebar.service";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
+import { hasQuotationApproval, QUOTATION_APPROVE_PERMISSION } from "@/lib/quotationApproval";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 interface Permission {
@@ -204,7 +205,11 @@ export default function SetupRolesLegacy() {
 
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, user } = usePermissions();
+  const features = useMemo(
+    () => (hasQuotationApproval(user) ? [...FEATURES_CONFIG, QUOTATION_APPROVE_PERMISSION] : FEATURES_CONFIG),
+    [user],
+  );
 
   const { data: sidebarItems = [] } = useQuery<any[]>({
     queryKey: ["mainsidebar"],
@@ -550,7 +555,7 @@ export default function SetupRolesLegacy() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {FEATURES_CONFIG.map((feature) => (
+                {features.map((feature) => (
                   <TableRow key={feature.name}>
                     <TableCell>
                       <span className="font-medium">{feature.name}</span>

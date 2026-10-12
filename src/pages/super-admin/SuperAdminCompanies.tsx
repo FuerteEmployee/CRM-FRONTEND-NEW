@@ -56,6 +56,7 @@ const TENANT_FEATURES: { key: string; label: string; hint: string }[] = [
   { key: "patient_conversion", label: "Patient conversion & treatment", hint: "Convert with treatment + amount, treatment totals" },
   { key: "lead_followups", label: "Follow-up reminders dashboard", hint: "Today / overdue / upcoming follow-ups on Leads" },
   { key: "face_attendance", label: "HRMS Face Attendance (BOT Lens)", hint: "Face kiosk punch in/out + selfie face check for enrolled staff" },
+  { key: "quotation_approval", label: "Quotation approval", hint: "Makers request approval; staff with Quotations > Approve sign off before sending" },
 ];
 
 const STATUS_CONFIG = {
@@ -795,6 +796,9 @@ export default function SuperAdminCompanies() {
                     type={showPassword ? "text" : "password"}
                     value={manageForm.password}
                     onChange={(e) => setManageForm({ ...manageForm, password: e.target.value })}
+                    // Stop the browser autofilling a saved password here — a
+                    // silent autofill would reset the owner's password on Save.
+                    autoComplete="new-password"
                     className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-10 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                     placeholder="Leave blank to keep current password"
                   />
