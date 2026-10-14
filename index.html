@@ -260,21 +260,25 @@
         try {
           const host = window.location.hostname;
           const isTrinetra = host.includes("trinetratechnoworld") || host.includes("erp.");
-          
+          const isKiran = host.includes("kiranenginers");
+
           // Dynamically change the manifest file link for PWA install based on domain
           const updateManifest = () => {
             const manifestEl = document.getElementById("app-manifest");
             if (manifestEl) {
-              const manifestUrl = isTrinetra ? "/manifest-trinetra.json" : "/manifest.webmanifest";
+              const manifestUrl = isTrinetra ? "/manifest-trinetra.json" : isKiran ? "/manifest-kiran.json" : "/manifest.webmanifest";
               manifestEl.setAttribute("href", manifestUrl);
             }
+            // iPhone "Add to Home Screen" reads apple-touch-icon, not the manifest
+            const appleIcon = document.querySelector("link[rel='apple-touch-icon']");
+            if (appleIcon && isKiran) appleIcon.setAttribute("href", "/icons/kiran-apple-180.png");
           };
           updateManifest();
           window.addEventListener("DOMContentLoaded", updateManifest);
-          
+
           // Determine default favicon and title
-          const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : "/favicon.ico";
-          const defaultTitle = isTrinetra ? "Trinetra TechnoWorld" : "Fuerte Developers";
+          const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : isKiran ? "/icons/kiran-192.png" : "/favicon.ico";
+          const defaultTitle = isTrinetra ? "Trinetra TechnoWorld" : isKiran ? "Kiran HRMS" : "Fuerte Developers";
           
           const cachedFavicon = localStorage.getItem("crm_favicon") || defaultFavicon;
           if (cachedFavicon) {
