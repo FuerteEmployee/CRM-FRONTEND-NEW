@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { DataTable } from "@/components/shared/DataTable";
 import { DEFAULT_WHATSAPP_QC_TEMPLATES, type WhatsappQcTemplateEntry } from "@/lib/whatsappQuickChat";
 import { WhatsappQuickChatSettingsTab } from "./WhatsappQuickChatSettingsTab";
+import { ClaudeConnectorSettingsTab } from "./ClaudeConnectorSettingsTab";
 import { usePermissions } from "@/hooks/usePermissions";
 import { getAvailableInvoicePdfFormats, DEFAULT_INVOICE_PDF_FORMAT } from "@/lib/invoicePdfFormats";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -142,6 +143,7 @@ const settingsNavigation: SettingCategory[] = [
       { id: "int-pusher", label: "Pusher.com", icon: ExternalLink },
       { id: "int-external-api", label: "External APIs", icon: Plug },
       { id: "int-whatsapp-qc", label: "WhatsApp Quick Chat", icon: MessageCircle },
+      { id: "int-claude", label: "Claude Connector", icon: Bot },
     ]
   },
   {
@@ -1548,6 +1550,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                 onPersisted={refreshGlobalSettings}
               />
             )}
+
+            {activeTab === "int-claude" && <ClaudeConnectorSettingsTab />}
 
             {activeTab === "gen-company" && (
               <Card className="border shadow-sm">
