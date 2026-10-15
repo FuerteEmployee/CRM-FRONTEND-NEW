@@ -21,21 +21,21 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // used as the non-Trinetra fallback. Leaving it empty here means the real
     // fallback chain (OG Image, then the neutral monogram UI already built
     // into Login/ClientLogin) takes over correctly once refreshSettings runs.
-    const defaultCompanyName = isTrinetra ? "Trinetra TechnoWorld" : "Fuerte Developers";
-    const defaultLogoLight = isTrinetra ? "/trinetra-logo.jpg" : "";
-    const defaultLogoDark = isTrinetra ? "/trinetra-logo.jpg" : "";
-    const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : "/favicon.ico";
-
-    const cachedName = localStorage.getItem("crm_company_name") || defaultCompanyName;
+    const defaultCompanyName = isTrinetra ? "Trinetra TechnoWorld" : "";
+    const rawCachedName = localStorage.getItem("crm_company_name") || defaultCompanyName;
+    const cachedName = (rawCachedName === "Fuerte CRM" || rawCachedName === "Fuerte Developers" || rawCachedName === "CRMPro" || rawCachedName === "CRM Pro Inc.") ? "" : rawCachedName;
     const cachedFavicon = localStorage.getItem("crm_favicon") || defaultFavicon;
     const cachedLogoLight = localStorage.getItem("crm_comp_logo_light") || defaultLogoLight;
     const cachedLogoDark = localStorage.getItem("crm_comp_logo_dark") || defaultLogoDark;
+    
+    const cachedAiAgentName = localStorage.getItem("crm_ai_agent_name") || "CRM Agent";
     
     const initial: Record<string, any> = {
       companyName: cachedName,
       favicon: cachedFavicon,
       compLogoLight: cachedLogoLight,
-      compLogoDark: cachedLogoDark
+      compLogoDark: cachedLogoDark,
+      aiAgentName: cachedAiAgentName,
     };
     return initial;
   });
@@ -104,8 +104,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           settingsMap.favicon = "/trinetra-icon.jpg";
         }
       } else {
-        if (!settingsMap.companyName || settingsMap.companyName === "CRMPro" || settingsMap.companyName === "Trinetra TechnoWorld" || settingsMap.companyName === "Fuerte Developers") {
-          settingsMap.companyName = "Fuerte Developers";
+        if (settingsMap.companyName === "CRMPro" || settingsMap.companyName === "Trinetra TechnoWorld" || settingsMap.companyName === "Fuerte Developers" || settingsMap.companyName === "Fuerte CRM" || settingsMap.companyName === "CRM Pro Inc.") {
+          settingsMap.companyName = "";
         }
         // No non-Trinetra tenant has a real default logo file to fall back
         // to (logo-icon.png is mislabeled — see the comment above the
@@ -123,7 +123,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           settingsMap.favicon = "/favicon.ico";
         }
       }
-      
+
+      if (!settingsMap.aiAgentName) {
+        settingsMap.aiAgentName = localStorage.getItem("crm_ai_agent_name") || "CRM Agent";
+      }
+
       setSettings(settingsMap);
     } catch (error) {
       console.error("Failed to fetch settings:", error);
@@ -138,9 +142,15 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Apply global branding dynamically
   useEffect(() => {
+    if (settings.aiAgentName) {
+      localStorage.setItem("crm_ai_agent_name", settings.aiAgentName);
+    }
     if (settings.companyName) {
       document.title = settings.companyName;
       localStorage.setItem("crm_company_name", settings.companyName);
+    } else {
+      document.title = "CRM";
+      localStorage.removeItem("crm_company_name");
     }
     if (settings.compLogoLight) {
       localStorage.setItem("crm_comp_logo_light", settings.compLogoLight);

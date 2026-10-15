@@ -35,6 +35,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
+import { useSettings } from "@/context/SettingsContext";
 
 const memberLabel = (m: any) =>
   typeof m === "string" ? m : [m?.firstname, m?.lastname].filter(Boolean).join(" ") || m?.email || m?._id;
@@ -47,6 +48,8 @@ export default function Meetings() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { getSetting } = useSettings();
+  const aiAgentName = getSetting("aiAgentName", "CRM Agent");
   const { user, isModuleEnabled } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
   const canUseBranch = isPilot && isModuleEnabled("hrms");
@@ -172,7 +175,7 @@ export default function Meetings() {
         // question_en/asked_by aren't in this schema — fall back to the raw
         // speech chunk that triggered this turn as the "question heard" line.
         const qLine = newChunk.trim() ? `\n❓ ${newChunk.trim()}` : "";
-        const aLine = turn.r ? `\n✅ CRM Agent: ${turn.r}` : "";
+        const aLine = turn.r ? `\n✅ ${aiAgentName}: ${turn.r}` : "";
         const updated = `${prev}${qLine}${aLine}`;
         scribeProcessedLenRef.current = updated.length; // don't answer our own Q&A entry
         return updated;
@@ -429,7 +432,7 @@ export default function Meetings() {
     resetSpeechTranscript();
     startListening({ continuous: true, language: scribeLanguage });
     setIsScribing(true);
-    toast({ title: "CRM Agent Scribe Active", description: "Listening continuously — it answers any CRM question immediately, in Hindi, no wake word needed." });
+    toast({ title: `${aiAgentName} Scribe Active`, description: "Listening continuously — it answers any CRM question immediately, in Hindi, no wake word needed." });
   };
 
   // Manually test a single line without a live meeting — always returns a
@@ -895,7 +898,7 @@ export default function Meetings() {
                 <span className="truncate">AI Meeting Scribe — {scribeMeeting?.topic}</span>
               </DialogTitle>
               <DialogDescription>
-                Live Hindi transcript and CRM Agent Q&amp;A log for this meeting — recording starts automatically on Join Meet.
+                Live Hindi transcript and {aiAgentName} Q&amp;A log for this meeting — recording starts automatically on Join Meet.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-3">
@@ -905,7 +908,7 @@ export default function Meetings() {
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
                       {isScribing ? "Listening Continuously..." : "Ready to Record"}
-                      {isScribeThinking && <span className="text-purple-500 normal-case font-semibold animate-pulse">CRM Agent is answering…</span>}
+                      {isScribeThinking && <span className="text-purple-500 normal-case font-semibold animate-pulse">{aiAgentName} is answering…</span>}
                     </p>
                     <p className="text-xs text-purple-700/80">
                       {isScribing ? "No wake word needed — answers any CRM question immediately, in Hindi." : "Click Record to start capturing meeting audio automatically."}

@@ -10,6 +10,7 @@ import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
 import { assistantService } from "@/api/services/assistant.service";
 import { logVoiceEvent, voiceLogMeta } from "@/lib/voiceLog";
 import { speak, stopSpeaking, isVoiceReplyEnabled, setVoiceReplyEnabled, speechSupported } from "@/lib/speak";
+import { useSettings } from "@/context/SettingsContext";
 
 // Wake phrase is English ("Hey CRM") instead of the Spanish brand name
 // ("Fuerte") because the en-US recognizer mishears "Fuerte" constantly,
@@ -74,6 +75,8 @@ const ROUTE_PERMISSION_MAP: Record<string, string> = {
 type AIState = "sleeping" | "listening" | "awake";
 
 export function FuerteAIAssistant() {
+  const { getSetting } = useSettings();
+  const aiAgentName = getSetting("aiAgentName", "CRM Agent");
   const [aiState, setAIState] = useState<AIState>("sleeping");
   const [tooltip, setTooltip] = useState(false);
   const aiStateRef = useRef<AIState>("sleeping");
@@ -124,9 +127,9 @@ export function FuerteAIAssistant() {
     try {
       await assistantService.clearHistory();
       setChatMessages([]);
-      toast({ title: "CRM Agent", description: "Conversation cleared." });
+      toast({ title: aiAgentName, description: "Conversation cleared." });
     } catch {
-      toast({ title: "CRM Agent", description: "Could not clear the conversation.", variant: "destructive" });
+      toast({ title: aiAgentName, description: "Could not clear the conversation.", variant: "destructive" });
     }
   };
 
@@ -143,12 +146,12 @@ export function FuerteAIAssistant() {
     if (next) {
       startListening({ continuous: true, language: "en-US" });
       changeState("listening");
-      toast({ title: "CRM Agent", description: 'Hands-free mode on — just say "Hey CRM" anytime.' });
+      toast({ title: aiAgentName, description: `Hands-free mode on — say "Hey ${aiAgentName}" or "Hey CRM" anytime.` });
     } else {
       stopListening();
       stopSpeaking();
       changeState("sleeping");
-      toast({ title: "CRM Agent", description: "Hands-free mode off. Click the button to use voice." });
+      toast({ title: aiAgentName, description: "Hands-free mode off. Click the button to use voice." });
     }
   };
 
@@ -247,7 +250,7 @@ useEffect(() => {
     setSpeechError(code);
     logVoiceEvent("speech_error", { detail: code });
     toast({
-      title: "CRM Agent — voice not working",
+      title: `${aiAgentName} — voice not working`,
       description: SPEECH_ERROR_MESSAGES[code] || `Speech recognition error: ${code}`,
       variant: "destructive",
     });
@@ -293,7 +296,7 @@ useEffect(() => {
     consumedRef.current = 0;
     if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
     toast({
-      title: "CRM Agent",
+      title: aiAgentName,
       description: "Microphone access is blocked for this site. Check your browser's site permissions and allow microphone access, then try again.",
       variant: "destructive",
     });
@@ -311,7 +314,7 @@ useEffect(() => {
   if (!isSecureCtx) {
     logVoiceEvent("speech_error", { detail: "insecure-context (page not on https)" });
     toast({
-      title: "CRM Agent",
+      title: aiAgentName,
       description: "Voice control needs a secure (https) connection. This page is loaded over plain http, so the browser won't allow microphone access here.",
       variant: "destructive",
     });
@@ -360,10 +363,10 @@ const toggleListening = () => {
     setTooltip(false);
     if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
     logVoiceEvent("mic_off");
-    toast({ title: "CRM Agent", description: "Microphone off. AI is sleeping." });
+    toast({ title: aiAgentName, description: "Microphone off. AI is sleeping." });
   } else if (!isSecureCtx) {
     toast({
-      title: "CRM Agent",
+      title: aiAgentName,
       description: "Voice control needs a secure (https) connection. This page is loaded over plain http, so the browser won't allow microphone access here.",
       variant: "destructive",
     });
@@ -393,9 +396,9 @@ const toggleListening = () => {
       resetTranscript();
       consumedRef.current = 0;
       logVoiceEvent("timeout");
-      toast({ title: "CRM Agent", description: "No command heard. Back to listening…" });
+      toast({ title: aiAgentName, description: "No command heard. Back to listening…" });
     }, 30000);
-    toast({ title: "CRM Agent", description: 'Awake! Say your command (e.g. "open Task")' });
+    toast({ title: aiAgentName, description: 'Awake! Say your command (e.g. "open Task")' });
   }
 };
 
@@ -415,7 +418,7 @@ const askFuerteAI = async (text: string, source: "voice" | "typed" = "voice") =>
 
     if (result?.navigateTo) {
       if (!canAccessRoute(result.navigateTo)) {
-        toast({ title: "CRM Agent", description: "You don't have access to that section.", variant: "destructive" });
+        toast({ title: aiAgentName, description: "You don't have access to that section.", variant: "destructive" });
       } else {
         navigate(applyBasePath(result.navigateTo, isStaff));
       }
@@ -424,13 +427,13 @@ const askFuerteAI = async (text: string, source: "voice" | "typed" = "voice") =>
     if (result?.reply) {
       setChatMessages((prev) => [...prev, { role: "assistant", text: result.reply }]);
       // Voice-only flow (panel closed): still surface the answer as a toast
-      if (!tooltip) toast({ title: "CRM Agent", description: result.reply });
+      if (!tooltip) toast({ title: aiAgentName, description: result.reply });
       speakReply(result.reply);
     }
   } catch (error: any) {
     const msg = error?.response?.data?.message || "Something went wrong. Please try again.";
     setChatMessages((prev) => [...prev, { role: "assistant", text: msg }]);
-    toast({ title: "CRM Agent", description: msg, variant: "destructive" });
+    toast({ title: aiAgentName, description: msg, variant: "destructive" });
   } finally {
     setIsThinking(false);
   }
@@ -447,7 +450,10 @@ const handleTranscript = (cmd: string) => {
   // Strip punctuation the recognizer sometimes inserts into acronyms
   // (e.g. "Hey C.R.M." or "Hey, CRM!") before comparing.
   const wakeCmd = cmd.replace(/[.,!?]/g, "").trim();
-  const wakeWord = WAKE_WORDS.find((w) => wakeCmd.includes(w));
+  const customWake = `hey ${aiAgentName.toLowerCase().replace(/[.,!?]/g, "").trim()}`;
+  const dynamicWakeWords = [...WAKE_WORDS];
+  if (!dynamicWakeWords.includes(customWake)) dynamicWakeWords.push(customWake);
+  const wakeWord = dynamicWakeWords.find((w) => wakeCmd.includes(w));
   if (wakeWord) {
     // Extract anything said AFTER the wake word in the same utterance
     const afterWake = wakeCmd.slice(wakeCmd.indexOf(wakeWord) + wakeWord.length).trim();
@@ -468,13 +474,13 @@ const handleTranscript = (cmd: string) => {
       if (match) {
         if (!canAccessRoute(match.route)) {
           logVoiceEvent("no_access", { heard: afterWake, result: match.label });
-          toast({ title: "CRM Agent", description: `You don't have access to ${match.label}.`, variant: "destructive" });
+          toast({ title: aiAgentName, description: `You don't have access to ${match.label}.`, variant: "destructive" });
           speakReply(`You don't have access to ${match.label}.`);
           changeState("listening");
           return;
         }
         logVoiceEvent("command", { heard: afterWake, result: match.label });
-        toast({ title: "CRM Agent", description: `Opening ${match.label}…` });
+        toast({ title: aiAgentName, description: `Opening ${match.label}…` });
         speakReply(`Opening ${match.label}`);
         if (match.section) {
           window.dispatchEvent(new CustomEvent("fuerte:open-section", { detail: { section: match.section } }));
@@ -494,9 +500,9 @@ const handleTranscript = (cmd: string) => {
       resetTranscript();
       consumedRef.current = 0;
       logVoiceEvent("timeout");
-      toast({ title: "CRM Agent", description: "No command heard. Back to listening…" });
+      toast({ title: aiAgentName, description: "No command heard. Back to listening…" });
     }, 30000);
-    toast({ title: "CRM Agent", description: 'Listening for your command… (e.g. "open Task")' });
+    toast({ title: aiAgentName, description: 'Listening for your command… (e.g. "open Task")' });
     return;
   }
 
@@ -508,7 +514,7 @@ const handleTranscript = (cmd: string) => {
   if (match) {
     if (!canAccessRoute(match.route)) {
       logVoiceEvent("no_access", { heard: cmd, result: match.label });
-      toast({ title: "CRM Agent", description: `You don't have access to ${match.label}.`, variant: "destructive" });
+      toast({ title: aiAgentName, description: `You don't have access to ${match.label}.`, variant: "destructive" });
       speakReply(`You don't have access to ${match.label}.`);
       changeState("listening");
       // Consume without touching the mic — so a follow-up command right after
@@ -518,7 +524,7 @@ const handleTranscript = (cmd: string) => {
       return;
     }
     logVoiceEvent("command", { heard: cmd, result: match.label });
-    toast({ title: "CRM Agent", description: `Opening ${match.label}…` });
+    toast({ title: aiAgentName, description: `Opening ${match.label}…` });
     speakReply(`Opening ${match.label}`);
     if (match.section) {
       window.dispatchEvent(new CustomEvent("fuerte:open-section", { detail: { section: match.section } }));
@@ -549,7 +555,7 @@ const handleTranscript = (cmd: string) => {
       askFuerteAI(heard);
     } else {
       logVoiceEvent("timeout");
-      toast({ title: "CRM Agent", description: "No command heard. Back to listening…" });
+      toast({ title: aiAgentName, description: "No command heard. Back to listening…" });
     }
   }, 3000);
 };
@@ -581,14 +587,14 @@ const fabLabel = isThinking
     : aiState === "awake"
       ? "Listening…"
       : aiState === "listening"
-        ? 'Say "Hey CRM"'
-        : "CRM Agent";
+        ? `Say "Hey ${aiAgentName}"`
+        : aiAgentName;
 
 const statusLabel =
   aiState === "awake"
     ? "Say a command…"
     : aiState === "listening"
-      ? 'Say "Hey CRM" to wake me'
+      ? `Say "Hey ${aiAgentName}" to wake me`
       : "Microphone off";
 
 const statusDot =
@@ -612,7 +618,7 @@ return (
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${statusDot}`} />
-            <span className="text-sm font-bold text-gray-800">CRM Agent</span>
+            <span className="text-sm font-bold text-gray-800">{aiAgentName}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <button
@@ -751,7 +757,7 @@ return (
             }`}>
             {isThinking ? "Thinking…" : isSpeaking ? "Speaking…" : aiState === "awake" ? "Awake" : "Listening"}
           </span>
-          <span className="text-[10px] text-gray-400">CRM Agent</span>
+          <span className="text-[10px] text-gray-400">{aiAgentName}</span>
         </div>
       </div>
     )}
@@ -759,7 +765,7 @@ return (
     {/* ── FAB button — CRM-styled pill that expands on hover ── */}
     <button
       onClick={toggleListening}
-      title={aiState === "awake" ? "Stop CRM Agent" : "Wake CRM Agent"}
+      title={aiState === "awake" ? `Stop ${aiAgentName}` : `Wake ${aiAgentName}`}
       className="group relative"
     >
       {/* Soft ping ring while the mic is live */}

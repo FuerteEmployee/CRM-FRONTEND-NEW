@@ -79,7 +79,9 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Loader2
+  Loader2,
+  Bot,
+  Sparkles
 } from "lucide-react";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
@@ -200,8 +202,15 @@ export default function SetupSettings() {
 
   const [rtlAdmin, setRtlAdmin] = useState(() => getInit("rtlAdmin", false));
   const [rtlCustomers, setRtlCustomers] = useState(() => getInit("rtlCustomers", false));
-  const [companyName, setCompanyName] = useState(() => getInit("companyName", "CRM Pro Inc."));
+  const [companyName, setCompanyName] = useState(() => {
+    const val = getInit("companyName", "");
+    if (val === "CRM Pro Inc." || val === "Fuerte CRM" || val === "Fuerte Developers" || val === "CRMPro" || val === "Trinetra TechnoWorld") {
+      return "";
+    }
+    return val || "";
+  });
   const [companyDomain, setCompanyDomain] = useState(() => getInit("companyDomain", ""));
+  const [aiAgentName, setAiAgentName] = useState(() => getInit("aiAgentName", "CRM Agent"));
   const [allowedFileTypes, setAllowedFileTypes] = useState(() => getInit("allowedFileTypes", "pdf,doc,docx,jpg,png,zip"));
   const [whatsappQcEnabled, setWhatsappQcEnabled] = useState(() => getInit("whatsappQcEnabled", false));
   const [whatsappQcTemplates, setWhatsappQcTemplates] = useState<WhatsappQcTemplateEntry[]>(
@@ -795,6 +804,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
     whatsappQcTemplates: [whatsappQcTemplates, setWhatsappQcTemplates],
     companyName: [companyName, setCompanyName],
     companyDomain: [companyDomain, setCompanyDomain],
+    aiAgentName: [aiAgentName, setAiAgentName],
     allowedFileTypes: [allowedFileTypes, setAllowedFileTypes],
     locDisableLanguages: [locDisableLanguages, setLocDisableLanguages],
     locClientPdfLanguage: [locClientPdfLanguage, setLocClientPdfLanguage],
@@ -1197,6 +1207,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
           if (stateMapping[s.name]) {
             const [currentVal, setter] = stateMapping[s.name];
             let val = s.value;
+            if (s.name === "companyName" && (val === "CRM Pro Inc." || val === "Fuerte CRM" || val === "Fuerte Developers" || val === "CRMPro" || val === "Trinetra TechnoWorld")) {
+              val = "";
+            }
 
             // Comprehensive type handling for dynamic settings
             if (typeof currentVal === "boolean") {
@@ -1461,6 +1474,21 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         onChange={(e) => setCompanyDomain(e.target.value)}
                         className="max-w-md"
                       />
+                    </div>
+                    <div className="space-y-2 pt-2 border-t">
+                      <Label className="text-sm font-semibold flex items-center gap-2">
+                        <Bot className="h-4 w-4 text-primary" />
+                        AI Agent Name (Assistant Name)
+                      </Label>
+                      <Input
+                        placeholder="e.g. CRM Agent, Fuerte AI, Jarvis..."
+                        value={aiAgentName}
+                        onChange={(e) => setAiAgentName(e.target.value)}
+                        className="max-w-md"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Set the custom name for your CRM's AI Assistant (voice bot, chat widget, meeting scribe, and system prompts). Default: CRM Agent.
+                      </p>
                     </div>
                   </div>
 

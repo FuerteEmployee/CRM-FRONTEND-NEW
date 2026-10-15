@@ -405,7 +405,8 @@ export default function CustomerView() {
   // domains (trinetratechnoworld.com, erp.*) get a different fallback here;
   // every other tenant keeps seeing "Fuerte CRM" exactly as before.
   const isTrinetraHost = window.location.hostname.includes("trinetratechnoworld") || window.location.hostname.includes("erp.");
-  const companyName = getSetting("companyName", isTrinetraHost ? "Trinetra TechnoWorld" : "Fuerte CRM");
+  const rawCompName = getSetting("companyName", "");
+  const companyName = rawCompName && rawCompName !== "Fuerte CRM" && rawCompName !== "Fuerte Developers" && rawCompName !== "CRMPro" && rawCompName !== "CRM Pro Inc." ? rawCompName : (isTrinetraHost ? "Trinetra TechnoWorld" : "CRM");
   const { formatAmount } = useCurrency();
   const { data: currencies = [] } = useQuery<any[]>({
     queryKey: ["currencies"],

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { assistantService } from "@/api/services/assistant.service";
+import { useSettings } from "@/context/SettingsContext";
 
 // Event → label, colour and what it tells an admin. Order = summary card order.
 const EVENTS: Record<string, { label: string; badge: string; hint: string }> = {
@@ -49,6 +50,8 @@ const rangeStart = (key: string): string | undefined => {
 };
 
 const SetupFuerteAILogs = () => {
+  const { getSetting } = useSettings();
+  const aiAgentName = getSetting("aiAgentName", "CRM Agent");
   const [event, setEvent] = useState("all");
   const [userId, setUserId] = useState("all");
   const [range, setRange] = useState("7d");
@@ -86,10 +89,10 @@ const SetupFuerteAILogs = () => {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
-              <AudioLines className="h-6 w-6 text-primary" /> CRM Agent Logs
+              <AudioLines className="h-6 w-6 text-primary" /> {aiAgentName} Logs
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Everything the "Hey CRM" assistant heard and did — use it to check voice is working for your team and to
+              Everything the {aiAgentName} assistant heard and did — use it to check voice is working for your team and to
               find phrases or errors to fix. Kept for 90 days.
             </p>
           </div>
@@ -201,7 +204,7 @@ const SetupFuerteAILogs = () => {
                   ) : logs.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
-                        No CRM Agent activity in this range yet. Say "Hey CRM" or ask the assistant something, then refresh.
+                        No {aiAgentName} activity in this range yet. Say "Hey {aiAgentName}" or ask the assistant something, then refresh.
                       </TableCell>
                     </TableRow>
                   ) : (

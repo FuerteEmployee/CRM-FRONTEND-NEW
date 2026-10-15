@@ -318,7 +318,9 @@ export function AppSidebar() {
   const { getSetting, settings, refreshSettings } = useSettings();
   const { chatUnreadCount } = useNotificationContext();
 
-  const companyName = getSetting("companyName", "Trinetra TechnoWorld");
+  const rawCompanyName = getSetting("companyName", "");
+  const companyName = (rawCompanyName && rawCompanyName !== "Fuerte CRM" && rawCompanyName !== "Fuerte Developers" && rawCompanyName !== "CRMPro" && rawCompanyName !== "CRM Pro Inc.") ? rawCompanyName : "CRM";
+  const aiAgentName = getSetting("aiAgentName", "CRM Agent");
   const logoLight = resolveImageUrl(getSetting("compLogoLight", ""));
   const [logoError, setLogoError] = useState(false);
 
@@ -329,9 +331,12 @@ export function AppSidebar() {
     return !key || isModuleEnabled(key);
   };
   const visibleSetupItems = setupMenuItems
-    .map((item: any) =>
-      item.subItems ? { ...item, subItems: item.subItems.filter((sub: any) => inPlan(sub.url)) } : item
-    )
+    .map((item: any) => {
+      const title = item.url === "/admin/setup/crm-agent-logs" ? `${aiAgentName} Logs` : item.title;
+      return item.subItems
+        ? { ...item, title, subItems: item.subItems.filter((sub: any) => inPlan(sub.url)) }
+        : { ...item, title };
+    })
     .filter((item: any) => {
       if (!inPlan(item.url)) return false;
       if (item.subItems && item.subItems.length === 0) return false;
