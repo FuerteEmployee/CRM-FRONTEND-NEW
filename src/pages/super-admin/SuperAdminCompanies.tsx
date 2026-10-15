@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Building2, Plus, Search, Activity, Ban, PlayCircle,
   Package, CheckCircle2, XCircle, Settings, Clock,
-  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell, Globe, RefreshCw, Phone
+  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell, Globe, RefreshCw, Phone, Link2, Copy
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -38,6 +38,7 @@ interface Tenant {
   company_name: string;
   subdomain?: string;
   custom_domains?: string[];
+  login_code?: string;
   plan_id: SaasPlan | null;
   owner_id: Owner | null;
   status: "active" | "inactive" | "trial" | "expired";
@@ -67,7 +68,26 @@ const STATUS_CONFIG = {
 };
 
 const DEFAULT_CREATE = { company_name: "", email: "", phonenumber: "", password: "", plan_id: "", custom_domains: "" };
-const DEFAULT_MANAGE = { company_name: "", email: "", phonenumber: "", password: "", plan_id: "", status: "trial" as Tenant["status"], custom_domains: "", enabled_features: [] as string[] };
+const DEFAULT_MANAGE = { company_name: "", email: "", phonenumber: "", password: "", plan_id: "", status: "trial" as Tenant["status"], custom_domains: "", login_code: "", enabled_features: [] as string[] };
+
+// A company's own login link on the shared domain: its logo, name and favicon
+// show on the login page (see src/lib/brand.ts). Built from the address this
+// super admin panel is open on, so it matches the server it was copied from.
+const companyLoginLink = (code: string) => `${window.location.origin}/admin/login?company=${encodeURIComponent(code)}`;
+
+// Suggested code from the company name: "City Smile Pvt Ltd" -> "city-smile-pvt-ltd".
+const suggestLoginCode = (name: string) =>
+  name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+
+const copyLoginLink = async (code: string) => {
+  const link = companyLoginLink(code);
+  try {
+    await navigator.clipboard.writeText(link);
+    toast.success("Login link copied", { description: link });
+  } catch {
+    window.prompt("Copy this login link:", link);
+  }
+};
 
 type FieldErrors = { email?: string; phone?: string };
 // Backend account rules answer 400 { message, field: "email" | "phone" }.
@@ -250,6 +270,7 @@ export default function SuperAdminCompanies() {
       plan_id: tenant.plan_id?._id || "",
       status: tenant.status,
       custom_domains: (tenant.custom_domains || []).join(", "),
+      login_code: tenant.login_code || "",
       enabled_features: tenant.enabled_features || [],
     });
     setManageErrors({});
@@ -516,6 +537,18 @@ export default function SuperAdminCompanies() {
                           <Edit className="h-3.5 w-3.5 mr-1.5" />
                           Edit
                         </Button>
+                        {tenant.login_code && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyLoginLink(tenant.login_code!)}
+                            title={companyLoginLink(tenant.login_code)}
+                            className="h-8 text-xs font-medium text-gray-600 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50"
+                          >
+                            <Link2 className="h-3.5 w-3.5 mr-1.5" />
+                            Copy link
+                          </Button>
+                        )}
                         {tenant.status === "inactive" ? (
                           <Button
                             variant="outline"
@@ -749,6 +782,48 @@ export default function SuperAdminCompanies() {
                 <p className="text-[11px] text-gray-400">
                   Locks login + branding to this customer on this domain. Leave blank for the shared multi-tenant domain.
                 </p>
+              </div>
+
+              {/* Login code — this company's own login link on the shared domain */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Login Code (optional)</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={manageForm.login_code}
+                      onChange={(e) => setManageForm({ ...manageForm, login_code: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 40) })}
+                      className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      placeholder={`e.g. ${suggestLoginCode(manageForm.company_name) || "acme"}`}
+                    />
+                  </div>
+                  {!manageForm.login_code && manageForm.company_name && (
+                    <button
+                      type="button"
+                      onClick={() => setManageForm({ ...manageForm, login_code: suggestLoginCode(manageForm.company_name) })}
+                      className="px-3 rounded-lg border border-gray-300 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                    >
+                      Suggest
+                    </button>
+                  )}
+                </div>
+                {manageForm.login_code ? (
+                  <div className="flex items-center gap-2 text-[11px] text-gray-500">
+                    <span className="truncate">{companyLoginLink(manageForm.login_code)}</span>
+                    <button
+                      type="button"
+                      onClick={() => copyLoginLink(manageForm.login_code)}
+                      className="inline-flex items-center gap-1 text-blue-600 font-semibold hover:underline shrink-0"
+                    >
+                      <Copy className="h-3 w-3" /> Copy
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-gray-400">
+                    Gives this company its own login link with its logo and name. Only changes branding, not who can log in.
+                  </p>
+                )}
               </div>
 
               {/* Email */}

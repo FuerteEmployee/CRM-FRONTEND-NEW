@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { queryClient } from "@/lib/queryClient";
 import { getAccessToken, getRefreshToken, refreshAccessToken } from "@/lib/session";
+import { rememberBrandTenant } from "@/lib/brand";
 
 interface User {
   _id: string;
@@ -206,6 +207,9 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
     queryClient.clear();
     setUser(userData);
     localStorage.setItem("crm_user", JSON.stringify(userData));
+    // Next visit to the shared login page shows this company's logo.
+    const u = userData as any;
+    rememberBrandTenant(u?.tenant?._id || u?.tenant_id?._id || u?.tenant_id);
     setPermissions(permsData || {});
     localStorage.setItem("crm_permissions", JSON.stringify(permsData || {}));
     // Always set plan_modules — null means super admin (no restrictions)
