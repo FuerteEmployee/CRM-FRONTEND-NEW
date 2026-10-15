@@ -3,6 +3,8 @@ import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { LANGUAGES_ISO } from "@/lib/languages";
+import { parseVcf } from "@/lib/vcf";
+import { BulkWhatsAppDialog } from "@/components/customers/BulkWhatsAppDialog";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,6 +43,7 @@ import {
   FileJson,
   FileType,
   Printer,
+  MessageCircle,
   Eye,
   EyeOff
 } from "lucide-react";
@@ -133,6 +136,7 @@ const Customers = () => {
 
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
+  const [bulkWhatsAppOpen, setBulkWhatsAppOpen] = useState(false);
   const [bulkState, setBulkState] = useState({
     massDelete: false,
     groups: "",
@@ -508,7 +512,20 @@ const Customers = () => {
       importMutation.mutate(valid as any);
     };
 
-    if (ext === "xlsx" || ext === "xls") {
+    if (ext === "vcf") {
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const rows = parseVcf(String(evt.target?.result || ""));
+        if (rows.length === 0) {
+          toast({ title: "Error", description: "No contacts found in the .vcf file.", variant: "destructive" });
+          return;
+        }
+        importMutation.mutate(rows as any);
+      };
+      reader.onerror = () =>
+        toast({ title: "Parsing Error", description: "Could not read the .vcf file.", variant: "destructive" });
+      reader.readAsText(file);
+    } else if (ext === "xlsx" || ext === "xls") {
       const reader = new FileReader();
       reader.onload = (evt) => {
         try {
@@ -1078,7 +1095,7 @@ const Customers = () => {
                 <input
                   ref={importFileRef}
                   type="file"
-                  accept=".csv,.xlsx,.xls"
+                  accept=".csv,.xlsx,.xls,.vcf"
                   className="hidden"
                   onChange={handleImportFile}
                 />
@@ -1120,7 +1137,7 @@ const Customers = () => {
                               : "Drag & drop your file here, or click to choose"}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            Supports .xlsx, .xls, and .csv formats
+                            Supports .xlsx, .xls, .csv and .vcf (phone contacts) formats
                           </p>
                         </div>
                         <Button
@@ -1304,6 +1321,28 @@ const Customers = () => {
                 <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl font-black uppercase text-[10px] tracking-widest" asChild>
                   <Link to="/admin/contacts">Contacts</Link>
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                  onClick={() => {
+                    if (selectedCustomers.length === 0) {
+                      toast({ title: "Error", description: "Please select at least one customer first." });
+                      return;
+                    }
+                    setBulkWhatsAppOpen(true);
+                  }}
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  WhatsApp
+                </Button>
+                <BulkWhatsAppDialog
+                  open={bulkWhatsAppOpen}
+                  onOpenChange={setBulkWhatsAppOpen}
+                  customers={paginatedCustomers}
+                  selectedIds={selectedCustomers}
+                  onSent={() => setSelectedCustomers([])}
+                />
                 <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                   if (open && selectedCustomers.length === 0) {
                     toast({ title: "Error", description: "Please select at least one customer first."});

@@ -181,7 +181,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
     <title>CRMPro - Management Dashboard</title>
     <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="/icons/default-192.png" />
     <meta name="theme-color" content="#1e293b" />
     <style>
       /* Google Translate normally injects a top banner iframe and pushes
@@ -260,23 +260,37 @@
         try {
           const host = window.location.hostname;
           const isTrinetra = host.includes("trinetratechnoworld") || host.includes("erp.");
-          
+          const isKiran = host.includes("kiranenginers");
+
           // Dynamically change the manifest file link for PWA install based on domain
           const updateManifest = () => {
             const manifestEl = document.getElementById("app-manifest");
             if (manifestEl) {
-              const manifestUrl = isTrinetra ? "/manifest-trinetra.json" : "/manifest.webmanifest";
+              const manifestUrl = isTrinetra ? "/manifest-trinetra.json" : isKiran ? "/manifest-kiran.json" : "/manifest.webmanifest";
               manifestEl.setAttribute("href", manifestUrl);
             }
+            // iPhone "Add to Home Screen" reads apple-touch-icon, not the manifest
+            const appleIcon = document.querySelector("link[rel='apple-touch-icon']");
+            if (appleIcon && isKiran) appleIcon.setAttribute("href", "/icons/kiran-apple-180.png");
+            if (appleIcon && isTrinetra) appleIcon.setAttribute("href", "/icons/icon-192.png");
           };
           updateManifest();
           window.addEventListener("DOMContentLoaded", updateManifest);
-          
+
           // Determine default favicon and title
-          const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : "/favicon.ico";
-          const defaultTitle = isTrinetra ? "Trinetra TechnoWorld" : "Fuerte Developers";
-          
-          const cachedFavicon = localStorage.getItem("crm_favicon") || defaultFavicon;
+          const defaultTitle = isTrinetra ? "Trinetra TechnoWorld" : isKiran ? "Kiran CRM" : "Fuerte Developers";
+          const knownName = localStorage.getItem("crm_company_name") || defaultTitle;
+          // No uploaded favicon: first letter of the company name (same as
+          // src/lib/brand.ts letterFavicon). favicon.ico used to be the
+          // Trinetra logo, so a cached copy of it counts as "none".
+          const letterIcon = "data:image/svg+xml," + encodeURIComponent(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2563eb"/>' +
+            '<text x="32" y="44" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="38" font-weight="700" fill="#ffffff">' +
+            (knownName.trim().charAt(0) || "C").toUpperCase().replace(/[<>&]/g, "") + "</text></svg>");
+          const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : isKiran ? "/icons/kiran-192.png" : letterIcon;
+          const storedFavicon = localStorage.getItem("crm_favicon");
+          const isOldDefault = !storedFavicon || /\/favicon\.ico(\?|$)/.test(storedFavicon) || (!isTrinetra && storedFavicon.indexOf("/trinetra-icon.jpg") !== -1);
+          const cachedFavicon = isOldDefault ? defaultFavicon : storedFavicon;
           if (cachedFavicon) {
             const link = document.querySelector("link[rel*='icon']");
             if (link) {
@@ -315,37 +329,37 @@
     <meta name="twitter:title" content="CRMPro Dashboard" />
     <meta name="twitter:description" content="A powerful CRM, sales, and team management platform." />
     <meta name="twitter:image" content="" />
-    <script type="module" crossorigin src="/assets/index-DMCbzwPt.js"></script>
+    <script type="module" crossorigin src="/assets/index-Cw9ds0u6.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-core-cYTHTp_A.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-socket-Dt9WlFfT.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-radix-CmkY3ghJ.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-misc-BdtV_2YH.js">
-    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-CC88q7qh.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-icons-D6JWFiRO.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-capacitor-CYe_MP9l.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-export-CpGUF8tv.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-forms-CzT3Jj22.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-utils-CHg-vWhe.js">
-    <link rel="modulepreload" crossorigin href="/assets/app-ui-C9mOxd0A.js">
+    <link rel="modulepreload" crossorigin href="/assets/app-ui-OXPcPOyA.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-query-BNm_BCwc.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-router-By_qBC5F.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-charts-CITIkWQW.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-quotations-C5YKtrUI.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-quotations-DAn7YUNw.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-dnd-D3zH3uEi.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-setup-DzWAkfhx.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-setup-DhPwYiCH.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-maps-D3veph1S.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-superadmin-hD9jeToG.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-hrms-DScXS9Ls.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-reports-DP0pIUhY.js">
-    <link rel="modulepreload" crossorigin href="/assets/auth.service-4UFq8joC.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-superadmin-Df1fH1k7.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-hrms-DanEF1y1.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-reports-B7Zx-BV0.js">
+    <link rel="modulepreload" crossorigin href="/assets/auth.service-BaZetWCS.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-motion-DpyVRL9N.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-editor-BMsgla8R.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-emoji-oW_P6YP8.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-jitsi-D1mt3Ugg.js">
-    <link rel="modulepreload" crossorigin href="/assets/module-client-pvbjSiEY.js">
+    <link rel="modulepreload" crossorigin href="/assets/module-client-B2RHS-3T.js">
     <link rel="stylesheet" crossorigin href="/assets/vendor-misc-DB0Q8XAf.css">
     <link rel="stylesheet" crossorigin href="/assets/vendor-maps-MGNviBeR.css">
     <link rel="stylesheet" crossorigin href="/assets/vendor-editor-DZrYvFpI.css">
-    <link rel="stylesheet" crossorigin href="/assets/index-BmffysHu.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-g9svxanK.css">
   </head>
 
   <body>

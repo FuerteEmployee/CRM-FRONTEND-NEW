@@ -1,8 +1,11 @@
 import { apiClient } from "../client";
+import { brandRequestConfig } from "@/lib/brand";
 
 class SettingsService {
   async getSettings() {
-    return apiClient.get("/settings");
+    // On the login pages, tell the backend which company's branding to show
+    // (?company= link or the company last logged in on this browser).
+    return apiClient.get("/settings", brandRequestConfig());
   }
 
   async updateSettings(settingsData) {

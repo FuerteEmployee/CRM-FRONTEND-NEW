@@ -17,6 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/context/SettingsContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { hasQuotationApproval } from "@/lib/quotationApproval";
+import { useNotificationContext } from "@/context/NotificationContext";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { financeService } from "@/api/services/finance.service";
 import { quotationService } from "@/api/services/quotation.service";
@@ -46,6 +48,11 @@ import {
   Palette,
   RotateCcw,
   Home,
+  Send,
+  CheckCircle2,
+  XCircle,
+  ShieldCheck,
+  History as HistoryIcon,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -72,6 +79,7 @@ type Quotation = {
   rooms?: any[];
   theme?: Partial<ThemeColors>;
   notes?: string;
+  approval?: { status?: "none" | "pending" | "approved" | "rejected"; comment?: string; requested_by?: any; requested_at?: string };
 };
 type ItemRow = { id: string; description: string; qty: number; rate: number; photoUrl?: string };
 type RoomItem = {
@@ -141,6 +149,23 @@ const STATUS_STYLES: Record<string, string> = {
   draft: "bg-gray-100 text-gray-600",
   rejected: "bg-red-100 text-red-700",
   expired: "bg-slate-100 text-slate-500",
+};
+
+// Internal approval badge (quotation approval add-on), shown beside the client status.
+const APPROVAL_BADGES: Record<string, { label: string; cls: string }> = {
+  none: { label: "Not requested", cls: "bg-gray-100 text-gray-600" },
+  pending: { label: "Awaiting approval", cls: "bg-amber-100 text-amber-700" },
+  approved: { label: "Approved", cls: "bg-green-100 text-green-700" },
+  rejected: { label: "Rejected", cls: "bg-red-100 text-red-700" },
+};
+
+// One row per step in the approval history dialog (dot color + label).
+const HISTORY_LABELS: Record<string, { label: string; cls: string }> = {
+  requested: { label: "Approval requested", cls: "bg-amber-500" },
+  approved: { label: "Approved", cls: "bg-green-600" },
+  rejected: { label: "Rejected", cls: "bg-red-600" },
+  auto_approved: { label: "Approved automatically (created by an approver)", cls: "bg-green-600" },
+  reset: { label: "Sent back for approval", cls: "bg-slate-500" },
 };
 
 const todayISO = () => new Date().toISOString().split("T")[0];
@@ -251,8 +276,17 @@ export default function QuotationModule() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { getSetting } = useSettings();
-  const { user, isModuleEnabled } = usePermissions();
+  const { user, isModuleEnabled, can } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
+  // Quotation approval add-on: makers request, approvers (Quotations > Approve,
+  // admins always) sign off before the PDF can go to the client.
+  const approvalOn = hasQuotationApproval(user);
+  const canApprove = approvalOn && can("Quotations", "Approve");
+  // Quotations from before the add-on have no approval status and stay usable.
+  const isCleared = (q: any) => !approvalOn || !q?.approval?.status || q.approval.status === "approved";
+  const tabs = canApprove
+    ? [...sidebarItems, { id: "approvals", label: "Approvals", icon: ShieldCheck }]
+    : sidebarItems;
   const canUseBankDetails = canAccessBankDetails(user?.email);
   // Branch-scoped customer selection is sourced from the HRMS module — only
   // show/fetch it when the tenant's plan actually includes HRMS, otherwise
@@ -274,6 +308,14 @@ export default function QuotationModule() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  // Follow ?tab= when it changes from outside (e.g. clicking an approval
+  // notification while this page is already open).
+  const urlTab = searchParams.get("tab");
+  useEffect(() => {
+    if (urlTab && urlTab !== activeTab) setActiveTab(urlTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlTab]);
 
   // ─── Quotation type (dynamic "Quotation Maker" entry this page was opened for) ──
   const { data: quotationTypes = [] } = useQuery<any[]>({
@@ -781,6 +823,83 @@ export default function QuotationModule() {
     },
   });
 
+  // ─── Approval flow ────────────────────────────────────────────────────
+  const { data: pendingApprovals = [], isLoading: isLoadingApprovals } = useQuery<Quotation[]>({
+    queryKey: ["quotation-approvals"],
+    queryFn: async () => {
+      const result = await quotationService.getPendingApprovals();
+      return Array.isArray(result) ? result : [];
+    },
+    enabled: canApprove,
+  });
+
+  const refreshQuotationLists = () => {
+    queryClient.invalidateQueries({ queryKey: ["quotations-recent"] });
+    queryClient.invalidateQueries({ queryKey: ["quotations-list"] });
+    queryClient.invalidateQueries({ queryKey: ["quotation-approvals"] });
+  };
+  const approvalError = (error: any) =>
+    toast({ title: "Error", description: error?.response?.data?.message || error?.message || "Something went wrong", variant: "destructive" });
+
+  const requestApprovalMutation = useMutation({
+    mutationFn: (id: string) => quotationService.requestApproval(id),
+    onSuccess: () => {
+      refreshQuotationLists();
+      toast({ title: "Approval requested", description: "An approver will review this quotation." });
+    },
+    onError: approvalError,
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: (id: string) => quotationService.approve(id),
+    onSuccess: () => {
+      refreshQuotationLists();
+      toast({ title: "Approved", description: "The quotation can now be sent to the client." });
+    },
+    onError: approvalError,
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: ({ id, comment }: { id: string; comment: string }) => quotationService.reject(id, comment),
+    onSuccess: () => {
+      refreshQuotationLists();
+      toast({ title: "Rejected", description: "The maker can edit it and request approval again." });
+    },
+    onError: approvalError,
+  });
+
+  const handleReject = (id: string) => {
+    const comment = window.prompt("Reason for rejecting (the maker will see this):");
+    if (comment === null) return;
+    if (!comment.trim()) {
+      toast({ title: "Reason required", description: "Please enter a reason for rejecting.", variant: "destructive" });
+      return;
+    }
+    rejectMutation.mutate({ id, comment: comment.trim() });
+  };
+
+  const approvalBusy = requestApprovalMutation.isPending || approveMutation.isPending || rejectMutation.isPending;
+
+  // Refresh badges/lists the moment an approval alert arrives on the socket.
+  const { socket } = useNotificationContext();
+  useEffect(() => {
+    if (!socket || !approvalOn) return;
+    const onApproval = () => refreshQuotationLists();
+    socket.on("quotationApproval", onApproval);
+    return () => {
+      socket.off("quotationApproval", onApproval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [socket, approvalOn]);
+
+  // Approval history dialog
+  const [historyFor, setHistoryFor] = useState<Quotation | null>(null);
+  const { data: historyData, isLoading: isLoadingHistory } = useQuery<any>({
+    queryKey: ["quotation-approval-history", historyFor?._id],
+    queryFn: () => quotationService.getApprovalHistory(historyFor!._id),
+    enabled: !!historyFor,
+  });
+
   const handleEdit = (q: Quotation) => {
     setEditingId(q._id);
     const editClientId = q.client?._id || q.client?.id || (typeof q.client === "string" ? q.client : "");
@@ -920,7 +1039,33 @@ export default function QuotationModule() {
     });
   };
 
+  // Maker's one-click path: save (the server keeps it as a draft until
+  // approved), then ask for approval on the saved quotation.
+  const handleSaveAndRequestApproval = () => {
+    if (!validate(false)) return;
+    const mut = editingId ? updateMutation : createMutation;
+    mut.mutate("draft", {
+      onSuccess: (saved: any) => {
+        if (saved?._id) requestApprovalMutation.mutate(saved._id);
+      },
+    });
+  };
+
   const handleDownloadPDF = async (q: Quotation) => {
+    // Approvers may download anything (to review it); everyone else only
+    // once the quotation is approved.
+    if (!isCleared(q) && !canApprove) {
+      const status = (q as any).approval?.status;
+      toast({
+        title: "Approval needed",
+        description:
+          status === "pending"
+            ? "This quotation is awaiting approval. You can download it once it is approved."
+            : "Saved. Request approval first — you can download the PDF once it is approved.",
+        variant: "destructive",
+      });
+      return;
+    }
     const doc = new jsPDF();
     const docTheme: ThemeColors = { ...DEFAULT_THEME, ...(q.theme || {}) };
     const primaryRgb = hexToRgb(docTheme.primaryColor);
@@ -1372,7 +1517,7 @@ export default function QuotationModule() {
 
   const selectedClientLabel = customers.find((c: any) => c._id === clientId)?.company || "";
 
-  const activeItem = sidebarItems.find((i) => i.id === activeTab);
+  const activeItem = tabs.find((i) => i.id === activeTab);
   const activeLabel = activeTab === "create" && editingId ? "Edit Quotation" : (activeItem?.label || "Quotations");
   const moduleTitle = currentType?.name
     ? `${activeLabel} ${currentType.name}`
@@ -1392,6 +1537,7 @@ export default function QuotationModule() {
             {activeTab === "dashboard" && "Overview of your quotation activity"}
             {activeTab === "create" && (editingId ? "Update the details below to save changes to the quotation" : "Choose format and fill in the details below")}
             {activeTab === "list" && "Browse and manage all quotations"}
+            {activeTab === "approvals" && "Quotations waiting for your approval"}
           </p>
         </div>
 
@@ -1401,7 +1547,7 @@ export default function QuotationModule() {
           <aside className="w-full md:w-64 shrink-0">
             <Card className="border-none shadow-sm bg-card/50 backdrop-blur-sm sticky top-6">
               <CardContent className="p-2 flex flex-col gap-1">
-                {sidebarItems.map((item) => (
+                {tabs.map((item) => (
                   <button
                     key={item.id}
                     onClick={() => {
@@ -1417,6 +1563,11 @@ export default function QuotationModule() {
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
                     <span className="truncate">{item.id === "create" && editingId ? "Edit Quotation" : item.label}</span>
+                    {item.id === "approvals" && pendingApprovals.length > 0 && (
+                      <span className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === item.id ? "bg-white/25" : "bg-amber-100 text-amber-700"}`}>
+                        {pendingApprovals.length}
+                      </span>
+                    )}
                   </button>
                 ))}
               </CardContent>
@@ -2419,19 +2570,31 @@ export default function QuotationModule() {
                         <FileText className="h-4 w-4" />
                         Save as Draft
                       </Button>
-                      <Button
-                        variant="outline"
-                        className="rounded-xl font-semibold gap-2"
-                        disabled={createMutation.isPending || updateMutation.isPending}
-                        onClick={handleSaveAndDownload}
-                      >
-                        {(createMutation.isPending || updateMutation.isPending) && (createMutation.variables === "draft" || updateMutation.variables === "draft") ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Download className="h-4 w-4" />
-                        )}
-                        {editingId ? "Update & Download PDF" : "Save & Download PDF"}
-                      </Button>
+                      {approvalOn && !canApprove ? (
+                        <Button
+                          variant="outline"
+                          className="rounded-xl font-semibold gap-2"
+                          disabled={createMutation.isPending || updateMutation.isPending || requestApprovalMutation.isPending}
+                          onClick={handleSaveAndRequestApproval}
+                        >
+                          {requestApprovalMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                          {editingId ? "Update & Request Approval" : "Save & Request Approval"}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          className="rounded-xl font-semibold gap-2"
+                          disabled={createMutation.isPending || updateMutation.isPending}
+                          onClick={handleSaveAndDownload}
+                        >
+                          {(createMutation.isPending || updateMutation.isPending) && (createMutation.variables === "draft" || updateMutation.variables === "draft") ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
+                          {editingId ? "Update & Download PDF" : "Save & Download PDF"}
+                        </Button>
+                      )}
                       <Button
                         className="rounded-xl font-semibold gap-2"
                         disabled={createMutation.isPending || updateMutation.isPending}
@@ -2500,6 +2663,21 @@ export default function QuotationModule() {
                                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize ${STATUS_STYLES[q.status?.toLowerCase()] || "bg-gray-100 text-gray-600"}`}>
                                   {q.status || "Draft"}
                                 </span>
+                                {approvalOn && q.approval?.status && APPROVAL_BADGES[q.approval.status] && (
+                                  <div className="mt-1.5">
+                                    <span
+                                      className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${APPROVAL_BADGES[q.approval.status].cls}`}
+                                      title={q.approval.status === "rejected" && q.approval.comment ? `Reason: ${q.approval.comment}` : undefined}
+                                    >
+                                      {APPROVAL_BADGES[q.approval.status].label}
+                                    </span>
+                                    {q.approval.status === "rejected" && q.approval.comment && (
+                                      <p className="text-[11px] text-red-600 mt-1 max-w-[220px] truncate" title={q.approval.comment}>
+                                        Reason: {q.approval.comment}
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
                               </TableCell>
                               {canUseBankDetails && (
                                 <TableCell className="text-muted-foreground">
@@ -2508,7 +2686,50 @@ export default function QuotationModule() {
                               )}
                               <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-1">
-                                  <button onClick={() => handleDownloadPDF(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Download PDF">
+                                  {approvalOn && !canApprove && (q.approval?.status === "none" || q.approval?.status === "rejected") && (
+                                    <button
+                                      onClick={() => requestApprovalMutation.mutate(q._id)}
+                                      disabled={approvalBusy}
+                                      className="p-1.5 rounded-lg hover:bg-amber-50 text-muted-foreground hover:text-amber-700 transition-colors disabled:opacity-50"
+                                      title="Request approval"
+                                    >
+                                      <Send className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                  {canApprove && q.approval?.status && q.approval.status !== "approved" && (
+                                    <button
+                                      onClick={() => approveMutation.mutate(q._id)}
+                                      disabled={approvalBusy}
+                                      className="p-1.5 rounded-lg hover:bg-green-50 text-muted-foreground hover:text-green-700 transition-colors disabled:opacity-50"
+                                      title="Approve"
+                                    >
+                                      <CheckCircle2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                  {canApprove && q.approval?.status === "pending" && (
+                                    <button
+                                      onClick={() => handleReject(q._id)}
+                                      disabled={approvalBusy}
+                                      className="p-1.5 rounded-lg hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-50"
+                                      title="Reject"
+                                    >
+                                      <XCircle className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                  {approvalOn && q.approval?.status && (
+                                    <button
+                                      onClick={() => setHistoryFor(q)}
+                                      className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors"
+                                      title="Approval history"
+                                    >
+                                      <HistoryIcon className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => handleDownloadPDF(q)}
+                                    className={`p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors ${!isCleared(q) && !canApprove ? "opacity-40" : ""}`}
+                                    title={!isCleared(q) && !canApprove ? "Download PDF (needs approval first)" : "Download PDF"}
+                                  >
                                     <Download className="h-3.5 w-3.5" />
                                   </button>
                                   <button onClick={() => handleEdit(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Edit">
@@ -2551,9 +2772,113 @@ export default function QuotationModule() {
                 </CardContent>
               </Card>
             )}
+
+            {activeTab === "approvals" && canApprove && (
+              <Card className="rounded-2xl border-border/50 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+                  <h3 className="text-sm font-bold text-foreground">Awaiting Approval</h3>
+                  <span className="text-xs text-muted-foreground">{pendingApprovals.length} pending</span>
+                </div>
+                <CardContent className="p-0">
+                  {isLoadingApprovals ? (
+                    <p className="text-sm text-muted-foreground italic text-center py-12">Loading...</p>
+                  ) : pendingApprovals.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 gap-2">
+                      <ShieldCheck className="h-8 w-8 text-muted-foreground/40" />
+                      <p className="text-sm text-muted-foreground italic">Nothing waiting for approval.</p>
+                    </div>
+                  ) : (
+                    <Table className="whitespace-nowrap">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>#</TableHead>
+                          <TableHead>Client</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Requested By</TableHead>
+                          <TableHead>Requested On</TableHead>
+                          <TableHead>Grand Total</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingApprovals.map((q) => {
+                          const by = q.approval?.requested_by;
+                          const byName = by ? [by.firstname, by.lastname].filter(Boolean).join(" ") || by.email : "—";
+                          return (
+                            <TableRow key={q._id}>
+                              <TableCell className="font-medium text-slate-700">{q.number || "—"}</TableCell>
+                              <TableCell className="font-medium">{q.client?.company || "—"}</TableCell>
+                              <TableCell className="text-muted-foreground">{q.quotation_type?.name || "—"}</TableCell>
+                              <TableCell>{byName}</TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {q.approval?.requested_at ? new Date(q.approval.requested_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}
+                              </TableCell>
+                              <TableCell className="font-medium">₹{(q.total || 0).toLocaleString("en-IN")}</TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-2">
+                                  <button onClick={() => handleDownloadPDF(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="View PDF">
+                                    <Download className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button onClick={() => handleEdit(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Open">
+                                    <Eye className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button onClick={() => setHistoryFor(q)} className="p-1.5 rounded-lg hover:bg-muted/60 text-muted-foreground hover:text-primary transition-colors" title="Approval history">
+                                    <HistoryIcon className="h-3.5 w-3.5" />
+                                  </button>
+                                  <Button size="sm" variant="outline" disabled={approvalBusy} onClick={() => handleReject(q._id)} className="h-8 rounded-lg gap-1 text-red-600 border-red-200 hover:bg-red-50">
+                                    <XCircle className="h-3.5 w-3.5" /> Reject
+                                  </Button>
+                                  <Button size="sm" disabled={approvalBusy} onClick={() => approveMutation.mutate(q._id)} className="h-8 rounded-lg gap-1">
+                                    <CheckCircle2 className="h-3.5 w-3.5" /> Approve
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </main>
         </div>
       </div>
+
+      <Dialog open={!!historyFor} onOpenChange={(open) => { if (!open) setHistoryFor(null); }}>
+        <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden rounded-2xl max-h-[80vh] flex flex-col">
+          <DialogHeader className="px-6 py-4 border-b bg-muted/30 flex-shrink-0">
+            <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+              <HistoryIcon className="h-4 w-4" /> Approval History — {historyFor?.number}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="p-6 overflow-y-auto flex-1">
+            {isLoadingHistory ? (
+              <p className="text-sm text-muted-foreground italic text-center py-6">Loading...</p>
+            ) : !historyData?.history?.length ? (
+              <p className="text-sm text-muted-foreground italic text-center py-6">No approval steps recorded yet.</p>
+            ) : (
+              <ol className="relative border-l border-border ml-2 space-y-5">
+                {historyData.history.map((h: any, idx: number) => {
+                  const meta = HISTORY_LABELS[h.action] || { label: h.action, cls: "bg-gray-400" };
+                  const who = h.by ? [h.by.firstname, h.by.lastname].filter(Boolean).join(" ") || h.by.email : "—";
+                  return (
+                    <li key={idx} className="ml-5">
+                      <span className={`absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full ${meta.cls}`} />
+                      <p className="text-sm font-semibold">{meta.label}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {who} · {h.at ? new Date(h.at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "—"}
+                      </p>
+                      {h.comment && <p className="text-xs mt-1 text-slate-700">"{h.comment}"</p>}
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <QuotationPreviewDialog
         open={isPreviewOpen}

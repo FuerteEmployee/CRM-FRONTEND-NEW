@@ -7,6 +7,8 @@ import { meetingService } from '@/api/services/meeting.service';
 import { chatService } from '@/api/services/chat.service';
 import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
+import { quotationService } from '@/api/services/quotation.service';
+import { hasQuotationApproval } from '@/lib/quotationApproval';
 
 export interface NotificationItem {
   id: string;
@@ -46,7 +48,7 @@ const NotificationContext = createContext<NotificationContextType>({
 });
 
 export const NotificationProvider = ({ children }: { children: React.ReactNode }) => {
-  const { user, isStaff } = usePermissionContext();
+  const { user, isStaff, can } = usePermissionContext();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -68,6 +70,31 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     };
     fetchChatCount();
   }, [user?._id]);
+
+  // Live alerts only reach people who are online, so on login remind an
+  // approver of anything already waiting for them (once per session).
+  const approvalCanApprove = hasQuotationApproval(user) && can("Quotations", "Approve");
+  useEffect(() => {
+    if (!user?._id || !approvalCanApprove) return;
+    const key = `quotationApprovalReminded:${user._id}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+    } catch { /* storage unavailable — just remind */ }
+    quotationService.getPendingApprovals()
+      .then((list: any) => {
+        const count = Array.isArray(list) ? list.length : 0;
+        if (count > 0) {
+          addNotification(
+            "Quotations awaiting approval",
+            `${count} quotation${count === 1 ? " is" : "s are"} waiting for your approval.`,
+            `${isStaff ? "/staff" : "/admin"}/quotations?tab=approvals`,
+          );
+        }
+        try { sessionStorage.setItem(key, "1"); } catch { /* ignore */ }
+      })
+      .catch(() => { /* not critical */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?._id, approvalCanApprove]);
 
   const addNotification = (title: string, message: string, link?: string) => {
     const newNotification: NotificationItem = {
@@ -210,6 +237,21 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         ? `${isStaff ? "/staff" : "/admin"}/leads?leadView=${payload.relId}&tab=reminders`
         : undefined;
       addNotification(title, payload?.description || "A reminder is due.", link);
+    });
+
+    // Quotation approval add-on (Backend quotation_controller.js): approvers
+    // hear about new requests, makers hear the decision.
+    socket.on("quotationApproval", (payload: any) => {
+      const base = isStaff ? "/staff" : "/admin";
+      const number = payload?.number || "A quotation";
+      if (payload?.event === "requested") {
+        addNotification("Quotation approval requested", `${payload?.by || "A staff member"} asked you to approve ${number}.`, `${base}/quotations?tab=approvals`);
+      } else if (payload?.event === "approved") {
+        addNotification("Quotation approved", `${number} was approved by ${payload?.by || "an approver"}. You can now send it.`, `${base}/quotations?tab=list`);
+      } else if (payload?.event === "rejected") {
+        const reason = payload?.comment ? ` Reason: ${payload.comment}` : "";
+        addNotification("Quotation rejected", `${number} was rejected by ${payload?.by || "an approver"}.${reason}`, `${base}/quotations?tab=list`);
+      }
     });
 
     return () => {

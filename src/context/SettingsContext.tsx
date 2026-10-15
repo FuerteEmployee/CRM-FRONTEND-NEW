@@ -1,6 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { settingsService } from "@/api/services/settings.service";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
+import { letterFavicon } from "@/lib/brand";
+
+// public/favicon.ico used to be the Trinetra logo, so it was never a real
+// "no favicon" default — treat it (and any cached copy of it) as unset.
+const isOldDefaultFavicon = (v?: string | null) => !v || /\/favicon\.ico(\?|$)/.test(String(v)) || String(v).includes("/trinetra-icon.jpg");
+
+// Companies with no uploaded favicon: Kiran's domain gets its own icon, every
+// other company gets the first letter of its name.
+const fallbackFavicon = (companyName?: string) =>
+  window.location.hostname.includes("kiranenginers") ? "/icons/kiran-192.png" : letterFavicon(companyName);
 
 interface SettingsContextType {
   settings: Record<string, any>;
@@ -22,9 +32,14 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // fallback chain (OG Image, then the neutral monogram UI already built
     // into Login/ClientLogin) takes over correctly once refreshSettings runs.
     const defaultCompanyName = isTrinetra ? "Trinetra TechnoWorld" : "";
+    const defaultLogoLight = isTrinetra ? "/trinetra-logo.jpg" : "";
+    const defaultLogoDark = isTrinetra ? "/trinetra-logo.jpg" : "";
     const rawCachedName = localStorage.getItem("crm_company_name") || defaultCompanyName;
     const cachedName = (rawCachedName === "Fuerte CRM" || rawCachedName === "Fuerte Developers" || rawCachedName === "CRMPro" || rawCachedName === "CRM Pro Inc.") ? "" : rawCachedName;
-    const cachedFavicon = localStorage.getItem("crm_favicon") || defaultFavicon;
+    const storedFavicon = localStorage.getItem("crm_favicon");
+    const cachedFavicon = isTrinetra
+      ? storedFavicon || "/trinetra-icon.jpg"
+      : isOldDefaultFavicon(storedFavicon) ? fallbackFavicon(cachedName) : storedFavicon;
     const cachedLogoLight = localStorage.getItem("crm_comp_logo_light") || defaultLogoLight;
     const cachedLogoDark = localStorage.getItem("crm_comp_logo_dark") || defaultLogoDark;
     
@@ -119,8 +134,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (!settingsMap.compLogoDark || settingsMap.compLogoDark === "/trinetra-logo.jpg") {
           settingsMap.compLogoDark = fallbackLogo;
         }
-        if (!settingsMap.favicon || settingsMap.favicon === "/trinetra-icon.jpg") {
-          settingsMap.favicon = "/favicon.ico";
+        if (isOldDefaultFavicon(settingsMap.favicon)) {
+          settingsMap.favicon = fallbackFavicon(settingsMap.companyName);
         }
       }
 
@@ -161,9 +176,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     
     if (settings.favicon) {
       const link: HTMLLinkElement = document.querySelector("link[rel*='icon']") || document.createElement('link');
-      link.type = 'image/x-icon';
-      link.rel = 'shortcut icon';
       const faviconUrl = resolveImageUrl(settings.favicon);
+      link.type = faviconUrl.startsWith("data:image/svg") ? "image/svg+xml" : "image/x-icon";
+      link.rel = 'shortcut icon';
       link.href = faviconUrl;
       document.getElementsByTagName('head')[0].appendChild(link);
       localStorage.setItem("crm_favicon", faviconUrl);
