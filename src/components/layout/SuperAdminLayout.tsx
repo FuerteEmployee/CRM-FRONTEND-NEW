@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useSettings } from "@/context/SettingsContext";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 
 const mainItems = [
   { name: "Dashboard", path: "/super-admin/dashboard", icon: LayoutDashboard },
@@ -31,7 +32,11 @@ export function SuperAdminLayout() {
   const navigate = useNavigate();
   const { logout, user } = usePermissionContext();
   const { getSetting } = useSettings();
-  const companyName = getSetting("companyName", "Trinetra TechnoWorld");
+  // The platform name can come back blank (placeholder names are cleared by
+  // the backend), so the panel falls back to its own label and the login logo.
+  const companyName = getSetting("companyName", "") || "Control Panel";
+  const logo = getSetting("compLogoLight", "");
+  const [logoError, setLogoError] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -75,9 +80,13 @@ export function SuperAdminLayout() {
         {/* Logo */}
         <div className="h-14 flex items-center justify-between px-4 border-b border-gray-100">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
-              {companyName.charAt(0).toUpperCase()}
-            </div>
+            {logo && !logoError ? (
+              <img src={resolveImageUrl(logo)} alt="Logo" className="h-9 w-9 rounded-xl object-contain flex-shrink-0" onError={() => setLogoError(true)} />
+            ) : (
+              <div className="h-9 w-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm flex-shrink-0">
+                {companyName.charAt(0).toUpperCase()}
+              </div>
+            )}
             <div className="flex flex-col leading-tight">
               <span className="text-[15px] font-bold tracking-tight text-gray-900">
                 {companyName}
