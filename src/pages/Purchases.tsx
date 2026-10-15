@@ -554,6 +554,7 @@ const Purchases = () => {
     setEditingPurchase(null);
     setFormData(emptyForm);
     setLineItems([]);
+    setFreightPercent("1"); // don't carry an edited bill's freight % into the next new bill
   };
 
   const handleEdit = (p: any) => {
@@ -1076,6 +1077,7 @@ const Purchases = () => {
                       toast({ title: "Error", description: "Please select at least one purchase bill first."});
                       return;
                     }
+                    setBulkState({ massDelete: false, payment_status: "", payment_date: "", paymentmode: "" }); // clear unsaved bulk choices on open/close
                     setBulkActionOpen(open);
                   }}>
                     <DialogTrigger asChild>

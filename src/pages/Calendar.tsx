@@ -136,6 +136,7 @@ const Calendar = () => {
   
   const handleEventClick = (e: React.MouseEvent, event: any) => {
     e.stopPropagation();
+    resetForm(); // clear fields (end date, reminder) left over from a previous event
     setSelectedEventId(event._id);
     setEventTitle(event.title);
     setDescription(event.description || "");

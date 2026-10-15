@@ -87,7 +87,18 @@ export function ManageCompaniesDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        // Discard unsaved add/rename text when the dialog is closed
+        if (!o) {
+          setNewName("");
+          setEditingId(null);
+          setEditName("");
+        }
+        onOpenChange(o);
+      }}
+    >
       <DialogContent className="rounded-2xl max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

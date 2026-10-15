@@ -259,7 +259,11 @@ const Contracts = () => {
             </p>
           </div>
           {can("Contracts", "Create") && (
-            <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+            <Dialog open={isAddOpen} onOpenChange={(open) => {
+              setIsAddOpen(open);
+              // discard unsaved values when closed without saving
+              if (!open) setFormData({ client: "", subject: "", contract_value: "", contract_type: "", datestart: "", dateend: "", description: "" });
+            }}>
               <DialogTrigger asChild>
                 <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                   <Plus className="h-4 w-4" />
@@ -348,6 +352,7 @@ const Contracts = () => {
                 toast({ title: "Error", description: "Please select at least one item first."});
                 return;
               }
+              setBulkState({ massDelete: false }); // clear unsaved bulk choices on open/close
               setBulkActionOpen(open);
             }}>
               <DialogTrigger asChild>

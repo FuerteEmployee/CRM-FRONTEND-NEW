@@ -264,7 +264,7 @@ export default function DesignationPage() {
                 />
 
                 <DialogFooter className="py-6 pt-2 flex items-center gap-3">
-                  <Button variant="ghost" type="button" onClick={() => setIsAddOpen(false)} className="rounded-xl h-12">
+                  <Button variant="ghost" type="button" onClick={() => { setIsAddOpen(false); setEditingDesg(null); }} className="rounded-xl h-12">
                     Cancel
                   </Button>
                   <Button disabled={isSubmitting} type="submit" className="flex-1 rounded-xl h-12 gradient-primary font-bold shadow-glow">

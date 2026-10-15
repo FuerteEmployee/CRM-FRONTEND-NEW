@@ -400,7 +400,7 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
               variant="outline"
               className="h-8 w-8 rounded-lg"
               title="Send Email"
-              onClick={() => setShowEmailDialog(true)}
+              onClick={() => { setCcEmail(""); setAttachPdf(true); setShowEmailDialog(true); }}
             >
               <Mail className="h-3.5 w-3.5" />
             </Button>
@@ -1012,6 +1012,7 @@ const Estimates = () => {
                 toast({ title: "Error", description: "Please select at least one item first."});
                 return;
               }
+              setBulkState({ massDelete: false, status: "" }); // clear unsaved bulk choices on open/close
               setBulkActionOpen(open);
             }}>
               <DialogTrigger asChild>

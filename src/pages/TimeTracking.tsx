@@ -14,6 +14,12 @@ import { useToast } from "@/hooks/use-toast";
 import { timeEntryService } from "@/api/services/time_entry.service";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 
+// Today as YYYY-MM-DD in the viewer's timezone (toISOString would give the UTC day).
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 const TimeTracking = () => {
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +39,7 @@ const TimeTracking = () => {
     member: "",
     hours: "",
     billable: "no",
-    date: new Date().toISOString().split("T")[0]
+    date: localToday()
   });
 
   useEffect(() => {
@@ -52,23 +58,42 @@ const TimeTracking = () => {
     }
   };
 
+  // Closing the Log form (saved, ✕, Esc or outside click) always starts the next one blank.
+  const closeAddForm = () => {
+    setIsAddOpen(false);
+    setFormData({
+      task: "", project: "", member: "", hours: "", billable: "no", date: localToday()
+    });
+  };
+
+  // Same rules for Log and Edit (the backend enforces them too).
+  const validateEntry = (entry: { task?: string; hours?: string | number; date?: string }) => {
+    if (!String(entry.task || "").trim() || entry.hours === "" || entry.hours == null || !entry.date) {
+      return "Please fill required fields";
+    }
+    const hours = Number(entry.hours);
+    if (!Number.isFinite(hours) || hours <= 0 || hours > 24) {
+      return "Hours must be more than 0 and at most 24";
+    }
+    return null;
+  };
+
   const handleCreate = async () => {
-    if (!formData.task || !formData.hours || !formData.date) {
-      toast({ title: "Error", description: "Please fill required fields", variant: "destructive" });
+    const error = validateEntry(formData);
+    if (error) {
+      toast({ title: "Error", description: error, variant: "destructive" });
       return;
     }
     try {
       const payload = {
         ...formData,
+        task: formData.task.trim(),
         hours: Number(formData.hours),
         billable: formData.billable === "yes"
       };
       await timeEntryService.createTimeEntry(payload);
       toast({ title: "Created", description: "Time entry logged." });
-      setIsAddOpen(false);
-      setFormData({
-        task: "", project: "", member: "", hours: "", billable: "no", date: new Date().toISOString().split("T")[0]
-      });
+      closeAddForm();
       fetchEntries();
     } catch (error) {
       toast({ title: "Error", description: "Failed to log time.", variant: "destructive" });
@@ -77,9 +102,15 @@ const TimeTracking = () => {
 
   const handleUpdate = async () => {
     if (!editItem) return;
+    const error = validateEntry(editItem);
+    if (error) {
+      toast({ title: "Error", description: error, variant: "destructive" });
+      return;
+    }
     try {
       const payload = {
         ...editItem,
+        task: String(editItem.task).trim(),
         hours: Number(editItem.hours),
         billable: editItem.billable === "yes" || editItem.billable === true
       };
@@ -103,31 +134,42 @@ const TimeTracking = () => {
     }
   };
 
-  const projects = ["all", ...new Set(entries.map((t) => t.project).filter(Boolean))];
-  
+  // Project names typed with different capitals ("Alpha"/"alpha") are one project.
+  const projectKey = (p?: string) => String(p || "").trim().toLowerCase();
+  const projectNames = new Map<string, string>();
+  entries.forEach((t) => {
+    const key = projectKey(t.project);
+    if (key && !projectNames.has(key)) projectNames.set(key, String(t.project).trim());
+  });
+  const projects = ["all", ...projectNames.keys()];
+
   const filtered = entries.filter((t) => {
-    const matchesSearch = (t.task || "").toLowerCase().includes(search.toLowerCase());
-    const matchesProject = projectFilter === "all" || t.project === projectFilter;
+    const q = search.trim().toLowerCase();
+    const matchesSearch = !q || [t.task, t.project, t.member].some((v) => String(v || "").toLowerCase().includes(q));
+    const matchesProject = projectFilter === "all" || projectKey(t.project) === projectFilter;
     return matchesSearch && matchesProject;
   });
 
-  const totalHours = entries.reduce((sum, t) => sum + (t.hours || 0), 0);
-  const todayDate = new Date().toISOString().split("T")[0];
-  const todayHours = entries.filter((t) => t.date && t.date.startsWith(todayDate)).reduce((sum, t) => sum + (t.hours || 0), 0);
-  
+  // Cards follow the current search/project filter.
+  const sumHours = (list: any[]) => list.reduce((sum, t) => sum + (Number(t.hours) || 0), 0);
+  const totalHours = sumHours(filtered);
+  // Entry dates are saved as the picked calendar day (UTC midnight), so compare
+  // against the viewer's local calendar day, not the UTC one.
+  const todayHours = sumHours(filtered.filter((t) => t.date && t.date.startsWith(localToday())));
+
   // simple week calculation (last 7 days)
   const lastWeek = new Date();
   lastWeek.setDate(lastWeek.getDate() - 7);
-  const weekHours = entries.filter((t) => t.date && new Date(t.date) >= lastWeek).reduce((sum, t) => sum + (t.hours || 0), 0);
-  
-  const billableHours = entries.filter((t) => t.billable).reduce((sum, t) => sum + (t.hours || 0), 0);
+  const weekHours = sumHours(filtered.filter((t) => t.date && new Date(t.date) >= lastWeek));
+
+  const billableHours = sumHours(filtered.filter((t) => t.billable));
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div><h1 className="text-2xl font-bold">Time Tracking</h1><p className="text-muted-foreground">Track time spent on projects and tasks</p></div>
-          <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+          <Dialog open={isAddOpen} onOpenChange={(open) => (open ? setIsAddOpen(true) : closeAddForm())}>
             <DialogTrigger asChild><Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"><Plus className="h-4 w-4" />Log Time</Button></DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Log Time Entry</DialogTitle></DialogHeader>
@@ -159,7 +201,7 @@ const TimeTracking = () => {
 
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1 max-w-sm"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input placeholder="Search entries..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-          <Select value={projectFilter} onValueChange={setProjectFilter}><SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger><SelectContent>{projects.map(p => <SelectItem key={p} value={p}>{p === "all" ? "All Projects" : p}</SelectItem>)}</SelectContent></Select>
+          <Select value={projectFilter} onValueChange={setProjectFilter}><SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger><SelectContent>{projects.map(p => <SelectItem key={p} value={p}>{p === "all" ? "All Projects" : projectNames.get(p)}</SelectItem>)}</SelectContent></Select>
         </div>
 
         <TableContainer>

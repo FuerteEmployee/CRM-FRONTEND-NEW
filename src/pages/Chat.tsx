@@ -669,7 +669,10 @@ const Chat = () => {
         </div>
       </div>
       {/* Create Group Modal */}
-      <Dialog open={isCreateGroupOpen} onOpenChange={setIsCreateGroupOpen}>
+      <Dialog open={isCreateGroupOpen} onOpenChange={(open) => {
+        setIsCreateGroupOpen(open);
+        if (!open) { setGroupName(""); setSelectedParticipants([]); } // discard unsaved group draft
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Create Group</DialogTitle>

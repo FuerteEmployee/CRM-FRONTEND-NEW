@@ -87,7 +87,7 @@ export const WebsiteFormsDialog = () => {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setName(""); }}>
       <DialogTrigger asChild>
         <Button
           variant="outline"

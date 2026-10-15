@@ -85,7 +85,7 @@ export function TemplateConditionsPanel() {
         <p className="text-sm text-muted-foreground">
           Per-template rules: how recently a lead was added, how often they can be messaged, and which statuses to skip.
         </p>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setForm(EMPTY_FORM); }}>
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="h-4 w-4 mr-1" /> New Rule</Button>
           </DialogTrigger>

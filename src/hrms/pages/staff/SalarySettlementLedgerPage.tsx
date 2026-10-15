@@ -123,6 +123,12 @@ const SalarySettlementLedgerPage = () => {
     };
   }, [settlements]);
 
+  // Closing "Add to Settlement" without calculating clears the picked employee
+  const closeAddDialog = () => {
+    setIsAddOpen(false);
+    setAddEmployeeId("");
+  };
+
   const handleAddToSettlement = async () => {
     if (!addEmployeeId) {
       toast({ title: "Error", description: "Select an employee"});
@@ -591,7 +597,7 @@ const SalarySettlementLedgerPage = () => {
       </TableContainer>
 
       {/* Add to Settlement Dialog */}
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+      <Dialog open={isAddOpen} onOpenChange={(open) => (open ? setIsAddOpen(true) : closeAddDialog())}>
         <DialogContent className="rounded-2xl max-w-sm">
           <DialogHeader>
             <DialogTitle>Add to Settlement</DialogTitle>
@@ -628,7 +634,7 @@ const SalarySettlementLedgerPage = () => {
               <Button
                 variant="outline"
                 className="flex-1 rounded-lg"
-                onClick={() => setIsAddOpen(false)}
+                onClick={closeAddDialog}
                 disabled={isCalculating}
               >
                 Cancel

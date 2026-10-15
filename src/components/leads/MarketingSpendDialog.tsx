@@ -87,7 +87,7 @@ export function MarketingSpendDialog({ open, onOpenChange, sources, canCreate, c
   const amountValid = form && form.amount !== "" && Number.isFinite(Number(form.amount)) && Number(form.amount) >= 0;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) setForm(null); onOpenChange(o); }}>
       <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl bg-white">
         <div className="flex flex-col max-h-[calc(100vh-6rem)]">
           <div className="shrink-0 bg-orange-50 px-8 py-6 border-b border-orange-100">

@@ -640,7 +640,7 @@ export default function Meetings() {
               ]}
             />
             <ImportButton onData={handleImportData} loading={importMutation.isPending} />
-            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <Dialog open={isModalOpen} onOpenChange={(open) => (open ? setIsModalOpen(true) : handleCloseModal())}>
               <DialogTrigger asChild>
                 <Button onClick={() => setEditingMeeting(null)} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                   <Plus className="mr-2 h-4 w-4" />

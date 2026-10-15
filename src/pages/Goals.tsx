@@ -171,6 +171,7 @@ const Goals = () => {
                     toast.error("Please select at least one goal first.");
                     return;
                   }
+                  setBulkState({ massDelete: false }); // clear unsaved bulk choices on open/close
                   setBulkActionOpen(open);
                 }}>
                   <DialogTrigger asChild>

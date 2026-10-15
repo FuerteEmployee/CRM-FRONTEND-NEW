@@ -686,12 +686,16 @@ const Dashboard = () => {
   // Announcements list
   const dynamicAnnouncements = React.useMemo(() => {
 
-    return announcementsList.slice(0, 5).map((a: any) => ({
+    // Announcements are saved with `name` (subject) and an HTML `message`; admins
+    // also receive client-only ones, which don't belong on the staff dashboard.
+    return announcementsList.filter((a: any) => a.showtostaff !== false).slice(0, 5).map((a: any) => ({
       id: a._id || a.id,
-      title: a.title,
-      message: a.message,
-      date: formatDate(a.createdAt || a.date),
-      author: a.created_by?.firstname ? `${a.created_by.firstname} ${a.created_by.lastname || ""}` : "System Admin",
+      title: a.name || a.title,
+      message: String(a.message || "").replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim(),
+      date: formatDate(a.dateadded || a.createdAt || a.date),
+      author: a.showname === false
+        ? ""
+        : a.created_by?.firstname ? `${a.created_by.firstname} ${a.created_by.lastname || ""}`.trim() : "System Admin",
     }));
   }, [announcementsList]);
 
@@ -1248,7 +1252,7 @@ const Dashboard = () => {
                               <span className="text-xs text-muted-foreground">{a.date}</span>
                             </div>
                             <p className="text-xs text-muted-foreground mt-1">{a.message}</p>
-                            <p className="text-xs text-primary mt-1">— {a.author}</p>
+                            {a.author && <p className="text-xs text-primary mt-1">— {a.author}</p>}
                           </div>
                         ))}
                       </div>

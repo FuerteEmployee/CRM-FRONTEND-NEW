@@ -1348,6 +1348,7 @@ const Customers = () => {
                     toast({ title: "Error", description: "Please select at least one customer first."});
                     return;
                   }
+                  setBulkState({ massDelete: false, groups: "" }); // clear unsaved bulk choices on open/close
                   setBulkActionOpen(open);
                 }}>
                   <DialogTrigger asChild>

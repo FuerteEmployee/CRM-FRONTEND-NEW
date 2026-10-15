@@ -143,7 +143,7 @@ export function VendorSelect({ value, onChange, disabled }: VendorSelectProps) {
         </div>
       )}
 
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+      <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) setNewVendor(emptyNewVendor); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Add New Vendor</DialogTitle>
@@ -191,7 +191,7 @@ export function VendorSelect({ value, onChange, disabled }: VendorSelectProps) {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setIsAddOpen(false); setNewVendor(emptyNewVendor); }}>Cancel</Button>
             <Button onClick={handleCreateVendor} disabled={creating}>
               {creating ? "Creating..." : "Create & Select"}
             </Button>

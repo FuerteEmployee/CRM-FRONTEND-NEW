@@ -386,7 +386,7 @@ export default function ProjectView() {
               <Button variant="outline" onClick={() => setShowTaskModal(true)} className="rounded-xl font-black gap-2 text-xs uppercase tracking-widest">
                 <Plus className="h-4 w-4" /> New Task
               </Button>
-              <Button onClick={() => setShowInvoiceModal(true)} className="rounded-xl font-black gap-2 text-xs uppercase tracking-widest">
+              <Button onClick={() => { setInvoiceMode("single"); setBillTimesheets(false); setShowInvoiceModal(true); }} className="rounded-xl font-black gap-2 text-xs uppercase tracking-widest">
                 <Receipt className="h-4 w-4" /> Invoice Project
               </Button>
               <DropdownMenu>
@@ -613,7 +613,7 @@ export default function ProjectView() {
       </div>
 
       {/* New Task Dialog */}
-      <Dialog open={showTaskModal} onOpenChange={setShowTaskModal}>
+      <Dialog open={showTaskModal} onOpenChange={(open) => { setShowTaskModal(open); if (!open) setTaskForm({ name: "", description: "", priority: "2", assignee: "", duedate: "" }); }}>
         <DialogContent className="max-w-lg rounded-2xl p-6">
           <DialogHeader>
             <DialogTitle>New Task</DialogTitle>
@@ -666,7 +666,7 @@ export default function ProjectView() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowTaskModal(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setShowTaskModal(false); setTaskForm({ name: "", description: "", priority: "2", assignee: "", duedate: "" }); }}>Cancel</Button>
             <Button onClick={handleCreateTask} disabled={createTaskMutation.isPending}>
               {createTaskMutation.isPending ? "Saving..." : "Save"}
             </Button>

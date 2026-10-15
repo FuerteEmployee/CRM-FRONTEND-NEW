@@ -117,7 +117,13 @@ export function ConnectAccountPanel() {
         <p className="text-sm text-muted-foreground">
           Connect a WhatsApp Business Cloud API number to send and receive messages for this account.
         </p>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          onOpenChange={(o) => {
+            setOpen(o);
+            if (!o) setForm({ phone_number_id: "", waba_id: "", access_token: "", app_secret: "", app_id: "" });
+          }}
+        >
           <DialogTrigger asChild>
             <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Connect Number</Button>
           </DialogTrigger>

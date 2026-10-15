@@ -203,6 +203,15 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
     return () => clearInterval(interval);
   }, [isTimerRunning, timerStartMs]);
 
+  // Drop unsaved description/comment/checklist drafts when the modal is (re)opened or switches task.
+  useEffect(() => {
+    if (!isOpen) return;
+    setDescText(task?.description || "");
+    setIsEditingDesc(false);
+    setNewComment("");
+    setNewChecklist("");
+  }, [isOpen, task?._id]);
+
   const updateMutation = useMutation({
     mutationFn: ({ id, isTodo, data }: { id: string; isTodo: boolean; data: any }) => 
       isTodo ? utilityService.updateTodo(id, data) : taskService.update(id, data),

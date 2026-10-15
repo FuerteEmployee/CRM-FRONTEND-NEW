@@ -723,7 +723,7 @@ const Tasks = () => {
               {(isAdmin || can("Tasks", "Create")) && (
                 <ImportButton onData={processTaskRows} loading={importTasksMutation.isPending} label="Import Tasks" />
               )}
-              <Dialog open={isNewTaskModalOpen} onOpenChange={setIsNewTaskModalOpen}>
+              <Dialog open={isNewTaskModalOpen} onOpenChange={(open) => (open ? setIsNewTaskModalOpen(true) : handleCloseModal())}>
                 <DialogTrigger asChild>
                   <Button onClick={() => setEditingTask(null)} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                     <Plus className="mr-2 h-4 w-4" />
@@ -1159,6 +1159,7 @@ const Tasks = () => {
                     toast({ title: "Error", description: "Please select at least one task first." });
                     return;
                   }
+                  setBulkState({ massDelete: false, status: "", priority: "", assignee: "", billable: "", tags: "" }); // clear unsaved bulk choices on open/close
                   setBulkActionOpen(open);
                 }}>
                   <DialogTrigger asChild>

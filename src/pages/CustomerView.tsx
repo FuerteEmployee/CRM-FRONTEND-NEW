@@ -823,6 +823,29 @@ export default function CustomerView() {
     }
   });
 
+  // Close the New Task dialog and discard unsaved values (same defaults as after a successful save)
+  const closeTaskModal = () => {
+    setIsTaskModalOpen(false);
+    setShowTaskAttachment(false);
+    setTaskFormData({
+      public: false,
+      billable: false,
+      name: "",
+      hourly_rate: "",
+      related_to: "customer",
+      rel_id: id || "",
+      startdate: "",
+      duedate: "",
+      priority: "2",
+      repeat_every: "none",
+      tags: "",
+      description: "",
+      status: 1,
+      assignees: [],
+      followers: []
+    });
+  };
+
   const handleCreateTask = () => {
     if (!taskFormData.name || !taskFormData.startdate) {
       toast({ title: "Error", description: "Subject and Start Date are required fields.", variant: "destructive" });
@@ -2226,7 +2249,7 @@ export default function CustomerView() {
                     <div className="p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
-                          <Dialog open={isContactModalOpen} onOpenChange={setIsContactModalOpen}>
+                          <Dialog open={isContactModalOpen} onOpenChange={(open) => (open ? setIsContactModalOpen(true) : handleCloseModal())}>
                             <DialogTrigger asChild>
                               <Button size="sm" className="gap-2 bg-primary hover:bg-primary/90 shadow-md">
                                 <Plus className="h-4 w-4" />
@@ -3926,7 +3949,7 @@ export default function CustomerView() {
                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Legal agreements and signatures</p>
                           </div>
                         </div>
-                        <Dialog open={isContractModalOpen} onOpenChange={setIsContractModalOpen}>
+                        <Dialog open={isContractModalOpen} onOpenChange={(open) => { setIsContractModalOpen(open); if (!open) setContractFormData({ subject: "", contract_value: "", contract_type: "", datestart: "", dateend: "", description: "" }); }}>
                           <DialogTrigger asChild>
                             <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                               <Plus className="h-4 w-4" />
@@ -4243,7 +4266,7 @@ export default function CustomerView() {
                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Management and execution pipeline</p>
                           </div>
                         </div>
-                        <Dialog open={isTaskModalOpen} onOpenChange={setIsTaskModalOpen}>
+                        <Dialog open={isTaskModalOpen} onOpenChange={(open) => (open ? setIsTaskModalOpen(true) : closeTaskModal())}>
                           <DialogTrigger asChild>
                             <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                               <Plus className="h-4 w-4" />
@@ -4358,7 +4381,7 @@ export default function CustomerView() {
                             </div>
                             <DialogFooter className="p-6 bg-slate-50 border-t border-slate-100 flex-shrink-0">
                               <DialogClose asChild>
-                                <Button variant="outline" onClick={() => setIsTaskModalOpen(false)} className="font-bold uppercase tracking-wider text-xs px-4 h-9 bg-white hover:bg-slate-100 border-slate-300">Close</Button>
+                                <Button variant="outline" onClick={closeTaskModal} className="font-bold uppercase tracking-wider text-xs px-4 h-9 bg-white hover:bg-slate-100 border-slate-300">Close</Button>
                               </DialogClose>
                               <Button onClick={handleCreateTask} className="font-bold uppercase tracking-wider text-xs px-4 h-9 bg-primary text-white hover:bg-primary/90 shadow-sm shadow-primary/20">
                                 Save
@@ -5141,7 +5164,7 @@ export default function CustomerView() {
           </main>
         </div>
       </div>
-      <Dialog open={isMailModalOpen} onOpenChange={setIsMailModalOpen}>
+      <Dialog open={isMailModalOpen} onOpenChange={(open) => { setIsMailModalOpen(open); if (!open) setMailForm({ email: "", cc: "", subject: "Statement", body: "Please find your account statement attached." }); }}>
         <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl">
           <div className="bg-gradient-to-r from-primary to-primary/80 px-6 py-4 flex items-center justify-between">
             <DialogHeader>
@@ -5858,7 +5881,7 @@ export default function CustomerView() {
 
             {/* Footer */}
             <div className="p-4 bg-background border-t border-border/50 flex items-center justify-end gap-3">
-              <Button variant="outline" onClick={() => setIsMailModalOpen(false)} className="rounded-lg h-9 w-24">Close</Button>
+              <Button variant="outline" onClick={() => { setIsMailModalOpen(false); setMailForm({ email: "", cc: "", subject: "Statement", body: "Please find your account statement attached." }); }} className="rounded-lg h-9 w-24">Close</Button>
               <Button className="rounded-lg h-9 w-24 bg-[#1E293B] hover:bg-[#0F172A] text-white">Send</Button>
             </div>
           </div>
@@ -6045,7 +6068,10 @@ export default function CustomerView() {
       />
       <VaultEntryModal
         open={isVaultModalOpen}
-        onOpenChange={setIsVaultModalOpen}
+        onOpenChange={(open: boolean) => {
+          setIsVaultModalOpen(open);
+          if (!open) setVaultFormData({ server: "", port: "", username: "", password: "", description: "", visibility: "all_staff", share_in_projects: false });
+        }}
         formData={vaultFormData}
         setFormData={setVaultFormData}
         onSave={() => createVaultMutation.mutate(vaultFormData)}
@@ -6053,7 +6079,10 @@ export default function CustomerView() {
       />
       <ReminderModal
         open={isReminderModalOpen}
-        onOpenChange={setIsReminderModalOpen}
+        onOpenChange={(open: boolean) => {
+          setIsReminderModalOpen(open);
+          if (!open) setReminderFormData({ date: "", staff: "", description: "", notify_by_email: false });
+        }}
         formData={reminderFormData}
         setFormData={setReminderFormData}
         staff={staff}
@@ -6062,7 +6091,7 @@ export default function CustomerView() {
       />
       <ContactModal
         open={isContactModalOpen}
-        onOpenChange={setIsContactModalOpen}
+        onOpenChange={(open: boolean) => (open ? setIsContactModalOpen(true) : handleCloseModal())}
         formData={contactForm}
         setFormData={setContactForm}
         onSave={() => isEditingContact ? updateContactMutation.mutate(contactForm) : createContactMutation.mutate(contactForm)}

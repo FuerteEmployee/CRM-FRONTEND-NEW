@@ -532,6 +532,13 @@ export default function UsersPage() {
     reader.readAsBinaryString(file);
   };
 
+  // Cancelling the mapping step drops the pending file and the "Update existing" tick
+  const closeMapping = () => {
+    setIsMappingOpen(false);
+    setPendingFile(null);
+    setUpdateExisting(false);
+  };
+
   // Per-row outcome of the last import, shown in a dialog so failed rows can be fixed.
   const [importResult, setImportResult] = useState<BulkResult | null>(null);
 
@@ -906,7 +913,7 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isMappingOpen} onOpenChange={setIsMappingOpen}>
+      <Dialog open={isMappingOpen} onOpenChange={(o) => (o ? setIsMappingOpen(true) : closeMapping())}>
         <DialogContent className="max-w-3xl rounded-lg border border-slate-200 shadow-2xl bg-white">
           <DialogHeader><DialogTitle className="text-lg font-semibold">Import Field Mapping</DialogTitle></DialogHeader>
           <div className="p-4 space-y-6">
@@ -952,7 +959,7 @@ export default function UsersPage() {
             )}
 
             <div className="flex justify-end gap-3 pt-6 border-t border-slate-100">
-              <Button variant="ghost" onClick={() => setIsMappingOpen(false)} className="rounded-md font-semibold">Cancel</Button>
+              <Button variant="ghost" onClick={closeMapping} className="rounded-md font-semibold">Cancel</Button>
               <Button onClick={handleImport} disabled={isImporting} className="rounded-md gradient-primary font-semibold shadow-sm px-8">
                 {isImporting ? "Importing..." : "Complete Import"}
               </Button>

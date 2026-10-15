@@ -509,7 +509,7 @@ export default function TicketCreate() {
                             <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => setIsServiceModalOpen(true)}
+                                onClick={() => { setNewServiceName(""); setIsServiceModalOpen(true); }}
                                 className="h-10 w-10 rounded-xl border-slate-200 bg-slate-50/50 hover:bg-primary/5 hover:text-primary transition-all border-dashed"
                             >
                                 <Plus className="h-5 w-5" />

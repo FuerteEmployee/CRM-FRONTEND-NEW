@@ -943,7 +943,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
       </div>
 
       {/* Reminder Modal */}
-      <Dialog open={isReminderModalOpen} onOpenChange={setIsReminderModalOpen}>
+      <Dialog open={isReminderModalOpen} onOpenChange={(open) => { setIsReminderModalOpen(open); if (!open) setReminderForm({ date: "", staff: "", description: "", send_email: false }); }}>
         <DialogContent className="max-w-md rounded-2xl p-6 border-none shadow-2xl bg-white">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-black text-slate-900 tracking-tight">Set Credit Note Reminder</DialogTitle>
@@ -1004,7 +1004,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
           </div>
 
           <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-100">
-            <Button variant="outline" className="rounded-xl font-bold px-6 h-10 text-slate-500" onClick={() => setIsReminderModalOpen(false)}>
+            <Button variant="outline" className="rounded-xl font-bold px-6 h-10 text-slate-500" onClick={() => { setIsReminderModalOpen(false); setReminderForm({ date: "", staff: "", description: "", send_email: false }); }}>
               Close
             </Button>
             <Button className="rounded-xl font-bold shadow-lg shadow-primary/20 px-8 h-10 bg-slate-900 hover:bg-slate-800 text-white" onClick={handleSaveReminder}>
@@ -1015,7 +1015,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
       </Dialog>
 
       {/* Apply to Invoice Modal */}
-      <Dialog open={isApplyInvoiceModalOpen} onOpenChange={setIsApplyInvoiceModalOpen}>
+      <Dialog open={isApplyInvoiceModalOpen} onOpenChange={(open) => { setIsApplyInvoiceModalOpen(open); if (!open) setApplyAmounts({}); }}>
         <DialogContent className="max-w-xl rounded-2xl p-6 border-none shadow-2xl bg-white">
           <DialogHeader className="mb-4">
             <DialogTitle className="text-xl font-black text-slate-900 tracking-tight">Apply to Invoice</DialogTitle>
@@ -1089,7 +1089,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
       </Dialog>
 
       {/* Email Modal */}
-      <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>
+      <Dialog open={isEmailModalOpen} onOpenChange={(open) => { setIsEmailModalOpen(open); if (!open) setEmailForm({ to: "", cc: "", subject: "", body: "", attachPdf: true }); }}>
         <DialogContent className="max-w-3xl rounded-2xl p-0 border-none shadow-2xl bg-white overflow-hidden flex flex-col h-[80vh]">
           <DialogHeader className="p-6 pb-4 border-b border-slate-100">
             <DialogTitle className="text-xl font-black text-slate-900 tracking-tight">Send Email</DialogTitle>
@@ -1172,7 +1172,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
           </div>
 
           <div className="flex justify-end gap-3 p-6 border-t border-slate-100 bg-slate-50">
-            <Button variant="outline" className="rounded-xl font-bold px-6 h-10 text-slate-500" onClick={() => setIsEmailModalOpen(false)}>
+            <Button variant="outline" className="rounded-xl font-bold px-6 h-10 text-slate-500" onClick={() => { setIsEmailModalOpen(false); setEmailForm({ to: "", cc: "", subject: "", body: "", attachPdf: true }); }}>
               Close
             </Button>
             <Button 
@@ -1180,6 +1180,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
               onClick={() => {
                 toast({ title: "Email Sent", description: "Your email has been sent successfully.", className: "bg-emerald-600 text-white border-none" });
                 setIsEmailModalOpen(false);
+                setEmailForm({ to: "", cc: "", subject: "", body: "", attachPdf: true });
               }}
             >
               Send Email

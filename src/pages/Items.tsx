@@ -613,7 +613,11 @@ const Items = () => {
           </div>
 
           {can("items", "create") && (
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <Dialog open={isCreateOpen} onOpenChange={(open) => {
+              setIsCreateOpen(open);
+              // discard unsaved values when closed without saving
+              if (!open) setCreateForm({ name: "", long_description: "", quantity: "1", rate: "0", amount: "0", unit: "", group: "", tax: "none", hsn_sac_code: "", cess_rate: "0", tax_inclusive: false, branch: "", custom_fields: {} });
+            }}>
               <DialogTrigger asChild>
                 <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                   <Plus className="h-4 w-4" />
@@ -804,6 +808,7 @@ const Items = () => {
                 toast({ title: "Error", description: "Please select at least one item first."});
                 return;
               }
+              setBulkState({ massDelete: false }); // clear unsaved bulk choices on open/close
               setBulkActionOpen(open);
             }}>
               <DialogTrigger asChild>

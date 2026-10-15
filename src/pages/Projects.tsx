@@ -335,6 +335,7 @@ const Projects = () => {
                     toast.error("Please select at least one project first.");
                     return;
                   }
+                  setBulkState({ massDelete: false, status: "" }); // clear unsaved bulk choices on open/close
                   setBulkActionOpen(open);
                 }}>
                   <DialogTrigger asChild>

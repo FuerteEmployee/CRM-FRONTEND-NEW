@@ -684,7 +684,12 @@ const KnowledgeBase = () => {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsNewArticleModalOpen(false)}
+                  onClick={() => {
+                    // same reset as closing via X/Esc, so an edited article doesn't leak into "New Article"
+                    setEditingArticleId(null);
+                    setNewArticleData({ subject: "", group: "", internal: false, disabled: false, description: "" });
+                    setIsNewArticleModalOpen(false);
+                  }}
                   className="px-6 h-10 border-slate-200 hover:bg-white hover:border-slate-300 text-foreground font-semibold rounded-xl transition-all shadow-sm"
                 >
                   Close
@@ -701,7 +706,10 @@ const KnowledgeBase = () => {
           </Dialog>
 
           {/* Add Group Modal */}
-          <Dialog open={isAddGroupModalOpen} onOpenChange={setIsAddGroupModalOpen}>
+          <Dialog open={isAddGroupModalOpen} onOpenChange={(open) => {
+            setIsAddGroupModalOpen(open);
+            if (!open) setNewGroupData({ name: "", color: "#000000", description: "", order: 1, disabled: false }); // discard unsaved group
+          }}>
             <DialogContent className="max-w-2xl max-h-[85vh] p-0 overflow-hidden border-none rounded-[2rem] shadow-2xl flex flex-col">
               <div className="bg-white px-8 py-6 text-slate-900 flex items-center justify-between border-b border-slate-100 shrink-0">
                 <div>
@@ -793,7 +801,7 @@ const KnowledgeBase = () => {
                 <p className="text-[10px] text-slate-400 font-bold uppercase italic">* All articles in this group will be hidden if disabled is checked</p>
               </div>
               <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3 shrink-0">
-                <Button variant="outline" onClick={() => setIsAddGroupModalOpen(false)} className="rounded-xl font-black uppercase text-[10px] tracking-widest h-10 px-6">Close</Button>
+                <Button variant="outline" onClick={() => { setIsAddGroupModalOpen(false); setNewGroupData({ name: "", color: "#000000", description: "", order: 1, disabled: false }); }} className="rounded-xl font-black uppercase text-[10px] tracking-widest h-10 px-6">Close</Button>
                 <Button
                   onClick={() => createGroupMutation.mutate(newGroupData)}
                   disabled={!newGroupData.name || createGroupMutation.isPending}
@@ -832,6 +840,7 @@ const KnowledgeBase = () => {
                     toast.error("Please select at least one article first.");
                     return;
                   }
+                  setBulkState({ massDelete: false }); // clear unsaved bulk choices on open/close
                   setBulkActionOpen(open);
                 }}>
                   <DialogTrigger asChild>

@@ -622,7 +622,7 @@ export default function ShiftManagementPage() {
                                 </div>
 
                                 <DialogFooter className="px-8 py-4 border-t border-gray-100 shrink-0 flex items-center gap-3">
-                                    <Button variant="ghost" type="button" onClick={() => setIsAddOpen(false)} className="rounded-xl h-12">
+                                    <Button variant="ghost" type="button" onClick={() => { setIsAddOpen(false); setEditingShift(null); }} className="rounded-xl h-12">
                                         Cancel
                                     </Button>
                                     <Button disabled={isSubmitting} type="submit" className="flex-1 rounded-xl h-12 gradient-primary font-bold shadow-glow">

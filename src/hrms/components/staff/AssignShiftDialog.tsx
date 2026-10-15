@@ -47,6 +47,9 @@ export function AssignShiftDialog({ shift, allShifts, onClose, onAssigned }: Pro
         if (!shift) return;
         setSelected(new Set());
         setSearch("");
+        setBranchFilter("all");
+        setDeptFilter("all");
+        setHideAlreadyOnShift(true);
         setIsLoading(true);
         Promise.allSettled([staffService.getAll(), hrmsbranchService.getAll({ limit: 1000 }), departmentService.getAll()])
             .then(([emp, br, dep]) => {

@@ -79,7 +79,7 @@ export function TemplatesPanel() {
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isRefetching}>
             <RefreshCw className={`h-4 w-4 mr-1 ${isRefetching ? "animate-spin" : ""}`} /> Refresh
           </Button>
-          <Dialog open={open} onOpenChange={setOpen}>
+          <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setForm(emptyForm); }}>
             <DialogTrigger asChild>
               <Button size="sm"><Plus className="h-4 w-4 mr-1" /> Create Template</Button>
             </DialogTrigger>

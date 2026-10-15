@@ -268,7 +268,13 @@ export default function ExpensePage() {
 
         <div className="flex items-center gap-3">
           {isAdmin && (
-            <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
+            <Dialog
+              open={isCategoryDialogOpen}
+              onOpenChange={(open) => {
+                setIsCategoryDialogOpen(open);
+                if (!open) setNewCategoryName("");
+              }}
+            >
               <DialogTrigger asChild>
                 <Button variant="outline" className="rounded-2xl h-12 border-border/40 bg-background/50 hover:bg-background font-bold px-5">
                   <Filter className="h-4 w-4 mr-2" /> Categories
@@ -320,7 +326,10 @@ export default function ExpensePage() {
 
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             setIsDialogOpen(open);
-            if (!open) setEditingExpense(null);
+            if (!open) {
+              setEditingExpense(null);
+              setSelectedFile(null);
+            }
           }}>
             <DialogTrigger asChild>
               <Button

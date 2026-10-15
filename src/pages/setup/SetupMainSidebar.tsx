@@ -257,6 +257,8 @@ const SetupMainSidebar = () => {
                     toast.error("Please select at least one item first.");
                     return;
                   }
+                  // Clear the "Mass Delete" tick when the dialog is dismissed without confirming
+                  if (!open) setBulkState({ massDelete: false });
                   setBulkActionOpen(open);
                 }}>
                   <DialogTrigger asChild>

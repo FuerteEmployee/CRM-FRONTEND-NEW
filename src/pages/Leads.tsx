@@ -162,7 +162,7 @@ const Leads = () => {
   const branches: { _id: string; name: string }[] = branchesRaw;
   const { symbol, formatAmount } = useCurrency();
   const [isNewLeadOpen, setIsNewLeadOpen] = useState(false);
-  useOpenCreateModal(() => setIsNewLeadOpen(true));
+  useOpenCreateModal(() => openModal("create")); // openModal resets the form (avoids stale edit/view data)
   const [modalMode, setModalMode] = useState<"create" | "edit" | "view">("create");
   const [selectedLead, setSelectedLead] = useState<any>(null);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
@@ -1747,7 +1747,11 @@ const Leads = () => {
                 <MetaFormsFilterDropdown forms={adFormTabs} value={metaFormFilter} onChange={setMetaFormFilter} />
 
                 {/* Bulk Actions Modal */}
-                <Dialog open={bulkActionOpen} onOpenChange={setBulkActionOpen}>
+                <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+                  // clear unsaved bulk choices on open/close
+                  setBulkState({ massDelete: false, status: "", source: "", assigned: "", salesPerson: "", tags: "", is_public: false, contacted_today: false, mark_lost: false });
+                  setBulkActionOpen(open);
+                }}>
                   <DialogTrigger asChild>
                     <Button variant="outline" className="h-10 rounded-xl px-4 border-slate-200 bg-white font-black uppercase text-[10px] tracking-widest">
                       Bulk Actions

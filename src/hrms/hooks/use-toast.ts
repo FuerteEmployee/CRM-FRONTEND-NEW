@@ -156,6 +156,13 @@ function toast({ ...props }: Toast) {
     },
   });
 
+  // Radix pauses its own close timer while the window/toast has focus or hover
+  // and can leave a toast stuck open (e.g. raised from inside a modal Dialog),
+  // so always close it ourselves shortly after its duration.
+  if (props.duration !== Infinity) {
+    setTimeout(dismiss, (props.duration ?? 5000) + 500);
+  }
+
   return {
     id: id,
     dismiss,

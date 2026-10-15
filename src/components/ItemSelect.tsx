@@ -148,7 +148,7 @@ export function ItemSelect({ value, onChange, disabled, placeholder = "Select it
         </PopoverContent>
       </Popover>
 
-      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+      <Dialog open={isAddOpen} onOpenChange={(o) => { setIsAddOpen(o); if (!o) setNewItem(emptyNewItem); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Create Item</DialogTitle>
@@ -172,7 +172,7 @@ export function ItemSelect({ value, onChange, disabled, placeholder = "Select it
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsAddOpen(false)}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setIsAddOpen(false); setNewItem(emptyNewItem); }}>Cancel</Button>
             <Button onClick={handleCreateItem} disabled={creating}>{creating ? "Creating..." : "Create & Select"}</Button>
           </DialogFooter>
         </DialogContent>

@@ -88,7 +88,7 @@ export const MetaAdsDialog = () => {
   });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setPageId(""); setAccessToken(""); } }}>
       <DialogTrigger asChild>
         <Button
           variant="outline"

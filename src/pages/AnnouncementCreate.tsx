@@ -66,8 +66,14 @@ const AnnouncementCreate = () => {
   });
 
   const handleSave = () => {
-    if (!formData.name || !formData.message) {
+    // An empty rich-text editor still holds markup like "<br>", so check the text itself.
+    const messageText = String(formData.message || "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").trim();
+    if (!formData.name.trim() || !messageText) {
       toast.error("Subject and Message are required");
+      return;
+    }
+    if (!formData.showtostaff && !formData.showtousers) {
+      toast.error("Select at least one: Show to Staff or Show to Clients");
       return;
     }
     mutation.mutate(formData);

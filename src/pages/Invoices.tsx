@@ -532,7 +532,8 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
               className="h-8 px-3 rounded-lg gap-1.5 text-xs font-bold border-emerald-200 text-emerald-700 hover:bg-emerald-50"
               title="Record Payment"
               onClick={() => {
-                setPaymentForm(p => ({ ...p, amount: balanceDue > 0 ? String(balanceDue.toFixed(2)) : "" }));
+                // start from a clean form so values from a cancelled attempt don't carry over
+                setPaymentForm({ amount: balanceDue > 0 ? String(balanceDue.toFixed(2)) : "", paymentmode: "", date: new Date().toISOString().split("T")[0], transactionid: "" });
                 setShowPaymentDialog(true);
               }}
             >
@@ -562,7 +563,7 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
               variant="outline"
               className="h-8 w-8 rounded-lg"
               title="Send Email"
-              onClick={() => setShowEmailDialog(true)}
+              onClick={() => { setCcEmail(""); setAttachPdf(true); setShowEmailDialog(true); }}
             >
               <Mail className="h-3.5 w-3.5" />
             </Button>
@@ -1383,6 +1384,7 @@ const Invoices = () => {
                 toast({ title: "Error", description: "Please select at least one item first."});
                 return;
               }
+              setBulkState({ massDelete: false, status: "" }); // clear unsaved bulk choices on open/close
               setBulkActionOpen(open);
             }}>
               <DialogTrigger asChild>

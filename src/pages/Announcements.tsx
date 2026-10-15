@@ -163,6 +163,7 @@ const Announcements = () => {
                     toast.error("Please select at least one announcement first.");
                     return;
                   }
+                  setBulkState({ massDelete: false }); // clear unsaved bulk choices on open/close
                   setBulkActionOpen(open);
                 }}>
                   <DialogTrigger asChild>
@@ -325,6 +326,9 @@ const Announcements = () => {
               <div className="flex items-center gap-2 mt-4 text-[11px] font-bold uppercase tracking-widest text-white/70">
                 <Calendar className="h-3.5 w-3.5" />
                 {viewAnnouncement && format(new Date(viewAnnouncement.dateadded), "MMMM dd, yyyy")}
+                {viewAnnouncement?.showname !== false && viewAnnouncement?.created_by?.firstname && (
+                  <span>· {`${viewAnnouncement.created_by.firstname} ${viewAnnouncement.created_by.lastname || ""}`.trim()}</span>
+                )}
               </div>
             </DialogHeader>
             <div className="p-8 bg-background max-h-[60vh] overflow-y-auto custom-scrollbar">

@@ -82,8 +82,9 @@ export function ProfileDialog({ isOpen, onOpenChange }: ProfileDialogProps) {
         },
     });
 
+    // Re-populate from the saved profile each time the dialog opens (discards unsaved edits)
     useEffect(() => {
-        if (user) {
+        if (user && isOpen) {
             form.reset({
                 name: user.name,
                 email: user.email,
@@ -98,8 +99,9 @@ export function ProfileDialog({ isOpen, onOpenChange }: ProfileDialogProps) {
                 },
             });
             setAvatarPreview(user.avatar || null);
+            setAvatarFile(null);
         }
-    }, [user, form]);
+    }, [user, form, isOpen]);
 
     const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];

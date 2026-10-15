@@ -166,6 +166,20 @@ const MyLeavesPage = () => {
     halfDayPeriod: "first_half",
   });
 
+  // Closing the Apply Leave dialog without submitting discards the draft
+  const closeApply = () => {
+    setIsApplyOpen(false);
+    setNewLeave({
+      leaveTypeId: "",
+      leaveOption: "full_day",
+      fromDate: "",
+      toDate: "",
+      reason: "",
+      isHalfDay: false,
+      halfDayPeriod: "first_half",
+    });
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -570,7 +584,7 @@ const MyLeavesPage = () => {
       </Dialog>
 
       {/* Apply Leave Dialog */}
-      <Dialog open={isApplyOpen} onOpenChange={setIsApplyOpen}>
+      <Dialog open={isApplyOpen} onOpenChange={(o) => (o ? setIsApplyOpen(true) : closeApply())}>
         <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden glass-deep border-border/40 shadow-2xl rounded-3xl animate-in zoom-in-95 duration-300">
           <div className="gradient-primary h-1.5 w-full" />
           <DialogHeader className="px-6 pt-6 pb-4 bg-accent/40 border-b border-border/30">
@@ -689,7 +703,7 @@ const MyLeavesPage = () => {
             <div className="flex gap-3 w-full">
               <Button 
                 variant="ghost" 
-                onClick={() => setIsApplyOpen(false)}
+                onClick={closeApply}
                 className="flex-1 rounded-xl font-bold h-11 text-xs"
               >
                 Cancel

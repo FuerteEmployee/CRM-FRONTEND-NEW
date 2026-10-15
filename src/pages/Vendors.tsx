@@ -427,6 +427,7 @@ const Vendors = () => {
                       toast({ title: "Error", description: "Please select at least one vendor first."});
                       return;
                     }
+                    setBulkState({ massDelete: false, sales_person: "" }); // clear unsaved bulk choices on open/close
                     setBulkActionOpen(open);
                   }}>
                     <DialogTrigger asChild>

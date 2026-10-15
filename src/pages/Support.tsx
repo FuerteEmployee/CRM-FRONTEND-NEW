@@ -249,6 +249,7 @@ const Support = () => {
                     toast({ title: "Error", description: "Please select at least one ticket first."});
                     return;
                   }
+                  setBulkState({ massDelete: false, status: "", department: "", priority: "", tags: "", service: "" }); // clear unsaved bulk choices on open/close
                   setBulkActionOpen(open);
                 }}>
                   <DialogTrigger asChild>

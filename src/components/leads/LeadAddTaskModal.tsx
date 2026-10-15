@@ -51,8 +51,14 @@ export function LeadAddTaskModal({ open, onOpenChange, lead, staffOptions }: Lea
     onError: (err: any) => toast.error(err.message || "Failed to add task"),
   });
 
+  // Discard unsaved input whenever the modal closes (✕, Esc, outside click, Cancel).
+  const handleOpenChange = (o: boolean) => {
+    if (!o) setForm(emptyForm);
+    onOpenChange(o);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg p-0 overflow-hidden rounded-3xl border-none shadow-2xl bg-white">
         {/* Header/footer pinned (shrink-0); only the field section scrolls
             (min-h-0 lets a flex child shrink below its content height and
@@ -117,7 +123,7 @@ export function LeadAddTaskModal({ open, onOpenChange, lead, staffOptions }: Lea
             </div>
           </div>
           <div className="shrink-0 p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
-            <Button variant="ghost" onClick={() => onOpenChange(false)} className="rounded-xl font-bold h-10 px-6">
+            <Button variant="ghost" onClick={() => handleOpenChange(false)} className="rounded-xl font-bold h-10 px-6">
               Cancel
             </Button>
             <Button

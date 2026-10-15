@@ -466,6 +466,7 @@ const Payments = () => {
                 toast({ title: "Error", description: "Please select at least one item first."});
                 return;
               }
+              setBulkState({ massDelete: false }); // clear unsaved bulk choices on open/close
               setBulkActionOpen(open);
             }}>
               <DialogTrigger asChild>
@@ -1048,7 +1049,7 @@ const Payments = () => {
               />
             </div>
             <div className="flex justify-end gap-2 pt-1">
-              <Button variant="ghost" onClick={() => setIsNewPaymentOpen(false)}>Cancel</Button>
+              <Button variant="ghost" onClick={() => { setIsNewPaymentOpen(false); setNewPaymentForm(emptyNewPaymentForm); }}>Cancel</Button>
               <Button className="rounded-lg" onClick={handleCreatePayment} disabled={createMutation.isPending}>
                 {createMutation.isPending ? "Saving..." : "Save Payment"}
               </Button>
