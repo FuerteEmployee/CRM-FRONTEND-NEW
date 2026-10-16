@@ -45,6 +45,8 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { InquiryOutcomeDialog } from "@/components/tasks/InquiryOutcomeDialog";
+import { TaskVoiceNotes, isAudioFile } from "@/components/tasks/TaskVoiceNotes";
+import { Mic } from "lucide-react";
 
 interface TaskViewModalProps {
   isOpen: boolean;
@@ -572,6 +574,23 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
 
             <div className="w-full h-px bg-slate-100" />
 
+            {/* Voice Notes Section */}
+            <TaskVoiceNotes
+              taskId={task._id}
+              files={taskFiles}
+              onUpload={async (file: File) => {
+                await uploadFileMutation.mutateAsync([file]);
+              }}
+              onDelete={(fileId: string) => {
+                deleteFileMutation.mutate(fileId);
+              }}
+              isUploading={uploadFileMutation.isPending}
+              staffOptions={staffOptions}
+              getFileUrl={getFileUrl}
+            />
+
+            <div className="w-full h-px bg-slate-100" />
+
             {/* Comments */}
             <div className="space-y-6">
               <h3 className="font-bold text-primary text-lg flex items-center gap-2">
@@ -862,6 +881,7 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
                 <div className="space-y-2">
                   {taskFiles.map((f: any) => {
                     const isImage = (f.filetype || "").startsWith("image/");
+                    const isAudio = isAudioFile(f);
                     return (
                       <div key={f._id} className="flex items-center gap-3 bg-white rounded-lg border border-slate-200 px-3 py-2">
                         <a
@@ -876,19 +896,30 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
                               alt={f.file_name}
                               className="h-10 w-10 rounded-lg object-cover border border-slate-200"
                             />
+                          ) : isAudio ? (
+                            <div className="h-10 w-10 rounded-lg bg-purple-50 border border-purple-200 text-purple-600 flex items-center justify-center">
+                              <Mic className="h-4 w-4" />
+                            </div>
                           ) : (
                             <div className="h-10 w-10 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center">
                               <Paperclip className="h-4 w-4 text-slate-400" />
                             </div>
                           )}
                         </a>
-                        <a
-                          href={getFileUrl(f.attachment_key)}
-                          download={f.file_name}
-                          className="text-sm font-medium text-primary hover:underline truncate flex-1"
-                        >
-                          {f.file_name}
-                        </a>
+                        <div className="flex-1 min-w-0">
+                          <a
+                            href={getFileUrl(f.attachment_key)}
+                            download={f.file_name}
+                            className="text-sm font-medium text-primary hover:underline truncate block"
+                          >
+                            {f.file_name}
+                          </a>
+                          {isAudio && (
+                            <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full inline-block mt-0.5">
+                              Voice Note
+                            </span>
+                          )}
+                        </div>
                         <Button
                           variant="ghost"
                           size="icon"

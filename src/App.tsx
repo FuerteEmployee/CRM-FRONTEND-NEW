@@ -18,6 +18,8 @@ import Projects from "./pages/Projects";
 import ProjectCreate from "./pages/ProjectCreate";
 import ProjectView from "./pages/ProjectView";
 import Tasks from "./pages/Tasks";
+import TaskOverview from "./pages/TaskOverview";
+import TaskCreate from "./pages/TaskCreate";
 import Customers from "./pages/Customers";
 import Invoices from "./pages/Invoices";
 import Contacts from "./pages/Contacts";
@@ -240,6 +242,9 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="projects/edit/:id" element={<Wrapper><ProjectCreate /></Wrapper>} />
     <Route path="projects/view/:id" element={<Wrapper><ProjectView /></Wrapper>} />
     <Route path="tasks" element={<Wrapper><Tasks /></Wrapper>} />
+    <Route path="tasks/overview" element={<Wrapper><TaskOverview /></Wrapper>} />
+    <Route path="tasks/create" element={<Wrapper><TaskCreate /></Wrapper>} />
+    <Route path="tasks/edit/:id" element={<Wrapper><TaskCreate /></Wrapper>} />
     <Route path="customers" element={<Wrapper><Customers /></Wrapper>} />
     <Route path="customers/:id" element={<Wrapper><CustomerView /></Wrapper>} />
     <Route path="contacts" element={<Wrapper><Contacts /></Wrapper>} />

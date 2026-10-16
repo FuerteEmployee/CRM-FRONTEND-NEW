@@ -5,7 +5,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -15,21 +14,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { 
-  Search, ChevronDown, Download, FileSpreadsheet, FileJson, FileType, Printer, Filter
-} from "lucide-react";
+import { Search, Filter, ArrowLeft } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { projectService } from "@/api/services/project.service";
 import { staffService } from "@/api/services/staff.service";
 import { formatDate } from "@/lib/dateFormat";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
+import { ExportButton } from "@/components/ui/export-button";
+import { TaskViewModal } from "@/components/tasks/TaskViewModal";
 
 const taskStatusConfig = [
   { id: 1, label: "Not Started", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" },
@@ -43,6 +36,7 @@ const TaskOverview = () => {
   const [search, setSearch] = useState("");
   const [itemsPerPage, setItemsPerPage] = useState(25);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedTask, setSelectedTask] = useState<any>(null);
   
   // Temp Filter states (before apply)
   const [filterStaff, setFilterStaff] = useState("all");
@@ -68,15 +62,25 @@ const TaskOverview = () => {
     setCurrentPage(1);
   };
 
-  const { data: tasks = [], isLoading: tasksLoading } = useQuery<any[]>({
+  const { data: rawTasks = [], isLoading: tasksLoading } = useQuery<any[]>({
     queryKey: ["tasks-overview"],
-    queryFn: () => projectService.getTasks(),
+    queryFn: async () => {
+      const res: any = await projectService.getTasks();
+      return Array.isArray(res) ? res : res?.data ?? [];
+    },
   });
 
   const { data: staffMembers = [] } = useQuery<any[]>({
     queryKey: ["staff"],
     queryFn: staffService.getAll,
   });
+
+  const staffOptions = useMemo(() => {
+    return (staffMembers || []).map((s: any) => ({
+      value: s._id,
+      label: `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.email || "Unknown"
+    }));
+  }, [staffMembers]);
 
   const months = [
     { value: "1", label: "January" }, { value: "2", label: "February" }, { value: "3", label: "March" },
@@ -88,7 +92,8 @@ const TaskOverview = () => {
   const years = Array.from({ length: 10 }, (_, i) => (new Date().getFullYear() - 5 + i).toString());
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter((t: any) => {
+    const list = Array.isArray(rawTasks) ? rawTasks : [];
+    return list.filter((t: any) => {
       const matchesSearch = (t.name || "").toLowerCase().includes(search.toLowerCase());
       const matchesStatus = appliedFilters.status === "all" || t.status === parseInt(appliedFilters.status);
       const matchesStaff = appliedFilters.staff === "all" || (t.assignees && t.assignees.includes(appliedFilters.staff));
@@ -99,7 +104,7 @@ const TaskOverview = () => {
       
       return matchesSearch && matchesStatus && matchesStaff && matchesMonth && matchesYear;
     });
-  }, [tasks, search, appliedFilters]);
+  }, [rawTasks, search, appliedFilters]);
 
   // Pagination logic
   const totalItems = filteredTasks.length;
@@ -112,13 +117,17 @@ const TaskOverview = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex flex-col">
-          <h1 className="text-2xl font-bold">Tasks Overview</h1>
-          <Link to="/admin/tasks" className="text-sm text-primary hover:underline font-medium">Back to tasks list</Link>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-bold">Tasks Overview</h1>
+            <Link to="/admin/tasks" className="text-sm text-primary hover:underline font-medium inline-flex items-center gap-1 mt-1">
+              <ArrowLeft className="h-3.5 w-3.5" /> Back to tasks list
+            </Link>
+          </div>
         </div>
 
         {/* Filters Card */}
-        <Card className="border-none shadow-sm bg-white/50 backdrop-blur-sm">
+        <Card className="border-none shadow-sm bg-white/70 backdrop-blur-sm">
           <CardContent className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
               <div className="space-y-2">
@@ -129,7 +138,7 @@ const TaskOverview = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Staff</SelectItem>
-                    {staffMembers.map(m => (
+                    {staffMembers.map((m: any) => (
                       <SelectItem key={m._id} value={m._id}>{m.firstname} {m.lastname}</SelectItem>
                     ))}
                   </SelectContent>
@@ -182,7 +191,7 @@ const TaskOverview = () => {
               </div>
 
               <Button onClick={handleApplyFilters} className="h-10 font-bold uppercase tracking-widest text-[10px]">
-                <Filter className="mr-2 h-3 w-3" />
+                <Filter className="mr-2 h-3.5 w-3.5" />
                 Apply
               </Button>
             </div>
@@ -190,7 +199,7 @@ const TaskOverview = () => {
         </Card>
 
         {/* Main Table Card */}
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden border border-slate-200 shadow-sm">
           <CardContent className="p-0">
             {/* Table Header Controls */}
             <div className="p-4 border-b flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/50">
@@ -208,25 +217,23 @@ const TaskOverview = () => {
                   </SelectContent>
                 </Select>
                 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="h-9 text-xs font-bold bg-white border-slate-200 rounded-lg uppercase tracking-wider">
-                      Export <ChevronDown className="ml-2 h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" className="w-40">
-                    <DropdownMenuItem className="text-xs font-medium cursor-pointer"><FileSpreadsheet className="mr-2 h-3.5 w-3.5 text-green-600" /> Excel</DropdownMenuItem>
-                    <DropdownMenuItem className="text-xs font-medium cursor-pointer"><FileType className="mr-2 h-3.5 w-3.5 text-red-600" /> PDF</DropdownMenuItem>
-                    <DropdownMenuItem className="text-xs font-medium cursor-pointer"><FileJson className="mr-2 h-3.5 w-3.5 text-blue-600" /> JSON</DropdownMenuItem>
-                    <DropdownMenuItem className="text-xs font-medium cursor-pointer"><Printer className="mr-2 h-3.5 w-3.5 text-slate-600" /> Print</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <ExportButton
+                  data={filteredTasks}
+                  filename={`tasks-overview-${new Date().toISOString().split("T")[0]}`}
+                  columns={[
+                    { header: "Name", key: "name" },
+                    { header: "Start Date", key: (r: any) => r.startdate ? formatDate(r.startdate) : "-" },
+                    { header: "Due Date", key: (r: any) => r.duedate ? formatDate(r.duedate) : "-" },
+                    { header: "Status", key: (r: any) => taskStatusConfig.find(s => s.id === r.status)?.label || "Unknown" },
+                    { header: "On Time", key: (r: any) => !r.duedate || !r.datefinished || new Date(r.datefinished) <= new Date(r.duedate) ? "Yes" : "No" },
+                  ]}
+                />
               </div>
 
               <div className="relative w-full md:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <Input 
-                  placeholder="Search..." 
+                  placeholder="Search tasks..." 
                   className="pl-9 h-9 bg-white border-slate-200 rounded-lg text-xs"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -238,14 +245,12 @@ const TaskOverview = () => {
               <Table className="min-w-[1200px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[200px]">Name</TableHead>
+                    <TableHead className="min-w-[220px]">Name</TableHead>
                     <TableHead>Start Date</TableHead>
                     <TableHead>Due Date</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Attachments</TableHead>
                     <TableHead>Comments</TableHead>
                     <TableHead>Checklist</TableHead>
-                    <TableHead>Logged Time</TableHead>
                     <TableHead>On Time?</TableHead>
                     <TableHead>Assigned to</TableHead>
                   </TableRow>
@@ -254,22 +259,28 @@ const TaskOverview = () => {
                   {tasksLoading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={i}>
-                        <TableCell colSpan={10}>
+                        <TableCell colSpan={8}>
                           <Skeleton className="h-10 w-full" />
                         </TableCell>
                       </TableRow>
                     ))
                   ) : paginatedTasks.length === 0 ? (
-                    <TableEmpty colSpan={10}>No entries found</TableEmpty>
+                    <TableEmpty colSpan={8}>No tasks found matching current filters</TableEmpty>
                   ) : (
                     paginatedTasks.map((task) => {
                       const status = taskStatusConfig.find(s => s.id === task.status) || taskStatusConfig[0];
                       const isOnTime = !task.duedate || !task.datefinished || new Date(task.datefinished) <= new Date(task.duedate);
-                      
+                      const completedCheck = task.checklists?.filter((c: any) => c.completed)?.length || 0;
+                      const totalCheck = task.checklists?.length || 0;
+
                       return (
-                        <TableRow key={task._id} className="group">
+                        <TableRow key={task._id} className="group hover:bg-slate-50/70">
                           <TableCell>
-                            <span className="font-semibold text-primary hover:underline cursor-pointer">
+                            <span
+                              onClick={() => setSelectedTask(task)}
+                              className="font-semibold text-primary hover:underline cursor-pointer"
+                              title="Click to view task details"
+                            >
                               {task.name}
                             </span>
                           </TableCell>
@@ -284,21 +295,36 @@ const TaskOverview = () => {
                               {status.label}
                             </Badge>
                           </TableCell>
-                          <TableCell>0</TableCell>
-                          <TableCell>0</TableCell>
-                          <TableCell>0 / 0</TableCell>
-                          <TableCell>00:00</TableCell>
+                          <TableCell className="font-semibold text-slate-600">
+                            {task.comments?.length || 0}
+                          </TableCell>
+                          <TableCell className="font-semibold text-slate-600">
+                            {totalCheck > 0 ? `${completedCheck} / ${totalCheck}` : "0 / 0"}
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={isOnTime ? "bg-green-50 text-green-700 border-green-200" : "bg-red-50 text-red-700 border-red-200"}>
                               {isOnTime ? "Yes" : "No"}
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <div className="flex -space-x-2">
-                              <Avatar className="h-7 w-7 border-2 border-white shadow-sm">
-                                <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">TM</AvatarFallback>
-                              </Avatar>
-                            </div>
+                            {task.assignees && task.assignees.length > 0 ? (
+                              <div className="flex -space-x-1.5 overflow-hidden">
+                                {task.assignees.map((id: string) => {
+                                  const member = staffMembers.find((m: any) => m._id === id);
+                                  const name = member ? `${member.firstname} ${member.lastname}` : "Staff";
+                                  const initials = member ? `${member.firstname?.[0] || ""}${member.lastname?.[0] || ""}`.toUpperCase() : "ST";
+                                  return (
+                                    <Avatar key={id} className="h-7 w-7 border-2 border-white shadow-sm" title={name}>
+                                      <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
+                                        {initials}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-xs">-</span>
+                            )}
                           </TableCell>
                         </TableRow>
                       );
@@ -319,6 +345,16 @@ const TaskOverview = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Task View Details Modal */}
+        {selectedTask && (
+          <TaskViewModal
+            isOpen={!!selectedTask}
+            onClose={() => setSelectedTask(null)}
+            task={selectedTask}
+            staffOptions={staffOptions}
+          />
+        )}
       </div>
     </DashboardLayout>
   );

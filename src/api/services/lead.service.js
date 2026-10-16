@@ -15,6 +15,8 @@ export const leadService = {
   delete: (id) => apiClient.delete(`/leads/${id}`),
 
   bulkDelete: (ids) => apiClient.post('/leads/bulk-delete', { ids }),
+  
+  bulkConvertToCustomer: (ids) => apiClient.post('/leads/bulk-convert', { ids }),
 
   // data: { treatment_item?, treatment_name, treatment_amount, notes?, converted_at? }
   convertToCustomer: (id, data) => apiClient.post(`/leads/${id}/convert`, data || {}),

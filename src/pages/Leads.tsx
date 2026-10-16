@@ -168,6 +168,7 @@ const Leads = () => {
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
   const [bulkState, setBulkState] = useState({
     massDelete: false,
+    convertToCustomer: false,
     status: "",
     source: "",
     assigned: "",
@@ -701,6 +702,16 @@ const Leads = () => {
       if (bulkState.massDelete) {
         await leadService.bulkDelete(selectedLeads);
         toast({ title: "Success", description: `Deleted ${selectedLeads.length} leads.` });
+      } else if (bulkState.convertToCustomer) {
+        const res: any = await leadService.bulkConvertToCustomer(selectedLeads);
+        toast({
+          title: "Success",
+          description: res?.data?.message || `Successfully converted ${selectedLeads.length} lead(s) to customer(s).`,
+        });
+        queryClient.invalidateQueries({ queryKey: ["clients"] });
+        queryClient.invalidateQueries({ queryKey: ["customers"] });
+        queryClient.invalidateQueries({ queryKey: ["lead-insights-summary"] });
+        queryClient.invalidateQueries({ queryKey: ["conversions"] });
       } else {
         const updates: any = {};
         if (bulkState.status) updates.status = bulkState.status;
@@ -719,9 +730,12 @@ const Leads = () => {
       queryClient.invalidateQueries({ queryKey: ["leads"] });
       setSelectedLeads([]);
       setBulkActionOpen(false);
-      setBulkState({ massDelete: false, status: "", source: "", assigned: "", salesPerson: "", tags: "", is_public: false, contacted_today: false, mark_lost: false });
+      setBulkState({ massDelete: false, convertToCustomer: false, status: "", source: "", assigned: "", salesPerson: "", tags: "", is_public: false, contacted_today: false, mark_lost: false });
     } catch (err: any) {
-      toast({ title: "Error", description: "Failed to perform bulk action."});
+      toast({
+        title: "Error",
+        description: err?.response?.data?.message || "Failed to perform bulk action.",
+      });
     } finally {
       setIsBulkLoading(false);
     }
@@ -1749,45 +1763,138 @@ const Leads = () => {
                 {/* Bulk Actions Modal */}
                 <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                   // clear unsaved bulk choices on open/close
-                  setBulkState({ massDelete: false, status: "", source: "", assigned: "", salesPerson: "", tags: "", is_public: false, contacted_today: false, mark_lost: false });
+                  setBulkState({ massDelete: false, convertToCustomer: false, status: "", source: "", assigned: "", salesPerson: "", tags: "", is_public: false, contacted_today: false, mark_lost: false });
                   setBulkActionOpen(open);
                 }}>
                   <DialogTrigger asChild>
-                    <Button variant="outline" className="h-10 rounded-xl px-4 border-slate-200 bg-white font-black uppercase text-[10px] tracking-widest">
+                    <Button 
+                      variant="outline" 
+                      className={cn(
+                        "h-10 rounded-xl px-4 border-slate-200 bg-white font-black uppercase text-[10px] tracking-widest flex items-center gap-2 transition-all",
+                        selectedLeads.length > 0 && "border-primary/50 bg-primary/5 text-primary shadow-sm"
+                      )}
+                    >
+                      <Users className="h-3.5 w-3.5" />
                       Bulk Actions
+                      {selectedLeads.length > 0 && (
+                        <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-primary text-white text-[9px] font-black">
+                          {selectedLeads.length}
+                        </span>
+                      )}
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white">
                     <div className="bg-white px-8 py-6 flex items-center justify-between border-b border-slate-100">
-                      <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                        <Users className="h-5 w-5 text-primary" />
-                        Bulk Lead Management
-                      </DialogTitle>
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
+                          <Users className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <DialogTitle className="text-xl font-black text-slate-900 tracking-tight">
+                            Bulk Lead Management
+                          </DialogTitle>
+                          <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                            {selectedLeads.length > 0
+                              ? `${selectedLeads.length} lead(s) selected for bulk operation`
+                              : "Select leads from the table to apply bulk changes"}
+                          </p>
+                        </div>
+                      </div>
+                      {selectedLeads.length > 0 ? (
+                        <Badge variant="outline" className="px-3 py-1 bg-primary/10 text-primary border-primary/20 font-black text-xs rounded-lg">
+                          {selectedLeads.length} SELECTED
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="px-3 py-1 bg-amber-50 text-amber-600 border-amber-200 font-black text-xs rounded-lg">
+                          0 SELECTED
+                        </Badge>
+                      )}
                     </div>
                     <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto no-scrollbar">
+                      {selectedLeads.length === 0 && (
+                        <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center gap-3 text-amber-800 text-xs font-semibold">
+                          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+                          <span>Please select one or more leads using the checkboxes in the table first before confirming any bulk action.</span>
+                        </div>
+                      )}
+
                       <div className="grid grid-cols-1 gap-4">
-                        <div className="flex items-center gap-3 p-4 bg-rose-50/50 rounded-2xl border border-rose-100">
+                        {/* Convert to Customer Option */}
+                        <div className={cn(
+                          "flex items-start gap-3.5 p-4 rounded-2xl border transition-all cursor-pointer",
+                          bulkState.convertToCustomer 
+                            ? "bg-emerald-50 border-emerald-300 ring-2 ring-emerald-500/20 shadow-sm" 
+                            : "bg-emerald-50/40 border-emerald-100 hover:bg-emerald-50/80",
+                          (bulkState.massDelete || bulkState.mark_lost) && "opacity-40 pointer-events-none"
+                        )}
+                        onClick={() => {
+                          if (bulkState.massDelete || bulkState.mark_lost) return;
+                          const nextVal = !bulkState.convertToCustomer;
+                          setBulkState({
+                            ...bulkState,
+                            convertToCustomer: nextVal,
+                            massDelete: false,
+                            mark_lost: false,
+                          });
+                        }}
+                        >
+                          <Checkbox 
+                            id="bulk-convert-customer" 
+                            className="mt-0.5 border-emerald-400 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600 h-5 w-5 rounded-md" 
+                            checked={bulkState.convertToCustomer}
+                            onCheckedChange={(c) => {
+                              const checked = !!c;
+                              setBulkState({
+                                ...bulkState,
+                                convertToCustomer: checked,
+                                massDelete: checked ? false : bulkState.massDelete,
+                                mark_lost: checked ? false : bulkState.mark_lost,
+                              });
+                            }}
+                            disabled={bulkState.massDelete || bulkState.mark_lost}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <div className="flex flex-col flex-1">
+                            <Label htmlFor="bulk-convert-customer" className="font-black text-xs uppercase tracking-widest text-emerald-800 cursor-pointer flex items-center gap-2">
+                              <UserCheck className="h-4 w-4 text-emerald-600" />
+                              Convert to Customer
+                            </Label>
+                            <span className="text-[11px] font-medium text-emerald-700/90 mt-1 leading-snug">
+                              Selected leads will be converted into customer profiles. All details (Name/Company, Phone, Email, Website, Address, City, State, Zip, Country, Contact Person) will be transferred and status set to Converted.
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className={cn("flex items-center gap-3 p-4 bg-rose-50/50 rounded-2xl border border-rose-100", bulkState.convertToCustomer && "opacity-40 pointer-events-none")}>
                             <Checkbox 
                               id="bulk-delete" 
                               className="border-rose-300 data-[state=checked]:bg-rose-500 data-[state=checked]:border-rose-500" 
                               checked={bulkState.massDelete}
-                              onCheckedChange={(c) => setBulkState({...bulkState, massDelete: !!c})}
+                              onCheckedChange={(c) => {
+                                const checked = !!c;
+                                setBulkState({
+                                  ...bulkState, 
+                                  massDelete: checked, 
+                                  convertToCustomer: checked ? false : bulkState.convertToCustomer
+                                });
+                              }}
+                              disabled={bulkState.convertToCustomer}
                             />
                             <Label htmlFor="bulk-delete" className="font-black text-xs uppercase tracking-widest text-rose-600 cursor-pointer">Mass Delete</Label>
                         </div>
-                        <div className="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <div className={cn("flex items-center gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100", (bulkState.massDelete || bulkState.convertToCustomer) && "opacity-40 pointer-events-none")}>
                             <Checkbox 
                               id="bulk-lost" 
                               checked={bulkState.mark_lost}
                               onCheckedChange={(c) => setBulkState({...bulkState, mark_lost: !!c})}
-                              disabled={bulkState.massDelete}
+                              disabled={bulkState.massDelete || bulkState.convertToCustomer}
                             />
                             <Label htmlFor="bulk-lost" className="font-black text-xs uppercase tracking-widest text-slate-600 cursor-pointer">Mark as lost</Label>
                         </div>
                         
-                        <div className="space-y-2">
+                        <div className={cn("space-y-2", (bulkState.massDelete || bulkState.convertToCustomer) && "opacity-40 pointer-events-none")}>
                             <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Change Status</Label>
-                            <Select value={bulkState.status} onValueChange={(v) => setBulkState({...bulkState, status: v})} disabled={bulkState.massDelete}>
+                            <Select value={bulkState.status} onValueChange={(v) => setBulkState({...bulkState, status: v})} disabled={bulkState.massDelete || bulkState.convertToCustomer}>
                                 <SelectTrigger className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4">
                                     <SelectValue placeholder="Select Status" />
                                 </SelectTrigger>
@@ -1797,17 +1904,17 @@ const Leads = () => {
                             </Select>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className={cn("space-y-2", (bulkState.massDelete || bulkState.convertToCustomer) && "opacity-40 pointer-events-none")}>
                             <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Lead Source</Label>
-                            <Select value={bulkState.source} onValueChange={(v) => setBulkState({...bulkState, source: v})} disabled={bulkState.massDelete}>
+                            <Select value={bulkState.source} onValueChange={(v) => setBulkState({...bulkState, source: v})} disabled={bulkState.massDelete || bulkState.convertToCustomer}>
                                 <SelectTrigger className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4"><SelectValue placeholder="Select Source" /></SelectTrigger>
                                 <SelectContent>{sources.map(s => <SelectItem key={s._id} value={s._id}>{s.name}</SelectItem>)}</SelectContent>
                             </Select>
                         </div>
 
-                        <div className="space-y-2">
+                        <div className={cn("space-y-2", (bulkState.massDelete || bulkState.convertToCustomer) && "opacity-40 pointer-events-none")}>
                             <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Assigned To</Label>
-                            <Select value={bulkState.assigned} onValueChange={(v) => setBulkState({...bulkState, assigned: v})} disabled={bulkState.massDelete}>
+                            <Select value={bulkState.assigned} onValueChange={(v) => setBulkState({...bulkState, assigned: v})} disabled={bulkState.massDelete || bulkState.convertToCustomer}>
                                 <SelectTrigger className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4"><SelectValue placeholder="Select Staff" /></SelectTrigger>
                                 <SelectContent>
                                     {staff.map(s => <SelectItem key={s._id} value={s._id}>{s.firstname} {s.lastname}</SelectItem>)}
@@ -1816,9 +1923,9 @@ const Leads = () => {
                         </div>
 
                         {isPilot && (
-                          <div className="space-y-2">
+                          <div className={cn("space-y-2", (bulkState.massDelete || bulkState.convertToCustomer) && "opacity-40 pointer-events-none")}>
                               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Sales Person</Label>
-                              <Select value={bulkState.salesPerson || "none"} onValueChange={(v) => setBulkState({...bulkState, salesPerson: v === "none" ? "" : v})} disabled={bulkState.massDelete}>
+                              <Select value={bulkState.salesPerson || "none"} onValueChange={(v) => setBulkState({...bulkState, salesPerson: v === "none" ? "" : v})} disabled={bulkState.massDelete || bulkState.convertToCustomer}>
                                   <SelectTrigger className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4"><SelectValue placeholder="Select Sales Person" /></SelectTrigger>
                                   <SelectContent>
                                       <SelectItem value="none">None</SelectItem>
@@ -1831,24 +1938,24 @@ const Leads = () => {
                           </div>
                         )}
 
-                        <div className="space-y-2">
+                        <div className={cn("space-y-2", (bulkState.massDelete || bulkState.convertToCustomer) && "opacity-40 pointer-events-none")}>
                             <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Tags</Label>
                             <Input 
                               placeholder="Enter tags separated by comma" 
                               className="h-11 rounded-xl border-slate-100 bg-slate-50/50 px-4" 
                               value={bulkState.tags}
                               onChange={(e) => setBulkState({...bulkState, tags: e.target.value})}
-                              disabled={bulkState.massDelete}
+                              disabled={bulkState.massDelete || bulkState.convertToCustomer}
                             />
                         </div>
 
-                        <div className="flex items-center gap-6 p-4 bg-blue-50/30 rounded-2xl border border-blue-100">
+                        <div className={cn("flex items-center gap-6 p-4 bg-blue-50/30 rounded-2xl border border-blue-100", (bulkState.massDelete || bulkState.convertToCustomer) && "opacity-40 pointer-events-none")}>
                             <div className="flex items-center gap-3">
                                 <Checkbox 
                                   id="bulk-public" 
                                   checked={bulkState.is_public}
                                   onCheckedChange={(c) => setBulkState({...bulkState, is_public: !!c})}
-                                  disabled={bulkState.massDelete}
+                                  disabled={bulkState.massDelete || bulkState.convertToCustomer}
                                 />
                                 <Label htmlFor="bulk-public" className="font-black text-xs uppercase tracking-widest text-blue-600">Public</Label>
                             </div>
@@ -1857,7 +1964,7 @@ const Leads = () => {
                                   id="bulk-contacted" 
                                   checked={bulkState.contacted_today}
                                   onCheckedChange={(c) => setBulkState({...bulkState, contacted_today: !!c})}
-                                  disabled={bulkState.massDelete}
+                                  disabled={bulkState.massDelete || bulkState.convertToCustomer}
                                 />
                                 <Label htmlFor="bulk-contacted" className="font-black text-xs uppercase tracking-widest text-slate-600">Contacted Today</Label>
                             </div>
@@ -1872,7 +1979,7 @@ const Leads = () => {
                         <Button 
                           className="h-11 rounded-xl px-8 font-black uppercase text-xs tracking-widest shadow-xl shadow-primary/20 transition-all hover:scale-105"
                           onClick={handleBulkAction}
-                          disabled={isBulkLoading}
+                          disabled={isBulkLoading || selectedLeads.length === 0}
                         >
                           {isBulkLoading ? "Processing..." : "Confirm Action"}
                         </Button>

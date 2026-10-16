@@ -19,10 +19,13 @@ import {
   Save,
   Paperclip,
   Trash2,
-  X
+  X,
+  Mic
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "@/api/services/task.service";
+import { fileService } from "@/api/services/file.service";
+import { InlineVoiceRecorder, AttachedVoicePreview } from "@/components/tasks/TaskVoiceNotes";
 import { customerService } from "@/api/services/customer.service";
 import { staffService } from "@/api/services/staff.service";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -93,9 +96,20 @@ const TaskCreate = () => {
   }, [task]);
 
   const mutation = useMutation({
-    mutationFn: (data: any) => isEditing
-      ? taskService.update(id!, data)
-      : taskService.create(data),
+    mutationFn: async (data: any) => {
+      const res = isEditing
+        ? await taskService.update(id!, data)
+        : await taskService.create(data);
+      const taskId = isEditing ? id! : res?._id || res?.data?._id;
+      if (taskId && files.length > 0) {
+        try {
+          await fileService.uploadFiles(taskId, "task", files);
+        } catch (uploadErr) {
+          console.error("Failed to upload attached files:", uploadErr);
+        }
+      }
+      return res;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       toast({ title: "Success", description: `Task ${isEditing ? 'updated' : 'created'} successfully.` });
@@ -192,30 +206,50 @@ const TaskCreate = () => {
                 </div>
               </div>
 
-              {/* Attach Files */}
+              {/* Attach Files & Voice Notes */}
               <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Attach Files</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Attach Files & Voice Notes</Label>
+                  <InlineVoiceRecorder
+                    onRecorded={(voiceFile) => {
+                      setFiles((prev) => [...prev, voiceFile]);
+                      toast({ title: "Voice Note Recorded", description: "Voice note attached to this task." });
+                    }}
+                  />
+                </div>
                 <div className="flex flex-col gap-4">
                   <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-2xl cursor-pointer hover:bg-slate-50 transition-all group">
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                       <Paperclip className="h-6 w-6 text-slate-400 group-hover:text-primary transition-colors mb-2" />
-                      <p className="text-xs font-bold text-slate-500">Click to upload or drag and drop</p>
+                      <p className="text-xs font-bold text-slate-500">Click to upload files or drag and drop</p>
                     </div>
                     <input type="file" multiple className="hidden" onChange={handleFileChange} />
                   </label>
                   {files.length > 0 && (
                     <div className="grid grid-cols-1 gap-2">
-                      {files.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="flex items-center gap-3">
-                            <Paperclip className="h-4 w-4 text-primary" />
-                            <span className="text-xs font-bold text-slate-700">{file.name}</span>
+                      {files.map((file, index) => {
+                        const isAudio = file.type.startsWith("audio/") || file.name.includes("voice-note");
+                        if (isAudio) {
+                          return (
+                            <AttachedVoicePreview
+                              key={index}
+                              file={file}
+                              onRemove={() => removeFile(index)}
+                            />
+                          );
+                        }
+                        return (
+                          <div key={index} className="flex items-center justify-between p-3 rounded-xl border bg-slate-50 border-slate-100">
+                            <div className="flex items-center gap-3">
+                              <Paperclip className="h-4 w-4 text-primary" />
+                              <span className="text-xs font-bold text-slate-700">{file.name}</span>
+                            </div>
+                            <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-rose-500 hover:bg-rose-50 rounded-lg" onClick={() => removeFile(index)}>
+                              <X className="h-4 w-4" />
+                            </Button>
                           </div>
-                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 text-rose-500" onClick={() => removeFile(index)}>
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

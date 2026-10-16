@@ -44,7 +44,7 @@ import {
   Highlighter, Link2, Image, Type,
   List, ListOrdered, CheckSquare,
   Undo2, Redo2, MoreHorizontal, Paperclip,
-  KanbanSquare
+  KanbanSquare, Mic, X
 } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
@@ -52,6 +52,8 @@ import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tansta
 import { projectService } from "@/api/services/project.service";
 import { utilityService } from "@/api/services/utility.service";
 import { taskService } from "@/api/services/task.service";
+import { fileService } from "@/api/services/file.service";
+import { InlineVoiceRecorder, AttachedVoicePreview } from "@/components/tasks/TaskVoiceNotes";
 import { staffService } from "@/api/services/staff.service";
 import { formatDate } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
@@ -140,6 +142,7 @@ const Tasks = () => {
   const [editorFont, setEditorFont] = useState("System Font");
   const [editorFontSize, setEditorFontSize] = useState("11");
   const [showAttachment, setShowAttachment] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
   useOpenCreateModal(() => setIsNewTaskModalOpen(true));
   const [editingTask, setEditingTask] = useState<any>(null);
@@ -388,7 +391,18 @@ const Tasks = () => {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: any) => taskService.create(data),
+    mutationFn: async (data: any) => {
+      const res = await taskService.create(data);
+      const taskId = res?._id || res?.data?._id;
+      if (taskId && attachedFiles.length > 0) {
+        try {
+          await fileService.uploadFiles(taskId, "task", attachedFiles);
+        } catch (uploadErr) {
+          console.error("Failed to upload attached files/voice notes:", uploadErr);
+        }
+      }
+      return res;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["todos"] });
@@ -554,6 +568,8 @@ const Tasks = () => {
       inquiry_outcome: "",
       branch: ""
     });
+    setAttachedFiles([]);
+    setShowAttachment(false);
   };
 
   const handleEdit = (task: any) => {
@@ -751,18 +767,70 @@ const Tasks = () => {
 
                     <div className="space-y-6">
                       <div className="space-y-4">
-                        <span
-                          className="text-primary text-sm font-bold flex items-center gap-2 cursor-pointer hover:underline w-fit transition-colors"
-                          onClick={() => setShowAttachment(!showAttachment)}
-                        >
-                          <Plus className="h-4 w-4" />
-                          Attach Files
-                        </span>
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <span
+                            className="text-primary text-sm font-bold flex items-center gap-2 cursor-pointer hover:underline w-fit transition-colors"
+                            onClick={() => setShowAttachment(!showAttachment)}
+                          >
+                            <Plus className="h-4 w-4" />
+                            Attach Files
+                          </span>
+
+                          <InlineVoiceRecorder
+                            onRecorded={(voiceFile) => {
+                              setAttachedFiles((prev) => [...prev, voiceFile]);
+                              toast({ title: "Voice Note Recorded", description: "Voice note attached to this new task." });
+                            }}
+                          />
+                        </div>
 
                         {showAttachment && (
                           <div className="space-y-1 animate-in fade-in slide-in-from-top-2 duration-300">
                             <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Attachment</Label>
-                            <Input type="file" className="h-12 bg-white rounded-xl border-slate-200 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-all cursor-pointer" />
+                            <Input
+                              type="file"
+                              multiple
+                              onChange={(e) => {
+                                if (e.target.files) {
+                                  setAttachedFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+                                }
+                              }}
+                              className="h-12 bg-white rounded-xl border-slate-200 text-sm file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 transition-all cursor-pointer"
+                            />
+                          </div>
+                        )}
+
+                        {attachedFiles.length > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                            {attachedFiles.map((file, idx) => {
+                              const isAudio = file.type.startsWith("audio/") || file.name.includes("voice-note");
+                              if (isAudio) {
+                                return (
+                                  <AttachedVoicePreview
+                                    key={idx}
+                                    file={file}
+                                    onRemove={() => setAttachedFiles((prev) => prev.filter((_, i) => i !== idx))}
+                                  />
+                                );
+                              }
+                              return (
+                                <div key={idx} className="flex items-center justify-between p-2.5 rounded-xl border bg-slate-50 border-slate-200">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <Paperclip className="h-4 w-4 text-slate-400 shrink-0" />
+                                    <p className="text-xs font-bold text-slate-700 truncate">{file.name}</p>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 shrink-0"
+                                    onClick={() => setAttachedFiles((prev) => prev.filter((_, i) => i !== idx))}
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
