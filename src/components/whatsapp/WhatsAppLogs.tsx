@@ -22,9 +22,11 @@ const STATUS_STYLES: Record<string, string> = {
   OptedOut: "bg-amber-50 text-amber-600 border-amber-200",
 };
 
-export function WhatsAppLogs() {
+// `initialStatus` lets the Campaigns tab cards open this list pre-filtered;
+// the parent remounts it (via key) whenever a different card is clicked.
+export function WhatsAppLogs({ initialStatus = "all" }: { initialStatus?: string }) {
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState<string>("all");
+  const [status, setStatus] = useState<string>(initialStatus);
   const [search, setSearch] = useState("");
 
   const { data, isLoading } = useQuery({

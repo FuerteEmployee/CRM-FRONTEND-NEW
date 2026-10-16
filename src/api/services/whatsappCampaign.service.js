@@ -8,6 +8,8 @@ export const whatsappCampaignService = {
   getAnalytics: () => apiClient.get('/whatsapp/campaigns/analytics'),
   getLogs: (params) => apiClient.get('/whatsapp/campaigns/logs', { params }),
   getCampaigns: () => apiClient.get('/whatsapp/campaigns'),
+  // Read-only count + first few recipients for an audience (nothing is saved).
+  previewAudience: (data) => apiClient.post('/whatsapp/campaigns/audience-preview', data),
 
   // `data` may be a plain object (JSON body) or a FormData instance (when an
   // image header file is attached) — apiClient's post/put already detect
@@ -17,4 +19,6 @@ export const whatsappCampaignService = {
   deleteCampaign: (id) => apiClient.delete(`/whatsapp/campaigns/${id}`),
   triggerCampaign: (id, recipients) => apiClient.post(`/whatsapp/campaigns/${id}/trigger`, recipients ? { recipients } : {}),
   stopCampaign: (id) => apiClient.post(`/whatsapp/campaigns/${id}/stop`),
+  // Unsticks a campaign left "InProgress" (e.g. the server restarted mid-send).
+  resetCampaign: (id) => apiClient.post(`/whatsapp/campaigns/${id}/reset`),
 };

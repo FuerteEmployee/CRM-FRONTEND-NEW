@@ -57,7 +57,6 @@ import {
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
-const BACKEND_ORIGIN = (import.meta.env.VITE_API_URL || "").replace(/\/api\/?$/, "");
 
 type Stats = { totalThisMonth: number; acceptedThisMonth: number; totalValue: number };
 type Quotation = {
@@ -69,6 +68,8 @@ type Quotation = {
   subtotal?: number;
   total_tax?: number;
   gst_percent?: number;
+  discount_percent?: number;
+  discount_total?: number;
   status: string;
   client?: any;
   items?: any[];
@@ -202,67 +203,66 @@ const hexToRgb = (hex?: string): [number, number, number] => {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 };
 
-type LoadedImage = { dataUrl: string; width: number; height: number };
+type LoadedImage = { dataUrl: string; width: number; height: number; format: "PNG" | "JPEG" };
 
-const loadImageAsDataUrl = async (url?: string): Promise<LoadedImage | null> => {
+// Re-encodes any browser-decodable image (incl. WebP/AVIF, which jsPDF can't embed)
+// through a canvas, downscaled to maxPx on the longest side so full-size phone
+// photos don't bloat the PDF. Photos go out as JPEG on white; logos stay PNG
+// to keep transparency.
+const loadImageAsDataUrl = async (
+  url?: string,
+  opts: { maxPx?: number; jpeg?: boolean } = {},
+): Promise<LoadedImage | null> => {
   if (!url) return null;
+  const { maxPx = 800, jpeg = false } = opts;
 
-  // 1. Direct Data URL handling
-  if (url.startsWith("data:image")) {
-    return new Promise((resolve) => {
+  const rasterize = (src: string, crossOrigin: boolean) =>
+    new Promise<LoadedImage | null>((resolve) => {
       const img = new Image();
-      img.onload = () => resolve({ dataUrl: url, width: img.width || 100, height: img.height || 100 });
-      img.onerror = () => resolve(null);
-      img.src = url;
-    });
-  }
-
-  // 2. Full URL resolution
-  const fullUrl = resolveImageUrl(url);
-
-  // 3. HTML Image + Canvas conversion (handles crossOrigin anonymous cleanly)
-  try {
-    const loaded = await new Promise<LoadedImage | null>((resolve) => {
-      const img = new Image();
-      img.crossOrigin = "Anonymous";
+      if (crossOrigin) img.crossOrigin = "anonymous";
       img.onload = () => {
         try {
+          const srcW = img.naturalWidth || img.width || 100;
+          const srcH = img.naturalHeight || img.height || 100;
+          const scale = Math.min(1, maxPx / Math.max(srcW, srcH));
+          const w = Math.max(1, Math.round(srcW * scale));
+          const h = Math.max(1, Math.round(srcH * scale));
           const canvas = document.createElement("canvas");
-          canvas.width = img.width || 100;
-          canvas.height = img.height || 100;
+          canvas.width = w;
+          canvas.height = h;
           const ctx = canvas.getContext("2d");
           if (!ctx) return resolve(null);
-          ctx.drawImage(img, 0, 0);
-          const dataUrl = canvas.toDataURL("image/png");
-          resolve({ dataUrl, width: img.width || 100, height: img.height || 100 });
+          if (jpeg) {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, w, h);
+          }
+          ctx.drawImage(img, 0, 0, w, h);
+          const dataUrl = jpeg ? canvas.toDataURL("image/jpeg", 0.85) : canvas.toDataURL("image/png");
+          resolve({ dataUrl, width: w, height: h, format: jpeg ? "JPEG" : "PNG" });
         } catch {
           resolve(null);
         }
       };
       img.onerror = () => resolve(null);
-      img.src = fullUrl;
+      img.src = src;
     });
-    if (loaded) return loaded;
-  } catch {
-    /* fallback to fetch */
-  }
 
-  // 4. Fallback fetch blob
+  if (url.startsWith("data:image")) return rasterize(url, false);
+
+  const fullUrl = resolveImageUrl(url);
+  const direct = await rasterize(fullUrl, true);
+  if (direct) return direct;
+
+  // Fallback: fetch the bytes and rasterize from a same-origin blob URL.
   try {
     const res = await fetch(fullUrl, { mode: "cors" });
-    const blob = await res.blob();
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-    return await new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve({ dataUrl, width: img.width || 100, height: img.height || 100 });
-      img.onerror = () => resolve({ dataUrl, width: 100, height: 100 });
-      img.src = dataUrl;
-    });
+    if (!res.ok) return null;
+    const objectUrl = URL.createObjectURL(await res.blob());
+    try {
+      return await rasterize(objectUrl, false);
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
   } catch {
     return null;
   }
@@ -655,7 +655,9 @@ export default function QuotationModule() {
     try {
       const res: any = await mediaService.uploadFile(file, "quotations");
       const filename = res?.file?.filename;
-      return filename ? `${BACKEND_ORIGIN}/uploads/media/quotations/${filename}` : null;
+      // Stored relative so the link follows whichever server hosts this company's
+      // data (shared or dedicated); resolveImageUrl adds the current backend origin.
+      return filename ? `/uploads/media/quotations/${filename}` : null;
     } catch {
       toast({ title: "Upload failed", description: "Could not upload the file. Please try again.", variant: "destructive" });
       return null;
@@ -1067,6 +1069,35 @@ export default function QuotationModule() {
       return;
     }
     const doc = new jsPDF();
+
+    // Full-page attachment images (before / after the quotation body), fitted inside A4 margins.
+    const drawFullPageImage = (img: LoadedImage) => {
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 10;
+      const ratio = Math.min((pageW - margin * 2) / img.width, (pageH - margin * 2) / img.height);
+      const w = img.width * ratio;
+      const h = img.height * ratio;
+      try {
+        doc.addImage(img.dataUrl, img.format, (pageW - w) / 2, (pageH - h) / 2, w, h);
+      } catch {
+        /* unsupported image — leave the page blank rather than fail the PDF */
+      }
+    };
+    const loadAttachments = async (urls?: string[]) =>
+      (await Promise.all((urls || []).map((u) => loadImageAsDataUrl(u, { maxPx: 1600, jpeg: true })))).filter(
+        (x): x is LoadedImage => !!x,
+      );
+    const beforePages = await loadAttachments((q as any).attachments?.before_images);
+    const afterPages = await loadAttachments((q as any).attachments?.after_images);
+    if (beforePages.length) {
+      beforePages.forEach((img, i) => {
+        if (i > 0) doc.addPage();
+        drawFullPageImage(img);
+      });
+      doc.addPage();
+    }
+
     const docTheme: ThemeColors = { ...DEFAULT_THEME, ...(q.theme || {}) };
     const primaryRgb = hexToRgb(docTheme.primaryColor);
     // jsPDF's built-in fonts (Helvetica/Times/Courier) don't include a glyph for ₹ — it prints
@@ -1082,7 +1113,7 @@ export default function QuotationModule() {
         const w = brandLogoData.width * ratio;
         const h = brandLogoData.height * ratio;
         const yPos = 8 + (20 - h) / 2;
-        doc.addImage(brandLogoData.dataUrl, "PNG", 14, yPos, w, h);
+        doc.addImage(brandLogoData.dataUrl, brandLogoData.format, 14, yPos, w, h);
       } catch {
         /* unsupported image format — skip embedding, PDF still generates */
       }
@@ -1094,7 +1125,7 @@ export default function QuotationModule() {
         const h = clientLogoData.height * ratio;
         const yPos = 8 + (20 - h) / 2;
         const xPos = 196 - w;
-        doc.addImage(clientLogoData.dataUrl, "PNG", xPos, yPos, w, h);
+        doc.addImage(clientLogoData.dataUrl, clientLogoData.format, xPos, yPos, w, h);
       } catch {
         /* ignore */
       }
@@ -1213,7 +1244,7 @@ export default function QuotationModule() {
         const shouldIncludeImages = (q as any).show_item_images !== false;
         for (let i = 0; i < roomItems.length; i++) {
           const url = roomItems[i]?.photo_url || roomItems[i]?.photoUrl;
-          photoData[i] = (shouldIncludeImages && url) ? await loadImageAsDataUrl(url) : null;
+          photoData[i] = (shouldIncludeImages && url) ? await loadImageAsDataUrl(url, { maxPx: 600, jpeg: true }) : null;
         }
 
         const roomHasAnyPhoto = roomItems.some((_, idx) => !!photoData[idx]);
@@ -1308,7 +1339,7 @@ export default function QuotationModule() {
               const imgH = imgObj.height * ratio;
               const imgX = data.cell.x + (data.cell.width - imgW) / 2;
               const imgY = data.cell.y + (data.cell.height - imgH) / 2;
-              doc.addImage(imgObj.dataUrl, "PNG", imgX, imgY, imgW, imgH);
+              doc.addImage(imgObj.dataUrl, imgObj.format, imgX, imgY, imgW, imgH);
             } catch {
               /* unsupported image format — skip embedding, PDF still generates */
             }
@@ -1322,20 +1353,39 @@ export default function QuotationModule() {
       const photoData: Record<number, LoadedImage | null> = {};
       for (let i = 0; i < simpleItems.length; i++) {
         const url = simpleItems[i]?.photo_url || (simpleItems[i] as any)?.photoUrl;
-        photoData[i] = (shouldIncludeImages && url) ? await loadImageAsDataUrl(url) : null;
+        photoData[i] = (shouldIncludeImages && url) ? await loadImageAsDataUrl(url, { maxPx: 600, jpeg: true }) : null;
       }
 
-      const tableData = simpleItems.map((item: any, index: number) => [
-        index + 1,
-        item.description || "—",
-        item.qty || 0,
-        pdfCurrency(item.rate),
-        pdfCurrency((item.qty || 0) * (item.rate || 0)),
-      ]);
+      // Photo box drawn at the left of the description cell; the text is pushed right
+      // of it via left padding and the row is made tall enough to hold it.
+      const PHOTO_W = 18;
+      const PHOTO_H = 18;
+      const PHOTO_PAD = 2;
+      const hasAnyPhoto = simpleItems.some((_, idx) => !!photoData[idx]);
+      const tableData = simpleItems.map((item: any, index: number) => {
+        const hasPhoto = !!photoData[index];
+        const middle = hasPhoto ? { valign: "middle" as const } : {};
+        return [
+          { content: String(index + 1), styles: middle },
+          {
+            content: item.description || "—",
+            styles: hasPhoto
+              ? {
+                  minCellHeight: PHOTO_H + PHOTO_PAD * 2,
+                  valign: "middle" as const,
+                  cellPadding: { top: 2, right: 2, bottom: 2, left: PHOTO_W + PHOTO_PAD * 2 + 1 },
+                }
+              : {},
+          },
+          { content: String(item.qty || 0), styles: middle },
+          { content: pdfCurrency(item.rate), styles: middle },
+          { content: pdfCurrency((item.qty || 0) * (item.rate || 0)), styles: middle },
+        ];
+      });
 
       autoTable(doc, {
         startY: y,
-        head: [["#", "Description", "Qty", "Rate", "Amount"]],
+        head: [["#", hasAnyPhoto ? "Photo & Description" : "Description", "Qty", "Rate", "Amount"]],
         body: tableData,
         headStyles: { fillColor: primaryRgb },
         columnStyles: {
@@ -1352,15 +1402,12 @@ export default function QuotationModule() {
           const imgObj = photoData[itemIdx];
           if (!imgObj) return;
           try {
-            const pad = 2;
-            const maxW = 16;
-            const maxH = 14;
-            const ratio = Math.min(maxW / imgObj.width, maxH / imgObj.height);
+            const ratio = Math.min(PHOTO_W / imgObj.width, PHOTO_H / imgObj.height);
             const imgW = imgObj.width * ratio;
             const imgH = imgObj.height * ratio;
-            const imgX = data.cell.x + 2;
+            const imgX = data.cell.x + PHOTO_PAD + (PHOTO_W - imgW) / 2;
             const imgY = data.cell.y + (data.cell.height - imgH) / 2;
-            doc.addImage(imgObj.dataUrl, "PNG", imgX, imgY, imgW, imgH);
+            doc.addImage(imgObj.dataUrl, imgObj.format, imgX, imgY, imgW, imgH);
           } catch {
             /* ignore */
           }
@@ -1511,6 +1558,11 @@ export default function QuotationModule() {
     doc.setFontSize(8);
     doc.setTextColor(90, 90, 90);
     doc.text("Authorised Signatory", 168, y + 13, { align: "center" });
+
+    afterPages.forEach((img) => {
+      doc.addPage();
+      drawFullPageImage(img);
+    });
 
     doc.save(`Quotation_${q.number || "Draft"}.pdf`);
   };
