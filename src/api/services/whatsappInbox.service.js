@@ -11,6 +11,8 @@ export const whatsappInboxService = {
   getContactInfo: (mobile) => apiClient.get(`/whatsapp/inbox/contact/${mobile}`),
   // `data` is a FormData instance when a file attachment is included, else a plain object.
   replyToConversation: (mobile, data) => apiClient.post(`/whatsapp/inbox/conversations/${mobile}/reply`, data),
-  sendTemplateToConversation: (mobile, templateId, bodyParams) =>
-    apiClient.post(`/whatsapp/inbox/conversations/${mobile}/send-template`, { templateId, bodyParams }),
+  // `data` is { templateId, bodyParams } or a FormData (with an "image" file
+  // when the template has an image header).
+  sendTemplateToConversation: (mobile, data) =>
+    apiClient.post(`/whatsapp/inbox/conversations/${mobile}/send-template`, data),
 };
