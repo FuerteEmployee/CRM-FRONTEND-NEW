@@ -431,7 +431,7 @@ export function TopNavbar() {
                 onClick={() => navigate("/super-admin/dashboard")}
               >
                 <ShieldCheck className="h-4 w-4" />
-                <span className="text-sm font-semibold"> Panel</span>
+                <span className="text-sm font-semibold">Super Admin Panel</span>
               </DropdownMenuItem>
             )}
 

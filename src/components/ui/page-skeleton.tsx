@@ -88,7 +88,7 @@ export const SuperAdminDashboardSkeleton = () => (
   </div>
 );
 
-/** SuperAdminAdmins / SuperAdminCompanies — header + search + table */
+/** SuperAdminCompanies — header + search + table */
 export const SuperAdminTablePageSkeleton = ({ hasSearch = true }: { hasSearch?: boolean }) => (
   <div className="p-6 max-w-7xl mx-auto space-y-6">
     <PageHeader hasButton />

@@ -128,12 +128,12 @@ import ClientSupport from "./pages/client/ClientSupport";
 import ClientKnowledgeBase from "./pages/client/ClientKnowledgeBase";
 import { SuperAdminLayout } from "./components/layout/SuperAdminLayout";
 import SuperAdminDashboard from "./pages/super-admin/SuperAdminDashboard";
-import SuperAdminAdmins from "./pages/super-admin/SuperAdminAdmins";
 import SuperAdminPlans from "./pages/super-admin/SuperAdminPlans";
 import SuperAdminCompanies from "./pages/super-admin/SuperAdminCompanies";
 import SuperAdminBilling from "./pages/super-admin/SuperAdminBilling";
 import SuperAdminAlerts from "./pages/super-admin/SuperAdminAlerts";
 import SuperAdminProfile from "./pages/super-admin/SuperAdminProfile";
+import SuperAdminSettings from "./pages/super-admin/SuperAdminSettings";
 
 import { HRMSEntry } from "./hrms/HRMSEntry";
 
@@ -458,13 +458,14 @@ const MainApp = () => {
         {/* Super Admin Routes */}
         <Route path="/super-admin/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/super-admin" element={<SuperAdminProtectedRoute><SuperAdminLayout /></SuperAdminProtectedRoute>}>
+          <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<SuperAdminDashboard />} />
           <Route path="companies" element={<SuperAdminCompanies />} />
-          <Route path="admins" element={<SuperAdminAdmins />} />
           <Route path="plans" element={<SuperAdminPlans />} />
           <Route path="billing" element={<SuperAdminBilling />} />
           <Route path="alerts" element={<SuperAdminAlerts />} />
           <Route path="profile" element={<SuperAdminProfile />} />
+          <Route path="settings" element={<SuperAdminSettings />} />
         </Route>
 
         {/* Admin Side Routes */}

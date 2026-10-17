@@ -147,10 +147,10 @@ export default function SuperAdminProfile() {
             </div>
           </div>
 
-          {/* Phone — optional */}
+          {/* Phone — required (one mobile per account) */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-              Phone Number <span className="text-gray-400 font-normal normal-case">(optional)</span>
+              Phone Number <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />

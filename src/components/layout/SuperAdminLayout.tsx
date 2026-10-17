@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { Fragment, useState, useRef, useEffect } from "react";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -11,10 +11,12 @@ import {
   ChevronDown,
   Menu,
   X,
+  Settings,
 } from "lucide-react";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
+import { usePanelBranding, useApplyPanelBranding } from "@/lib/panelBranding";
 
 const mainItems = [
   { name: "Dashboard", path: "/super-admin/dashboard", icon: LayoutDashboard },
@@ -27,16 +29,23 @@ const subscriptionItems = [
   { name: "Alerts", path: "/super-admin/alerts", icon: Bell },
 ];
 
+const systemItems = [
+  { name: "Settings", path: "/super-admin/settings", icon: Settings },
+];
+
 export function SuperAdminLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout, user } = usePermissionContext();
-  const { getSetting } = useSettings();
-  // The platform name can come back blank (placeholder names are cleared by
-  // the backend), so the panel falls back to its own label and the login logo.
-  const companyName = getSetting("companyName", "") || "Control Panel";
-  const logo = getSetting("compLogoLight", "");
+  const { settings } = useSettings();
+  // The panel's own branding (Super Admin → Settings), never a company's.
+  const branding = usePanelBranding();
+  const companyName = branding.panelName;
+  const logo = branding.panelLogo;
+  // Re-applied whenever company settings change — that effect also writes the title/favicon.
+  useApplyPanelBranding(branding, [location.pathname, settings]);
   const [logoError, setLogoError] = useState(false);
+  useEffect(() => setLogoError(false), [logo]);
   const [profileOpen, setProfileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -59,7 +68,7 @@ export function SuperAdminLayout() {
 
   const handleLogout = async () => {
     await logout();
-    navigate("/admin/login", { replace: true });
+    navigate("/super-admin/login", { replace: true });
   };
 
   return (
@@ -140,13 +149,18 @@ export function SuperAdminLayout() {
             </p>
           </div>
 
-          {/* Subscription items */}
-          {subscriptionItems.map((item) => {
+          {/* Subscription items, then the System section */}
+          {[...subscriptionItems, ...systemItems].map((item, index) => {
             const isActive = location.pathname === item.path;
             const Icon = item.icon;
             return (
+              <Fragment key={item.path}>
+              {index === subscriptionItems.length && (
+                <div className="pt-4 pb-1 px-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">System</p>
+                </div>
+              )}
               <Link
-                key={item.path}
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
                 className={`group flex items-center gap-2.5 px-3 py-2 rounded-md transition-all duration-200 relative text-[13px] font-medium
@@ -164,6 +178,7 @@ export function SuperAdminLayout() {
                 />
                 <span>{item.name}</span>
               </Link>
+              </Fragment>
             );
           })}
         </nav>

@@ -89,7 +89,14 @@ const copyLoginLink = async (code: string) => {
   }
 };
 
-type FieldErrors = { email?: string; phone?: string };
+type FieldErrors = { email?: string; phone?: string; password?: string };
+
+const MIN_PASSWORD = 8;
+// Empty is allowed only where the field is optional (Edit: blank keeps the current password).
+const passwordError = (value: string, required: boolean) => {
+  if (!value) return required ? "Password is required" : "";
+  return value.length < MIN_PASSWORD ? `Password must be at least ${MIN_PASSWORD} characters` : "";
+};
 // Backend account rules answer 400 { message, field: "email" | "phone" }.
 const fieldErrorFrom = (error: any): FieldErrors | null => {
   const field = error?.response?.data?.field;
@@ -192,8 +199,9 @@ export default function SuperAdminCompanies() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     const phoneErr = phone10Error(createForm.phonenumber);
-    setCreateErrors(phoneErr ? { phone: phoneErr } : {});
-    if (phoneErr) return;
+    const passwordErr = passwordError(createForm.password, true);
+    setCreateErrors({ phone: phoneErr || undefined, password: passwordErr || undefined });
+    if (phoneErr || passwordErr) return;
     try {
       await api.post("/super-admin/tenants", {
         ...createForm,
@@ -214,8 +222,9 @@ export default function SuperAdminCompanies() {
     e.preventDefault();
     if (!selectedTenant) return;
     const phoneErr = phone10Error(manageForm.phonenumber);
-    setManageErrors(phoneErr ? { phone: phoneErr } : {});
-    if (phoneErr) return;
+    const passwordErr = passwordError(manageForm.password, false);
+    setManageErrors({ phone: phoneErr || undefined, password: passwordErr || undefined });
+    if (phoneErr || passwordErr) return;
     try {
       await api.put(`/super-admin/tenants/${selectedTenant._id}`, {
         ...manageForm,
@@ -690,6 +699,7 @@ export default function SuperAdminCompanies() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {createErrors.password && <p className="text-[11px] font-medium text-red-600">{createErrors.password}</p>}
               </div>
 
               {/* Plan */}
@@ -885,6 +895,7 @@ export default function SuperAdminCompanies() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {manageErrors.password && <p className="text-[11px] font-medium text-red-600">{manageErrors.password}</p>}
               </div>
 
               {/* Plan */}
