@@ -36,14 +36,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Textarea } from "@/components/ui/textarea";
+
+import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import {
   Plus, Search, HelpCircle,
-  AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Bold, Italic, Underline, Strikethrough,
-  Highlighter, Link2, Image, Type,
-  List, ListOrdered, CheckSquare,
-  Undo2, Redo2, MoreHorizontal, Paperclip,
+  List, Paperclip,
   KanbanSquare, Mic, X
 } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
@@ -139,8 +136,6 @@ const Tasks = () => {
   useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch, activeStatus, activeCategory]);
-  const [editorFont, setEditorFont] = useState("System Font");
-  const [editorFontSize, setEditorFontSize] = useState("11");
   const [showAttachment, setShowAttachment] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [isNewTaskModalOpen, setIsNewTaskModalOpen] = useState(false);
@@ -1036,82 +1031,11 @@ const Tasks = () => {
                       {/* Task Description Editor */}
                       <div className="space-y-2">
                         <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Task Description</Label>
-                        <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm flex flex-col transition-all focus-within:ring-2 ring-primary/20 ring-offset-2">
-                          {/* Toolbar Tier 1 */}
-                          <div className="flex items-center gap-1 p-2 bg-slate-50/80 border-b border-slate-100 flex-wrap">
-                            <div className="flex items-center gap-1">
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Undo2 className="h-4 w-4 opacity-70" /></Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Redo2 className="h-4 w-4 opacity-70" /></Button>
-                            </div>
-                            <div className="w-px h-5 bg-slate-200 mx-1" />
-                            <Select value={editorFont} onValueChange={setEditorFont}>
-                              <SelectTrigger className="h-8 w-[130px] border-transparent bg-transparent hover:bg-slate-200 rounded-lg text-xs font-semibold focus:ring-0">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="System Font">System Font</SelectItem>
-                                <SelectItem value="Inter">Inter</SelectItem>
-                                <SelectItem value="Georgia">Georgia</SelectItem>
-                                <SelectItem value="Monospace">Monospace</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <div className="w-px h-5 bg-slate-200 mx-1" />
-                            <Select value={editorFontSize} onValueChange={setEditorFontSize}>
-                              <SelectTrigger className="h-8 w-[60px] border-transparent bg-transparent hover:bg-slate-200 rounded-lg text-xs font-semibold focus:ring-0">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {[8, 9, 10, 11, 12, 14, 18, 24, 30, 36].map(size => (
-                                  <SelectItem key={size} value={size.toString()}>{size}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <div className="w-px h-5 bg-slate-200 mx-1" />
-                            <div className="flex items-center gap-0.5">
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Bold className="h-4 w-4 font-bold opacity-80" /></Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Italic className="h-4 w-4 italic opacity-80" /></Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Underline className="h-4 w-4 underline opacity-80" /></Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Strikethrough className="h-4 w-4 line-through opacity-80" /></Button>
-                            </div>
-                            <div className="w-px h-5 bg-slate-200 mx-1" />
-                            <div className="flex items-center gap-0.5">
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Highlighter className="h-4 w-4 opacity-70 text-yellow-500" /></Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Type className="h-4 w-4 opacity-70" /></Button>
-                            </div>
-                            <div className="w-px h-5 bg-slate-200 mx-1" />
-                            <div className="flex items-center gap-0.5">
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Link2 className="h-4 w-4 opacity-70" /></Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><Image className="h-4 w-4 opacity-70" /></Button>
-                            </div>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 transition-colors ml-auto">
-                              <MoreHorizontal className="h-4 w-4 opacity-40" />
-                            </Button>
-                          </div>
-                          {/* Toolbar Tier 2 */}
-                          <div className="flex items-center gap-2 p-2 bg-slate-50/50 border-b border-slate-100 overflow-x-auto no-scrollbar">
-                            <div className="flex items-center gap-0.5 ml-2">
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignLeft className="h-3.5 w-3.5 opacity-60" /></Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignCenter className="h-3.5 w-3.5 opacity-60" /></Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignRight className="h-3.5 w-3.5 opacity-60" /></Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignJustify className="h-3.5 w-3.5 opacity-60" /></Button>
-                            </div>
-                            <div className="w-px h-5 bg-slate-200 mx-1" />
-                            <div className="flex items-center gap-0.5">
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><List className="h-3.5 w-3.5 opacity-60" /></Button>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><ListOrdered className="h-3.5 w-3.5 opacity-60" /></Button>
-                            </div>
-                            <div className="w-px h-5 bg-slate-200 mx-1" />
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><CheckSquare className="h-3.5 w-3.5 opacity-60" /></Button>
-                          </div>
-                          <Textarea
-                            id="description"
-                            value={formData.description}
-                            onChange={handleInputChange}
-                            className="border-none focus-visible:ring-0 min-h-[200px] p-6 text-sm leading-relaxed font-medium resize-none bg-white rounded-none"
-                            placeholder="Start writing task description..."
-                            style={{ fontFamily: editorFont === 'System Font' ? 'inherit' : editorFont, fontSize: `${editorFontSize}pt` }}
-                          />
-                        </div>
+                        <RichTextEditor
+                          value={formData.description}
+                          onChange={(html) => setFormData((prev) => ({ ...prev, description: html }))}
+                          placeholder="Start writing task description..."
+                        />
                       </div>
                     </div>
                   </div>

@@ -53,6 +53,7 @@ import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { toast } from "sonner";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
+import { htmlToPlainText } from "@/lib/richText";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 
 const statusConfig = [
@@ -448,7 +449,7 @@ const Projects = () => {
                             >
                               {project.name}
                             </span>
-                            <span className="text-[10px] text-muted-foreground line-clamp-1">{project.description}</span>
+                            <span className="text-[10px] text-muted-foreground line-clamp-1">{htmlToPlainText(project.description)}</span>
                           </div>
                         </TableCell>
                         <TableCell>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import {
   HelpCircle,
   Plus,
@@ -567,57 +568,11 @@ export default function TicketCreate() {
               {/* Rich Text Editor Body */}
               <div className="space-y-4">
                 <Label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1">Ticket Body</Label>
-                <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-inner">
-                    {/* Toolbar */}
-                    <div className="bg-slate-50/80 border-b border-slate-100 flex flex-col">
-                        <div className="flex items-center gap-4 px-4 h-8 text-[11px] font-medium text-slate-500 border-b border-slate-100/50">
-                            {["File", "Edit", "View", "Insert", "Format", "Tools"].map(m => (
-                                <span key={m} className="cursor-pointer hover:bg-slate-100 px-2 py-0.5 rounded transition-colors">{m}</span>
-                            ))}
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1 p-2">
-                            <div className="flex items-center gap-0.5 pr-2 border-r border-slate-200">
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Undo className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Redo className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5"><Printer className="h-3.5 w-3.5" /></Button>
-                            </div>
-                            <div className="flex items-center gap-0.5 px-2 border-r border-slate-200">
-                                <Select defaultValue="100%">
-                                    <SelectTrigger className="h-8 w-20 bg-transparent border-none text-[11px] font-bold shadow-none">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-xl"><SelectItem value="50%">50%</SelectItem><SelectItem value="75%">75%</SelectItem><SelectItem value="100%">100%</SelectItem></SelectContent>
-                                </Select>
-                            </div>
-                            <div className="flex items-center gap-0.5 px-2 border-r border-slate-200">
-                                <Select defaultValue="Normal text">
-                                    <SelectTrigger className="h-8 w-28 bg-transparent border-none text-[11px] font-bold shadow-none">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-xl"><SelectItem value="Normal text">Normal text</SelectItem><SelectItem value="Heading 1">Heading 1</SelectItem></SelectContent>
-                                </Select>
-                            </div>
-                            <div className="flex items-center gap-0.5 px-2 border-r border-slate-200">
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg bg-primary/10 text-primary"><Bold className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg"><Italic className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg"><Underline className="h-3.5 w-3.5" /></Button>
-                            </div>
-                            <div className="flex items-center gap-0.5 pl-2">
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg"><AlignLeft className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg"><AlignCenter className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg"><AlignRight className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg"><List className="h-3.5 w-3.5" /></Button>
-                            </div>
-                        </div>
-                    </div>
-                    <Textarea
-                        name="message"
-                        value={formData.message}
-                        onChange={handleInputChange}
-                        placeholder="Detailed description of the problem..."
-                        className="min-h-[200px] border-none focus-visible:ring-0 text-sm leading-relaxed p-6 font-medium"
-                    />
-                </div>
+                <RichTextEditor
+                    value={formData.message}
+                    onChange={(html) => setFormData((prev: any) => ({ ...prev, message: html }))}
+                    placeholder="Detailed description of the problem..."
+                />
               </div>
 
               {/* Attachments */}

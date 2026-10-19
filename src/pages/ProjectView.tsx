@@ -68,6 +68,9 @@ import { timeEntryService } from "@/api/services/time_entry.service";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/dateFormat";
 import { cn } from "@/lib/utils";
+import { htmlToPlainText } from "@/lib/richText";
+import { RichTextContent } from "@/components/shared/RichTextContent";
+import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import { useCurrency } from "@/context/CurrencyContext";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 
@@ -252,7 +255,7 @@ export default function ProjectView() {
       ["Start Date", project.start_date ? formatDate(project.start_date) : ""],
       ["Deadline", project.deadline ? formatDate(project.deadline) : ""],
       ["Total Logged Hours", formatHM(timeEntries.reduce((s: number, e: any) => s + (Number(e.hours) || 0), 0))],
-      ["Description", project.description || ""],
+      ["Description", htmlToPlainText(project.description)],
     ];
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -273,11 +276,11 @@ export default function ProjectView() {
     if (!project) return;
     let seedItems: any[] = [];
     if (invoiceMode === "single") {
-      seedItems = [{ description: project.name, long_description: project.description || "", qty: 1, rate: Number(project.project_cost) || 0, tax: "", unit: "" }];
+      seedItems = [{ description: project.name, long_description: htmlToPlainText(project.description), qty: 1, rate: Number(project.project_cost) || 0, tax: "", unit: "" }];
     } else {
       seedItems = unbilledTasks.map((t: any) => ({
         description: t.name,
-        long_description: t.description || "",
+        long_description: htmlToPlainText(t.description),
         qty: 1,
         rate: Number(project.project_rate_per_hour) || Number(t.hourly_rate) || 0,
         tax: "",
@@ -509,7 +512,7 @@ export default function ProjectView() {
                   </div>
                   <div className="col-span-2">
                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Description</p>
-                    <p className="text-sm text-muted-foreground">{project.description || "No description for this project"}</p>
+                    <RichTextContent value={project.description} className="text-sm text-muted-foreground" empty={<p className="text-sm text-muted-foreground">No description for this project</p>} />
                   </div>
                 </div>
               </CardContent>
@@ -614,7 +617,7 @@ export default function ProjectView() {
 
       {/* New Task Dialog */}
       <Dialog open={showTaskModal} onOpenChange={(open) => { setShowTaskModal(open); if (!open) setTaskForm({ name: "", description: "", priority: "2", assignee: "", duedate: "" }); }}>
-        <DialogContent className="max-w-lg rounded-2xl p-6">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl p-6">
           <DialogHeader>
             <DialogTitle>New Task</DialogTitle>
           </DialogHeader>
@@ -625,10 +628,11 @@ export default function ProjectView() {
             </div>
             <div>
               <Label className="text-sm font-medium block mb-1.5">Description</Label>
-              <Textarea
+              <RichTextEditor
                 value={taskForm.description}
-                onChange={(e) => setTaskForm(p => ({ ...p, description: e.target.value }))}
-                className="rounded-lg border-border/60 min-h-[80px] resize-none"
+                onChange={(html) => setTaskForm(p => ({ ...p, description: html }))}
+                placeholder="Add task description..."
+                minHeight={120}
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

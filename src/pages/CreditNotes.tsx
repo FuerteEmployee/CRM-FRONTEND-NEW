@@ -51,6 +51,7 @@ import {
   Link as LinkIcon,
   Image as ImageIcon,
 } from "lucide-react";
+import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { creditNoteService } from "@/api/services/credit_note.service";
 import { formatDate } from "@/lib/dateFormat";
@@ -1143,29 +1144,10 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
               </div>
             </div>
 
-            <div className="mt-6 border border-slate-200 rounded-xl overflow-hidden shadow-sm flex flex-col h-[300px]">
-              {/* Fake Google Docs Toolbar */}
-              <div className="bg-slate-50 border-b border-slate-200 p-2 flex flex-wrap gap-1 items-center">
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-700"><Bold className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-700"><Italic className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-700"><Underline className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-700"><Strikethrough className="h-4 w-4" /></Button>
-                <div className="w-px h-5 bg-slate-300 mx-1" />
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-700"><AlignLeft className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-700"><AlignCenter className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-700"><AlignRight className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-700"><AlignJustify className="h-4 w-4" /></Button>
-                <div className="w-px h-5 bg-slate-300 mx-1" />
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-700"><List className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-700"><ListOrdered className="h-4 w-4" /></Button>
-                <div className="w-px h-5 bg-slate-300 mx-1" />
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-700"><LinkIcon className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 text-slate-700"><ImageIcon className="h-4 w-4" /></Button>
-              </div>
-              <textarea 
+            <div className="mt-6">
+              <RichTextEditor
                 value={emailForm.body}
-                onChange={(e) => setEmailForm({ ...emailForm, body: e.target.value })}
-                className="flex-1 w-full p-4 resize-none focus:outline-none text-sm text-slate-800"
+                onChange={(html) => setEmailForm((prev) => ({ ...prev, body: html }))}
                 placeholder="Type your email content here..."
               />
             </div>

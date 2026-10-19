@@ -39,6 +39,7 @@ import { announcementService } from "@/services/announcement.service";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { RichTextContent } from "@/components/shared/RichTextContent";
 
 const Announcements = () => {
   const navigate = useNavigate();
@@ -332,9 +333,9 @@ const Announcements = () => {
               </div>
             </DialogHeader>
             <div className="p-8 bg-background max-h-[60vh] overflow-y-auto custom-scrollbar">
-              <div 
-                className="prose prose-sm max-w-none text-gray-700 leading-relaxed font-medium"
-                dangerouslySetInnerHTML={{ __html: viewAnnouncement?.message }}
+              <RichTextContent
+                value={viewAnnouncement?.message}
+                className="max-w-none text-gray-700 leading-relaxed font-medium"
               />
             </div>
             <div className="bg-accent/5 p-4 border-t flex justify-end">

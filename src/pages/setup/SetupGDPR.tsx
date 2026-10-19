@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableContainer, TableEmpty } from "@/components/ui/table";
 import {
   Select,
@@ -63,240 +64,6 @@ const gdprTabs = [
   { id: "access", label: "Right of access/Right to rectification" },
   { id: "consent", label: "Consent" },
 ];
-
-const RichTextEditorMock = ({
-  placeholder,
-  value,
-  onChange,
-}: {
-  placeholder?: string;
-  value?: string;
-  onChange?: (html: string) => void;
-}) => {
-  const editorRef = useRef<HTMLDivElement>(null);
-  const [activeFormats, setActiveFormats] = useState<Record<string, boolean>>({});
-  const [currentFont, setCurrentFont] = useState("System Font");
-  const [currentSize, setCurrentSize] = useState("12pt");
-  const hydratedRef = useRef(false);
-
-  // Loads the saved HTML into the (uncontrolled, contentEditable) editor once
-  // it arrives from the server. Only runs once — re-applying it on every
-  // `value` change would overwrite the DOM mid-keystroke and reset the cursor.
-  useEffect(() => {
-    if (hydratedRef.current || value === undefined || !editorRef.current) return;
-    editorRef.current.innerHTML = value;
-    hydratedRef.current = true;
-  }, [value]);
-
-  const handleBlur = () => {
-    onChange?.(editorRef.current?.innerHTML || "");
-  };
-
-  const checkActiveFormats = () => {
-    setActiveFormats({
-      bold: document.queryCommandState("bold"),
-      italic: document.queryCommandState("italic"),
-      underline: document.queryCommandState("underline"),
-      justifyLeft: document.queryCommandState("justifyLeft"),
-      justifyCenter: document.queryCommandState("justifyCenter"),
-      justifyRight: document.queryCommandState("justifyRight"),
-      justifyFull: document.queryCommandState("justifyFull"),
-    });
-  };
-
-  const execCommand = (command: string, arg?: string) => {
-    document.execCommand(command, false, arg);
-    editorRef.current?.focus();
-    checkActiveFormats();
-  };
-
-  const handleFontChange = (val: string, label: string) => {
-    setCurrentFont(label);
-    execCommand("fontName", val);
-  };
-
-  const handleSizeChange = (val: string, label: string) => {
-    setCurrentSize(label);
-    execCommand("fontSize", val);
-  };
-
-  const handleLink = () => {
-    const url = prompt("Enter link URL:", "https://");
-    if (url) execCommand("createLink", url);
-  };
-
-  const handleImage = () => {
-    const url = prompt("Enter image URL:", "https://");
-    if (url) execCommand("insertImage", url);
-  };
-
-  return (
-    <div className="border rounded-md shadow-sm bg-background flex flex-col overflow-hidden focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-      {/* Menu Bar */}
-      <div className="flex gap-2 px-3 py-1.5 border-b bg-muted/20 text-xs font-medium text-muted-foreground w-full overflow-x-auto">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="hover:text-foreground hover:bg-muted px-2 py-0.5 rounded transition-colors cursor-pointer select-none">File</button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="text-xs">
-            <DropdownMenuItem onClick={() => { if(editorRef.current) editorRef.current.innerHTML = ""; }}>New Document</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => window.print()}>Print</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="hover:text-foreground hover:bg-muted px-2 py-0.5 rounded transition-colors cursor-pointer select-none">Edit</button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="text-xs">
-            <DropdownMenuItem onClick={() => execCommand("undo")}>Undo</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => execCommand("redo")}>Redo</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => execCommand("selectAll")}>Select All</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="hover:text-foreground hover:bg-muted px-2 py-0.5 rounded transition-colors cursor-pointer select-none">View</button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="text-xs">
-            <DropdownMenuItem>Print Layout</DropdownMenuItem>
-            <DropdownMenuItem>Show Ruler</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="hover:text-foreground hover:bg-muted px-2 py-0.5 rounded transition-colors cursor-pointer select-none">Insert</button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="text-xs">
-            <DropdownMenuItem onClick={handleImage}>Image</DropdownMenuItem>
-            <DropdownMenuItem onClick={handleLink}>Link</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => execCommand("insertHorizontalRule")}>Horizontal Line</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="hover:text-foreground hover:bg-muted px-2 py-0.5 rounded transition-colors cursor-pointer select-none">Format</button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="text-xs">
-            <DropdownMenuItem onClick={() => execCommand("bold")}>Bold</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => execCommand("italic")}>Italic</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => execCommand("underline")}>Underline</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => execCommand("removeFormat")}>Clear Formatting</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="hover:text-foreground hover:bg-muted px-2 py-0.5 rounded transition-colors cursor-pointer select-none">Tools</button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="text-xs">
-            <DropdownMenuItem>Spelling and Grammar</DropdownMenuItem>
-            <DropdownMenuItem>Word Count</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className="hover:text-foreground hover:bg-muted px-2 py-0.5 rounded transition-colors cursor-pointer select-none">Table</button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="text-xs">
-            <DropdownMenuItem>Insert Table</DropdownMenuItem>
-            <DropdownMenuItem>Delete Table</DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      
-      {/* Formatting Toolbar */}
-      <div className="flex items-center gap-1 px-2 py-1.5 border-b bg-muted/5 flex-wrap">
-        <div className="flex items-center gap-0.5 pr-2 border-r border-border/50">
-          <Button onClick={() => execCommand("undo")} type="button" variant="ghost" size="icon" className="h-7 w-7 rounded-sm"><Undo className="h-4 w-4 text-muted-foreground" /></Button>
-          <Button onClick={() => execCommand("redo")} type="button" variant="ghost" size="icon" className="h-7 w-7 rounded-sm"><Redo className="h-4 w-4 text-muted-foreground" /></Button>
-        </div>
-        
-        <div className="flex items-center gap-1 px-2 border-r border-border/50">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs px-2 flex justify-between gap-2 w-28 rounded-sm">
-                <span className="truncate">{currentFont}</span>
-                <ChevronDown className="h-3 w-3 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="text-xs max-h-64 overflow-y-auto">
-              <DropdownMenuItem onClick={() => handleFontChange("Arial", "Arial")} style={{ fontFamily: "Arial" }}>Arial</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleFontChange("Courier New", "Courier New")} style={{ fontFamily: "Courier New" }}>Courier New</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleFontChange("Georgia", "Georgia")} style={{ fontFamily: "Georgia" }}>Georgia</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleFontChange("Times New Roman", "Times New Roman")} style={{ fontFamily: "Times New Roman" }}>Times New Roman</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleFontChange("Verdana", "Verdana")} style={{ fontFamily: "Verdana" }}>Verdana</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleFontChange("Tahoma", "Tahoma")} style={{ fontFamily: "Tahoma" }}>Tahoma</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleFontChange("Impact", "Impact")} style={{ fontFamily: "Impact" }}>Impact</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          
-          <div className="h-4 w-[1px] bg-border mx-1" />
-          
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs px-2 flex justify-between gap-1 w-[4.5rem] rounded-sm">
-                {currentSize}
-                <ChevronDown className="h-3 w-3 text-muted-foreground" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="text-xs min-w-[4.5rem]">
-              <DropdownMenuItem onClick={() => handleSizeChange("1", "8pt")}>8pt</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSizeChange("2", "10pt")}>10pt</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSizeChange("3", "12pt")}>12pt</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSizeChange("4", "14pt")}>14pt</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSizeChange("5", "18pt")}>18pt</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSizeChange("6", "24pt")}>24pt</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSizeChange("7", "36pt")}>36pt</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        <div className="flex items-center gap-0.5 px-2 border-r border-border/50">
-          <Button onClick={() => execCommand("bold")} type="button" variant="ghost" size="icon" className={cn("h-7 w-7 rounded-sm", activeFormats.bold && "bg-muted shadow-inner text-foreground")}><Bold className="h-4 w-4" /></Button>
-          <Button onClick={() => execCommand("italic")} type="button" variant="ghost" size="icon" className={cn("h-7 w-7 rounded-sm", activeFormats.italic && "bg-muted shadow-inner text-foreground")}><Italic className="h-4 w-4" /></Button>
-          <Button onClick={() => execCommand("underline")} type="button" variant="ghost" size="icon" className={cn("h-7 w-7 rounded-sm", activeFormats.underline && "bg-muted shadow-inner text-foreground")}><Underline className="h-4 w-4" /></Button>
-        </div>
-
-        <div className="flex items-center gap-0.5 px-2 border-r border-border/50">
-          <Button onClick={handleLink} type="button" variant="ghost" size="icon" className="h-7 w-7 rounded-sm"><LinkIcon className="h-4 w-4" /></Button>
-          <Button onClick={handleImage} type="button" variant="ghost" size="icon" className="h-7 w-7 rounded-sm"><ImageIcon className="h-4 w-4" /></Button>
-        </div>
-
-        <div className="flex items-center gap-0.5 px-2 border-r border-border/50">
-          <Button onClick={() => execCommand("justifyLeft")} type="button" variant="ghost" size="icon" className={cn("h-7 w-7 rounded-sm", activeFormats.justifyLeft && "bg-muted shadow-inner text-foreground")}><AlignLeft className="h-4 w-4" /></Button>
-          <Button onClick={() => execCommand("justifyCenter")} type="button" variant="ghost" size="icon" className={cn("h-7 w-7 rounded-sm", activeFormats.justifyCenter && "bg-muted shadow-inner text-foreground")}><AlignCenter className="h-4 w-4" /></Button>
-          <Button onClick={() => execCommand("justifyRight")} type="button" variant="ghost" size="icon" className={cn("h-7 w-7 rounded-sm", activeFormats.justifyRight && "bg-muted shadow-inner text-foreground")}><AlignRight className="h-4 w-4" /></Button>
-          <Button onClick={() => execCommand("justifyFull")} type="button" variant="ghost" size="icon" className={cn("h-7 w-7 rounded-sm", activeFormats.justifyFull && "bg-muted shadow-inner text-foreground")}><AlignJustify className="h-4 w-4" /></Button>
-        </div>
-
-        <div className="flex items-center pl-2">
-          <Button onClick={() => execCommand("removeFormat")} type="button" variant="ghost" size="icon" className="h-7 w-7 rounded-sm" title="Clear Formatting">
-            <MoreVertical className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Editor Area */}
-      <div 
-        ref={editorRef}
-        contentEditable
-        onKeyUp={checkActiveFormats}
-        onMouseUp={checkActiveFormats}
-        onBlur={handleBlur}
-        className="min-h-[250px] p-4 text-sm outline-none w-full bg-background overflow-y-auto empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground/50"
-        data-placeholder={placeholder || "Enter the rich text content here..."}
-      />
-    </div>
-  );
-};
 
 export default function SetupGDPR() {
   const [activeTab, setActiveTab] = useState("general");
@@ -627,7 +394,7 @@ export default function SetupGDPR() {
                   {/* GDPR page top information block - Google Docs style */}
                   <div className="space-y-3 border-t pt-4">
                     <Label className="text-sm font-semibold">GDPR page top information block</Label>
-                    <RichTextEditorMock value={generalInfoHtml} onChange={setGeneralInfoHtml} />
+                    <RichTextEditor minHeight={250} value={generalInfoHtml} onChange={setGeneralInfoHtml} />
                   </div>
 
                   <div className="pt-2">
@@ -1051,12 +818,12 @@ export default function SetupGDPR() {
 
                   <div className="space-y-3 pt-6 border-t">
                     <Label className="text-sm font-semibold">Terms & Conditions</Label>
-                    <RichTextEditorMock placeholder="Enter Terms & Conditions here..." value={termsHtml} onChange={setTermsHtml} />
+                    <RichTextEditor minHeight={250} placeholder="Enter Terms & Conditions here..." value={termsHtml} onChange={setTermsHtml} />
                   </div>
 
                   <div className="space-y-3 pt-4">
                     <Label className="text-sm font-semibold">Privacy Policy</Label>
-                    <RichTextEditorMock placeholder="Enter Privacy Policy here..." value={privacyHtml} onChange={setPrivacyHtml} />
+                    <RichTextEditor minHeight={250} placeholder="Enter Privacy Policy here..." value={privacyHtml} onChange={setPrivacyHtml} />
                   </div>
 
                   <div className="pt-2">
@@ -1215,7 +982,7 @@ export default function SetupGDPR() {
 
                     <div className="space-y-3 border-t pt-6">
                       <Label className="text-sm font-semibold">Public page consent information block</Label>
-                      <RichTextEditorMock placeholder="Enter consent information here..." value={consentInfoHtml} onChange={setConsentInfoHtml} />
+                      <RichTextEditor minHeight={250} placeholder="Enter consent information here..." value={consentInfoHtml} onChange={setConsentInfoHtml} />
                     </div>
                   </CardContent>
                 </Card>

@@ -126,6 +126,7 @@ const AnnouncementCreate = () => {
                   placeholder="Write your announcement details here..." 
                   value={formData.message}
                   onChange={(content) => setFormData(p => ({ ...p, message: content }))}
+                  minHeight={400}
                 />
               </div>
 

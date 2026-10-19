@@ -19,6 +19,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/RichTextEditor";
+import { RichTextContent } from "@/components/shared/RichTextContent";
 import {
   Check,
   List,
@@ -506,11 +508,11 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
               
               {isEditingDesc ? (
                 <div className="space-y-2 animate-in fade-in zoom-in-95 duration-200">
-                  <Textarea 
-                    value={descText} 
-                    onChange={(e) => setDescText(e.target.value)}
-                    className="min-h-[120px] rounded-xl border-primary/20 focus-visible:ring-primary/20 resize-none font-medium text-slate-700"
+                  <RichTextEditor
+                    value={descText}
+                    onChange={setDescText}
                     placeholder="Add task description..."
+                    minHeight={160}
                   />
                   <div className="flex gap-2">
                     <Button onClick={handleSaveDescription} size="sm" className="rounded-lg font-bold">Save</Button>
@@ -518,9 +520,11 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
                   </div>
                 </div>
               ) : (
-                <div className="text-sm font-medium text-slate-600 leading-relaxed whitespace-pre-wrap">
-                  {task.description || <span className="text-slate-400 italic font-normal">No description for this task</span>}
-                </div>
+                <RichTextContent
+                  value={task.description}
+                  className="text-sm font-medium text-slate-600 leading-relaxed"
+                  empty={<div className="text-sm text-slate-400 italic font-normal">No description for this task</div>}
+                />
               )}
             </div>
 

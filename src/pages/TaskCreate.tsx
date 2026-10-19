@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
@@ -443,12 +444,11 @@ const TaskCreate = () => {
 
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Task Description</Label>
-                  <Textarea
-                    name="description"
+                  <RichTextEditor
                     value={formData.description}
-                    onChange={handleInputChange}
-                    className="rounded-xl min-h-[150px] text-sm font-medium border-slate-200 shadow-none p-4 resize-none bg-white"
+                    onChange={(html) => setFormData((prev: any) => ({ ...prev, description: html }))}
                     placeholder="Describe the task in detail..."
+                    minHeight={150}
                   />
                 </div>
               </div>

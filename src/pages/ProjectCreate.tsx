@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { useCurrency } from "@/context/CurrencyContext";
@@ -272,8 +273,6 @@ const ProjectCreate = () => {
   };
 
   // Google Docs Style Toolbar States (Mock for UI)
-  const [editorFont, setEditorFont] = useState("System Font");
-  const [editorFontSize, setEditorFontSize] = useState("11");
 
   const visibleTabsOptions = [
     { id: "project_overview", label: "Project Overview" },
@@ -583,98 +582,15 @@ const ProjectCreate = () => {
                     </div>
                   </div>
 
-                  {/* Description with "Google Docs style" toolbar */}
+                  {/* Description */}
                   <div className="space-y-4">
                     <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">Description</Label>
-                    <div className="rounded-[2rem] border border-slate-200 overflow-hidden shadow-sm bg-white">
-                      {/* Toolbar Tier 1 */}
-                      <div className="flex items-center gap-1 p-3 bg-slate-50 border-b border-slate-200 overflow-x-auto no-scrollbar">
-                        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 h-9">
-                          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-slate-100"><HistoryIcon className="h-3.5 w-3.5 opacity-60" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-slate-100 rotate-180"><HistoryIcon className="h-3.5 w-3.5 opacity-60" /></Button>
-                        </div>
-                        <div className="w-px h-6 bg-slate-200 mx-1" />
-                        
-                        <div className="flex items-center gap-1">
-                          <Select value={editorFont} onValueChange={setEditorFont}>
-                            <SelectTrigger className="h-9 w-[130px] text-xs font-bold border-slate-200 bg-white">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl">
-                              <SelectItem value="System Font">System Font</SelectItem>
-                              <SelectItem value="Arial">Arial</SelectItem>
-                              <SelectItem value="Georgia">Georgia</SelectItem>
-                              <SelectItem value="Courier New">Courier New</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          
-                          <Select value={editorFontSize} onValueChange={setEditorFontSize}>
-                            <SelectTrigger className="h-9 w-[70px] text-xs font-bold border-slate-200 bg-white">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl">
-                              {["8", "9", "10", "11", "12", "14", "18", "24", "36"].map(s => (
-                                <SelectItem key={s} value={s}>{s}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="w-px h-6 bg-slate-200 mx-1" />
-
-                        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-slate-100"><Bold className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-slate-100"><Italic className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-slate-100 border-b-2 border-black rounded-none"><u>U</u></Button>
-                          <div className="relative flex flex-col items-center">
-                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-slate-100">
-                              <Baseline className="h-3.5 w-3.5" />
-                            </Button>
-                            <div className="h-1 w-full bg-slate-900 mt-[-4px]" />
-                          </div>
-                        </div>
-
-                        <div className="w-px h-6 bg-slate-200 mx-1" />
-
-                        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg p-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-slate-100"><Link2 className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-slate-100"><ImageIcon className="h-3.5 w-3.5" /></Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 rounded-md hover:bg-slate-100"><AlignCenter className="h-3.5 w-3.5" /></Button>
-                        </div>
-
-                        <div className="w-px h-6 bg-slate-200 mx-1" />
-                        
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200 transition-colors ml-auto">
-                          <MoreHorizontal className="h-4 w-4 opacity-40" />
-                        </Button>
-                      </div>
-
-                      {/* Toolbar Tier 2 */}
-                      <div className="flex items-center gap-2 p-2 bg-slate-50/50 border-b border-slate-100 overflow-x-auto no-scrollbar">
-                        <div className="flex items-center gap-0.5 ml-2">
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignLeft className="h-3.5 w-3.5 opacity-60" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignCenter className="h-3.5 w-3.5 opacity-60" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignRight className="h-3.5 w-3.5 opacity-60" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><AlignJustify className="h-3.5 w-3.5 opacity-60" /></Button>
-                        </div>
-                        <div className="w-px h-5 bg-slate-200 mx-1" />
-                        <div className="flex items-center gap-0.5">
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><List className="h-3.5 w-3.5 opacity-60" /></Button>
-                           <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><ListOrdered className="h-3.5 w-3.5 opacity-60" /></Button>
-                        </div>
-                        <div className="w-px h-5 bg-slate-200 mx-1" />
-                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-200"><CheckSquare className="h-3.5 w-3.5 opacity-60" /></Button>
-                      </div>
-
-                      <Textarea 
-                        name="description" 
-                        value={formData.description} 
-                        onChange={handleInputChange} 
-                        className="border-none focus-visible:ring-0 min-h-[300px] p-8 text-sm leading-relaxed font-medium resize-none bg-white rounded-none" 
-                        placeholder="Start writing project terms and overview..."
-                        style={{ fontFamily: editorFont === 'System Font' ? 'inherit' : editorFont, fontSize: `${editorFontSize}pt` }}
-                      />
-                    </div>
+                    <RichTextEditor
+                      value={formData.description}
+                      onChange={(html) => setFormData((prev: any) => ({ ...prev, description: html }))}
+                      placeholder="Start writing project terms and overview..."
+                      minHeight={300}
+                    />
                   </div>
 
                 </CardContent>
