@@ -41,19 +41,22 @@ function CampaignsTab({ onOpenLogs }: { onOpenLogs: (status: string) => void }) 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
 
+  // Refresh every 4s while a campaign is sending, otherwise every 30s so
+  // late delivered/read updates (from the webhook) still show up.
+  const refreshEvery = (campaignsResponse: any) =>
+    (campaignsResponse?.data || []).some((c: any) => c.status === "InProgress") ? 4000 : 30000;
+
   const { data: analyticsData } = useQuery({
     queryKey: ["whatsapp-analytics"],
     queryFn: () => whatsappCampaignService.getAnalytics(),
+    refetchInterval: () => refreshEvery(queryClient.getQueryData(["whatsapp-campaigns"])),
   });
   const funnel = analyticsData?.data?.funnel;
 
   const { data: campaignsData } = useQuery({
     queryKey: ["whatsapp-campaigns"],
     queryFn: () => whatsappCampaignService.getCampaigns(),
-    refetchInterval: (query) => {
-      const campaigns = query.state.data?.data || [];
-      return campaigns.some((c: any) => c.status === "InProgress") ? 3000 : false;
-    },
+    refetchInterval: (query) => refreshEvery(query.state.data),
   });
   const campaigns = campaignsData?.data || [];
 

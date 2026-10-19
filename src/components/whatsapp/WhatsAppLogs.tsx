@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
 
 import { whatsappCampaignService } from "@/api/services/whatsappCampaign.service";
 
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -29,7 +31,7 @@ export function WhatsAppLogs({ initialStatus = "all" }: { initialStatus?: string
   const [status, setStatus] = useState<string>(initialStatus);
   const [search, setSearch] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["whatsapp-logs", page, status, search],
     queryFn: () =>
       whatsappCampaignService.getLogs({
@@ -38,30 +40,49 @@ export function WhatsAppLogs({ initialStatus = "all" }: { initialStatus?: string
         ...(status !== "all" ? { status } : {}),
         ...(search ? { search } : {}),
       }),
+    refetchInterval: 10000,
   });
 
   const logs = data?.data || [];
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <Input
-          placeholder="Search mobile number…"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          className="max-w-xs"
-        />
-        <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1); }}>
-          <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            <SelectItem value="Sent">Sent</SelectItem>
-            <SelectItem value="Delivered">Delivered</SelectItem>
-            <SelectItem value="Read">Read</SelectItem>
-            <SelectItem value="Failed">Failed</SelectItem>
-            <SelectItem value="OptedOut">Opted Out</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-1">
+          <Input
+            placeholder="Search mobile number…"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="max-w-xs"
+          />
+          <Select value={status} onValueChange={(v) => { setStatus(v); setPage(1); }}>
+            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All statuses</SelectItem>
+              <SelectItem value="Sent">Sent</SelectItem>
+              <SelectItem value="Delivered">Delivered</SelectItem>
+              <SelectItem value="Read">Read</SelectItem>
+              <SelectItem value="Failed">Failed</SelectItem>
+              <SelectItem value="OptedOut">Opted Out</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs text-muted-foreground flex items-center gap-1 font-normal">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            Live auto-refresh
+          </Badge>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            title="Refresh logs now"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <TableContainer>

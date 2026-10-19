@@ -1,0 +1,10 @@
+{
+	"appId": "com.kiranengineering.hrms",
+	"appName": "Kiran CRM",
+	"webDir": "dist-kiran",
+	"server": {
+		"url": "https://crm.kiranenginers.com/staff/login",
+		"cleartext": false,
+		"androidScheme": "https"
+	}
+}

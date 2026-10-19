@@ -1,0 +1,10 @@
+[
+	{ "pkg": "@capacitor/app", "classpath": "com.capacitorjs.plugins.app.AppPlugin" },
+	{ "pkg": "@capacitor/app-launcher", "classpath": "com.capacitorjs.plugins.applauncher.AppLauncherPlugin" },
+	{ "pkg": "@capacitor/background-runner", "classpath": "io.ionic.backgroundrunner.plugin.BackgroundRunnerPlugin" },
+	{ "pkg": "@capacitor/device", "classpath": "com.capacitorjs.plugins.device.DevicePlugin" },
+	{ "pkg": "@capacitor/geolocation", "classpath": "com.capacitorjs.plugins.geolocation.GeolocationPlugin" },
+	{ "pkg": "@capacitor/push-notifications", "classpath": "com.capacitorjs.plugins.pushnotifications.PushNotificationsPlugin" },
+	{ "pkg": "@capacitor/splash-screen", "classpath": "com.capacitorjs.plugins.splashscreen.SplashScreenPlugin" },
+	{ "pkg": "@capgo/capacitor-mock-location-detector", "classpath": "app.capgo.mocklocationdetector.MockLocationDetectorPlugin" }
+]
