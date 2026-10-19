@@ -27,6 +27,7 @@ import { useSettings } from "@/context/SettingsContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { getLandingPath } from "@/lib/landingPath";
+import { usePanelBranding, useApplyPanelBranding } from "@/lib/panelBranding";
 import { AlreadyLoggedInBanner } from "@/components/auth/AlreadyLoggedInBanner";
 import { TwoFactorCodeForm } from "@/components/auth/TwoFactorCodeForm";
 import { getDeviceInfo, getLoginLocation } from "@/hrms/utils/deviceId";
@@ -50,6 +51,13 @@ const Login = () => {
   const [logoLightError, setLogoLightError] = useState(false);
   const [logoDarkError, setLogoDarkError] = useState(false);
   const [stage, setStage] = useState<"credentials" | "otp">("credentials");
+  // The Super Admin login shows the panel's own branding, never a company's.
+  const isSuperAdminLogin = window.location.pathname.startsWith("/super-admin");
+  const panelBranding = usePanelBranding();
+  const brand = isSuperAdminLogin
+    ? { name: panelBranding.panelName, logoLight: panelBranding.panelLogo, logoDark: panelBranding.panelLogo }
+    : { name: settings?.companyName, logoLight: settings?.compLogoLight, logoDark: settings?.compLogoDark };
+  useApplyPanelBranding(panelBranding, [settings], isSuperAdminLogin);
 
   const completeLogin = (response: any) => {
     toast.success("Welcome back!");
@@ -127,17 +135,17 @@ const Login = () => {
 
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          {settings?.compLogoLight && !logoLightError ? (
+          {brand.logoLight && !logoLightError ? (
             <div className="flex items-center gap-2">
-              <img src={resolveImageUrl(settings.compLogoLight)} alt="Logo" className="h-10 w-auto object-contain" onError={() => setLogoLightError(true)} />
+              <img src={resolveImageUrl(brand.logoLight)} alt="Logo" className="h-10 w-auto object-contain" onError={() => setLogoLightError(true)} />
             </div>
           ) : (
             <>
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-primary font-extrabold text-lg shadow-lg">
-                {settings?.companyName?.charAt(0) || "C"}
+                {brand.name?.charAt(0) || "C"}
               </div>
               <span className="text-2xl font-bold tracking-tight">
-                {settings?.companyName}
+                {brand.name}
               </span>
             </>
           )}
@@ -192,17 +200,17 @@ const Login = () => {
         <div className="w-full max-w-sm space-y-8">
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center justify-center gap-2 mb-2">
-            {settings?.compLogoDark && !logoDarkError ? (
+            {brand.logoDark && !logoDarkError ? (
               <div className="flex items-center gap-2">
-                <img src={resolveImageUrl(settings.compLogoDark)} alt="Logo" className="h-9 w-auto object-contain" onError={() => setLogoDarkError(true)} />
+                <img src={resolveImageUrl(brand.logoDark)} alt="Logo" className="h-9 w-auto object-contain" onError={() => setLogoDarkError(true)} />
               </div>
             ) : (
               <>
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-base">
-                  {settings?.companyName?.charAt(0) || "C"}
+                  {brand.name?.charAt(0) || "C"}
                 </div>
                 <span className="text-xl font-bold">
-                  {settings?.companyName}
+                  {brand.name}
                 </span>
               </>
             )}
