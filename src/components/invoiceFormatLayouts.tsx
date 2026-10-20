@@ -175,7 +175,9 @@ export function LetterheadInvoiceLayout({ data, title, company, bankDetail }: { 
   const client = data.client && typeof data.client === "object" ? data.client : {};
   const items: any[] = data.items || [];
   const subtotal = Number(data.subtotal || 0);
-  const totalTax = Number(data.total_tax || 0);
+  // total_tax is sent by the invoice form; invoices created elsewhere (import,
+  // API) may only carry the CGST/SGST/IGST split the backend calculates.
+  const totalTax = Number(data.total_tax || 0) || Number(data.total_cgst || 0) + Number(data.total_sgst || 0) + Number(data.total_igst || 0);
   const withTax = subtotal + totalTax;
   const discount = Number(data.discount_total || 0);
   const adjustment = Number(data.adjustment || 0) - discount;

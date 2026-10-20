@@ -1249,14 +1249,20 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      const settingsToSave = Object.keys(stateMapping).map(key => {
-        let val = stateMapping[key][0];
-        if (Array.isArray(val)) val = JSON.stringify(val);
-        return {
-          name: key,
-          value: val
-        };
-      });
+      const settingsToSave = Object.keys(stateMapping)
+        // Companies without an uploaded favicon get a generated letter icon
+        // (SettingsContext, lib/brand.ts letterFavicon). It is a display
+        // fallback, not a saved value, and the API rejects non-base64 data
+        // URLs — sending it made every Save fail with "Invalid image data".
+        .filter(key => !(key === "favicon" && typeof stateMapping[key][0] === "string" && stateMapping[key][0].startsWith("data:image/svg+xml,")))
+        .map(key => {
+          let val = stateMapping[key][0];
+          if (Array.isArray(val)) val = JSON.stringify(val);
+          return {
+            name: key,
+            value: val
+          };
+        });
       await settingsService.updateSettings({ settings: settingsToSave });
 
       // Refresh global settings context to apply instant effects like RTL
