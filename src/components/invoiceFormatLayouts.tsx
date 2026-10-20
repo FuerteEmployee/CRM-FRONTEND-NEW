@@ -158,6 +158,164 @@ export function EkagraTaxInvoiceLayout({ data, date, bankDetail, compCity }: { d
   );
 }
 
+export interface LetterheadCompany {
+  name: string;
+  phone?: string;
+  email?: string;
+  gstin?: string;
+  logoUrl?: string;
+  logoWidth?: number;
+}
+
+// "Letterhead" Invoice / Proforma Invoice format — logo + company block,
+// Bill-to block with buyer GSTIN, navy item table with HSN, bank details and
+// GST totals. Everything comes from Settings (company), the customer, the
+// invoice and its selected bank account; `title` switches INVOICE / PROFORMA.
+export function LetterheadInvoiceLayout({ data, title, company, bankDetail }: { data: any; title: string; company: LetterheadCompany; bankDetail?: any }) {
+  const client = data.client && typeof data.client === "object" ? data.client : {};
+  const items: any[] = data.items || [];
+  const subtotal = Number(data.subtotal || 0);
+  const totalTax = Number(data.total_tax || 0);
+  const withTax = subtotal + totalTax;
+  const discount = Number(data.discount_total || 0);
+  const adjustment = Number(data.adjustment || 0) - discount;
+  const taxPct = subtotal > 0 ? Math.round((totalTax / subtotal) * 10000) / 100 : 0;
+  const money = (n: number) => Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const qty = (n: number) => Number(n || 0).toFixed(2);
+  const shortDate = (v: any) => {
+    const dt = v ? new Date(v) : null;
+    if (!dt || isNaN(dt.getTime())) return "-";
+    const p = (n: number) => String(n).padStart(2, "0");
+    return `${p(dt.getDate())}-${p(dt.getMonth() + 1)}-${String(dt.getFullYear()).slice(-2)}`;
+  };
+  const billAddress = data.partyAddress || [client.billing_street || client.address, client.billing_city || client.city].filter(Boolean).join(", ");
+  const billGstin = data.gstin || data.vat || client.vat || client.gst_number || "";
+  const billPhone = client.phonenumber || client.phone || "";
+  const branch = bankDetail?.branch && typeof bankDetail.branch === "object" ? bankDetail.branch : null;
+  const branchPlace = branch ? [branch.city, branch.state, branch.pincode].filter(Boolean).join(" ").toUpperCase() : "";
+
+  const NAVY = "#0f2a5f";
+  const sans = "'Poppins', Arial, Helvetica, sans-serif";
+  const serif = "'EB Garamond', Garamond, 'Times New Roman', serif";
+  const th: CSSProperties = { background: NAVY, color: "#fff", fontFamily: serif, fontWeight: 700, fontSize: "12.5px", padding: "7px 6px", border: "1px solid #fff", borderBottom: `1px solid ${NAVY}`, textAlign: "center", letterSpacing: "0.2px" };
+  const td: CSSProperties = { border: "1px solid #000", padding: "4px 6px", fontFamily: serif, fontSize: "12.5px", height: "24px" };
+  const labelTd: CSSProperties = { fontFamily: serif, fontWeight: 700, textAlign: "right", padding: "1px 6px 1px 0", whiteSpace: "nowrap", verticalAlign: "top" };
+  const valueTd: CSSProperties = { fontFamily: serif, padding: "1px 0", verticalAlign: "top" };
+  const totalLabel: CSSProperties = { border: "1px solid #000", padding: "4px 8px", fontFamily: serif, fontSize: "12.5px", textAlign: "center" };
+  const totalValue: CSSProperties = { border: "1px solid #000", padding: "4px 8px", fontFamily: serif, fontSize: "12.5px", textAlign: "right" };
+  const bankLine: CSSProperties = { fontFamily: sans, fontSize: "13px", color: "#333", fontWeight: 500, lineHeight: "26px", letterSpacing: "0.2px" };
+  const blankRows = Math.max(0, 8 - items.length);
+
+  return (
+    <div style={{ border: "2px solid #000", padding: "16px 40px 40px", background: "#fff", color: "#111", fontFamily: serif, position: "relative" }}>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;600;700&family=Poppins:wght@400;500;600;700;800&display=swap" />
+
+      {/* Logo + title */}
+      <div style={{ position: "relative", minHeight: company.logoUrl ? "150px" : "auto", marginBottom: "8px" }}>
+        {company.logoUrl && (
+          <img src={company.logoUrl} alt={company.name} style={{ position: "absolute", left: "-30px", top: "4px", width: `${company.logoWidth || 200}px`, height: "auto" }} />
+        )}
+        <div style={{ textAlign: "center", fontFamily: sans, fontWeight: 800, fontSize: "40px", lineHeight: 1.1, letterSpacing: "1px", color: "#000" }}>{title}</div>
+      </div>
+
+      {/* Company + Bill-to */}
+      <table className="printable-table" style={{ width: "100%", borderCollapse: "collapse", marginBottom: "40px" }}>
+        <tbody>
+          <tr>
+            <td style={{ verticalAlign: "top", width: "50%", paddingLeft: "20px" }}>
+              <div style={{ fontFamily: sans, fontWeight: 600, fontSize: "22px", color: "#111", marginBottom: "6px" }}>{company.name}</div>
+              {company.phone && <div style={{ fontSize: "13px", paddingLeft: "12px", marginBottom: "6px" }}>Mo.{company.phone}</div>}
+              {company.email && <div style={{ fontSize: "13px", paddingLeft: "12px", marginBottom: "6px" }}>{company.email}</div>}
+              {company.gstin && <div style={{ fontFamily: sans, fontWeight: 600, fontSize: "12px", paddingLeft: "12px" }}>GSTIN No. : {company.gstin}</div>}
+            </td>
+            <td style={{ verticalAlign: "top", width: "50%" }}>
+              <table className="printable-table" style={{ borderCollapse: "collapse", fontSize: "13px" }}>
+                <tbody>
+                  <tr><td style={labelTd}>Invoice :</td><td style={valueTd}>{data.number || "-"}</td></tr>
+                  <tr><td style={{ ...labelTd, paddingTop: "8px" }}>Invoice date:</td><td style={{ ...valueTd, paddingTop: "8px" }}>{shortDate(data.date)}</td></tr>
+                  <tr><td style={labelTd}>Bill to:</td><td style={{ ...valueTd, fontWeight: 700 }}>{client.company || data.contact_name || "-"}</td></tr>
+                  <tr><td style={labelTd}>Address:</td><td style={{ ...valueTd, fontWeight: 700 }}>{billAddress || "-"}</td></tr>
+                  <tr><td style={labelTd}>GSTIN No. :</td><td style={{ ...valueTd, fontFamily: sans, fontWeight: 600, fontSize: "12px" }}>{billGstin}</td></tr>
+                  <tr><td style={labelTd}>Phone:</td><td style={valueTd}>{billPhone}</td></tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Items */}
+      <table className="printable-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", border: `2px solid ${NAVY}` }}>
+        <thead>
+          <tr>
+            <th style={{ ...th, width: "9%" }}>No.</th>
+            <th style={{ ...th, width: "32%" }}>DESCRIPTION OF WORK</th>
+            <th style={{ ...th, width: "13%" }}>HSN CODE</th>
+            <th style={{ ...th, width: "11%" }}>QTY.Kg</th>
+            <th style={{ ...th, width: "17%" }}>RATE PER UNIT</th>
+            <th style={{ ...th, width: "18%" }}>AMOUNT</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, i) => {
+            const amount = item.amount ?? Number(item.qty || item.quantity || 0) * Number(item.rate || item.price || 0);
+            return (
+              <tr key={i}>
+                <td style={{ ...td, fontWeight: 700, paddingLeft: "18px" }}>{i + 1}</td>
+                <td style={{ ...td, fontSize: "11.5px", paddingLeft: "16px", wordBreak: "break-word" }}>{item.description || item.name || ""}</td>
+                <td style={{ ...td, textAlign: "right" }}>{item.itemHSN || ""}</td>
+                <td style={{ ...td, textAlign: "right" }}>{qty(item.qty ?? item.quantity)}</td>
+                <td style={{ ...td, textAlign: "right" }}>₹ {money(item.rate ?? item.price)}</td>
+                <td style={{ ...td, textAlign: "right" }}>₹ {money(amount)}</td>
+              </tr>
+            );
+          })}
+          {Array.from({ length: blankRows }).map((_, i) => (
+            <tr key={`blank-${i}`}>
+              <td style={td}></td><td style={td}></td><td style={td}></td><td style={td}></td><td style={td}></td>
+              <td style={{ ...td, textAlign: "right" }}>₹ 0.00</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Bank details + totals */}
+      <table className="printable-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+        <tbody>
+          <tr>
+            <td style={{ width: "65%", verticalAlign: "top", padding: 0 }}>
+              {bankDetail && (
+                <div style={{ paddingLeft: "76px", paddingTop: "22px" }}>
+                  <div style={{ ...bankLine, color: "#111" }}>Account Details</div>
+                  <div style={{ ...bankLine, color: "#111" }}>NAME- {bankDetail.accountHolderName || company.name}</div>
+                  {bankDetail.bankName && <div style={bankLine}>{bankDetail.bankName}</div>}
+                  {bankDetail.accountNumber && <div style={bankLine}>A/C NO. :- {bankDetail.accountNumber}</div>}
+                  {bankDetail.ifscCode && <div style={bankLine}>IFSC :- {bankDetail.ifscCode}</div>}
+                  {branch?.name && <div style={bankLine}>BRANCH NAME – {String(branch.name).toUpperCase()}</div>}
+                  {branchPlace && <div style={bankLine}>{branchPlace}</div>}
+                </div>
+              )}
+            </td>
+            <td style={{ width: "35%", verticalAlign: "top", padding: 0 }}>
+              <table className="printable-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed", border: `2px solid ${NAVY}`, borderTop: "none" }}>
+                <tbody>
+                  <tr><td style={{ ...totalLabel, width: "49%" }}>Invoice Subtotal</td><td style={totalValue}>{money(subtotal)}</td></tr>
+                  <tr><td style={totalLabel}>GST Rate {taxPct}%</td><td style={totalValue}>{money(totalTax)}</td></tr>
+                  <tr><td style={totalLabel}>WITH TAX</td><td style={totalValue}>{money(withTax)}</td></tr>
+                  <tr><td style={totalLabel}>{discount > 0 ? "DISCOUNT / ADJ." : "ADJUSTMENT"}</td><td style={totalValue}>{adjustment ? money(adjustment) : "-"}</td></tr>
+                  <tr><td style={{ ...totalLabel, fontWeight: 700, textAlign: "right" }}>TOTAL</td><td style={totalValue}>{money(Number(data.total ?? withTax))}</td></tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style={{ textAlign: "center", fontSize: "13px", marginTop: "4px" }}>Please make all checks payable to {company.name}.</div>
+    </div>
+  );
+}
+
 // "Classic Invoice" format — plain black-and-white letterhead style, fully
 // dynamic (company name/phone from Settings, no tenant hardcoded), so any
 // tenant can select it.

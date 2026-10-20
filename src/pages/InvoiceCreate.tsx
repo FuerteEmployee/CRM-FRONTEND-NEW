@@ -94,6 +94,7 @@ export default function InvoiceCreate() {
     adminnote: "",
     client_note: "",
     terms: "",
+    document_type: "",
     voucherType: "",
     partyAddress: "",
     partyGroup: "",
@@ -310,6 +311,7 @@ export default function InvoiceCreate() {
         adminnote: invoice.adminnote || "",
         client_note: invoice.notes || "",
         terms: invoice.terms || "",
+        document_type: invoice.document_type || "",
         voucherType: invoice.voucherType || "",
         partyAddress: invoice.partyAddress || "",
         partyGroup: invoice.partyGroup || "",
@@ -521,6 +523,7 @@ export default function InvoiceCreate() {
       project: formData.project || undefined,
       created_by: formData.sale_agent || undefined,
       status: finalStatus,
+      document_type: formData.document_type,
       voucherType: formData.voucherType,
       partyAddress: formData.partyAddress,
       partyGroup: formData.partyGroup,
@@ -731,6 +734,24 @@ export default function InvoiceCreate() {
 
               {/* Voucher / Party Details */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-border/30 border-dashed">
+                {isEkagraUser(user?.email) && (
+                  <div className="space-y-2.5 sm:col-span-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Document Type (Letterhead PDF)</Label>
+                    <Select
+                      value={formData.document_type || "auto"}
+                      onValueChange={(v) => setFormData(p => ({ ...p, document_type: v === "auto" ? "" : v }))}
+                    >
+                      <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium sm:max-w-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">As per Settings</SelectItem>
+                        <SelectItem value="invoice">Invoice</SelectItem>
+                        <SelectItem value="proforma">Proforma Invoice</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Voucher Type</Label>
                   <Input
