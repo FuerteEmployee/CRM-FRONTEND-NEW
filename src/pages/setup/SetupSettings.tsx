@@ -696,6 +696,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   const [compCountry, setCompCountry] = useState(() => getInit("compCountry", "United States"));
   const [compZip, setCompZip] = useState(() => getInit("compZip", ""));
   const [compPhone, setCompPhone] = useState(() => getInit("compPhone", ""));
+  const [compEmail, setCompEmail] = useState(() => getInit("compEmail", ""));
   const [compVat, setCompVat] = useState(() => getInit("compVat", ""));
   const [compInfoFormat, setCompInfoFormat] = useState(() => getInit("compInfoFormat", ""));
 
@@ -1177,6 +1178,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
     compCountry: [compCountry, setCompCountry],
     compZip: [compZip, setCompZip],
     compPhone: [compPhone, setCompPhone],
+    compEmail: [compEmail, setCompEmail],
     compVat: [compVat, setCompVat],
     compInfoFormat: [compInfoFormat, setCompInfoFormat],
     locDateFormat: [locDateFormat, setLocDateFormat],
@@ -1247,14 +1249,20 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   const handleSave = async () => {
     try {
       setIsSaving(true);
-      const settingsToSave = Object.keys(stateMapping).map(key => {
-        let val = stateMapping[key][0];
-        if (Array.isArray(val)) val = JSON.stringify(val);
-        return {
-          name: key,
-          value: val
-        };
-      });
+      const settingsToSave = Object.keys(stateMapping)
+        // Companies without an uploaded favicon get a generated letter icon
+        // (SettingsContext, lib/brand.ts letterFavicon). It is a display
+        // fallback, not a saved value, and the API rejects non-base64 data
+        // URLs — sending it made every Save fail with "Invalid image data".
+        .filter(key => !(key === "favicon" && typeof stateMapping[key][0] === "string" && stateMapping[key][0].startsWith("data:image/svg+xml,")))
+        .map(key => {
+          let val = stateMapping[key][0];
+          if (Array.isArray(val)) val = JSON.stringify(val);
+          return {
+            name: key,
+            value: val
+          };
+        });
       await settingsService.updateSettings({ settings: settingsToSave });
 
       // Refresh global settings context to apply instant effects like RTL
@@ -1632,6 +1640,16 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         onChange={(e) => setCompPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
                         maxLength={10}
                         inputMode="numeric"
+                      />
+                    </div>
+                    <div className="space-y-2 pt-4 border-t">
+                      <Label className="text-sm font-semibold">Email</Label>
+                      <Input
+                        type="email"
+                        placeholder="Enter company email"
+                        className="max-w-md"
+                        value={compEmail}
+                        onChange={(e) => setCompEmail(e.target.value.trim())}
                       />
                     </div>
                     <div className="space-y-2 pt-4 border-t">

@@ -10,7 +10,8 @@ import { salesService } from "@/api/services/sales.service";
 import { isRudraverseTenant } from "@/lib/rudraverseTenant";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { isEkagraUser } from "@/lib/ekagraTenant";
-import { EkagraTaxInvoiceLayout, ClassicInvoiceLayout } from "@/components/invoiceFormatLayouts";
+import { EkagraTaxInvoiceLayout, ClassicInvoiceLayout, LetterheadInvoiceLayout } from "@/components/invoiceFormatLayouts";
+import { getLetterheadCompany, getLetterheadTitle, isLetterheadFormat } from "@/lib/invoicePdfFormats";
 import { usePermissions } from "@/hooks/usePermissions";
 import { settingsService } from "@/api/services/settings.service";
 import { customerBillingParts } from "@/lib/customerAutofill";
@@ -58,6 +59,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
   const bankDetail = canUseBankDetails ? data.bank_detail : null;
   const showEkagraTaxInvoice = isInvoice && S.invPdfFormat === "ekagra_tax_invoice" && isEkagraUser(user?.email);
   const showClassicInvoice = isInvoice && S.invPdfFormat === "classic_invoice";
+  const showLetterhead = isInvoice && isLetterheadFormat(S.invPdfFormat) && isEkagraUser(user?.email);
 
   const payments = paymentsData || [];
   const totalPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
@@ -230,7 +232,14 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                 overflow: "hidden",
               }}
             >
-              {showEkagraTaxInvoice ? (
+              {showLetterhead ? (
+                <LetterheadInvoiceLayout
+                  data={data}
+                  title={getLetterheadTitle(data.document_type, S.invPdfFormat)}
+                  company={getLetterheadCompany((k) => S[k])}
+                  bankDetail={bankDetail}
+                />
+              ) : showEkagraTaxInvoice ? (
                 <EkagraTaxInvoiceLayout data={data} date={date} bankDetail={bankDetail} compCity={compCity} />
               ) : showClassicInvoice ? (
                 <ClassicInvoiceLayout data={data} date={date} companyName={companyName} compPhone={compPhone} />

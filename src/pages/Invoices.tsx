@@ -67,7 +67,8 @@ import { useSettings } from "@/context/SettingsContext";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { isEkagraUser } from "@/lib/ekagraTenant";
 import { renderToStaticMarkup } from "react-dom/server";
-import { EkagraTaxInvoiceLayout, ClassicInvoiceLayout } from "@/components/invoiceFormatLayouts";
+import { EkagraTaxInvoiceLayout, ClassicInvoiceLayout, LetterheadInvoiceLayout } from "@/components/invoiceFormatLayouts";
+import { getLetterheadCompany, getLetterheadTitle, isLetterheadFormat } from "@/lib/invoicePdfFormats";
 
 const INVOICE_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Voucher Number", sample: "INV-2201", core: true },
@@ -327,8 +328,40 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
     `;
   };
 
+  const generateLetterheadInvoiceHtml = (pdfFormat: string) => {
+    const title = getLetterheadTitle(d.document_type, pdfFormat);
+    const markup = renderToStaticMarkup(
+      <LetterheadInvoiceLayout
+        data={d}
+        title={title}
+        company={getLetterheadCompany((k) => getSetting(k, ""))}
+        bankDetail={canUseBankDetails ? d.bank_detail : null}
+      />
+    );
+    return `
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${title === "PROFORMA INVOICE" ? "Proforma Invoice" : "Invoice"} ${invoiceNumber}</title>
+          <style>
+            * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            body { margin: 0; padding: 24px; background: #fff; }
+            @media print {
+              body { padding: 0; }
+              @page { size: A4 portrait; margin: 1cm; }
+            }
+          </style>
+        </head>
+        <body>${markup}</body>
+      </html>
+    `;
+  };
+
   const generatePdfHtml = () => {
     const pdfFormat = getSetting("invPdfFormat", "generic");
+    if (isLetterheadFormat(pdfFormat) && isEkagraUser(user?.email)) {
+      return generateLetterheadInvoiceHtml(pdfFormat);
+    }
     if (pdfFormat === "ekagra_tax_invoice" && isEkagraUser(user?.email)) {
       return generateEkagraTaxInvoiceHtml();
     }
