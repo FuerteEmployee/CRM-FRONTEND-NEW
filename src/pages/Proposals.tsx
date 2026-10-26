@@ -81,7 +81,8 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
     const signed = (value || 0) < 0 ? `-${formatted}` : formatted;
     return placement === "before" ? `${sym}${signed}` : `${signed}${sym}`;
   };
-  const proposalNumber = (proposal._id || proposal.id)?.slice(-6).toUpperCase();
+  // Number from Setup > Settings > Proposals; older proposals have none.
+  const proposalNumber = proposal.number || `PRO-${(proposal._id || proposal.id)?.slice(-6).toUpperCase()}`;
   const status = getStatus(proposal.status);
   const [activeTab, setActiveTab] = useState("Proposal");
   const [showEmailDialog, setShowEmailDialog] = useState(false);
@@ -299,7 +300,7 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
                 <div className="border border-border/40 rounded-xl p-5">
                   <div className="flex justify-between items-start gap-4">
                     <div>
-                      <p className="text-base font-bold text-primary">PRO-{proposalNumber}</p>
+                      <p className="text-base font-bold text-primary">{proposalNumber}</p>
                       <p className="text-sm font-semibold text-muted-foreground mt-0.5">{d.subject || d.title}</p>
                       {d.company && <p className="text-sm font-bold text-foreground mt-3">{d.company}</p>}
                       {d.address && <p className="text-xs text-muted-foreground">{d.address}</p>}
@@ -314,7 +315,7 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
                       {d.phone && (
                         <WhatsAppQuickChat
                           phone={d.phone}
-                          data={{ customer_name: d.company || d.proposal_to || d.customer, invoice_no: `PRO-${proposalNumber}` }}
+                          data={{ customer_name: d.company || d.proposal_to || d.customer, invoice_no: proposalNumber }}
                           className="mt-2"
                         />
                       )}
@@ -786,7 +787,7 @@ const Proposals = () => {
               data={loadAllFilteredProposals}
               filename="proposals"
               columns={[
-                { header: "Proposal #", key: (p) => p.number || p._id },
+                { header: "Proposal #", key: (p) => p.number || `PRO-${String(p._id).slice(-6).toUpperCase()}` },
                 { header: "Subject", key: "subject" },
                 { header: "To", key: (p) => p.proposal_to || p.rel_id || p.customer || "N/A" },
                 { header: "Total", key: (p) => p.total || p.amount || "0" },
@@ -860,7 +861,7 @@ const Proposals = () => {
               ) : (
                 paginatedProposals.map((prop: any) => {
                   const status = getStatus(prop.status);
-                  const proposalNum = (prop._id || prop.id)?.slice(-6).toUpperCase();
+                  const proposalNum = prop.number || `PRO-${(prop._id || prop.id)?.slice(-6).toUpperCase()}`;
                   return (
                     <TableRow
                       key={prop._id || prop.id}

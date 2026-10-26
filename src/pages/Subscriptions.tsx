@@ -37,10 +37,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const Subscriptions = () => {
   const [search, setSearch] = useState("");
-  const [itemsPerPage, setItemsPerPage] = useState("25");
+  const [itemsPerPage, setItemsPerPage] = useState(() => String(defaultPageSize(25)));
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);

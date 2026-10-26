@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useSettings } from "@/context/SettingsContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -66,6 +68,31 @@ const TaskCreate = () => {
     repeat_every: "0",
   });
 
+  // Setup > Settings > Tasks defaults for a NEW task.
+  const { getSetting } = useSettings();
+  const { user: currentUser } = usePermissions();
+  useEffect(() => {
+    if (isEditing) return;
+    const on = (v: any) => v === true || v === 1 || v === "1" || v === "true";
+    const statusKey = String(getSetting("taskDefaultStatus", "not_started") || "not_started");
+    const statusMap: Record<string, number> = { not_started: 1, in_progress: 2, testing: 3, awaiting_feedback: 4, complete: 5 };
+    const priorityMap: Record<string, number> = { low: 1, medium: 2, high: 3, urgent: 4 };
+    const me = currentUser?._id ? String(currentUser._id) : "";
+    setFormData((p: any) => {
+      const start = p.startdate ? new Date(p.startdate) : new Date();
+      const status = statusKey === "auto" ? (start.getTime() <= Date.now() ? 2 : 1) : statusMap[statusKey] || 1;
+      return {
+        ...p,
+        status,
+        priority: priorityMap[String(getSetting("taskDefaultPriority", "medium"))] || 2,
+        billable: on(getSetting("taskBillableDefault", false)),
+        assignees: me && on(getSetting("taskAutoAssignCreator", false)) && !p.assignees?.length ? [me] : p.assignees,
+        followers: me && on(getSetting("taskAutoAddFollower", false)) && !p.followers?.includes(me) ? [...(p.followers || []), me] : p.followers,
+      };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, currentUser?._id]);
+
   const [tagInput, setTagInput] = useState("");
   const [files, setFiles] = useState<File[]>([]);
 
@@ -105,8 +132,9 @@ const TaskCreate = () => {
       if (taskId && files.length > 0) {
         try {
           await fileService.uploadFiles(taskId, "task", files);
-        } catch (uploadErr) {
+        } catch (uploadErr: any) {
           console.error("Failed to upload attached files:", uploadErr);
+          toast({ title: "Task saved, attachments not uploaded", description: uploadErr?.message || "Failed to upload files.", variant: "destructive" });
         }
       }
       return res;

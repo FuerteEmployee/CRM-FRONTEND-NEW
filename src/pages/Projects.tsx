@@ -55,6 +55,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { htmlToPlainText } from "@/lib/richText";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const statusConfig = [
   { id: 1, label: "Not Started", color: "bg-slate-100 text-slate-700 border-slate-200" },
@@ -72,7 +73,7 @@ const Projects = () => {
     return () => clearTimeout(t);
   }, [search]);
   const [activeStatus, setActiveStatus] = useState<number | "all">("all");
-  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [itemsPerPage, setItemsPerPage] = useState(() => defaultPageSize(25));
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { clearThemeFromDom, applyThemeToDom } from "@/lib/themeUtils";
+import { clearThemeFromDom, applyThemeToDom, themeCacheKey } from "@/lib/themeUtils";
 
 export function useTheme() {
   const [theme, setTheme] = useState<"light" | "dark" | "color">(() => {
@@ -21,7 +21,7 @@ export function useTheme() {
     if (theme === "light" || theme === "dark") {
       clearThemeFromDom();
     } else if (theme === "color") {
-      const cached = localStorage.getItem("crm_theme_style_cache");
+      const cached = localStorage.getItem(themeCacheKey());
       if (cached) {
         try {
           applyThemeToDom(JSON.parse(cached));

@@ -68,6 +68,7 @@ import {
 import React, { useState, useEffect } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
+import { hasPurchaseOrders, PO_MODULE, PO_URL } from "@/lib/purchaseOrders";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -103,6 +104,7 @@ import { useNotificationContext } from "@/context/NotificationContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { isTenantExpired } from "@/lib/tenantExpiry";
 import { moduleForPath } from "@/lib/planModules";
+import { useDocumentDir } from "@/hooks/useDocumentDir";
 
 const fallbackNav = [
   { title: "Dashboard", url: "/admin/dashboard", icon: "LayoutDashboard", group: "Main" },
@@ -321,6 +323,9 @@ export function AppSidebar() {
   const rawCompanyName = getSetting("companyName", "");
   const companyName = (rawCompanyName && rawCompanyName !== "Fuerte CRM" && rawCompanyName !== "Fuerte Developers" && rawCompanyName !== "CRMPro" && rawCompanyName !== "CRM Pro Inc.") ? rawCompanyName : "CRM";
   const aiAgentName = getSetting("aiAgentName", "CRM Agent");
+  // RTL (Setup > Settings): the sidebar is fixed-position, so it has to move to
+  // the right itself — otherwise it covers the right-to-left page content.
+  const dir = useDocumentDir();
   const logoLight = resolveImageUrl(getSetting("compLogoLight", ""));
   const [logoError, setLogoError] = useState(false);
 
@@ -514,6 +519,30 @@ export function AppSidebar() {
   };
 
   const dynamicNav = getMenuItems();
+
+  // Purchase Orders add-on: added here rather than as a MainSidebar row, so
+  // no other company ever sees it. Slotted in right after "Purchase",
+  // wherever this company's menu puts that.
+  if (hasPurchaseOrders(user)) {
+    const isPurchases = (i: any) => String(i.url || "").endsWith("/purchases");
+    const host = [dynamicNav.mainNav, dynamicNav.salesNav].find((list) => list.some(isPurchases)) || dynamicNav.mainNav;
+    if (!host.some((i: any) => i.url === PO_URL)) {
+      const at = host.findIndex(isPurchases);
+      const after = at === -1 ? host[host.length - 1] : host[at];
+      // locked: not a DB row, so no drag handle and never sent to the reorder
+      // API. It still needs a numeric order — computeReorderPayload reuses
+      // every order in the section as a slot.
+      host.splice(at === -1 ? host.length : at + 1, 0, {
+        _id: "addon-purchase-orders",
+        title: "Purchase Orders",
+        url: PO_URL,
+        icon: "ClipboardList",
+        permission: PO_MODULE,
+        locked: true,
+        order: (Number(after?.order) || 0) + 0.5,
+      });
+    }
+  }
 
   // Each active QuotationType becomes its own sidebar link to the Quotation
   // Maker module, scoped to that type via ?type=<slug>.
@@ -1033,7 +1062,7 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar collapsible="offcanvas" id="tour-sidebar">
+    <Sidebar collapsible="offcanvas" id="tour-sidebar" side={dir === "rtl" ? "right" : "left"}>
       <SidebarHeader className="p-4 pb-3">
         <NavLink
           to={`${basePath}/dashboard`}

@@ -78,8 +78,29 @@ export default function CreditNoteCreate() {
     enabled: isEdit
   });
 
+  // New credit note: number/note/terms come from Setup > Settings > Credit
+  // Notes. The number stays editable; while untouched the server assigns the
+  // next free one on save.
+  const [autoNumber, setAutoNumber] = useState(!isEdit);
+  const { data: cnDefaults } = useQuery({
+    queryKey: ["credit-note-next-number"],
+    queryFn: () => creditNoteService.getNextNumber(),
+    enabled: !isEdit,
+    staleTime: 0,
+  });
+  useEffect(() => {
+    if (isEdit || !cnDefaults) return;
+    setFormData((p) => ({
+      ...p,
+      number: autoNumber ? cnDefaults.number : p.number,
+      client_note: p.client_note || cnDefaults.clientNote || "",
+      terms: p.terms || cnDefaults.terms || "",
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cnDefaults, isEdit]);
+
   const [formData, setFormData] = useState({
-    number: `CN-${Math.floor(100000 + Math.random() * 900000)}`,
+    number: "",
     rel_id: clientId || prepopulate?.client?._id || "",
     branch: "",
     project: "",
@@ -327,6 +348,7 @@ export default function CreditNoteCreate() {
 
     const payload = {
       ...formData,
+      auto_number: !isEdit && autoNumber,
       status: formData.status === "open" ? 1 : formData.status === "closed" ? 2 : formData.status === "void" ? 3 : Number(formData.status) || 1,
       items: items.map(item => ({
         description: item.description,
@@ -509,17 +531,22 @@ export default function CreditNoteCreate() {
                   <span className="text-destructive font-bold">*</span>
                   <Label className="text-[13px] font-bold text-slate-700">Credit Note #</Label>
                 </div>
-                <div className="flex bg-white rounded-xl border border-slate-200 overflow-hidden shadow-none">
-                  <div className="px-4 flex items-center bg-slate-50/50 border-r border-slate-200 text-xs font-bold text-slate-500">
-                    CN-
-                  </div>
-                  <Input 
-                    placeholder="000001"
-                    className="h-11 border-none shadow-none focus-visible:ring-0 font-medium"
-                    value={formData.number.replace('CN-', '')}
-                    onChange={(e) => setFormData(p => ({ ...p, number: `CN-${e.target.value}` }))}
-                  />
-                </div>
+                <Input
+                  className="h-11 rounded-xl border-slate-200 shadow-none font-medium"
+                  value={formData.number}
+                  placeholder={!isEdit && !cnDefaults ? "Loading next number…" : ""}
+                  onChange={(e) => {
+                    setAutoNumber(false);
+                    setFormData(p => ({ ...p, number: e.target.value }));
+                  }}
+                />
+                {!isEdit && (
+                  <p className="text-[11px] text-slate-500">
+                    {autoNumber
+                      ? "Next number from Setup > Settings > Credit Notes — the next free number is assigned when you save."
+                      : "Custom number — it must not be used by another credit note."}
+                  </p>
+                )}
               </div>
             </div>
           </div>

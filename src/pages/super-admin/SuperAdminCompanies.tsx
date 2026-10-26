@@ -58,6 +58,7 @@ const TENANT_FEATURES: { key: string; label: string; hint: string }[] = [
   { key: "lead_followups", label: "Follow-up reminders dashboard", hint: "Today / overdue / upcoming follow-ups on Leads" },
   { key: "face_attendance", label: "HRMS Face Attendance (BOT Lens)", hint: "Face kiosk punch in/out + selfie face check for enrolled staff" },
   { key: "quotation_approval", label: "Quotation approval", hint: "Makers request approval; staff with Quotations > Approve sign off before sending" },
+  { key: "purchase_orders", label: "Purchase Orders", hint: "Purchase/Sales POs, price master, margin rules with approver Yes/No, PO PDF on WhatsApp" },
 ];
 
 const STATUS_CONFIG = {

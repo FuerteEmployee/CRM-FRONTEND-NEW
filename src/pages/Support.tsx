@@ -41,10 +41,11 @@ import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { usePermissions } from "@/hooks/usePermissions";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const Support = () => {
   const [search, setSearch] = useState("");
-  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [itemsPerPage, setItemsPerPage] = useState(() => defaultPageSize(25));
   const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
   const { can } = usePermissions();

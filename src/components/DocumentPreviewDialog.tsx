@@ -7,6 +7,9 @@ import { formatDate } from "@/lib/dateFormat";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/CurrencyContext";
 import { salesService } from "@/api/services/sales.service";
+import { estimateService } from "@/api/services/estimate.service";
+import { escapeHtml, sanitizeRichHtml } from "@/lib/richText";
+import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { isRudraverseTenant } from "@/lib/rudraverseTenant";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { isEkagraUser } from "@/lib/ekagraTenant";
@@ -15,6 +18,8 @@ import { getLetterheadCompany, getLetterheadTitle, isLetterheadFormat } from "@/
 import { usePermissions } from "@/hooks/usePermissions";
 import { settingsService } from "@/api/services/settings.service";
 import { customerBillingParts } from "@/lib/customerAutofill";
+import { getCompanyInfo, companyInfoLines } from "@/lib/companyInfo";
+import { getDocDisplayOptions, trimZeroDecimals, stripCurrencySymbol, itemTaxLabel, amountInWords, saleAgentName, projectName, settingOn } from "@/lib/invoiceDisplay";
 
 interface DocumentPreviewDialogProps {
   open: boolean;
@@ -49,6 +54,18 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
     ? Object.fromEntries(rawSettings.map((s: any) => [s.name, s.value]))
     : (rawSettings ?? {});
 
+  // Full document (sale agent / project names, credits applied) — list rows don't carry them.
+  const docId = data?._id || data?.id;
+  const { data: fullDoc } = useQuery({
+    queryKey: [`${type}-preview-full`, docId],
+    queryFn: () =>
+      type === "invoice" ? salesService.getInvoiceById(docId)
+        : type === "estimate" ? estimateService.getEstimateById(docId)
+          : salesService.getProposalById(docId),
+    enabled: !!docId,
+  });
+  const fullInvoice = type === "invoice" ? fullDoc : undefined;
+
   if (!data) return null;
 
   const isProposal = type === "proposal";
@@ -63,9 +80,38 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
 
   const payments = paymentsData || [];
   const totalPaid = payments.reduce((sum: number, p: any) => sum + (Number(p.amount) || 0), 0);
+  // Setup > Settings > Finance display options (lib/invoiceDisplay.ts).
+  const D = getDocDisplayOptions((k) => S[k]);
+  // Setup > Settings > PDF: font, size, table heading colours, swap sides, status badge.
+  const PDF_FONTS: Record<string, string> = {
+    outfit: "Outfit, Arial, Helvetica, sans-serif", roboto: "Roboto, Arial, sans-serif", arial: "Arial, Helvetica, sans-serif",
+    helvetica: "Helvetica, Arial, sans-serif", times: "'Times New Roman', Times, serif", courier: "'Courier New', Courier, monospace",
+    dejavusans: "'DejaVu Sans', Arial, sans-serif", freesans: "FreeSans, Arial, sans-serif",
+  };
+  const pdfFontFamily = PDF_FONTS[String(S.pdfFont || "").toLowerCase()] || (S.pdfFont ? `${S.pdfFont}, Arial, sans-serif` : "Arial, Helvetica, sans-serif");
+  const pdfFontSize = `${Math.min(Math.max(parseInt(String(S.pdfFontSize || "12"), 10) || 12, 8), 18)}px`;
+  const headBg = /^#[0-9a-f]{3,8}$/i.test(String(S.pdfTableHeadingBg || "")) ? S.pdfTableHeadingBg : "#1e3a5f";
+  const headText = /^#[0-9a-f]{3,8}$/i.test(String(S.pdfTableHeadingText || "")) ? S.pdfTableHeadingText : "#fff";
+  const pdfSwap = settingOn(S.pdfSwapDetails);
+  const pdfShowStatus = S.pdfShowStatus === undefined || S.pdfShowStatus === "" ? true : settingOn(S.pdfShowStatus);
+  const pdfShowPayments = isInvoice && (S.pdfShowPayments === undefined || S.pdfShowPayments === "" ? true : settingOn(S.pdfShowPayments));
+  const pdfShowPageNumber = settingOn(S.pdfShowPageNumber);
+  const pdfSignature = String(S.pdfSignatureImage || "");
+  const showSignature = !!pdfSignature && settingOn(isInvoice ? S.pdfShowSignatureInvoice : isEstimate ? S.pdfShowSignatureEstimate : S.pdfShowSignatureProposal);
+  // "Document formats": "A4 Portrait" / "Letter Landscape" (older rows: "a4").
+  const pdfPageSize = (() => {
+    const v = String((isInvoice ? S.pdfFormatInvoice : isEstimate ? S.pdfFormatEstimate : S.pdfFormatProposal) || "A4 Portrait").toLowerCase();
+    return `${v.includes("letter") ? "letter" : "A4"} ${v.includes("landscape") ? "landscape" : "portrait"}`;
+  })();
+  const creditsApplied = isInvoice ? Number((fullInvoice as any)?.credits_applied) || 0 : 0;
+  // "Show Sale Agent / Project Name On …" of Setup > Settings > Invoices / Estimates / Proposals.
+  const showAgent = isInvoice ? D.showSaleAgent : isEstimate ? settingOn(S.estShowSaleAgent) : false;
+  const showProject = isInvoice ? D.showProject : isEstimate ? settingOn(S.estShowProject) : settingOn(S.propShowProject);
+  const agentName = showAgent ? saleAgentName(fullDoc || data) : "";
+  const projName = showProject ? projectName(fullDoc || data) : "";
 
   let num = "";
-  if (isProposal) num = `PRO-${(data._id || data.id)?.slice(-6).toUpperCase()}`;
+  if (isProposal) num = data.number || `PRO-${(data._id || data.id)?.slice(-6).toUpperCase()}`;
   else if (isEstimate) num = data.number || `EST-${(data._id || data.id)?.slice(-6).toUpperCase()}`;
   else num = data.number || `INV-${(data._id || data.id)?.substring(0, 6).toUpperCase()}`;
 
@@ -73,7 +119,10 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
   const date = data.date ? formatDate(data.date) : "-";
   let dueDate = "-";
   if (isProposal) dueDate = data.open_till ? formatDate(data.open_till) : "-";
-  else if (isEstimate) dueDate = (data.open_till || data.estimate_expirydate) ? formatDate(data.open_till || data.estimate_expirydate) : "-";
+  else if (isEstimate) {
+    const exp = data.expirydate || data.open_till || data.estimate_expirydate;
+    dueDate = exp ? formatDate(exp) : "-";
+  }
   else dueDate = data.duedate ? formatDate(data.duedate) : "-";
   const dueDateLabel = isInvoice ? "Due Date" : "Valid Till";
 
@@ -118,6 +167,45 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
   // shown on its own line (it used to be printed labelled as "GSTIN").
   const clientGstin = (data.gstin || cust?.gst_number || "").toString();
   const clientVat = (data.vat || cust?.vat || "").toString();
+  // Setup > Settings > Proposals > "Proposal Info Format" / Customers >
+  // "Customer Information Format": the Bill To block from the admin's template;
+  // lines whose merge fields are all empty are dropped.
+  const fillInfoTemplate = (template: string, fields: Record<string, string>) => {
+    const tpl = String(template || "").trim();
+    if (!tpl) return "";
+    const lines = tpl.split(/\r?\n|<br\s*\/?>/i).map((l) => l.trim()).filter((line) => {
+      const keys: string[] = line.match(/\{(\w+)\}/g) || [];
+      return line && (!keys.length || keys.some((k) => fields[k.slice(1, -1)]));
+    });
+    const filled = lines.join("<br>").replace(/\{(\w+)\}/g, (m, k) => (k in fields ? escapeHtml(String(fields[k] || "")) : m));
+    return sanitizeRichHtml(filled);
+  };
+  const countryCode = (c: any) => (/^[A-Za-z]{2,3}$/.test(String(c || "")) ? String(c).toUpperCase() : "");
+  const proposalInfoHtml = isProposal
+    ? fillInfoTemplate(S.propInfoFormat, {
+        proposal_to: clientCompany === "N/A" ? "" : clientCompany,
+        address: data.address || "",
+        city: data.city || "",
+        state: data.state || "",
+        zip_code: data.zip || "",
+        country_code: countryCode(data.country),
+        country_name: data.country || "",
+        phone: clientPhone,
+        email: clientEmail || "",
+      })
+    : fillInfoTemplate(S.custInfoFormat, {
+        company_name: clientCompany === "N/A" ? "" : clientCompany,
+        customer_id: String(cust?.customer_id || cust?.userid || ""),
+        street: clientAddress || "",
+        city: docHasBilling ? data.billing_city || "" : custBilling.city || "",
+        state: docHasBilling ? data.billing_state || "" : custBilling.state || "",
+        zip_code: docHasBilling ? data.billing_zip || "" : custBilling.zip || "",
+        country_code: countryCode(clientCountry),
+        country_name: clientCountry || "",
+        phone: clientPhone,
+        vat_number: clientVat || clientGstin,
+        vat_number_with_label: clientVat ? `VAT: ${clientVat}` : clientGstin ? `GSTIN: ${clientGstin}` : "",
+      });
 
   const items = data.items || [];
   const subtotal = data.subtotal || 0;
@@ -127,9 +215,12 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
   const totalTax = data.total_tax || 0;
   const adjustment = data.adjustment || 0;
   const total = data.total || data.amount || 0;
-  const balanceDue = Math.max(total - totalPaid, 0);
+  const balanceDue = Math.max(total - totalPaid - creditsApplied, 0);
 
-  const fmt = (v: number) => `${currencySymbol}${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmt = (v: number) => trimZeroDecimals(`${currencySymbol}${Number(v).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, D);
+  // Items table money ("Exclude currency symbol from items table Amount").
+  const itemFmt = (v: number) => (D.excludeCurrency ? stripCurrencySymbol(fmt(v), currencySymbol) : fmt(v));
+  const itemColumns = ["#", "Description", "Qty", "Rate", ...(D.showTaxPerItem ? ["Tax"] : []), "Amount"];
 
   // Rudraverse GST breakdown
   const discountAmtRV = discountPercent > 0 ? subtotal * (discountPercent / 100) : 0;
@@ -137,7 +228,30 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
   const rawTotal = untaxedAmount + totalFreight + totalTax + adjustment;
   const roundedTotal = Math.round(rawTotal);
   const rounding = roundedTotal - rawTotal;
-  const balanceDueRounded = Math.max(roundedTotal - totalPaid, 0);
+  const balanceDueRounded = Math.max(roundedTotal - totalPaid - creditsApplied, 0);
+
+  // Invoice: Total Paid / Credits Applied / Amount Due rows (Setup > Settings > Invoices).
+  const paymentRows = (due: number) => isInvoice && (D.showTotalPaid || D.showCredits || D.showAmountDue) && (
+    <>
+      {D.showTotalPaid && (
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", marginTop: "6px" }}>
+          <span style={{ color: "#16a34a", fontWeight: 600 }}>Total Paid</span>
+          <span style={{ color: "#16a34a", fontWeight: 700 }}>− {fmt(totalPaid)}</span>
+        </div>
+      )}
+      {D.showCredits && creditsApplied > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0" }}>
+          <span style={{ color: "#16a34a", fontWeight: 600 }}>Credits Applied</span>
+          <span style={{ color: "#16a34a", fontWeight: 700 }}>− {fmt(creditsApplied)}</span>
+        </div>
+      )}
+      {D.showAmountDue && (
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: due > 0 ? "#fef2f2" : "#f0fdf4", border: `1px solid ${due > 0 ? "#fecaca" : "#bbf7d0"}`, borderRadius: "6px", marginTop: "4px", fontWeight: 800, fontSize: "13px", color: due > 0 ? "#dc2626" : "#16a34a" }}>
+          <span>AMOUNT DUE</span><span>{fmt(due)}</span>
+        </div>
+      )}
+    </>
+  );
 
   // ─── Print handler ───────────────────────────────────────────────────────
   const handlePrint = () => {
@@ -153,7 +267,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
     <style>
       *{box-sizing:border-box;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
       body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;background:#fff}
-      @page{size:A4 portrait;margin:12mm 14mm}
+      @page{size:${pdfPageSize};margin:12mm 14mm${pdfShowPageNumber ? ";@bottom-right{content:\"Page \" counter(page) \" of \" counter(pages);font-size:9px;color:#64748b}" : ""}}
       .no-print{display:none!important}
     </style>
     </head><body>${el.innerHTML}</body></html>`);
@@ -180,6 +294,8 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
   const compPhone    = S.compPhone || "";
   const compVat      = S.compVat || "";
   const compCityStateZip = [compCity, compState, compZip].filter(Boolean).join(", ");
+  // Same company lines as the printed/downloaded PDFs (lib/companyInfo.ts).
+  const companyLines = companyInfoLines(getCompanyInfo((k) => S[k]));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -225,8 +341,8 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                 maxWidth: "794px",
                 margin: "0 auto",
                 boxShadow: "0 2px 24px rgba(0,0,0,0.13)",
-                fontFamily: "Arial, Helvetica, sans-serif",
-                fontSize: "12px",
+                fontFamily: pdfFontFamily,
+                fontSize: pdfFontSize,
                 color: "#111",
                 borderRadius: "4px",
                 overflow: "hidden",
@@ -251,19 +367,19 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                   {/* Company */}
                   <div>
                     <div style={{ fontSize: "22px", fontWeight: 900, letterSpacing: "-0.5px", marginBottom: "4px" }}>{companyName}</div>
-                    {compAddress && <div style={{ fontSize: "11px", opacity: 0.85 }}>{compAddress}</div>}
-                    {compCityStateZip && <div style={{ fontSize: "11px", opacity: 0.85 }}>{compCityStateZip}</div>}
-                    {compCountry && <div style={{ fontSize: "11px", opacity: 0.85 }}>{compCountry}</div>}
-                    {compPhone && <div style={{ fontSize: "11px", opacity: 0.85, marginTop: "4px" }}>📞 {compPhone}</div>}
-                    {compVat && <div style={{ fontSize: "11px", opacity: 0.85, marginTop: "2px" }}>GSTIN: {compVat}</div>}
+                    {companyLines.map((line, i) => (
+                      <div key={i} style={{ fontSize: "11px", opacity: 0.85 }}>{line}</div>
+                    ))}
                   </div>
                   {/* Invoice Title */}
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontSize: "28px", fontWeight: 900, letterSpacing: "2px", opacity: 0.95 }}>{docLabel}</div>
                     <div style={{ fontSize: "16px", fontWeight: 700, marginTop: "4px", opacity: 0.9 }}>{num}</div>
-                    <div style={{ display: "inline-block", marginTop: "8px", background: "rgba(255,255,255,0.2)", borderRadius: "6px", padding: "3px 12px", fontSize: "11px", fontWeight: 700, letterSpacing: "1px" }}>
-                      {statusLabel.toUpperCase()}
-                    </div>
+                    {pdfShowStatus && (
+                      <div style={{ display: "inline-block", marginTop: "8px", background: "rgba(255,255,255,0.2)", borderRadius: "6px", padding: "3px 12px", fontSize: "11px", fontWeight: 700, letterSpacing: "1px" }}>
+                        {statusLabel.toUpperCase()}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -276,6 +392,8 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                   ...(data.voucherType ? [{ l: "Voucher Type", v: data.voucherType }] : []),
                   ...(data.termsOfPayment ? [{ l: "Payment Terms", v: data.termsOfPayment }] : []),
                   ...(data.partyGroup ? [{ l: "Party Group", v: data.partyGroup }] : []),
+                  ...(agentName ? [{ l: "Sale Agent", v: agentName }] : []),
+                  ...(projName ? [{ l: "Project", v: projName }] : []),
                 ].map(({ l, v }) => (
                   <div key={l}>
                     <div style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.8px", color: "#64748b", marginBottom: "2px" }}>{l}</div>
@@ -285,22 +403,16 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
               </div>
 
               {/* ── Billing Details ── */}
-              <div style={{ display: "flex", padding: "20px 32px", gap: "24px", borderBottom: "1px solid #e2e8f0" }}>
+              <div style={{ display: "flex", flexDirection: pdfSwap ? "row-reverse" : "row", padding: "20px 32px", gap: "24px", borderBottom: "1px solid #e2e8f0" }}>
                 {/* Seller */}
                 <div style={{ flex: 1, background: "#f8fafc", borderRadius: "6px", border: "1px solid #e2e8f0", padding: "14px 16px" }}>
                   <div style={{ fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1px", color: "#2563eb", marginBottom: "8px", borderBottom: "1px solid #dbeafe", paddingBottom: "4px" }}>
                     From (Seller)
                   </div>
                   <div style={{ fontSize: "13px", fontWeight: 800, color: "#1e293b", marginBottom: "4px" }}>{companyName}</div>
-                  {compAddress && <div style={{ color: "#475569", marginBottom: "2px" }}>{compAddress}</div>}
-                  {compCityStateZip && <div style={{ color: "#475569", marginBottom: "2px" }}>{compCityStateZip}</div>}
-                  {compCountry && <div style={{ color: "#475569", marginBottom: "2px" }}>{compCountry}</div>}
-                  {compPhone && <div style={{ color: "#475569", marginBottom: "2px" }}>Ph: {compPhone}</div>}
-                  {compVat && (
-                    <div style={{ marginTop: "6px", fontSize: "10px", fontWeight: 700, color: "#065f46", background: "#d1fae5", display: "inline-block", padding: "2px 8px", borderRadius: "4px", fontFamily: "monospace" }}>
-                      GSTIN: {compVat}
-                    </div>
-                  )}
+                  {companyLines.map((line, i) => (
+                    <div key={i} style={{ color: "#475569", marginBottom: "2px" }}>{line}</div>
+                  ))}
                 </div>
 
                 {/* Buyer */}
@@ -308,12 +420,18 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                   <div style={{ fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1px", color: "#2563eb", marginBottom: "8px", borderBottom: "1px solid #dbeafe", paddingBottom: "4px" }}>
                     Bill To (Buyer)
                   </div>
-                  <div style={{ fontSize: "13px", fontWeight: 800, color: "#1e293b", marginBottom: "4px" }}>{clientCompany}</div>
-                  {clientAddress && <div style={{ color: "#475569", marginBottom: "2px" }}>{clientAddress}</div>}
-                  {clientCityStateZip && <div style={{ color: "#475569", marginBottom: "2px" }}>{clientCityStateZip}</div>}
-                  {clientCountry && <div style={{ color: "#475569", marginBottom: "2px" }}>{clientCountry}</div>}
-                  {clientEmail && <div style={{ color: "#2563eb", marginBottom: "2px" }}>{clientEmail}</div>}
-                  {clientPhone && <div style={{ color: "#475569", marginBottom: "2px" }}>Ph: {clientPhone}</div>}
+                  {proposalInfoHtml ? (
+                    <div style={{ color: "#475569", lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: proposalInfoHtml }} />
+                  ) : (
+                    <>
+                      <div style={{ fontSize: "13px", fontWeight: 800, color: "#1e293b", marginBottom: "4px" }}>{clientCompany}</div>
+                      {clientAddress && <div style={{ color: "#475569", marginBottom: "2px" }}>{clientAddress}</div>}
+                      {clientCityStateZip && <div style={{ color: "#475569", marginBottom: "2px" }}>{clientCityStateZip}</div>}
+                      {clientCountry && <div style={{ color: "#475569", marginBottom: "2px" }}>{clientCountry}</div>}
+                      {clientEmail && <div style={{ color: "#2563eb", marginBottom: "2px" }}>{clientEmail}</div>}
+                      {clientPhone && <div style={{ color: "#475569", marginBottom: "2px" }}>Ph: {clientPhone}</div>}
+                    </>
+                  )}
                   {clientGstin && (
                     <div style={{ marginTop: "6px", fontSize: "10px", fontWeight: 700, color: "#065f46", background: "#d1fae5", display: "inline-block", padding: "2px 8px", borderRadius: "4px", fontFamily: "monospace" }}>
                       GSTIN: {clientGstin}
@@ -331,8 +449,8 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
               <div style={{ padding: "0 32px 0" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "16px" }}>
                   <thead>
-                    <tr style={{ background: "#1e3a5f", color: "#fff" }}>
-                      {["#", "Description", "Qty", "Rate", "Tax %", "Amount"].map((h, i) => (
+                    <tr style={{ background: headBg, color: headText }}>
+                      {itemColumns.map((h, i) => (
                         <th key={h} style={{
                           padding: "10px 10px",
                           textAlign: i === 0 ? "center" : i >= 2 ? "right" : "left",
@@ -341,7 +459,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                           textTransform: "uppercase",
                           letterSpacing: "0.6px",
                           whiteSpace: "nowrap",
-                          width: i === 0 ? "36px" : i === 2 ? "50px" : i === 3 ? "80px" : i === 4 ? "56px" : i === 5 ? "90px" : "auto",
+                          width: h === "#" ? "36px" : h === "Qty" ? "50px" : h === "Rate" ? "80px" : h === "Tax" ? "70px" : h === "Amount" ? "90px" : "auto",
                         }}>{h}</th>
                       ))}
                     </tr>
@@ -356,14 +474,16 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                           {item.hsn && <div style={{ fontSize: "9px", color: "#94a3b8", marginTop: "1px" }}>HSN: {item.hsn}</div>}
                         </td>
                         <td style={{ padding: "9px 10px", textAlign: "right", color: "#475569" }}>{item.qty || item.quantity || 1}{item.unit ? ` ${item.unit}` : ""}</td>
-                        <td style={{ padding: "9px 10px", textAlign: "right", color: "#475569" }}>{fmt(Number(item.rate || item.price || 0))}</td>
-                        <td style={{ padding: "9px 10px", textAlign: "right", color: "#475569" }}>{(item.tax || item.gstPercentage) ? `${item.tax || item.gstPercentage}%` : "0%"}</td>
+                        <td style={{ padding: "9px 10px", textAlign: "right", color: "#475569" }}>{itemFmt(Number(item.rate || item.price || 0))}</td>
+                        {D.showTaxPerItem && (
+                          <td style={{ padding: "9px 10px", textAlign: "right", color: "#475569", whiteSpace: "nowrap" }}>{itemTaxLabel(item, D)}</td>
+                        )}
                         <td style={{ padding: "9px 10px", textAlign: "right", fontWeight: 700, color: "#1e293b" }}>
-                          {fmt(Number((item.qty || 1) * (item.rate || item.price || 0) + (Number(item.freight_charge) || 0)))}
+                          {itemFmt(Number((item.qty || 1) * (item.rate || item.price || 0) + (Number(item.freight_charge) || 0)))}
                         </td>
                       </tr>
                     )) : (
-                      <tr><td colSpan={6} style={{ padding: "32px", textAlign: "center", color: "#94a3b8", fontStyle: "italic" }}>No items added.</td></tr>
+                      <tr><td colSpan={itemColumns.length} style={{ padding: "32px", textAlign: "center", color: "#94a3b8", fontStyle: "italic" }}>No items added.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -392,15 +512,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                       <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 12px", background: "#1e3a5f", color: "#fff", borderRadius: "6px", marginTop: "8px", fontWeight: 800, fontSize: "14px" }}>
                         <span>TOTAL</span><span>{fmt(roundedTotal)}</span>
                       </div>
-                      {isInvoice && totalPaid > 0 && <>
-                        <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", marginTop: "6px" }}>
-                          <span style={{ color: "#16a34a", fontWeight: 600 }}>Amount Paid</span>
-                          <span style={{ color: "#16a34a", fontWeight: 700 }}>− {fmt(totalPaid)}</span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: balanceDueRounded > 0 ? "#fef2f2" : "#f0fdf4", border: `1px solid ${balanceDueRounded > 0 ? "#fecaca" : "#bbf7d0"}`, borderRadius: "6px", marginTop: "4px", fontWeight: 800, fontSize: "13px", color: balanceDueRounded > 0 ? "#dc2626" : "#16a34a" }}>
-                          <span>BALANCE DUE</span><span>{fmt(balanceDueRounded)}</span>
-                        </div>
-                      </>}
+                      {paymentRows(balanceDueRounded)}
                     </>
                   ) : (
                     <>
@@ -419,27 +531,26 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                       <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 12px", background: "#1e3a5f", color: "#fff", borderRadius: "6px", marginTop: "8px", fontWeight: 800, fontSize: "14px" }}>
                         <span>GRAND TOTAL</span><span>{fmt(total)}</span>
                       </div>
-                      {isInvoice && totalPaid > 0 && <>
-                        <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", marginTop: "6px" }}>
-                          <span style={{ color: "#16a34a", fontWeight: 600 }}>Amount Paid</span>
-                          <span style={{ color: "#16a34a", fontWeight: 700 }}>− {fmt(totalPaid)}</span>
-                        </div>
-                        <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: balanceDue > 0 ? "#fef2f2" : "#f0fdf4", border: `1px solid ${balanceDue > 0 ? "#fecaca" : "#bbf7d0"}`, borderRadius: "6px", marginTop: "4px", fontWeight: 800, fontSize: "13px", color: balanceDue > 0 ? "#dc2626" : "#16a34a" }}>
-                          <span>BALANCE DUE</span><span>{fmt(balanceDue)}</span>
-                        </div>
-                      </>}
+                      {paymentRows(balanceDue)}
                     </>
                   )}
                 </div>
               </div>
 
-              {/* ── Notes / Terms ── */}
-              {(data.clientnote || data.terms) && (
+              {/* ── Amount in words (Setup > Settings > Finance > Amount to words) ── */}
+              {D.amountToWords && (
+                <div style={{ padding: "0 32px 12px", fontSize: "11px", color: "#475569" }}>
+                  <b>Amount in words:</b> {amountInWords(isRudraverse && (data.tax_type || data.total_cgst || data.total_sgst || data.total_igst) ? roundedTotal : total, D)}
+                </div>
+              )}
+
+              {/* ── Notes / Terms ── (invoices keep the client note in `notes`) */}
+              {(data.clientnote || data.notes || data.terms) && (
                 <div style={{ padding: "0 32px 20px", display: "flex", gap: "20px" }}>
-                  {data.clientnote && (
+                  {(data.clientnote || data.notes) && (
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.8px", color: "#64748b", marginBottom: "4px" }}>Notes</div>
-                      <div style={{ fontSize: "11px", color: "#475569", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{data.clientnote}</div>
+                      <div style={{ fontSize: "11px", color: "#475569", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{data.clientnote || data.notes}</div>
                     </div>
                   )}
                   {data.terms && (
@@ -448,6 +559,34 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                       <div style={{ fontSize: "11px", color: "#475569", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{data.terms}</div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ── Payments (Setup > Settings > PDF > "Show invoice payments on PDF") ── */}
+              {pdfShowPayments && payments.length > 0 && (
+                <div style={{ padding: "0 32px 20px" }}>
+                  <div style={{ fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.8px", color: "#64748b", marginBottom: "6px" }}>
+                    Transactions
+                  </div>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                    <thead>
+                      <tr style={{ background: "#f1f5f9", color: "#334155" }}>
+                        {["Payment #", "Mode", "Date", "Amount"].map((h, i) => (
+                          <th key={h} style={{ padding: "6px 8px", textAlign: i === 3 ? "right" : "left", fontWeight: 700, borderBottom: "1px solid #e2e8f0" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {payments.map((p: any, i: number) => (
+                        <tr key={p._id || i}>
+                          <td style={{ padding: "6px 8px", borderBottom: "1px solid #f1f5f9" }}>{p.transactionid || p.number || i + 1}</td>
+                          <td style={{ padding: "6px 8px", borderBottom: "1px solid #f1f5f9" }}>{p.paymentmode?.name || p.paymentmode || "-"}</td>
+                          <td style={{ padding: "6px 8px", borderBottom: "1px solid #f1f5f9" }}>{p.date ? formatDate(p.date) : "-"}</td>
+                          <td style={{ padding: "6px 8px", borderBottom: "1px solid #f1f5f9", textAlign: "right" }}>{fmt(Number(p.amount) || 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
 
@@ -462,6 +601,16 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                     <div>Bank: {bankDetail.bankName || "—"}</div>
                     <div>A/C No: {bankDetail.accountNumber || "—"} &nbsp; IFSC: {bankDetail.ifscCode || "—"}</div>
                     {bankDetail.branch?.name && <div>Branch: {bankDetail.branch.name}</div>}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Signature (Setup > Settings > PDF > "Show PDF Signature on …") ── */}
+              {showSignature && (
+                <div style={{ padding: "0 32px 20px", display: "flex", justifyContent: "flex-end" }}>
+                  <div style={{ textAlign: "center", minWidth: "180px" }}>
+                    <img src={resolveImageUrl(pdfSignature)} alt="Signature" style={{ maxHeight: "70px", maxWidth: "200px", objectFit: "contain", display: "block", margin: "0 auto 4px" }} />
+                    <div style={{ borderTop: "1px solid #94a3b8", paddingTop: "4px", fontSize: "10px", color: "#475569" }}>Authorised Signatory{S.companyName ? ` — ${S.companyName}` : ""}</div>
                   </div>
                 </div>
               )}

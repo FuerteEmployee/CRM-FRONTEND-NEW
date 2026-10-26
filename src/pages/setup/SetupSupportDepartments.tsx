@@ -225,6 +225,15 @@ export default function SetupSupportDepartments() {
           },
           { key: "email", label: "Department Email" },
           {
+            key: "totalTickets",
+            label: "Total Tickets",
+            render: (dept) => (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary">
+                {dept.totalTickets || 0}
+              </span>
+            ),
+          },
+          {
             key: "google_calendar_id",
             label: "Google Calendar ID",
             render: (dept) => (

@@ -2,9 +2,8 @@ import React, { createContext, useContext, useEffect, useLayoutEffect, useState 
 import { utilityService } from '@/api/services/utility.service';
 import { useSettings } from '@/context/SettingsContext';
 import { queryClient as globalQueryClient } from '@/lib/queryClient';
-import { applyThemeToDom } from '@/lib/themeUtils';
+import { applyThemeToDom, themeCacheKey } from '@/lib/themeUtils';
 
-const THEME_CACHE_KEY = 'crm_theme_style_cache';
 
 const ThemeStyleContext = createContext({
   themeSettings: null,
@@ -20,12 +19,12 @@ export const ThemeStyleProvider = ({ children }: { children: React.ReactNode }) 
     const fromApi = globalSettings?.theme_style;
     
     if (fromApi) {
-      localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(fromApi));
+      localStorage.setItem(themeCacheKey(), JSON.stringify(fromApi));
       return fromApi;
     }
     
     // Fallback to cache during initial load or if API fails
-    const cached = localStorage.getItem(THEME_CACHE_KEY);
+    const cached = localStorage.getItem(themeCacheKey());
     if (cached) {
       try {
         return JSON.parse(cached);
@@ -38,7 +37,7 @@ export const ThemeStyleProvider = ({ children }: { children: React.ReactNode }) 
 
   // Apply cache immediately on mount before first paint — no preference gate
   useLayoutEffect(() => {
-    const cached = localStorage.getItem(THEME_CACHE_KEY);
+    const cached = localStorage.getItem(themeCacheKey());
     if (cached && !hasAppliedInitial) {
       try {
         const parsed = JSON.parse(cached);
@@ -54,14 +53,14 @@ export const ThemeStyleProvider = ({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (themeSettings) {
       applyThemeToDom(themeSettings);
-      localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(themeSettings));
+      localStorage.setItem(themeCacheKey(), JSON.stringify(themeSettings));
     }
   }, [themeSettings]);
 
   const updateTheme = async (newTheme) => {
     try {
       // Cache and activate color mode so theme persists across page navigation
-      localStorage.setItem(THEME_CACHE_KEY, JSON.stringify(newTheme));
+      localStorage.setItem(themeCacheKey(), JSON.stringify(newTheme));
       localStorage.setItem('crm_theme_preference', 'color');
       applyThemeToDom(newTheme);
 

@@ -180,7 +180,16 @@ export default function SetupTicketPriority() {
           {
             key: "name",
             label: "Priority",
-            className: "font-medium text-foreground w-full",
+            className: "font-medium text-foreground w-3/4",
+          },
+          {
+            key: "totalTickets",
+            label: "Tickets",
+            render: (p: any) => (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary">
+                {p.totalTickets || 0}
+              </span>
+            ),
           },
         ]}
       />

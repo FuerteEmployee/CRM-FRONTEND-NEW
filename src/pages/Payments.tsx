@@ -68,6 +68,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const Payments = () => {
   const [search, setSearch] = useState("");
@@ -76,7 +77,7 @@ const Payments = () => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
     return () => clearTimeout(t);
   }, [search]);
-  const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [itemsPerPage, setItemsPerPage] = useState(() => String(defaultPageSize(10)));
   const [currentPage, setCurrentPage] = useState(1);
   const [viewItem, setViewItem] = useState<any>(null);
   const [viewTab, setViewTab] = useState<"receipt" | "payment">("receipt");

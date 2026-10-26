@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from "react";
+import { useSettings } from "@/context/SettingsContext";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
@@ -67,6 +68,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { usePermissions } from "@/hooks/usePermissions";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const COUNTRIES = [
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
@@ -132,7 +134,7 @@ const Customers = () => {
   const queryClient = useQueryClient();
   const { can } = usePermissions();
   const navigate = useNavigate();
-  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(25);
+  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(() => defaultPageSize(25));
 
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
@@ -146,6 +148,7 @@ const Customers = () => {
   const [sampleColumns, setSampleColumns] = useState<string[]>(DEFAULT_IMPORT_SAMPLE_COLUMNS);
   const [showMoreColumns, setShowMoreColumns] = useState(false);
   const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false);
+  const { getSetting } = useSettings();
   useOpenCreateModal(() => setIsNewCustomerOpen(true));
 
   // Entry point for the Calling Agent page's "Create customer from this
@@ -597,6 +600,21 @@ const Customers = () => {
     company: "",
     active: true,
   });
+
+  // Setup > Settings > Customers > "Default Country" (stored as a code like "in", or a name).
+  const defaultCountry = (() => {
+    const v = String(getSetting("custDefaultCountry", "") || "").trim();
+    if (!v) return "";
+    let name = v;
+    try {
+      if (/^[a-z]{2}$/i.test(v)) name = new Intl.DisplayNames(["en"], { type: "region" }).of(v.toUpperCase()) || v;
+    } catch { /* keep the raw value */ }
+    return COUNTRIES.find((c) => c.toLowerCase() === name.toLowerCase()) || "";
+  })();
+  useEffect(() => {
+    if (!isNewCustomerOpen || !defaultCountry) return;
+    setNewCustomer((p: any) => (p._id || p.country || p.billing_country ? p : { ...p, country: defaultCountry, billing_country: defaultCountry, shipping_country: defaultCountry }));
+  }, [isNewCustomerOpen, defaultCountry]);
 
   const resetCustomerForm = () => {
     setNewCustomer({ company: "", active: true });

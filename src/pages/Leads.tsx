@@ -73,6 +73,7 @@ import { WebsiteFormsDialog } from "@/components/leads/WebsiteFormsDialog";
 import { AdminTablePageSkeleton } from "@/components/ui/page-skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const DATE_FILTER_OPTIONS = [
   { value: "all", label: "All Time" },
@@ -99,7 +100,7 @@ const Leads = () => {
   const [dateFilter, setDateFilter] = useState("all");
   const [customDateFrom, setCustomDateFrom] = useState("");
   const [customDateTo, setCustomDateTo] = useState("");
-  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(25);
+  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(() => defaultPageSize(25));
   const [currentPage, setCurrentPage] = useState(1);
   const [sourceFilter, setSourceFilter] = useState("all");
   const [assignedFilter, setAssignedFilter] = useState("all");
@@ -456,8 +457,15 @@ const Leads = () => {
         followup_date: lead.followup_date ? new Date(lead.followup_date).toISOString().split("T")[0] : ""
       });
     } else {
+      // Setup > Settings > Leads > Default status / Default source (id, or a name in older settings).
+      const pick = (list: any[], v: any) => {
+        const key = String(v || "").trim().toLowerCase();
+        if (!key) return "";
+        const hit = list.find((x: any) => String(x._id) === String(v)) || list.find((x: any) => String(x.name || "").toLowerCase() === key);
+        return hit ? String(hit._id) : "";
+      };
       setLeadForm({
-        status: "", source: "", assigned: "", salesPerson: "", branch: "", tags: "", name: "", position: "", email: "", website: "",
+        status: pick(statuses, getSetting("leadDefaultStatus", "")), source: pick(sources, getSetting("leadDefaultSource", "")), assigned: "", salesPerson: "", branch: "", tags: "", name: "", position: "", email: "", website: "",
         phonenumber: "", lead_value: "", company: "", address: "", city: "", state: "", country: "",
         zip: "", default_language: "English", description: "", is_public: false, contacted_today: false,
         followup_date: ""
@@ -1271,7 +1279,7 @@ const Leads = () => {
                     <Plus className="h-4 w-4 stroke-[3]" />
                     New Lead
                   </Button>
-              <DialogContent className={cn("p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white", modalMode === "view" ? "max-w-5xl" : "max-w-4xl")}>
+              <DialogContent className={cn("p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white", modalMode === "view" ? "max-w-5xl" : ({ "modal-xl": "max-w-5xl", "modal-xxl": "max-w-6xl" } as Record<string, string>)[String(getSetting("leadModalWidth", "modal-lg"))] || "max-w-4xl")}>
                 <div className="bg-white px-8 py-5 flex items-center justify-between border-b border-slate-300 shrink-0">
                   <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                     <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center">

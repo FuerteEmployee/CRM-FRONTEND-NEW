@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSettings } from "@/context/SettingsContext";
 import {
   DndContext,
   PointerSensor,
@@ -75,6 +76,12 @@ function KanbanColumn({
   staff: KanbanStaff[];
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `column:${status._id}` });
+  // Setup > Settings > Leads > "Limit leads kanban rows per status" (0 = no limit).
+  const { getSetting } = useSettings();
+  const pageSize = Math.max(parseInt(String(getSetting("leadKanbanLimit", "0") ?? "0"), 10) || 0, 0);
+  const [shown, setShown] = useState(pageSize);
+  useEffect(() => setShown(pageSize), [pageSize]);
+  const visibleLeads = pageSize ? leads.slice(0, shown) : leads;
 
   return (
     <div className="flex w-[280px] shrink-0 flex-col rounded-2xl bg-slate-50/60 border border-slate-100">
@@ -106,9 +113,18 @@ function KanbanColumn({
               No leads
             </div>
           ) : (
-            leads.map((lead) => (
+            visibleLeads.map((lead) => (
               <LeadCard key={lead._id} lead={lead} assignee={getAssignee(lead, staff)} />
             ))
+          )}
+          {visibleLeads.length < leads.length && (
+            <button
+              type="button"
+              onClick={() => setShown((n) => n + pageSize)}
+              className="w-full py-2 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/5 rounded-lg"
+            >
+              Show more ({leads.length - visibleLeads.length})
+            </button>
           )}
         </SortableContext>
       </div>
@@ -129,6 +145,17 @@ export function LeadsKanban({ leads, statuses, staff, isLoading }: LeadsKanbanPr
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  // Setup > Settings > Leads > "Default leads kanban sort" + order.
+  const { getSetting } = useSettings();
+  const sortKey = String(getSetting("leadKanbanSort", "kanban_order") || "kanban_order");
+  const sortDir = String(getSetting("leadKanbanOrder", "asc") || "asc") === "desc" ? -1 : 1;
+  const sortField = sortKey === "date_created" ? ["createdAt", "dateadded"] : sortKey === "last_contact" ? ["lastcontact"] : null;
+  const timeOf = (l: any) => {
+    for (const f of sortField || []) if (l?.[f]) return new Date(l[f]).getTime() || 0;
+    return 0;
+  };
+  const sortedLeads = sortField ? [...boardLeads].sort((a, b) => (timeOf(a) - timeOf(b)) * sortDir) : boardLeads;
 
   const orderedStatuses = [...statuses].sort(
     (a, b) => (a.statusorder ?? 0) - (b.statusorder ?? 0)
@@ -235,7 +262,7 @@ export function LeadsKanban({ leads, statuses, staff, isLoading }: LeadsKanbanPr
           <KanbanColumn
             key={status._id}
             status={status}
-            leads={boardLeads.filter((l) => getStatusId(l) === status._id)}
+            leads={sortedLeads.filter((l) => getStatusId(l) === status._id)}
             staff={staff}
           />
         ))}

@@ -43,6 +43,7 @@ import { vendorService } from "@/api/services/vendor.service";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemSelect";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const PURCHASE_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Bill Date", sample: "27-08-2026", core: true },
@@ -194,7 +195,7 @@ const Purchases = () => {
   // Invoice Create's items table. Left empty means "just this one product",
   // which keeps today's single-line behavior exactly as it was.
   const [lineItems, setLineItems] = useState<any[]>([]);
-  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(25);
+  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(() => defaultPageSize(25));
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);

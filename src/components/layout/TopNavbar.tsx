@@ -52,6 +52,7 @@ import { useToast } from "@/hooks/use-toast";
 import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n/config";
+import { APP_LANGUAGES, applyAppLanguage } from "@/lib/appLanguage";
 
 
 export function TopNavbar() {
@@ -62,7 +63,9 @@ export function TopNavbar() {
 
 
   const { user, logout, isStaff, canView, isModuleEnabled } = usePermissionContext();
-  const { refreshSettings } = useSettings();
+  const { refreshSettings, getSetting } = useSettings();
+  // Setup > Settings > Localization > Disable Languages: hide the menu (everyone uses the Default Language).
+  const disableLanguages = [true, 1, "1", "true"].includes(getSetting("locDisableLanguages", false));
   const base = isStaff ? "/staff" : "/admin";
   // permission/moduleKey mirror AppSidebar's dynamic-nav gating for these same
   // modules (mainsidebar_controller.js defaults + AppSidebar's URL_MODULE_MAP)
@@ -114,42 +117,12 @@ export function TopNavbar() {
     navigate("/admin/login");
   };
 
-  const handleLanguageChange = (langCode: string) => {
-    // i18next: instant switch — no page reload, no Google Translate cookie,
-    // no root-domain cookie, no DOM removeChild errors.
-    i18n.changeLanguage(langCode);
-    // Persist in localStorage so it survives refresh
-    localStorage.setItem("crm_language", langCode);
-    // Also set a scoped cookie (exact domain only, no leading dot)
-    const hostname = window.location.hostname;
-    document.cookie = `crm_lang=${langCode}; domain=${hostname}; path=/; max-age=31536000`;
-  };
+  // i18next: instant switch — no page reload, no Google Translate cookie.
+  // Marked as the person's own choice, so the company Default Language no longer overrides it.
+  const handleLanguageChange = (langCode: string) => applyAppLanguage(langCode, { userPicked: true });
 
 
-  const languages = [
-    { code: "ar", name: "Arabic" },
-    { code: "bg", name: "Bulgarian" },
-    { code: "ca", name: "Catalan" },
-    { code: "zh-CN", name: "Chinese" },
-    { code: "cs", name: "Czech" },
-    { code: "en", name: "English" },
-    { code: "fi", name: "Finnish" },
-    { code: "fr", name: "French" },
-    { code: "de", name: "German" },
-    { code: "el", name: "Greek" },
-    { code: "gu", name: "Gujarati" },
-    { code: "hi", name: "Hindi" },
-    { code: "id", name: "Indonesia" },
-    { code: "it", name: "Italian" },
-    { code: "ja", name: "Japanese" },
-    { code: "fa", name: "Persian" },
-    { code: "pt-PT", name: "Portuguese" },
-    { code: "pt-BR", name: "Portuguese (BR)" },
-    { code: "ro", name: "Romanian" },
-    { code: "ru", name: "Russian" },
-    { code: "es", name: "Spanish" },
-    { code: "uk", name: "Ukrainian" },
-  ];
+  const languages = APP_LANGUAGES;
 
   const initials = user
     ? `${user.firstname?.[0] || ""}${user.lastname?.[0] || ""}`.toUpperCase()
@@ -459,6 +432,7 @@ export function TopNavbar() {
               <span className="text-sm">Edit Profile</span>
             </DropdownMenuItem>
 
+            {!disableLanguages && (
             <DropdownMenuSub>
               <DropdownMenuSubTrigger className="gap-3 px-4 py-2.5 cursor-pointer notranslate">
                 <Globe className="h-4 w-4 text-foreground" />
@@ -476,6 +450,7 @@ export function TopNavbar() {
                 ))}
               </DropdownMenuSubContent>
             </DropdownMenuSub>
+            )}
           </div>
 
           <DropdownMenuSeparator />

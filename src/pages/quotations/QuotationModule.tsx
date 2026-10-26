@@ -56,6 +56,7 @@ import {
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 
 type Stats = { totalThisMonth: number; acceptedThisMonth: number; totalValue: number };
@@ -366,7 +367,7 @@ export default function QuotationModule() {
   // ─── List tab: server-side paginated (per page-size selection); "All" falls
   // back to the old unbounded fetch, exactly as this tab always did before. ──
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState("25");
+  const [itemsPerPage, setItemsPerPage] = useState(() => String(defaultPageSize(25)));
 
   interface QuotationsListPage { rows: Quotation[]; total: number; pages: number }
   const { data: quotationsListResult, isLoading: isLoadingList } = useQuery<QuotationsListPage>({

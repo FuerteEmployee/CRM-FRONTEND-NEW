@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSettings } from "@/context/SettingsContext";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
@@ -66,6 +67,12 @@ export default function TicketView() {
   const [noteMessage, setNoteMessage] = useState("");
   const [ccInput, setCcInput] = useState("");
   const [statusValue, setStatusValue] = useState("");
+  const [statusTouched, setStatusTouched] = useState(false);
+  // Setup > Settings > Support: reply status default, replies order, services.
+  const { getSetting } = useSettings();
+  const settingOn = (v: any) => v === true || v === 1 || v === "1" || v === "true";
+  const useServices = getSetting("supUseServices", true) === "" ? true : settingOn(getSetting("supUseServices", true));
+  const repliesNewestFirst = String(getSetting("supRepliesOrder", "desc") || "desc") !== "asc";
   const [returnToList, setReturnToList] = useState(true);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [tagInput, setTagInput] = useState("");
@@ -171,8 +178,8 @@ export default function TicketView() {
       if (attachments.length > 0) {
         try {
           await fileService.uploadFiles(id!, "ticket", attachments);
-        } catch {
-          toast({ title: "Attachment Error", description: "Reply saved, but attachments failed to upload.", variant: "destructive" });
+        } catch (uploadErr: any) {
+          toast({ title: "Attachment Error", description: `Reply saved, but attachments failed to upload: ${uploadErr?.message || "unknown error"}`, variant: "destructive" });
         }
       }
       queryClient.invalidateQueries({ queryKey: ["ticket", id] });
@@ -202,10 +209,17 @@ export default function TicketView() {
       toast({ title: "Validation Error", description: "Message cannot be empty.", variant: "destructive" });
       return;
     }
+    // "Default status selected when replying to ticket" unless the status was changed by hand.
+    const defaultReplyStatus = (() => {
+      const key = String(getSetting("supDefaultReplyStatus", "") || "").replace(/_/g, " ").toLowerCase();
+      if (!key) return "";
+      const match = (ticketStatuses as any[]).find((s: any) => String(s.name).toLowerCase() === key);
+      return match ? match.name : ticketStatuses.length ? "" : key;
+    })();
     replyMutation.mutate({
       message,
       is_note: isNote,
-      status: isNote ? undefined : statusValue,
+      status: isNote ? undefined : (!statusTouched && defaultReplyStatus ? defaultReplyStatus : statusValue),
       cc: isNote ? undefined : ccInput,
     });
   };
@@ -257,7 +271,7 @@ export default function TicketView() {
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-black text-foreground">#{ticketNumber} - {ticket.subject?.toUpperCase()}</h1>
-            <Select value={statusValue} onValueChange={setStatusValue}>
+            <Select value={statusValue} onValueChange={(v) => { setStatusTouched(true); setStatusValue(v); }}>
               <SelectTrigger className="h-7 w-32 rounded-full bg-primary/5 border-primary/20 text-xs font-bold text-primary">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -391,7 +405,7 @@ export default function TicketView() {
 
                   {ticket.replies?.length > 0 && (
                     <div className="space-y-3 pt-4 border-t border-border/40">
-                      {[...ticket.replies].reverse().map((r: any, i: number) => (
+                      {(repliesNewestFirst ? [...ticket.replies].reverse() : ticket.replies).map((r: any, i: number) => (
                         <div key={i} className={cn("rounded-xl p-4 border", r.is_note ? "bg-amber-50 border-amber-200" : "bg-muted/20 border-border/40")}>
                           <div className="flex items-center justify-between mb-1.5">
                             <span className="text-xs font-bold text-foreground">
@@ -514,7 +528,7 @@ export default function TicketView() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2" style={useServices ? undefined : { display: "none" }}>
                   <Label className="text-xs font-bold">Service</Label>
                   <div className="flex gap-1.5">
                     <Select value={infoForm.service} onValueChange={(v) => setInfoForm(p => ({ ...p, service: v }))}>

@@ -11,7 +11,11 @@ export const salesService = {
   getInvoiceBranches: () => apiClient.get("/invoices/branches"),
   getProposals: (params) => apiClient.get("/proposals", { params }),
   getProposalById: (id) => apiClient.get(`/proposals/${id}`),
+  // Next proposal number + Setup > Settings > Proposals defaults for a new proposal.
+  getNextProposalNumber: () => apiClient.get("/proposals/next-number"),
   getInvoiceById: (id) => apiClient.get(`/invoices/${id}`),
+  // Next invoice number + Setup > Settings > Invoices defaults for a new invoice.
+  getNextInvoiceNumber: (date) => apiClient.get(`/invoices/next-number${date ? `?date=${encodeURIComponent(date)}` : ""}`),
   createInvoice: (data) => apiClient.post("/invoices", data),
   updateInvoice: (id, data) => apiClient.put(`/invoices/${id}`, data),
   deleteInvoice: (id) => apiClient.delete(`/invoices/${id}`),
@@ -45,6 +49,7 @@ export const salesService = {
   // Subscriptions
   // ─────────────────────────────────────────────
   getSubscriptions: () => apiClient.get("/subscriptions"),
+  getSubscriptionById: (id) => apiClient.get(`/subscriptions/${id}`),
   createSubscription: (data) => apiClient.post("/subscriptions", data),
   updateSubscription: (id, data) => apiClient.put(`/subscriptions/${id}`, data),
 

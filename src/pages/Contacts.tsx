@@ -59,6 +59,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "react-router-dom";
 import { TableActions } from "@/components/TableActions";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 
 const Contacts = () => {
@@ -67,7 +68,7 @@ const Contacts = () => {
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [itemsPerPage, setItemsPerPage] = useState("25");
+  const [itemsPerPage, setItemsPerPage] = useState(() => String(defaultPageSize(25)));
   const [currentPage, setCurrentPage] = useState(1);
 
   // Search + sort exactly as this page always has, applied over an

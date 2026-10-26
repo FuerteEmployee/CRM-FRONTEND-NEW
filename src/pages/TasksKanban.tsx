@@ -18,6 +18,7 @@ import {
 import { ListTodo } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSettings } from "@/context/SettingsContext";
 import { taskStatusConfig } from "@/pages/Tasks";
 import { TaskCard } from "@/pages/TaskCard";
 
@@ -69,6 +70,12 @@ function KanbanColumn({
   onOpenTask: (task: KanbanTask) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `column:${statusId}` });
+  // Setup > Settings > Tasks > "Limit tasks kanban rows per status" (0 = no limit).
+  const { getSetting } = useSettings();
+  const pageSize = Math.max(parseInt(String(getSetting("taskKanbanLimit", "0") ?? "0"), 10) || 0, 0);
+  const [shown, setShown] = useState(pageSize);
+  useEffect(() => setShown(pageSize), [pageSize]);
+  const visibleTasks = pageSize ? tasks.slice(0, shown) : tasks;
 
   return (
     <div className="flex w-[280px] shrink-0 flex-col rounded-2xl bg-slate-50/60 border border-slate-100">
@@ -94,9 +101,18 @@ function KanbanColumn({
               No tasks
             </div>
           ) : (
-            tasks.map((task) => (
+            visibleTasks.map((task) => (
               <TaskCard key={task._id} task={task} assignees={getAssignees(task, staff)} onOpen={onOpenTask} />
             ))
+          )}
+          {visibleTasks.length < tasks.length && (
+            <button
+              type="button"
+              onClick={() => setShown((n) => n + pageSize)}
+              className="w-full py-2 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/5 rounded-lg"
+            >
+              Show more ({tasks.length - visibleTasks.length})
+            </button>
           )}
         </SortableContext>
       </div>

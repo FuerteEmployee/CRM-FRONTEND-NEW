@@ -35,6 +35,7 @@ import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const VENDOR_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Company Name", sample: "Orion Supplies Pvt Ltd", required: true, core: true },
@@ -92,7 +93,7 @@ const Vendors = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState<any>(null);
   const [formData, setFormData] = useState<any>(emptyForm);
-  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(25);
+  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(() => defaultPageSize(25));
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);

@@ -84,6 +84,16 @@ export default function ProposalCreate() {
     enabled: isEdit
   });
 
+  // New proposal: number (assigned by the server on save) and "Open Till" =
+  // date + "Proposal Due After (days)" from Setup > Settings > Proposals.
+  const [openTillTouched, setOpenTillTouched] = useState(false);
+  const { data: proposalDefaults } = useQuery({
+    queryKey: ["proposal-next-number"],
+    queryFn: () => salesService.getNextProposalNumber(),
+    enabled: !isEdit,
+    staleTime: 0,
+  });
+
   const [formData, setFormData] = useState({
     subject: "",
     rel_type: initialRelType,
@@ -127,6 +137,14 @@ export default function ProposalCreate() {
   const [adjustmentValue, setAdjustmentValue] = useState(0);
   const [showQtyAs, setShowQtyAs] = useState("qty");
   const { user, isModuleEnabled } = usePermissions();
+
+  useEffect(() => {
+    if (isEdit || openTillTouched || !proposalDefaults || !formData.date) return;
+    const d = new Date(formData.date);
+    if (isNaN(d.getTime())) return;
+    d.setDate(d.getDate() + Number(proposalDefaults.dueAfter || 0));
+    setFormData((p) => ({ ...p, open_till: d.toISOString().split("T")[0] }));
+  }, [formData.date, proposalDefaults, isEdit, openTillTouched]);
   const isPilot = isTrinetraPilotUser(user?.email);
   // Branch is sourced from the HRMS module — only show/fetch it when the
   // tenant's plan actually includes HRMS, even for a pilot-flagged user.
@@ -467,6 +485,22 @@ export default function ProposalCreate() {
                 </div>
               )}
 
+              {/* Proposal Number (from Setup > Settings > Proposals, assigned on save) */}
+              <div className="space-y-2.5">
+                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Proposal Number</Label>
+                <Input
+                  readOnly
+                  className="h-12 rounded-2xl border-border/50 bg-muted/40 shadow-sm font-mono font-bold"
+                  value={isEdit ? (proposal?.number || `PRO-${String(id).slice(-6).toUpperCase()}`) : (proposalDefaults?.number || "")}
+                  placeholder={!isEdit ? "Loading next number…" : ""}
+                />
+                {!isEdit && (
+                  <p className="text-[11px] text-muted-foreground">
+                    Next number from Setup &gt; Settings &gt; Proposals — the next free number is assigned when you save.
+                  </p>
+                )}
+              </div>
+
               {/* Subject */}
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
@@ -558,7 +592,10 @@ export default function ProposalCreate() {
                       type="date" 
                       className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold pl-10"
                       value={formData.open_till}
-                      onChange={(e) => setFormData(p => ({ ...p, open_till: e.target.value }))}
+                      onChange={(e) => {
+                        setOpenTillTouched(true);
+                        setFormData(p => ({ ...p, open_till: e.target.value }));
+                      }}
                     />
                     <CalendarIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground/40" />
                   </div>

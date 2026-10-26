@@ -54,6 +54,8 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { calendarEventService } from "@/api/services/calendar_event.service";
 import { usePermissionContext } from "@/context/PermissionContext";
+import { useSettings } from "@/context/SettingsContext";
+import { useNavigate } from "react-router-dom";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const COLORS = [
@@ -69,8 +71,19 @@ type ViewMode = "month" | "week" | "day";
 
 const Calendar = () => {
   const { user } = usePermissionContext();
+  const navigate = useNavigate();
+  // Setup > Settings > Calendar: first day of week, default view, events per day.
+  const { getSetting } = useSettings();
+  const weekStartsOn = (Math.min(Math.max(parseInt(String(getSetting("calFirstDay", "0") ?? "0"), 10) || 0, 0), 6)) as 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  const dayNames = [...DAYS.slice(weekStartsOn), ...DAYS.slice(0, weekStartsOn)];
+  const eventLimit = Math.max(parseInt(String(getSetting("calEventLimit", "0") ?? "0"), 10) || 0, 0);
+  const defaultView: ViewMode = (() => {
+    const v = String(getSetting("calDefaultView", "month") || "month").toLowerCase();
+    return v.includes("day") ? "day" : v.includes("week") ? "week" : "month";
+  })();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [viewMode, setViewMode] = useState<ViewMode>(defaultView);
+  const [feedItems, setFeedItems] = useState<any[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [events, setEvents] = useState<any[]>([]);
 
@@ -103,13 +116,27 @@ const Calendar = () => {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(monthStart);
   const monthDays = eachDayOfInterval({
-    start: startOfWeek(monthStart),
-    end: endOfWeek(monthEnd),
+    start: startOfWeek(monthStart, { weekStartsOn }),
+    end: endOfWeek(monthEnd, { weekStartsOn }),
   });
 
   // Week View Helpers
-  const weekStart = startOfWeek(currentDate);
-  const weekEnd = endOfWeek(currentDate);
+  const weekStart = startOfWeek(currentDate, { weekStartsOn });
+  const weekEnd = endOfWeek(currentDate, { weekStartsOn });
+
+  // Invoice / estimate / proposal / project / task dates and reminders for the visible range.
+  const feedFrom = monthDays[0];
+  const feedTo = monthDays[monthDays.length - 1];
+  useEffect(() => {
+    const from = viewMode === "month" ? feedFrom : startOfWeek(currentDate, { weekStartsOn });
+    const to = viewMode === "month" ? endOfDay(feedTo) : endOfWeek(currentDate, { weekStartsOn });
+    calendarEventService
+      .getFeed(from.toISOString(), to.toISOString())
+      .then((data: any) => setFeedItems(Array.isArray(data) ? data : []))
+      .catch(() => setFeedItems([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feedFrom.getTime(), feedTo.getTime(), viewMode, weekStartsOn]);
+  const allEvents = useMemo(() => [...events, ...feedItems], [events, feedItems]);
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
 
   // Day View Helpers
@@ -136,6 +163,11 @@ const Calendar = () => {
   
   const handleEventClick = (e: React.MouseEvent, event: any) => {
     e.stopPropagation();
+    // Invoice/task/… entries open their module instead of the event editor.
+    if (event.readOnly) {
+      if (event.link) navigate(event.link);
+      return;
+    }
     resetForm(); // clear fields (end date, reminder) left over from a previous event
     setSelectedEventId(event._id);
     setEventTitle(event.title);
@@ -211,14 +243,15 @@ const Calendar = () => {
   };
 
   const getEventsForDay = (date: Date) => {
-    return events.filter(e => e.start && isSameDay(new Date(e.start), date));
+    return allEvents.filter(e => e.start && isSameDay(new Date(e.start), date));
   };
 
   const getEventsForHour = (date: Date, hour: number) => {
-    return events.filter(e => {
+    return allEvents.filter(e => {
       if (!e.start) return false;
       const start = new Date(e.start);
-      return isSameDay(start, date) && start.getHours() === hour;
+      // All-day entries (due dates) sit in the first row.
+      return isSameDay(start, date) && (e.allDay ? hour === 0 : start.getHours() === hour);
     });
   };
 
@@ -271,7 +304,7 @@ const Calendar = () => {
             {viewMode === "month" && (
               <>
                 <div className="grid grid-cols-7 border-b border-gray-400 dark:border-gray-700 bg-accent/10">
-                  {DAYS.map(day => (
+                  {dayNames.map(day => (
                     <div key={day} className="p-3 text-center text-[11px] font-black uppercase tracking-[0.2em] text-gray-700 dark:text-gray-300 border-r border-gray-400 dark:border-gray-700 last:border-r-0">
                       {day}
                     </div>
@@ -300,11 +333,20 @@ const Calendar = () => {
                           </span>
                         </div>
                         <div className="space-y-1">
-                          {dayEvents.map(event => (
-                            <div key={event._id} onClick={(e) => handleEventClick(e, event)} className="text-[10px] px-2 py-1 rounded-lg border font-bold text-white truncate shadow-sm hover:opacity-80" style={{ backgroundColor: event.color, borderColor: `${event.color}aa` }}>
+                          {(eventLimit ? dayEvents.slice(0, eventLimit) : dayEvents).map(event => (
+                            <div key={event._id} title={event.title} onClick={(e) => handleEventClick(e, event)} className="text-[10px] px-2 py-1 rounded-lg border font-bold text-white truncate shadow-sm hover:opacity-80" style={{ backgroundColor: event.color, borderColor: `${event.color}aa` }}>
                               {event.title}
                             </div>
                           ))}
+                          {eventLimit > 0 && dayEvents.length > eventLimit && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setCurrentDate(day); setViewMode("day"); }}
+                              className="text-[10px] font-bold text-primary hover:underline px-1"
+                            >
+                              +{dayEvents.length - eventLimit} more
+                            </button>
+                          )}
                         </div>
                       </div>
                     );

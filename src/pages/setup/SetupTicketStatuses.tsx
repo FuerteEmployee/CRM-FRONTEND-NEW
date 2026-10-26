@@ -192,7 +192,7 @@ export default function SetupTicketStatuses() {
               <div className="flex flex-col">
                 <span className="font-semibold">{s.name}</span>
                 <span className="text-[11px] text-muted-foreground">
-                  Total 0
+                  Total {s.totalTickets || 0}
                 </span>
               </div>
             ),

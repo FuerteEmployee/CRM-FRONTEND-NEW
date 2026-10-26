@@ -64,11 +64,15 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { useSettings } from "@/context/SettingsContext";
+import { getCompanyInfo, companyInfoHtml } from "@/lib/companyInfo";
+import { getDocDisplayOptions, trimZeroDecimals, stripCurrencySymbol, itemTaxLabel, amountInWords, saleAgentName, projectName } from "@/lib/invoiceDisplay";
+import { escapeHtml } from "@/lib/richText";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { isEkagraUser } from "@/lib/ekagraTenant";
 import { renderToStaticMarkup } from "react-dom/server";
 import { EkagraTaxInvoiceLayout, ClassicInvoiceLayout, LetterheadInvoiceLayout } from "@/components/invoiceFormatLayouts";
 import { getLetterheadCompany, getLetterheadTitle, isLetterheadFormat } from "@/lib/invoicePdfFormats";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const INVOICE_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Voucher Number", sample: "INV-2201", core: true },
@@ -143,7 +147,9 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
   const queryClient = useQueryClient();
   const { user } = usePermissions();
   const { getSetting } = useSettings();
-  const companyName = getSetting("companyName", "Fuerte Developers");
+  // Company name + details from Setup > Settings > Company Information (no other company's name as fallback).
+  const companyName = getSetting("companyName", "");
+  const companyInfoBlock = companyInfoHtml(getCompanyInfo((k) => getSetting(k, "")));
   const compCity = getSetting("compCity", "");
   const canUseBankDetails = canAccessBankDetails(user?.email);
 
@@ -368,6 +374,20 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
     if (pdfFormat === "classic_invoice") {
       return generateClassicInvoiceHtml();
     }
+    // Standard PDF follows Setup > Settings > Finance display options (lib/invoiceDisplay.ts).
+    const D = getDocDisplayOptions((k) => getSetting(k, ""));
+    const esc = escapeHtml;
+    const money = (v: number) => trimZeroDecimals(formatRowAmount(d, v), D);
+    const rowCur = currencies.find((c: any) => c.name === d?.currency) || currencies.find((c: any) => c.isdefault);
+    const itemMoney = (v: number) => (D.excludeCurrency ? stripCurrencySymbol(money(v), rowCur?.symbol ?? symbol) : money(v));
+    const pdfPaid = Number(d.total_paid) || 0;
+    const pdfCredits = Number(d.credits_applied) || 0;
+    const metaRows = [
+      d.duedate ? `<b>Due Date:</b> ${esc(formatDate(d.duedate))}` : "",
+      D.showSaleAgent && saleAgentName(d) ? `<b>Sale Agent:</b> ${esc(saleAgentName(d))}` : "",
+      D.showProject && projectName(d) ? `<b>Project:</b> ${esc(projectName(d))}` : "",
+    ].filter(Boolean);
+    const pdfMetaHtml = metaRows.length ? `<div class="meta" style="margin: -20px 0 24px;">${metaRows.join(" &nbsp;·&nbsp; ")}</div>` : "";
     const bd = d.bank_detail;
     const bankDetailsHtml = (canUseBankDetails && bd)
       ? `
@@ -412,7 +432,7 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
           <div class="header">
             <div>
               <div class="title">${invoiceNumber}</div>
-              <div class="company">${companyName}</div>
+              <div class="company">${companyName}</div>${companyInfoBlock}
             </div>
             <div style="text-align: right">
               <div style="margin-bottom: 15px;">
@@ -426,22 +446,26 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
             </div>
           </div>
 
+          ${pdfMetaHtml}
+
           <table>
             <thead>
               <tr>
                 <th>Item</th>
                 <th>Qty</th>
                 <th>Rate</th>
+                ${D.showTaxPerItem ? "<th>Tax</th>" : ""}
                 <th>Amount</th>
               </tr>
             </thead>
             <tbody>
               ${(d.items || []).map((item: any) => `
                 <tr>
-                  <td><b>${item.description || item.name || "—"}</b></td>
+                  <td><b>${esc(item.description || item.name || "—")}</b></td>
                   <td>${item.qty || item.quantity || 1}</td>
-                  <td>${formatRowAmount(d, Number(item.rate || item.price || 0))}</td>
-                  <td>${formatRowAmount(d, Number((item.qty || item.quantity || 1) * (item.rate || item.price || 0)))}</td>
+                  <td>${itemMoney(Number(item.rate || item.price || 0))}</td>
+                  ${D.showTaxPerItem ? `<td>${esc(itemTaxLabel(item, D))}</td>` : ""}
+                  <td>${itemMoney(Number((item.qty || item.quantity || 1) * (item.rate || item.price || 0)))}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -451,14 +475,24 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
             ${d.subtotal !== undefined ? `
               <div class="totals-row">
                 <span>Subtotal</span>
-                <span>${formatRowAmount(d, Number(d.subtotal))}</span>
+                <span>${money(Number(d.subtotal))}</span>
               </div>
             ` : ''}
+            ${Number(d.discount_total) > 0 ? `<div class="totals-row"><span>Discount</span><span>− ${money(Number(d.discount_total))}</span></div>` : ""}
+            ${Number(d.total_tax) > 0 ? `<div class="totals-row"><span>Total Tax</span><span>${money(Number(d.total_tax))}</span></div>` : ""}
+            ${Number(d.adjustment) ? `<div class="totals-row"><span>Adjustment</span><span>${money(Number(d.adjustment))}</span></div>` : ""}
             <div class="totals-row grand">
               <span>Total</span>
-              <span>${formatRowAmount(d, Number(d.total || 0))}</span>
+              <span>${money(Number(d.total || 0))}</span>
             </div>
+            ${D.showTotalPaid ? `<div class="totals-row"><span>Total Paid</span><span>− ${money(pdfPaid)}</span></div>` : ""}
+            ${D.showCredits && pdfCredits > 0 ? `<div class="totals-row"><span>Credits Applied</span><span>− ${money(pdfCredits)}</span></div>` : ""}
+            ${D.showAmountDue ? `<div class="totals-row grand"><span>Amount Due</span><span>${money(Math.max(Number(d.total || 0) - pdfPaid - pdfCredits, 0))}</span></div>` : ""}
           </div>
+
+          ${D.amountToWords ? `<div style="clear: both; padding-top: 16px; font-size: 13px; color: #334155;"><b>Amount in words:</b> ${esc(amountInWords(Number(d.total || 0), D))}</div>` : ""}
+          ${d.notes ? `<div style="clear: both; margin-top: 24px; font-size: 13px;"><div class="bank-details-title">Notes</div><div style="white-space: pre-wrap; color: #334155;">${esc(d.notes)}</div></div>` : ""}
+          ${d.terms ? `<div style="clear: both; margin-top: 16px; font-size: 13px;"><div class="bank-details-title">Terms &amp; Conditions</div><div style="white-space: pre-wrap; color: #334155;">${esc(d.terms)}</div></div>` : ""}
 
           ${bankDetailsHtml}
         </body>
@@ -987,7 +1021,7 @@ const Invoices = () => {
   }, [search]);
   const [statusFilter, setStatusFilter] = useState("all");
   const [branchFilter, setBranchFilter] = useState("all");
-  const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [itemsPerPage, setItemsPerPage] = useState(() => String(defaultPageSize(10)));
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [previewInvoice, setPreviewInvoice] = useState<any>(null);

@@ -36,6 +36,7 @@ import { ImportButton } from "@/components/ui/import-button";
 import { SkeletonTableRows } from "@/components/ui/skeleton-table-rows";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { useCurrency } from "@/context/CurrencyContext";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const statusColors: Record<string, string> = {
   Active:
@@ -57,7 +58,7 @@ const Contracts = () => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
     return () => clearTimeout(t);
   }, [search]);
-  const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [itemsPerPage, setItemsPerPage] = useState(() => String(defaultPageSize(10)));
   const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
   const { can } = usePermissions();

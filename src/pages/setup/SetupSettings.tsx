@@ -22,11 +22,22 @@ import { ClaudeConnectorSettingsTab } from "./ClaudeConnectorSettingsTab";
 import { usePermissions } from "@/hooks/usePermissions";
 import { getAvailableInvoicePdfFormats, DEFAULT_INVOICE_PDF_FORMAT } from "@/lib/invoicePdfFormats";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Link } from "react-router-dom";
+import { financeService } from "@/api/services/finance.service";
+import { staffService } from "@/api/services/staff.service";
+import { leadService } from "@/api/services/lead.service";
 import { cn } from "@/lib/utils";
 import { settingsService } from "@/api/services/settings.service";
 import { externalDataSourceService } from "@/api/services/externalDataSource.service";
 import { toast } from "sonner";
 import { LANGUAGES_SETUP_KEYS } from "@/lib/languages";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { listTimeZones, resolveTimeZone } from "@/lib/dateFormat";
+
+// Some browsers list India as the legacy "Asia/Calcutta"; keep the modern name selectable too.
+const TIME_ZONE_OPTIONS = [...new Set(["Asia/Kolkata", ...listTimeZones()])]
+  .sort()
+  .map((tz) => ({ value: tz, label: tz.replace(/_/g, " ") }));
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { estimateService } from "@/api/services/estimate.service";
 import {
@@ -86,6 +97,10 @@ import {
 } from "lucide-react";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
+import { ImageSettingField } from "@/components/settings/ImageSettingField";
+import { SystemVersionPanel } from "@/components/settings/SystemVersionPanel";
+import { SystemInfoPanel } from "@/components/settings/SystemInfoPanel";
+import { COMPANY_INFO_MERGE_FIELDS } from "@/lib/companyInfo";
 
 interface SettingItem {
   id: string;
@@ -185,6 +200,11 @@ export default function SetupSettings() {
 
   const handleSigUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    if (file && (!file.type.startsWith("image/") || file.size > 1024 * 1024)) {
+      toast.error("Signature must be an image (PNG/JPG) of at most 1 MB.");
+      e.target.value = "";
+      return;
+    }
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -197,83 +217,154 @@ export default function SetupSettings() {
   // Helper to get initial value from context or default
   const getInit = (name: string, def: any) => {
     if (globalSettings && globalSettings[name] !== undefined) {
-      return globalSettings[name];
+      const val = globalSettings[name];
+      // Yes/No settings are stored as 1/0 in older rows; keep them real
+      // booleans so the Yes/No checkboxes always show one of the two ticked.
+      if (typeof def === "boolean") return val === true || val === 1 || val === "1" || val === "true";
+      return val;
     }
     return def;
   };
 
   const [rtlAdmin, setRtlAdmin] = useState(() => getInit("rtlAdmin", false));
   const [rtlCustomers, setRtlCustomers] = useState(() => getInit("rtlCustomers", false));
-  const [companyName, setCompanyName] = useState(() => {
-    const val = getInit("companyName", "");
-    if (val === "CRM Pro Inc." || val === "Fuerte CRM" || val === "Fuerte Developers" || val === "CRMPro" || val === "Trinetra TechnoWorld") {
-      return "";
-    }
-    return val || "";
-  });
+  // The settings context already hides only the platform's placeholder name,
+  // never the company's own (which may be e.g. "Fuerte Developers").
+  const [companyName, setCompanyName] = useState(() => String(getInit("companyName", "") || ""));
   const [companyDomain, setCompanyDomain] = useState(() => getInit("companyDomain", ""));
   const [aiAgentName, setAiAgentName] = useState(() => getInit("aiAgentName", "CRM Agent"));
-  const [allowedFileTypes, setAllowedFileTypes] = useState(() => getInit("allowedFileTypes", "pdf,doc,docx,jpg,png,zip"));
+  const [allowedFileTypes, setAllowedFileTypes] = useState(() => getInit("allowedFileTypes", ".png,.jpg,.jpeg,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt"));
   const [whatsappQcEnabled, setWhatsappQcEnabled] = useState(() => getInit("whatsappQcEnabled", false));
   const [whatsappQcTemplates, setWhatsappQcTemplates] = useState<WhatsappQcTemplateEntry[]>(
     () => getInit("whatsappQcTemplates", DEFAULT_WHATSAPP_QC_TEMPLATES)
   );
   const [locDisableLanguages, setLocDisableLanguages] = useState(() => getInit("locDisableLanguages", false));
   const [locClientPdfLanguage, setLocClientPdfLanguage] = useState(() => getInit("locClientPdfLanguage", "English"));
-  const [locDateFormat, setLocDateFormat] = useState(() => getInit("locDateFormat", "YYYY-MM-DD"));
-  const [locTimeFormat, setLocTimeFormat] = useState(() => getInit("locTimeFormat", "24"));
-  const [locTimezone, setLocTimezone] = useState(() => getInit("locTimezone", "UTC"));
-  const [locLanguage, setLocLanguage] = useState(() => getInit("locLanguage", "English"));
+  // Defaults match how the CRM showed dates before these settings were wired
+  // up (DD-MM-YYYY, 24h, India time) and the dropdown option values.
+  const [locDateFormat, setLocDateFormat] = useState(() => getInit("locDateFormat", "dmy"));
+  const [locTimeFormat, setLocTimeFormat] = useState(() => String(getInit("locTimeFormat", "24")));
+  const [locTimezone, setLocTimezone] = useState(() => getInit("locTimezone", "Asia/Kolkata"));
+  const [locLanguage, setLocLanguage] = useState(() => String(getInit("locLanguage", "english")).toLowerCase());
   const [mailEngine, setMailEngine] = useState(() => getInit("mailEngine", "phpmailer"));
   const [emailProtocol, setEmailProtocol] = useState(() => getInit("emailProtocol", "smtp"));
   const [decimalSeparator, setDecimalSeparator] = useState(() => getInit("decimalSeparator", "."));
   const [thousandSeparator, setThousandSeparator] = useState(() => getInit("thousandSeparator", ","));
-  const [numberPadding, setNumberPadding] = useState(() => getInit("numberPadding", "3"));
-  const [autoAssignStaff, setAutoAssignStaff] = useState(() => getInit("autoAssignStaff", true));
-  const [showTaxPerItem, setShowTaxPerItem] = useState(() => getInit("showTaxPerItem", true));
+  const [numberPadding, setNumberPadding] = useState(() => getInit("numberPadding", "0"));
+  const [autoAssignStaff, setAutoAssignStaff] = useState(() => getInit("autoAssignStaff", false));
+  const [showTaxPerItem, setShowTaxPerItem] = useState(() => getInit("showTaxPerItem", false));
   const [removeTaxName, setRemoveTaxName] = useState(() => getInit("removeTaxName", false));
   const [excludeCurrency, setExcludeCurrency] = useState(() => getInit("excludeCurrency", false));
   const [defaultTax, setDefaultTax] = useState(() => getInit("defaultTax", "none"));
-  const [removeDecimalsZero, setRemoveDecimalsZero] = useState(() => getInit("removeDecimalsZero", true));
-  const [amountToWordsEnable, setAmountToWordsEnable] = useState(() => getInit("amountToWordsEnable", true));
-  const [amountToWordsLower, setAmountToWordsLower] = useState(() => getInit("amountToWordsLower", true));
+  const [removeDecimalsZero, setRemoveDecimalsZero] = useState(() => getInit("removeDecimalsZero", false));
+  const [amountToWordsEnable, setAmountToWordsEnable] = useState(() => getInit("amountToWordsEnable", false));
+  const [amountToWordsLower, setAmountToWordsLower] = useState(() => getInit("amountToWordsLower", false));
   const [invPrefix, setInvPrefix] = useState(() => getInit("invPrefix", "INV-"));
   const [invNextNumber, setInvNextNumber] = useState(() => getInit("invNextNumber", "1"));
   const [invDueAfter, setInvDueAfter] = useState(() => getInit("invDueAfter", "30"));
-  const [invAllowStaffView, setInvAllowStaffView] = useState(() => getInit("invAllowStaffView", true));
+  const [invAllowStaffView, setInvAllowStaffView] = useState(() => getInit("invAllowStaffView", false));
   const [invRequireLogin, setInvRequireLogin] = useState(() => getInit("invRequireLogin", false));
-  const [invDeleteOnlyLast, setInvDeleteOnlyLast] = useState(() => getInit("invDeleteOnlyLast", true));
-  const [invDecrementOnDelete, setInvDecrementOnDelete] = useState(() => getInit("invDecrementOnDelete", true));
+  const [invDeleteOnlyLast, setInvDeleteOnlyLast] = useState(() => getInit("invDeleteOnlyLast", false));
+  const [invDecrementOnDelete, setInvDecrementOnDelete] = useState(() => getInit("invDecrementOnDelete", false));
   const [invExcludeDraft, setInvExcludeDraft] = useState(() => getInit("invExcludeDraft", false));
-  const [invShowSaleAgent, setInvShowSaleAgent] = useState(() => getInit("invShowSaleAgent", true));
-  const [invShowProject, setInvShowProject] = useState(() => getInit("invShowProject", true));
-  const [invShowTotalPaid, setInvShowTotalPaid] = useState(() => getInit("invShowTotalPaid", true));
-  const [invShowCredits, setInvShowCredits] = useState(() => getInit("invShowCredits", true));
-  const [invShowAmountDue, setInvShowAmountDue] = useState(() => getInit("invShowAmountDue", true));
-  const [invAttachPdf, setInvAttachPdf] = useState(() => getInit("invAttachPdf", true));
+  const [invShowSaleAgent, setInvShowSaleAgent] = useState(() => getInit("invShowSaleAgent", false));
+  const [invShowProject, setInvShowProject] = useState(() => getInit("invShowProject", false));
+  const [invShowTotalPaid, setInvShowTotalPaid] = useState(() => getInit("invShowTotalPaid", false));
+  const [invShowCredits, setInvShowCredits] = useState(() => getInit("invShowCredits", false));
+  const [invShowAmountDue, setInvShowAmountDue] = useState(() => getInit("invShowAmountDue", false));
+  const [invAttachPdf, setInvAttachPdf] = useState(() => getInit("invAttachPdf", false));
   const [invNumberFormat, setInvNumberFormat] = useState(() => getInit("invNumberFormat", "number_based"));
   const [invClientNote, setInvClientNote] = useState(() => getInit("invClientNote", ""));
   const [invTerms, setInvTerms] = useState(() => getInit("invTerms", ""));
   const [invPdfFormat, setInvPdfFormat] = useState(() => getInit("invPdfFormat", DEFAULT_INVOICE_PDF_FORMAT));
+  const { data: taxRates = [] } = useQuery({
+    queryKey: ["taxes"],
+    queryFn: () => financeService.getTaxes().then((res: any) => res.data || res),
+  });
+  // Older rows store the rate ("18") instead of the tax _id.
+  const defaultTaxValue = (() => {
+    const v = String(defaultTax ?? "none");
+    if (!v || v === "none") return "none";
+    const t = (taxRates as any[]).find((x) => x._id === v) || (taxRates as any[]).find((x) => String(x.taxrate) === v);
+    return t ? t._id : "none";
+  })();
+  // Same rules as Backend/src/services/invoiceSettings.js formatInvoiceNumber.
+  const numberPreview = (prefix: any, next: any, format: any) => {
+    const now = new Date();
+    const seq = String(Math.max(1, parseInt(String(next), 10) || 1)).padStart(Math.max(0, parseInt(String(numberPadding), 10) || 0), "0");
+    const yyyy = String(now.getFullYear());
+    const mm = String(now.getMonth() + 1).padStart(2, "0");
+    const p = String(prefix ?? "");
+    if (format === "year_based") return `${p}${yyyy}/${seq}`;
+    if (format === "000001-yy") return `${p}${seq}-${yyyy.slice(-2)}`;
+    if (format === "000001/mm/yyyy") return `${p}${seq}/${mm}/${yyyy}`;
+    return `${p}${seq}`;
+  };
+  const invNumberPreview = numberPreview(invPrefix, invNextNumber, invNumberFormat);
+  // Leads > Default status / source: the company's real lists.
+  const { data: leadStatusList = [] } = useQuery({
+    queryKey: ["lead-statuses"],
+    queryFn: () => leadService.getStatuses().then((res: any) => (Array.isArray(res) ? res : res?.data || [])),
+    enabled: activeTab === "feat-leads",
+  });
+  const { data: leadSourceList = [] } = useQuery({
+    queryKey: ["lead-sources"],
+    queryFn: () => leadService.getSources().then((res: any) => (Array.isArray(res) ? res : res?.data || [])),
+    enabled: activeTab === "feat-leads",
+  });
+  const idOrName = (list: any[], v: any) => {
+    const key = String(v || "").trim().toLowerCase();
+    const hit = list.find((x: any) => String(x._id) === String(v)) || list.find((x: any) => String(x.name || "").toLowerCase() === key);
+    return hit ? String(hit._id) : "none";
+  };
+  // Misc > Default Staff Role: the company's real roles.
+  const { data: staffRoles = [] } = useQuery({
+    queryKey: ["roles"],
+    queryFn: () => staffService.getRoles().then((res: any) => (Array.isArray(res) ? res : res?.data || [])),
+    enabled: activeTab === "misc-misc",
+  });
+  // Setup > Settings > Tags: the tags actually used on records (Invoices, Estimates, Leads, Projects, Tickets, Tasks).
+  const { data: usedTags = [], refetch: refetchTags, isFetching: tagsLoading } = useQuery({
+    queryKey: ["settings-used-tags"],
+    queryFn: () => settingsService.getTags().then((res: any) => (Array.isArray(res) ? res : res?.data || [])),
+    enabled: activeTab === "oth-tags",
+  });
+  const removeTag = async (tag: string) => {
+    if (!window.confirm(`Remove the tag "${tag}" from every record that uses it?`)) return;
+    try {
+      const res: any = await settingsService.deleteTag(tag);
+      toast.success(res?.message || `Tag "${tag}" removed`);
+      refetchTags();
+    } catch (err: any) {
+      toast.error(err?.message || "Could not remove the tag");
+    }
+  };
+  // Options saved here but not used anywhere yet (customer portal, client accept, pipeline board, receipts).
+  const notAvailable = (why: string) => (
+    <Badge variant="outline" className="ml-2 align-middle text-[10px] font-normal text-muted-foreground" title={why}>
+      Not available yet
+    </Badge>
+  );
   const [propPrefix, setPropPrefix] = useState(() => getInit("propPrefix", "PROP-"));
+  const [propNextNumber, setPropNextNumber] = useState(() => getInit("propNextNumber", "1"));
   const [propDueAfter, setPropDueAfter] = useState(() => getInit("propDueAfter", "7"));
   const [propPipelineLimit, setPropPipelineLimit] = useState(() => getInit("propPipelineLimit", "50"));
   const [propPipelineSort, setPropPipelineSort] = useState(() => getInit("propPipelineSort", "date_created"));
   const [propPipelineOrder, setPropPipelineOrder] = useState(() => getInit("propPipelineOrder", "desc"));
-  const [propShowProject, setPropShowProject] = useState(() => getInit("propShowProject", true));
+  const [propShowProject, setPropShowProject] = useState(() => getInit("propShowProject", false));
   const [propExcludeDraft, setPropExcludeDraft] = useState(() => getInit("propExcludeDraft", false));
   const [propAutoConvert, setPropAutoConvert] = useState(() => getInit("propAutoConvert", false));
-  const [propAllowStaffView, setPropAllowStaffView] = useState(() => getInit("propAllowStaffView", true));
+  const [propAllowStaffView, setPropAllowStaffView] = useState(() => getInit("propAllowStaffView", false));
   const [propInfoFormat, setPropInfoFormat] = useState(() => getInit("propInfoFormat", ""));
   const [estPrefix, setEstPrefix] = useState(() => getInit("estPrefix", "EST-"));
   const [estNextNumber, setEstNextNumber] = useState(() => getInit("estNextNumber", "1"));
-  const [estDueAfter, setEstDueAfter] = useState(() => getInit("estDueAfter", "30"));
-  const [estDeleteOnlyLast, setEstDeleteOnlyLast] = useState(() => getInit("estDeleteOnlyLast", true));
-  const [estDecrementOnDelete, setEstDecrementOnDelete] = useState(() => getInit("estDecrementOnDelete", true));
-  const [estAllowStaffView, setEstAllowStaffView] = useState(() => getInit("estAllowStaffView", true));
+  const [estDueAfter, setEstDueAfter] = useState(() => getInit("estDueAfter", "7"));
+  const [estDeleteOnlyLast, setEstDeleteOnlyLast] = useState(() => getInit("estDeleteOnlyLast", false));
+  const [estDecrementOnDelete, setEstDecrementOnDelete] = useState(() => getInit("estDecrementOnDelete", false));
+  const [estAllowStaffView, setEstAllowStaffView] = useState(() => getInit("estAllowStaffView", false));
   const [estRequireLogin, setEstRequireLogin] = useState(() => getInit("estRequireLogin", false));
-  const [estShowSaleAgent, setEstShowSaleAgent] = useState(() => getInit("estShowSaleAgent", true));
-  const [estShowProject, setEstShowProject] = useState(() => getInit("estShowProject", true));
+  const [estShowSaleAgent, setEstShowSaleAgent] = useState(() => getInit("estShowSaleAgent", false));
+  const [estShowProject, setEstShowProject] = useState(() => getInit("estShowProject", false));
   const [estAutoConvert, setEstAutoConvert] = useState(() => getInit("estAutoConvert", false));
   const [estExcludeDraft, setEstExcludeDraft] = useState(() => getInit("estExcludeDraft", false));
   const [estNumberFormat, setEstNumberFormat] = useState(() => getInit("estNumberFormat", "number_based"));
@@ -438,14 +529,14 @@ export default function SetupSettings() {
       {vat_number_with_label}`));
 
   // Tasks State
-  const [taskKanbanLimit, setTaskKanbanLimit] = useState(() => getInit("taskKanbanLimit", 10));
-  const [taskAllowStaffSeeAll, setTaskAllowStaffSeeAll] = useState(() => getInit("taskAllowStaffSeeAll", true));
+  const [taskKanbanLimit, setTaskKanbanLimit] = useState(() => getInit("taskKanbanLimit", "0"));
+  const [taskAllowStaffSeeAll, setTaskAllowStaffSeeAll] = useState(() => getInit("taskAllowStaffSeeAll", false));
   const [taskCommentFirstHourOnly, setTaskCommentFirstHourOnly] = useState(() => getInit("taskCommentFirstHourOnly", false));
-  const [taskAutoAssignCreator, setTaskAutoAssignCreator] = useState(() => getInit("taskAutoAssignCreator", true));
-  const [taskAutoAddFollower, setTaskAutoAddFollower] = useState(() => getInit("taskAutoAddFollower", true));
-  const [taskStopOtherTimers, setTaskStopOtherTimers] = useState(() => getInit("taskStopOtherTimers", true));
-  const [taskStatusInProgressOnTimer, setTaskStatusInProgressOnTimer] = useState(() => getInit("taskStatusInProgressOnTimer", true));
-  const [taskBillableDefault, setTaskBillableDefault] = useState(() => getInit("taskBillableDefault", true));
+  const [taskAutoAssignCreator, setTaskAutoAssignCreator] = useState(() => getInit("taskAutoAssignCreator", false));
+  const [taskAutoAddFollower, setTaskAutoAddFollower] = useState(() => getInit("taskAutoAddFollower", false));
+  const [taskStopOtherTimers, setTaskStopOtherTimers] = useState(() => getInit("taskStopOtherTimers", false));
+  const [taskStatusInProgressOnTimer, setTaskStatusInProgressOnTimer] = useState(() => getInit("taskStatusInProgressOnTimer", false));
+  const [taskBillableDefault, setTaskBillableDefault] = useState(() => getInit("taskBillableDefault", false));
   const [taskRoundOffTimer, setTaskRoundOffTimer] = useState(() => getInit("taskRoundOffTimer", "no"));
   const [taskRoundOffMultiplier, setTaskRoundOffMultiplier] = useState(() => getInit("taskRoundOffMultiplier", "5"));
   const [taskDefaultStatus, setTaskDefaultStatus] = useState(() => getInit("taskDefaultStatus", "not_started"));
@@ -664,7 +755,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   const [miscMaxFileSize, setMiscMaxFileSize] = useState(() => getInit("miscMaxFileSize", "50"));
   const [miscMaxFilesPost, setMiscMaxFilesPost] = useState(() => getInit("miscMaxFilesPost", "10"));
   const [miscLimitSearch, setMiscLimitSearch] = useState(() => getInit("miscLimitSearch", "10"));
-  const [miscDefaultRole, setMiscDefaultRole] = useState(() => getInit("miscDefaultRole", "Admin"));
+  const [miscDefaultRole, setMiscDefaultRole] = useState(() => getInit("miscDefaultRole", ""));
   const [miscDeleteLogMonths, setMiscDeleteLogMonths] = useState(() => getInit("miscDeleteLogMonths", "6"));
   const [miscShowSetupHover, setMiscShowSetupHover] = useState(() => getInit("miscShowSetupHover", true));
   const [miscShowHelpMenu, setMiscShowHelpMenu] = useState(() => getInit("miscShowHelpMenu", true));
@@ -683,17 +774,22 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   const [miscInlinePredefinedReplies, setMiscInlinePredefinedReplies] = useState(() => getInit("miscInlinePredefinedReplies", true));
   const [miscInlineContractType, setMiscInlineContractType] = useState(() => getInit("miscInlineContractType", true));
   const [miscInlineExpenseCategory, setMiscInlineExpenseCategory] = useState(() => getInit("miscInlineExpenseCategory", true));
-  // Branding State
-  const [compLogoLight, setCompLogoLight] = useState(() => getInit("compLogoLight", ""));
-  const [compLogoDark, setCompLogoDark] = useState(() => getInit("compLogoDark", ""));
-  const [favicon, setFavicon] = useState(() => getInit("favicon", ""));
-  const [ogImage, setOgImage] = useState(() => getInit("ogImage", ""));
+  // Branding State — the global settings context fills missing images with
+  // fallbacks (Dark <- Light, logos <- OG image, letter favicon), so these
+  // start empty and take only the stored values from fetchSettings; otherwise
+  // a deleted image would reappear and be saved back on the next Save.
+  const BRANDING_IMAGE_KEYS = ["compLogoLight", "compLogoDark", "favicon", "ogImage"];
+  const [compLogoLight, setCompLogoLight] = useState("");
+  const [compLogoDark, setCompLogoDark] = useState("");
+  const [favicon, setFavicon] = useState("");
+  const [ogImage, setOgImage] = useState("");
+  const [brandingLoaded, setBrandingLoaded] = useState(false);
 
   // Company Information State
   const [compAddress, setCompAddress] = useState(() => getInit("compAddress", ""));
   const [compCity, setCompCity] = useState(() => getInit("compCity", ""));
   const [compState, setCompState] = useState(() => getInit("compState", ""));
-  const [compCountry, setCompCountry] = useState(() => getInit("compCountry", "United States"));
+  const [compCountry, setCompCountry] = useState(() => getInit("compCountry", ""));
   const [compZip, setCompZip] = useState(() => getInit("compZip", ""));
   const [compPhone, setCompPhone] = useState(() => getInit("compPhone", ""));
   const [compEmail, setCompEmail] = useState(() => getInit("compEmail", ""));
@@ -718,13 +814,13 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   const [pdfShowSignatureContract, setPdfShowSignatureContract] = useState(() => getInit("pdfShowSignatureContract", true));
   const [pdfShowSignatureProposal, setPdfShowSignatureProposal] = useState(() => getInit("pdfShowSignatureProposal", true));
   const [pdfSignatureImage, setPdfSignatureImage] = useState(() => getInit("pdfSignatureImage", ""));
-  const [pdfFormatInvoice, setPdfFormatInvoice] = useState(() => getInit("pdfFormatInvoice", "a4"));
-  const [pdfFormatEstimate, setPdfFormatEstimate] = useState(() => getInit("pdfFormatEstimate", "a4"));
-  const [pdfFormatProposal, setPdfFormatProposal] = useState(() => getInit("pdfFormatProposal", "a4"));
-  const [pdfFormatPayment, setPdfFormatPayment] = useState(() => getInit("pdfFormatPayment", "a4"));
-  const [pdfFormatCN, setPdfFormatCN] = useState(() => getInit("pdfFormatCN", "a4"));
-  const [pdfFormatContract, setPdfFormatContract] = useState(() => getInit("pdfFormatContract", "a4"));
-  const [pdfFormatStatement, setPdfFormatStatement] = useState(() => getInit("pdfFormatStatement", "a4"));
+  const [pdfFormatInvoice, setPdfFormatInvoice] = useState(() => getInit("pdfFormatInvoice", "A4 Portrait"));
+  const [pdfFormatEstimate, setPdfFormatEstimate] = useState(() => getInit("pdfFormatEstimate", "A4 Portrait"));
+  const [pdfFormatProposal, setPdfFormatProposal] = useState(() => getInit("pdfFormatProposal", "A4 Portrait"));
+  const [pdfFormatPayment, setPdfFormatPayment] = useState(() => getInit("pdfFormatPayment", "A4 Portrait"));
+  const [pdfFormatCN, setPdfFormatCN] = useState(() => getInit("pdfFormatCN", "A4 Portrait"));
+  const [pdfFormatContract, setPdfFormatContract] = useState(() => getInit("pdfFormatContract", "A4 Portrait"));
+  const [pdfFormatStatement, setPdfFormatStatement] = useState(() => getInit("pdfFormatStatement", "A4 Portrait"));
 
   // E-Sign State
   const [esignProposal, setEsignProposal] = useState(() => getInit("esignProposal", true));
@@ -756,6 +852,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   const [smsTriggerContExpire, setSmsTriggerContExpire] = useState(() => getInit("smsTriggerContExpire", ""));
   const [smsTriggerContSign, setSmsTriggerContSign] = useState(() => getInit("smsTriggerContSign", ""));
   const [smsTriggerStaffReminder, setSmsTriggerStaffReminder] = useState(() => getInit("smsTriggerStaffReminder", ""));
+  const [testSmsPhone, setTestSmsPhone] = useState("");
+  const [isTestingSms, setIsTestingSms] = useState(false);
 
   // Cron State
   const [cronInvoiceHour, setCronInvoiceHour] = useState(() => getInit("cronInvoiceHour", "09:00"));
@@ -794,8 +892,6 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
   const [emailQueueSkipAttachments, setEmailQueueSkipAttachments] = useState(() => getInit("emailQueueSkipAttachments", true));
   const [testEmail, setTestEmail] = useState("");
   const [isTestingEmail, setIsTestingEmail] = useState(false);
-  const [upgradeFunc, setUpgradeFunc] = useState(() => getInit("upgradeFunc", "new"));
-  const [purchaseKey, setPurchaseKey] = useState(() => getInit("purchaseKey", ""));
   const [systemInfo, setSystemInfo] = useState<any[]>([]);
   const [isLoadingSystemInfo, setIsLoadingSystemInfo] = useState(false);
   const [emailSubTab, setEmailSubTab] = useState("smtp");
@@ -843,6 +939,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
     invTerms: [invTerms, setInvTerms],
     invPdfFormat: [invPdfFormat, setInvPdfFormat],
     propPrefix: [propPrefix, setPropPrefix],
+    propNextNumber: [propNextNumber, setPropNextNumber],
     propDueAfter: [propDueAfter, setPropDueAfter],
     propPipelineLimit: [propPipelineLimit, setPropPipelineLimit],
     propPipelineSort: [propPipelineSort, setPropPipelineSort],
@@ -1196,8 +1293,6 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
     emailSignature: [emailSignature, setEmailSignature],
     emailHeader: [emailHeader, setEmailHeader],
     emailFooter: [emailFooter, setEmailFooter],
-    upgradeFunc: [upgradeFunc, setUpgradeFunc],
-    purchaseKey: [purchaseKey, setPurchaseKey],
     emailQueueEnabled: [emailQueueEnabled, setEmailQueueEnabled],
     emailQueueSkipAttachments: [emailQueueSkipAttachments, setEmailQueueSkipAttachments],
   };
@@ -1211,7 +1306,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
           if (stateMapping[s.name]) {
             const [currentVal, setter] = stateMapping[s.name];
             let val = s.value;
-            if (s.name === "companyName" && (val === "CRM Pro Inc." || val === "Fuerte CRM" || val === "Fuerte Developers" || val === "CRMPro" || val === "Trinetra TechnoWorld")) {
+            // Only the platform's placeholder name (global row, no tenant) is
+            // hidden — a company's own name is shown even if it matches one.
+            if (s.name === "companyName" && !s.tenant_id && (val === "CRM Pro Inc." || val === "Fuerte CRM" || val === "Fuerte Developers" || val === "CRMPro" || val === "Trinetra TechnoWorld")) {
               val = "";
             }
 
@@ -1222,10 +1319,15 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
               val = Number(val);
             } else if (Array.isArray(currentVal)) {
               try { val = typeof val === "string" ? JSON.parse(val) : (Array.isArray(val) ? val : []); } catch (e) { val = []; }
+            } else if (typeof currentVal === "string" && typeof val === "number") {
+              // e.g. Time Format stored as 24 — the dropdown values are strings.
+              val = String(val);
             }
+            if (s.name === "locLanguage" && typeof val === "string") val = val.toLowerCase();
             setter(val);
           }
         });
+        setBrandingLoaded(true);
       }
     } catch (error: any) {
       toast.error(error.message || "Failed to load settings");
@@ -1247,6 +1349,36 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
 
   const handleSave = async () => {
+    // General Settings text fields are cleaned up before saving.
+    const cleanName = String(companyName || "").trim();
+    if (!cleanName) {
+      toast.error("Company Name is required.");
+      return;
+    }
+    const cleanDomain = String(companyDomain || "").trim().toLowerCase()
+      .replace(/^[a-z]+:\/\//, "")
+      .split(/[/?#]/)[0];
+    if (cleanDomain && !/^[a-z0-9-]+(\.[a-z0-9-]+)+(:\d+)?$/.test(cleanDomain)) {
+      toast.error("Company Main Domain must look like company.com");
+      return;
+    }
+    const cleanAgentName = String(aiAgentName || "").trim() || "CRM Agent";
+    const cleanFileTypes = [...new Set(String(allowedFileTypes || "").split(/[\s,;]+/)
+      .map((t) => t.trim().toLowerCase().replace(/^\*?\./, ""))
+      .filter(Boolean))]
+      .map((t) => "." + t)
+      .join(",");
+    setCompanyName(cleanName);
+    setCompanyDomain(cleanDomain);
+    setAiAgentName(cleanAgentName);
+    setAllowedFileTypes(cleanFileTypes);
+    const cleaned: Record<string, string> = {
+      companyName: cleanName,
+      companyDomain: cleanDomain,
+      aiAgentName: cleanAgentName,
+      allowedFileTypes: cleanFileTypes,
+    };
+
     try {
       setIsSaving(true);
       const settingsToSave = Object.keys(stateMapping)
@@ -1255,8 +1387,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
         // fallback, not a saved value, and the API rejects non-base64 data
         // URLs — sending it made every Save fail with "Invalid image data".
         .filter(key => !(key === "favicon" && typeof stateMapping[key][0] === "string" && stateMapping[key][0].startsWith("data:image/svg+xml,")))
+        // Never save the image fields before their stored values loaded —
+        // they start empty and would wipe the company's logos.
+        .filter(key => brandingLoaded || !BRANDING_IMAGE_KEYS.includes(key))
         .map(key => {
-          let val = stateMapping[key][0];
+          let val = key in cleaned ? cleaned[key] : stateMapping[key][0];
           if (Array.isArray(val)) val = JSON.stringify(val);
           return {
             name: key,
@@ -1264,6 +1399,16 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
           };
         });
       await settingsService.updateSettings({ settings: settingsToSave });
+
+      // Uploaded images go up as data URLs and are stored as file names; take
+      // the stored names back so the next Save doesn't upload them again.
+      const fresh = await settingsService.getSettings();
+      if (Array.isArray(fresh)) {
+        BRANDING_IMAGE_KEYS.forEach((key) => {
+          const row = fresh.find((s: any) => s.name === key);
+          stateMapping[key][1](row?.value || "");
+        });
+      }
 
       // Refresh global settings context to apply instant effects like RTL
       await refreshGlobalSettings();
@@ -1388,80 +1533,42 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                 <CardContent className="p-6 space-y-8">
                   {/* Logos Section */}
                   <div className="flex flex-col gap-6">
-                    <div className="space-y-3">
-                      <Label className="text-sm font-semibold">Company Logo Light</Label>
-                      <div className="flex items-center gap-3">
-                        <Input
-                          type="file"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => setCompLogoLight(reader.result as string);
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                          className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
-                        />
-                        {compLogoLight && <img src={resolveImageUrl(compLogoLight)} className="h-8 w-auto border rounded p-1" alt="Logo Light" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
-                      </div>
+                    <p className="text-xs text-muted-foreground">Upload, change or delete an image here, then click <b>Save Changes</b> to apply it.</p>
+                    <ImageSettingField
+                      label="Company Logo Light"
+                      value={compLogoLight}
+                      onChange={setCompLogoLight}
+                      emptyHint="No logo: the Dark logo (or the Social Share Image) is used instead, otherwise the company initial."
+                    />
+                    <div className="pt-4 border-t">
+                      <ImageSettingField
+                        label="Company Logo Dark"
+                        value={compLogoDark}
+                        onChange={setCompLogoDark}
+                        dark
+                        emptyHint="No dark logo: the Light logo is used on dark backgrounds."
+                      />
                     </div>
-                    <div className="space-y-3 pt-4 border-t">
-                      <Label className="text-sm font-semibold">Company Logo Dark</Label>
-                      <div className="flex items-center gap-3">
-                        <Input
-                          type="file"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => setCompLogoDark(reader.result as string);
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                          className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
-                        />
-                        {compLogoDark && <img src={resolveImageUrl(compLogoDark)} className="h-8 w-auto bg-slate-800 border rounded p-1" alt="Logo Dark" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
-                      </div>
+                    <div className="pt-4 border-t">
+                      <ImageSettingField
+                        label="Favicon"
+                        value={favicon}
+                        onChange={setFavicon}
+                        accept="image/png,image/x-icon,image/vnd.microsoft.icon,image/svg+xml,image/jpeg"
+                        previewClassName="h-8 w-8"
+                        maxSizeMB={1}
+                        emptyHint="No favicon: the browser tab shows the first letter of the company name."
+                      />
                     </div>
-                    <div className="space-y-3 pt-4 border-t">
-                      <Label className="text-sm font-semibold">Favicon</Label>
-                      <div className="flex items-center gap-3">
-                        <Input
-                          type="file"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => setFavicon(reader.result as string);
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                          className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
-                        />
-                        {favicon && <img src={resolveImageUrl(favicon)} className="h-6 w-6 border rounded p-0.5" alt="Favicon" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
-                      </div>
-                    </div>
-                    <div className="space-y-3 pt-4 border-t">
-                      <Label className="text-sm font-semibold">Social Share Image (OG Image)</Label>
-                      <p className="text-xs text-muted-foreground -mt-1">
-                        Shown as the preview thumbnail when a link to this CRM is shared on social media, Slack, WhatsApp, etc. Works best at 1200×630px.
-                      </p>
-                      <div className="flex items-center gap-3">
-                        <Input
-                          type="file"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => setOgImage(reader.result as string);
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                          className="max-w-md h-9 py-1 file:text-xs file:font-semibold"
-                        />
-                        {ogImage && <img src={resolveImageUrl(ogImage)} className="h-14 w-auto border rounded p-1" alt="OG Image" onError={(e) => { e.currentTarget.style.display = 'none'; }} />}
-                      </div>
+                    <div className="pt-4 border-t">
+                      <ImageSettingField
+                        label="Social Share Image (OG Image)"
+                        description="Shown as the preview thumbnail when a link to this CRM is shared on social media, Slack, WhatsApp, etc. Works best at 1200×630px."
+                        value={ogImage}
+                        onChange={setOgImage}
+                        previewClassName="max-h-14"
+                        maxSizeMB={5}
+                      />
                     </div>
                   </div>
 
@@ -1484,6 +1591,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         onChange={(e) => setCompanyDomain(e.target.value)}
                         className="max-w-md"
                       />
+                      <p className="text-xs text-muted-foreground">Your company's website domain, e.g. company.com (https:// and paths are removed automatically).</p>
                     </div>
                     <div className="space-y-2 pt-2 border-t">
                       <Label className="text-sm font-semibold flex items-center gap-2">
@@ -1541,6 +1649,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       onChange={(e) => setAllowedFileTypes(e.target.value)}
                       className="max-w-md"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Only these file types can be attached to customers, leads, tasks, projects, tickets and the Media manager. Separate with commas. Leave empty to use the default list (.png,.jpg,.jpeg,.pdf,.doc,.docx,.xls,.xlsx,.zip,.rar,.txt).
+                    </p>
                   </div>
 
                 </CardContent>
@@ -1614,9 +1725,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       />
                     </div>
                     <div className="space-y-2 pt-4 border-t">
-                      <Label className="text-sm font-semibold">Country Code</Label>
+                      <Label className="text-sm font-semibold">Country</Label>
                       <Input
-                        placeholder="e.g. US, IN, GB"
+                        placeholder="e.g. India"
                         className="max-w-md"
                         value={compCountry}
                         onChange={(e) => setCompCountry(e.target.value)}
@@ -1667,9 +1778,15 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         className="max-w-md min-h-[120px] font-mono text-xs leading-relaxed"
                         value={compInfoFormat}
                         onChange={(e) => setCompInfoFormat(e.target.value)}
+                        placeholder={"{address}\n{city}, {state} {zip_code}\n{country_code}\nPhone: {phone}\nEmail: {email}\nGSTIN: {vat_number}"}
                       />
                       <p className="text-xs text-muted-foreground mt-2">
-                        Available merge fields: <code className="bg-muted px-1 rounded">{"{company_name}"}</code>, <code className="bg-muted px-1 rounded">{"{address}"}</code>, <code className="bg-muted px-1 rounded">{"{city}"}</code>, etc.
+                        Decides how the company details below the company name look on invoices, estimates, proposals and credit notes (preview and PDF). One line per row; a line whose fields are all empty is skipped. Leave empty for the default layout shown above.
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Merge fields: {COMPANY_INFO_MERGE_FIELDS.map((f, i) => (
+                          <span key={f}>{i > 0 && ", "}<code className="bg-muted px-1 rounded">{f}</code></span>
+                        ))}
                       </p>
                     </div>
                   </div>
@@ -1694,8 +1811,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           <SelectValue placeholder="Select date format" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="dmy">DD/MM/YYYY</SelectItem>
-                          <SelectItem value="mdy">MM/DD/YYYY</SelectItem>
+                          <SelectItem value="dmy">DD-MM-YYYY</SelectItem>
+                          <SelectItem value="mdy">MM-DD-YYYY</SelectItem>
                           <SelectItem value="ymd">YYYY-MM-DD</SelectItem>
                         </SelectContent>
                       </Select>
@@ -1716,17 +1833,15 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                     <div className="space-y-2 pt-4 border-t">
                       <Label className="text-sm font-semibold">Default Timezone</Label>
-                      <Select value={locTimezone} onValueChange={setLocTimezone}>
-                        <SelectTrigger className="max-w-md">
-                          <SelectValue placeholder="Select timezone" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ist">IST (UTC+5:30)</SelectItem>
-                          <SelectItem value="utc">UTC</SelectItem>
-                          <SelectItem value="est">EST (UTC-5)</SelectItem>
-                          <SelectItem value="pst">PST (UTC-8)</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="max-w-md">
+                        <SearchableSelect
+                          options={TIME_ZONE_OPTIONS}
+                          value={resolveTimeZone(locTimezone) || locTimezone}
+                          onValueChange={(v: string) => setLocTimezone(v)}
+                          placeholder="Select timezone"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Dates and times across the CRM are shown in this timezone. Calendar dates (invoice date, due date…) never move to another day.</p>
                     </div>
 
                     <div className="space-y-2 pt-4 border-t">
@@ -2126,64 +2241,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     <CardTitle className="text-lg">System Update</CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="p-6 space-y-6">
-                  <div className="flex flex-col gap-6">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Purchase Key</Label>
-                      <Input
-                        type="password"
-                        placeholder="Enter your purchase key"
-                        className="max-w-md"
-                        value={purchaseKey}
-                        onChange={(e) => setPurchaseKey(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="flex flex-col md:flex-row gap-8 pt-4 border-t">
-                      <div className="space-y-1">
-                        <Label className="text-sm text-muted-foreground">Your Version</Label>
-                        <p className="text-lg font-bold">v3.1.0</p>
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-sm text-muted-foreground">Latest Version</Label>
-                        <p className="text-lg font-bold text-green-600">v3.2.5</p>
-                      </div>
-                    </div>
-
-                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex gap-3">
-                      <Settings className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                      <p className="text-sm text-amber-800 leading-relaxed">
-                        Before performing an update, it is strongly recommended to create a **full backup** of your current installation (files and database) and review the changelog.
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                      <CheckCircle2 className="h-5 w-5 text-green-600" />
-                      <span className="text-sm font-semibold text-green-800">An update is available</span>
-                    </div>
-
-                    <div className="flex flex-col gap-3 pt-4 border-t">
-                      <Label className="text-sm font-semibold">Upgrade Function</Label>
-                      <div className="flex flex-col gap-3 pt-1">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox id="up-new" checked={upgradeFunc === "new"} onCheckedChange={() => setUpgradeFunc("new")} />
-                          <label htmlFor="up-new" className="text-sm cursor-pointer select-none font-medium">New (from v2.3.2)</label>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Checkbox id="up-old" checked={upgradeFunc === "old"} onCheckedChange={() => setUpgradeFunc("old")} />
-                          <label htmlFor="up-old" className="text-sm cursor-pointer select-none font-medium">Old (prior to v2.3.2)</label>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pt-6 border-t">
-                      <Button className="w-full md:w-fit gap-2">
-                        <RefreshCw className="h-4 w-4" />
-                        Download Files
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
+                <SystemVersionPanel />
               </Card>
             )}
 
@@ -2195,68 +2253,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     <CardTitle className="text-lg">System/Server Information</CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[300px]">Variable Name</TableHead>
-                        <TableHead>Value</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {[
-                        { name: "OS", value: "Windows NT 10.0" },
-                        { name: "Node.js Version", value: "v18.16.0" },
-                        { name: "Mongoose Version", value: "v7.0.0" },
-                        { name: "Webserver", value: "Vite/Express" },
-                        { name: "Environment", value: "Development", status: "secondary" },
-                        { name: "Database Status", value: "Connected", status: "success" },
-                        { name: "Max Upload Size", value: "100.00 MB" },
-                        { name: "Memory Limit", value: "512.00 MB" },
-                        { name: "Execution Time", value: "300s" },
-                        { name: "Base URL", value: "http://localhost:5173/" },
-                        { name: "Installation Path", value: "D:\\CRM ALL\\" },
-                        { name: "Active Modules", value: "24", status: "success" },
-                        { name: "Cron Status", value: "Active", status: "success" },
-                        { name: "CSRF Protection", value: "Enabled", status: "success" },
-                        { name: "bcmath", value: "Enabled", status: "success" },
-                        { name: "max_input_vars", value: "1000" },
-                        { name: "upload_max_filesize", value: "100.00 MB" },
-                        { name: "post_max_size", value: "100.00 MB" },
-                        { name: "max_execution_time", value: "300s" },
-                        { name: "memory_limit", value: "512.00 MB" },
-                        { name: "allow_url_fopen", value: "Yes", status: "success" },
-                        { name: "Suhosin", value: "No", status: "outline" },
-                        { name: "Environment", value: "Development", status: "secondary" },
-                        { name: "Cloudflare", value: "No", status: "outline" },
-                        { name: "pipe.php permissions", value: "0644" },
-                        { name: "Customers Theme", value: "modern_v2" },
-                        { name: "Available customers themes", value: "modern_v2, dark_pro, classic" },
-                        { name: "Files Permissions", value: "Writable", status: "success" },
-                        { name: "React Extension 'curl'", value: "Yes", status: "success" },
-                        { name: "React Extension 'openssl'", value: "Yes", status: "success" },
-                        { name: "React Extension 'mbstring'", value: "Yes", status: "success" },
-                        { name: "React Extension 'iconv'", value: "Yes", status: "success" },
-                        { name: "React Extension 'IMAP'", value: "No", status: "outline" },
-                        { name: "React Extension 'GD'", value: "Yes", status: "success" },
-                        { name: "React Extension 'zip'", value: "Yes", status: "success" },
-                      ].map((item, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="text-muted-foreground"><span className="font-medium">{item.name}</span></TableCell>
-                          <TableCell>
-                            {item.status ? (
-                              <Badge variant={item.status as any} className="font-mono text-[10px] uppercase">
-                                {item.value}
-                              </Badge>
-                            ) : (
-                              <span className="font-mono text-sm">{item.value}</span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
+                <SystemInfoPanel />
               </Card>
             )}
 
@@ -2270,35 +2267,14 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                 </CardHeader>
                 <CardContent className="p-6 space-y-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Decimal Separator */}
-                    <div className="space-y-3">
-                      <Label className="text-sm font-semibold">Decimal Separator</Label>
-                      <Select value={decimalSeparator} onValueChange={setDecimalSeparator}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select decimal separator" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value=".">. (Dot)</SelectItem>
-                          <SelectItem value=",">, (Comma)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Thousand Separator */}
-                    <div className="space-y-3">
-                      <Label className="text-sm font-semibold">Thousand Separator</Label>
-                      <Select value={thousandSeparator} onValueChange={setThousandSeparator}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select thousand separator" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value=",">, (Comma)</SelectItem>
-                          <SelectItem value=".">. (Dot)</SelectItem>
-                          <SelectItem value="'">' (Apostrophe)</SelectItem>
-                          <SelectItem value="none">None</SelectItem>
-                          <SelectItem value=" ">Space</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    {/* Decimal / Thousand Separator: money formatting comes from each currency */}
+                    <div className="space-y-2 md:col-span-2 rounded-md border bg-muted/30 p-4">
+                      <Label className="text-sm font-semibold">Decimal &amp; Thousand Separator</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Separators are set per currency. Edit them in{" "}
+                        <Link to="/admin/setup/finance/currencies" className="text-primary underline underline-offset-2">Setup → Finance → Currencies</Link>{" "}
+                        (Decimal Separator / Thousand Separator of the currency).
+                      </p>
                     </div>
                   </div>
 
@@ -2383,18 +2359,20 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* Default Tax */}
                   <div className="space-y-3 pt-6 border-t">
                     <Label className="text-sm font-semibold">Default Tax</Label>
-                    <Select value={defaultTax} onValueChange={setDefaultTax}>
+                    <Select value={defaultTaxValue} onValueChange={setDefaultTax}>
                       <SelectTrigger className="max-w-md">
                         <SelectValue placeholder="Select default tax" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="none">No Tax</SelectItem>
-                        <SelectItem value="10">VAT 10%</SelectItem>
-                        <SelectItem value="15">GST 15%</SelectItem>
-                        <SelectItem value="18">GST 18%</SelectItem>
-                        <SelectItem value="20">VAT 20%</SelectItem>
+                        {(taxRates as any[]).map((t) => (
+                          <SelectItem key={t._id} value={t._id}>{t.name} {t.taxrate}%</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Pre-selected on new invoice items. Tax rates come from Setup → Finance → Tax Rates.
+                    </p>
                   </div>
 
                   {/* Remove decimals on zero decimals */}
@@ -2470,7 +2448,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     </div>
                     <div className="space-y-2 pt-4 border-t">
                       <Label className="text-sm font-semibold">Next Invoice Number</Label>
-                      <Input type="number" value={invNextNumber} onChange={(e) => setInvNextNumber(e.target.value)} className="max-w-md" />
+                      <Input type="number" min={1} value={invNextNumber} onChange={(e) => setInvNextNumber(e.target.value)} className="max-w-md" />
+                      <p className="text-xs text-muted-foreground">
+                        Next invoice will be <span className="font-mono font-semibold text-foreground">{invNumberPreview}</span>{" "}
+                        (Prefix + Number Format below + padding from Finance → General). Increases automatically after each invoice; numbers already used in this company are skipped.
+                      </p>
                     </div>
                     <div className="space-y-2 pt-4 border-t">
                       <Label className="text-sm font-semibold">Invoice due after (days)</Label>
@@ -2482,19 +2464,26 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   <div className="flex flex-col gap-6 pt-6 border-t">
                     {[
                       { id: "inv-staff-view", label: "Allow staff members to view invoices where they are assigned to", state: invAllowStaffView, setState: setInvAllowStaffView },
-                      { id: "inv-req-login", label: "Require client to be logged in to view invoice", state: invRequireLogin, setState: setInvRequireLogin },
+                      { id: "inv-req-login", label: "Require client to be logged in to view invoice", state: invRequireLogin, setState: setInvRequireLogin, unavailable: "Customer portal invoices are not live yet" },
                       { id: "inv-del-last", label: "Delete invoice allowed only on last invoice", state: invDeleteOnlyLast, setState: setInvDeleteOnlyLast },
                       { id: "inv-dec-del", label: "Decrement invoice number on delete", state: invDecrementOnDelete, setState: setInvDecrementOnDelete },
-                      { id: "inv-ex-draft", label: "Exclude invoices with draft status from customers area", state: invExcludeDraft, setState: setInvExcludeDraft },
+                      { id: "inv-ex-draft", label: "Exclude invoices with draft status from customers area", state: invExcludeDraft, setState: setInvExcludeDraft, unavailable: "Customer portal invoices are not live yet" },
                       { id: "inv-show-agent", label: "Show Sale Agent On Invoice", state: invShowSaleAgent, setState: setInvShowSaleAgent },
                       { id: "inv-show-proj", label: "Show Project Name On Invoice", state: invShowProject, setState: setInvShowProject },
                       { id: "inv-show-paid", label: "Show Total Paid On Invoice", state: invShowTotalPaid, setState: setInvShowTotalPaid },
                       { id: "inv-show-cred", label: "Show Credits Applied On Invoice", state: invShowCredits, setState: setInvShowCredits },
                       { id: "inv-show-due", label: "Show Amount Due On Invoice", state: invShowAmountDue, setState: setInvShowAmountDue },
-                      { id: "inv-att-pdf", label: "Attach invoice PDF when sending payment receipt to email", state: invAttachPdf, setState: setInvAttachPdf },
-                    ].map((item, idx) => (
+                      { id: "inv-att-pdf", label: "Attach invoice PDF when sending payment receipt to email", state: invAttachPdf, setState: setInvAttachPdf, unavailable: "Payment receipt emails are not sent yet" },
+                    ].map((item: { id: string; label: string; state: boolean; setState: (v: boolean) => void; unavailable?: string }, idx) => (
                       <div key={item.id} className={cn("flex flex-col gap-2", idx > 0 && "pt-4 border-t")}>
-                        <Label className="text-sm font-semibold">{item.label}</Label>
+                        <Label className="text-sm font-semibold">
+                          {item.label}
+                          {item.unavailable && (
+                            <Badge variant="outline" className="ml-2 align-middle text-[10px] font-normal text-muted-foreground" title={item.unavailable}>
+                              Not available yet
+                            </Badge>
+                          )}
+                        </Label>
                         <div className="flex items-center space-x-6 pt-1">
                           <div className="flex items-center space-x-2">
                             <Checkbox id={`${item.id}-yes`} checked={item.state === true} onCheckedChange={() => item.setState(true)} />
@@ -2573,11 +2562,20 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       <Input value={propPrefix} onChange={(e) => setPropPrefix(e.target.value)} className="max-w-md" />
                     </div>
                     <div className="space-y-2 pt-4 border-t">
-                      <Label className="text-sm font-semibold">Proposal Due After (days)</Label>
-                      <Input type="number" value={propDueAfter} onChange={(e) => setPropDueAfter(e.target.value)} className="max-w-md" />
+                      <Label className="text-sm font-semibold">Next Proposal Number</Label>
+                      <Input type="number" min={1} value={propNextNumber} onChange={(e) => setPropNextNumber(e.target.value)} className="max-w-md" />
+                      <p className="text-xs text-muted-foreground">
+                        Next proposal will be <span className="font-mono font-semibold text-foreground">{numberPreview(propPrefix, propNextNumber, "number_based")}</span>{" "}
+                        (padding from Finance → General). Increases automatically after each proposal.
+                      </p>
                     </div>
                     <div className="space-y-2 pt-4 border-t">
-                      <Label className="text-sm font-semibold">Pipeline limit per status</Label>
+                      <Label className="text-sm font-semibold">Proposal Due After (days)</Label>
+                      <Input type="number" value={propDueAfter} onChange={(e) => setPropDueAfter(e.target.value)} className="max-w-md" />
+                      <p className="text-xs text-muted-foreground">"Open Till" of a new proposal = proposal date + these days.</p>
+                    </div>
+                    <div className="space-y-2 pt-4 border-t">
+                      <Label className="text-sm font-semibold">Pipeline limit per status{notAvailable("There is no pipeline (Kanban) view yet")}</Label>
                       <Input type="number" value={propPipelineLimit} onChange={(e) => setPropPipelineLimit(e.target.value)} className="max-w-md" />
                     </div>
                   </div>
@@ -2585,7 +2583,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* Sorting Section */}
                   <div className="flex flex-col gap-6 pt-6 border-t">
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Default pipeline sort</Label>
+                      <Label className="text-sm font-semibold">Default pipeline sort{notAvailable("There is no pipeline (Kanban) view yet")}</Label>
                       <Select value={propPipelineSort} onValueChange={setPropPipelineSort}>
                         <SelectTrigger className="max-w-md">
                           <SelectValue placeholder="Select sort field" />
@@ -2618,12 +2616,12 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   <div className="flex flex-col gap-6 pt-6 border-t">
                     {[
                       { id: "prop-show-proj", label: "Show Project Name On Proposal", state: propShowProject, setState: setPropShowProject },
-                      { id: "prop-ex-draft", label: "Exclude proposals with draft status from customers area", state: propExcludeDraft, setState: setPropExcludeDraft },
-                      { id: "prop-auto-conv", label: "Auto convert the proposal to invoice after client accept (only customers related proposals)", state: propAutoConvert, setState: setPropAutoConvert },
+                      { id: "prop-ex-draft", label: "Exclude proposals with draft status from customers area", state: propExcludeDraft, setState: setPropExcludeDraft, unavailable: "Customer portal proposals are not live yet" },
+                      { id: "prop-auto-conv", label: "Auto convert the proposal to invoice after client accept (only customers related proposals)", state: propAutoConvert, setState: setPropAutoConvert, unavailable: "Clients cannot accept proposals online yet" },
                       { id: "prop-staff-view", label: "Allow staff members to view proposals where they are assigned to", state: propAllowStaffView, setState: setPropAllowStaffView },
-                    ].map((item, idx) => (
+                    ].map((item: { id: string; label: string; state: boolean; setState: (v: boolean) => void; unavailable?: string }, idx) => (
                       <div key={item.id} className={cn("flex flex-col gap-2", idx > 0 && "pt-4 border-t")}>
-                        <Label className="text-sm font-semibold">{item.label}</Label>
+                        <Label className="text-sm font-semibold">{item.label}{item.unavailable && notAvailable(item.unavailable)}</Label>
                         <div className="flex items-center space-x-6 pt-1">
                           <div className="flex items-center space-x-2">
                             <Checkbox id={`${item.id}-yes`} checked={item.state === true} onCheckedChange={() => item.setState(true)} />
@@ -2641,6 +2639,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* Format Section */}
                   <div className="space-y-4 pt-6 border-t">
                     <Label className="text-sm font-semibold">Proposal Info Format (PDF and HTML)</Label>
+                    <p className="text-xs text-muted-foreground mt-[-8px]">Replaces the "Bill To" block of the proposal preview. Leave empty for the default layout.</p>
                     <Textarea
                       value={propInfoFormat}
                       onChange={(e) => setPropInfoFormat(e.target.value)}
@@ -2671,28 +2670,33 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     </div>
                     <div className="space-y-2 pt-4 border-t">
                       <Label className="text-sm font-semibold">Next estimate Number</Label>
-                      <Input type="number" value={estNextNumber} onChange={(e) => setEstNextNumber(e.target.value)} className="max-w-md" />
+                      <Input type="number" min={1} value={estNextNumber} onChange={(e) => setEstNextNumber(e.target.value)} className="max-w-md" />
+                      <p className="text-xs text-muted-foreground">
+                        Next estimate will be <span className="font-mono font-semibold text-foreground">{numberPreview(estPrefix, estNextNumber, estNumberFormat)}</span>{" "}
+                        (Prefix + Number Format below + padding from Finance → General). Numbers already used in this company are skipped.
+                      </p>
                     </div>
                     <div className="space-y-2 pt-4 border-t">
                       <Label className="text-sm font-semibold">Estimate Due After (days)</Label>
                       <Input type="number" value={estDueAfter} onChange={(e) => setEstDueAfter(e.target.value)} className="max-w-md" />
+                      <p className="text-xs text-muted-foreground">"Expiry Date" of a new estimate = estimate date + these days.</p>
                     </div>
                   </div>
 
                   {/* Toggles List */}
                   <div className="flex flex-col gap-6 pt-6 border-t">
                     {[
-                      { id: "est-del-last", label: "Delete estimate allowed only on last invoice", state: estDeleteOnlyLast, setState: setEstDeleteOnlyLast },
+                      { id: "est-del-last", label: "Delete estimate allowed only on last estimate", state: estDeleteOnlyLast, setState: setEstDeleteOnlyLast },
                       { id: "est-dec-del", label: "Decrement estimate number on delete", state: estDecrementOnDelete, setState: setEstDecrementOnDelete },
                       { id: "est-staff-view", label: "Allow staff members to view estimates where they are assigned to", state: estAllowStaffView, setState: setEstAllowStaffView },
-                      { id: "est-req-login", label: "Require client to be logged in to view estimate", state: estRequireLogin, setState: setEstRequireLogin },
+                      { id: "est-req-login", label: "Require client to be logged in to view estimate", state: estRequireLogin, setState: setEstRequireLogin, unavailable: "Customer portal estimates are not live yet" },
                       { id: "est-show-agent", label: "Show Sale Agent On Estimate", state: estShowSaleAgent, setState: setEstShowSaleAgent },
                       { id: "est-show-proj", label: "Show Project Name On Estimate", state: estShowProject, setState: setEstShowProject },
-                      { id: "est-auto-conv", label: "Auto convert the estimate to invoice after client accept", state: estAutoConvert, setState: setEstAutoConvert },
-                      { id: "est-ex-draft", label: "Exclude estimates with draft status from customers area", state: estExcludeDraft, setState: setEstExcludeDraft },
-                    ].map((item, idx) => (
+                      { id: "est-auto-conv", label: "Auto convert the estimate to invoice after client accept", state: estAutoConvert, setState: setEstAutoConvert, unavailable: "Clients cannot accept estimates online yet — use Convert to Invoice" },
+                      { id: "est-ex-draft", label: "Exclude estimates with draft status from customers area", state: estExcludeDraft, setState: setEstExcludeDraft, unavailable: "Customer portal estimates are not live yet" },
+                    ].map((item: { id: string; label: string; state: boolean; setState: (v: boolean) => void; unavailable?: string }, idx) => (
                       <div key={item.id} className={cn("flex flex-col gap-2", idx > 0 && "pt-4 border-t")}>
-                        <Label className="text-sm font-semibold">{item.label}</Label>
+                        <Label className="text-sm font-semibold">{item.label}{item.unavailable && notAvailable(item.unavailable)}</Label>
                         <div className="flex items-center space-x-6 pt-1">
                           <div className="flex items-center space-x-2">
                             <Checkbox id={`${item.id}-yes`} checked={item.state === true} onCheckedChange={() => item.setState(true)} />
@@ -2728,12 +2732,12 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* Pipeline Section */}
                   <div className="flex flex-col gap-6 pt-6 border-t">
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Pipeline limit per status</Label>
+                      <Label className="text-sm font-semibold">Pipeline limit per status{notAvailable("There is no pipeline (Kanban) view yet")}</Label>
                       <Input type="number" value={estPipelineLimit} onChange={(e) => setEstPipelineLimit(e.target.value)} className="max-w-md" />
                     </div>
 
                     <div className="space-y-2 pt-4 border-t">
-                      <Label className="text-sm font-semibold">Default pipeline sort</Label>
+                      <Label className="text-sm font-semibold">Default pipeline sort{notAvailable("There is no pipeline (Kanban) view yet")}</Label>
                       <Select value={estPipelineSort} onValueChange={setEstPipelineSort}>
                         <SelectTrigger className="max-w-md">
                           <SelectValue placeholder="Select sort field" />
@@ -2808,10 +2812,15 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       </div>
                       <Input
                         type="number"
+                        min={1}
                         value={cnNextNumber}
                         onChange={(e) => setCnNextNumber(e.target.value)}
                         className="max-w-md"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Next credit note will be <span className="font-mono font-semibold text-foreground">{numberPreview(cnPrefix, cnNextNumber, cnNumberFormat)}</span>{" "}
+                        (Prefix + Number Format below + padding from Finance → General). Numbers already used in this company are skipped.
+                      </p>
                     </div>
                   </div>
 
@@ -2893,7 +2902,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
-                        <Label className="text-sm font-semibold">Show subscriptions in customers area?</Label>
+                        <Label className="text-sm font-semibold">Show subscriptions in customers area?{notAvailable("Customer portal subscriptions are not live yet")}</Label>
                       </div>
                       <div className="flex items-center space-x-6 pt-1">
                         <div className="flex items-center space-x-2">
@@ -2910,7 +2919,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                   {/* Payment Succeeded Actions */}
                   <div className="space-y-4 pt-6 border-t">
-                    <Label className="text-sm font-semibold">After subscription payment is succeeded</Label>
+                    <Label className="text-sm font-semibold">After subscription payment is succeeded{notAvailable("Subscriptions are not charged through Stripe yet, so no payment event happens")}</Label>
                     <div className="flex flex-col gap-3 pt-1">
                       {[
                         { id: "sub-act-both", label: "Send Invoice and Payment Receipt", value: "send_both" },
@@ -2934,7 +2943,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         <Mail className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm font-medium">Subscription Payment Succeeded</span>
                       </div>
-                      <p className="text-xs text-muted-foreground">This template is sent automatically after successful payment.</p>
+                      <p className="text-xs text-muted-foreground">This template will be sent after a successful payment once Stripe subscription billing is connected.</p>
                     </div>
                   </div>
                 </CardContent>
@@ -3702,13 +3711,13 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           {/* Fixed Fee Input */}
                           <div className="space-y-2 pt-4 border-t">
                             <Label className="text-sm font-semibold">Fixed Fee</Label>
-                            <Input value={stripeFixedFee} onChange={(e) => setStripeFixedFee(e.target.value)} className="max-w-md" />
+                            <Input type="number" min="0" step="any" value={stripeFixedFee} onChange={(e) => setStripeFixedFee(e.target.value)} className="max-w-md" />
                           </div>
 
                           {/* Percentage Fee Input */}
                           <div className="space-y-2 pt-4 border-t">
                             <Label className="text-sm font-semibold">Percentage Fee</Label>
-                            <Input value={stripePercFee} onChange={(e) => setStripePercFee(e.target.value)} className="max-w-md" />
+                            <Input type="number" min="0" step="any" value={stripePercFee} onChange={(e) => setStripePercFee(e.target.value)} className="max-w-md" />
                           </div>
 
                           {/* Stripe Publishable Key Input */}
@@ -3985,7 +3994,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     <div className="flex flex-col gap-8">
                       {/* Theme */}
                       <div className="space-y-3">
-                        <Label className="text-sm font-bold">Default customers theme</Label>
+                        <Label className="text-sm font-bold">Default customers theme{notAvailable("Customer portal is not live yet")}</Label>
                         <Select value={custDefaultTheme} onValueChange={setCustDefaultTheme}>
                           <SelectTrigger className="max-w-md h-11 border-muted-foreground/30 focus:ring-primary">
                             <SelectValue placeholder="Select theme" />
@@ -4042,7 +4051,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                     {/* Visible Tabs */}
                     <div className="space-y-3 pt-6 border-t">
-                      <Label className="text-sm font-semibold">Visible Tabs (Profile)</Label>
+                      <Label className="text-sm font-semibold">Visible Tabs (Profile){notAvailable("Customer portal is not live yet")}</Label>
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
@@ -4110,7 +4119,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                     {/* Required Fields for Registration */}
                     <div className="space-y-3 pt-6 border-t">
-                      <Label className="text-sm font-semibold">Required fields for registration (customers area)</Label>
+                      <Label className="text-sm font-semibold">Required fields for registration (customers area){notAvailable("Customer portal is not live yet")}</Label>
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
@@ -4195,7 +4204,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         { id: 'allow-edit-bill', label: 'Allow primary contact to view/edit billing & shipping details', state: custAllowEditBilling, setState: setCustAllowEditBilling },
                       ].map((toggle) => (
                         <div key={toggle.id} className="flex flex-col gap-2">
-                          <Label className="text-sm font-semibold">{toggle.label}</Label>
+                          <Label className="text-sm font-semibold">{toggle.label}{notAvailable("Customer portal is not live yet")}</Label>
                           <div className="flex items-center space-x-6 pt-1">
                             <div className="flex items-center space-x-2">
                               <Checkbox id={`${toggle.id}-yes`} checked={toggle.state === true} onCheckedChange={() => toggle.setState(true)} />
@@ -4214,7 +4223,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     <div className="space-y-6 pt-6 border-t">
                       <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">
-                          <Label className="text-sm font-semibold">Contacts see only own files uploaded in customer area (files uploaded in customer profile)</Label>
+                          <Label className="text-sm font-semibold">Contacts see only own files uploaded in customer area (files uploaded in customer profile){notAvailable("Customer portal is not live yet")}</Label>
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -4239,7 +4248,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       </div>
 
                       <div className="flex flex-col gap-2">
-                        <Label className="text-sm font-semibold">Allow contacts to delete own files uploaded from customers area</Label>
+                        <Label className="text-sm font-semibold">Allow contacts to delete own files uploaded from customers area{notAvailable("Customer portal is not live yet")}</Label>
                         <div className="flex items-center space-x-6 pt-1">
                           <div className="flex items-center space-x-2">
                             <Checkbox id="del-file-yes" checked={custAllowDeleteOwnFiles === true} onCheckedChange={() => setCustAllowDeleteOwnFiles(true)} />
@@ -4257,7 +4266,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     <div className="space-y-6 pt-6 border-t">
                       <div className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">
-                          <Label className="text-sm font-semibold">Use Knowledge Base</Label>
+                          <Label className="text-sm font-semibold">Use Knowledge Base{notAvailable("Customer portal is not live yet")}</Label>
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -4282,7 +4291,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       </div>
 
                       <div className="flex flex-col gap-2">
-                        <Label className="text-sm font-semibold">Allow knowledge base to be viewed without registration</Label>
+                        <Label className="text-sm font-semibold">Allow knowledge base to be viewed without registration{notAvailable("Customer portal is not live yet")}</Label>
                         <div className="flex items-center space-x-6 pt-1">
                           <div className="flex items-center space-x-2">
                             <Checkbox id="kb-noreg-yes" checked={custKBNoReg === true} onCheckedChange={() => setCustKBNoReg(true)} />
@@ -4298,7 +4307,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                     {/* Estimate Request */}
                     <div className="space-y-2 pt-6 border-t">
-                      <Label className="text-sm font-semibold">Show Estimate request link in customers area?</Label>
+                      <Label className="text-sm font-semibold">Show Estimate request link in customers area?{notAvailable("Customer portal is not live yet")}</Label>
                       <Select value={custShowEstimateRequest} onValueChange={setCustShowEstimateRequest}>
                         <SelectTrigger className="max-w-md">
                           <SelectValue placeholder="Select form" />
@@ -4316,7 +4325,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                     {/* Default Contact Permissions */}
                     <div className="space-y-3 pt-6 border-t">
-                      <Label className="text-sm font-semibold">Default contact permissions</Label>
+                      <Label className="text-sm font-semibold">Default contact permissions{notAvailable("Customer portal is not live yet")}</Label>
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 p-4 bg-muted/20 rounded-lg">
                         {[
                           "Invoices", "Estimates", "Contracts", "Proposals", "Support", "Projects"
@@ -4382,6 +4391,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       onChange={(e) => setTaskKanbanLimit(parseInt(e.target.value) || 0)}
                       className="max-w-md h-11 border-muted-foreground/30"
                     />
+                    <p className="text-xs text-muted-foreground">Tasks shown per status column on the Kanban board before a &quot;Show more&quot; button. 0 = show all.</p>
                   </div>
 
                   {/* Toggles List */}
@@ -4396,7 +4406,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                       { id: "task-billable-def", label: "Billable option is by default checked when new task is created?", state: taskBillableDefault, setState: setTaskBillableDefault },
                     ].map((item, idx) => (
                       <div key={item.id} className={cn("flex flex-col gap-2", idx > 0 && "pt-6 border-t")}>
-                        <Label className="text-sm font-bold">{item.label}</Label>
+                        <Label className="text-sm font-bold">{item.label}{item.id === "task-comment-hr" && notAvailable("Task comments cannot be edited yet, only added")}{item.id === "task-stop-timers" && notAvailable("Only one task timer can run at a time already")}</Label>
                         <div className="flex items-center space-x-6 pt-1">
                           <div className="flex items-center space-x-2">
                             <Checkbox id={`${item.id}-yes`} checked={item.state === true} onCheckedChange={() => item.setState(true)} />
@@ -4529,7 +4539,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             { id: "sup-badge", label: "Enable support menu item badge", state: supEnableBadge, setState: setSupEnableBadge },
                           ].map((item, idx) => (
                             <div key={item.id} className={cn("flex flex-col gap-2", idx > 0 && "pt-6 border-t")}>
-                              <Label className="text-sm font-bold">{item.label}</Label>
+                              <Label className="text-sm font-bold">{item.label}{({"sup-disable-pub":"There is no public ticket link yet","sup-notify-assignee":"Ticket notifications are not sent yet","sup-notify-new":"Ticket notifications are not sent yet","sup-notify-reply":"Ticket notifications are not sent yet","sup-open-all":"Not used yet","sup-non-staff":"Customer portal is not live yet","sup-del-attach":"Not used yet","sup-cust-status":"Customer portal is not live yet","sup-cust-own":"Customer portal is not live yet","sup-badge":"Not used yet"} as Record<string, string>)[item.id] && notAvailable(({"sup-disable-pub":"There is no public ticket link yet","sup-notify-assignee":"Ticket notifications are not sent yet","sup-notify-new":"Ticket notifications are not sent yet","sup-notify-reply":"Ticket notifications are not sent yet","sup-open-all":"Not used yet","sup-non-staff":"Customer portal is not live yet","sup-del-attach":"Not used yet","sup-cust-status":"Customer portal is not live yet","sup-cust-own":"Customer portal is not live yet","sup-badge":"Not used yet"} as Record<string, string>)[item.id])}</Label>
                               <div className="flex items-center space-x-6 pt-1">
                                 <div className="flex items-center space-x-2">
                                   <Checkbox id={`${item.id}-yes`} checked={item.state === true} onCheckedChange={() => item.setState(true)} />
@@ -4623,7 +4633,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             { id: "pipe-actual-only", label: "Try to import only the actual ticket reply (without quoted/forwarded message)", state: supPipeImportActualOnly, setState: setSupPipeImportActualOnly },
                           ].map((item, idx) => (
                             <div key={item.id} className="flex flex-col gap-2 pt-6 border-t">
-                              <Label className="text-sm font-bold">{item.label}</Label>
+                              <Label className="text-sm font-bold">{item.label}{notAvailable("Email piping (tickets from email) is not set up")}</Label>
                               <div className="flex items-center space-x-6 pt-1">
                                 <div className="flex items-center space-x-2">
                                   <Checkbox id={`${item.id}-yes`} checked={item.state === true} onCheckedChange={() => item.setState(true)} />
@@ -4640,7 +4650,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
                         {/* Default Priority */}
                         <div className="space-y-3 pt-6 border-t">
-                          <Label className="text-sm font-bold">Default priority on piped ticket</Label>
+                          <Label className="text-sm font-bold">Default priority on piped ticket{notAvailable("Email piping (tickets from email) is not set up")}</Label>
                           <Select value={supPipeDefaultPriority} onValueChange={setSupPipeDefaultPriority}>
                             <SelectTrigger className="max-w-md h-11 border-muted-foreground/30">
                               <SelectValue placeholder="Select priority" />
@@ -4691,13 +4701,14 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* Default Status */}
                   <div className="space-y-3 pt-6 border-t">
                     <Label className="text-sm font-bold">Default status</Label>
-                    <Select value={leadDefaultStatus} onValueChange={setLeadDefaultStatus}>
+                    <Select value={idOrName(leadStatusList as any[], leadDefaultStatus)} onValueChange={(v) => setLeadDefaultStatus(v === "none" ? "" : v)}>
                       <SelectTrigger className="max-w-md h-11 border-muted-foreground/30">
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>
                       <SelectContent>
-                        {["Pending", "Followup", "Hot Lead", "Cold Lead", "Warm Lead", "Dead Lead", "Visit", "Requirement", "Meeting"].map(s => (
-                          <SelectItem key={s.toLowerCase()} value={s.toLowerCase()}>{s}</SelectItem>
+                        <SelectItem value="none">No default</SelectItem>
+                        {(leadStatusList as any[]).map((st: any) => (
+                          <SelectItem key={st._id} value={String(st._id)}>{st.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -4706,13 +4717,14 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   {/* Default Source */}
                   <div className="space-y-3 pt-6 border-t">
                     <Label className="text-sm font-bold">Default source</Label>
-                    <Select value={leadDefaultSource} onValueChange={setLeadDefaultSource}>
+                    <Select value={idOrName(leadSourceList as any[], leadDefaultSource)} onValueChange={(v) => setLeadDefaultSource(v === "none" ? "" : v)}>
                       <SelectTrigger className="max-w-md h-11 border-muted-foreground/30">
                         <SelectValue placeholder="Select source" />
                       </SelectTrigger>
                       <SelectContent>
-                        {["Facebook", "Field Visit", "Google", "Instagram", "Just Dial", "Lead Gorilla", "Referral", "Senior Referral"].map(s => (
-                          <SelectItem key={s.toLowerCase()} value={s.toLowerCase()}>{s}</SelectItem>
+                        <SelectItem value="none">No default</SelectItem>
+                        {(leadSourceList as any[]).map((src: any) => (
+                          <SelectItem key={src._id} value={String(src._id)}>{src.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -4829,6 +4841,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   </div>
                 </CardHeader>
                 <CardContent className="p-6 space-y-8">
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Not available yet — Google Calendar sync, Google Drive picker and reCAPTCHA are not connected. These keys are saved but not used.</div>
                   {/* Google API Section */}
                   <div className="space-y-6">
                     <div className="space-y-3">
@@ -4944,6 +4957,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   </div>
                 </CardHeader>
                 <CardContent className="p-6 space-y-8">
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Not available yet — real-time notifications use the CRM&apos;s own connection, not Pusher. These keys are saved but not used.</div>
                   {/* APP Credentials Section */}
                   <div className="space-y-6">
                     <div className="space-y-3">
@@ -5472,7 +5486,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             { id: "pdf-show-page", label: "Show page number on PDF", state: pdfShowPageNumber, setState: setPdfShowPageNumber },
                           ].map((item) => (
                             <div key={item.id} className="flex flex-col gap-2 py-2 border-b border-muted/30 last:border-0">
-                              <Label className="text-sm font-bold">{item.label}</Label>
+                              <Label className="text-sm font-bold">{item.label}{item.id === "pdf-show-pay" && notAvailable("Online invoice payment link comes with Payment Gateways")}</Label>
                               <div className="flex items-center space-x-6 pt-1">
                                 <div className="flex items-center space-x-2">
                                   <Checkbox id={`${item.id}-yes`} checked={item.state === true} onCheckedChange={() => item.setState(true)} />
@@ -5498,7 +5512,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             { id: "pdf-sig-prop", label: "Show PDF Signature on Proposal", state: pdfShowSignatureProposal, setState: setPdfShowSignatureProposal },
                           ].map((item, idx) => (
                             <div key={item.id} className={cn("flex flex-col gap-2 py-2", idx > 0 && "border-t pt-4")}>
-                              <Label className="text-sm font-bold">{item.label}</Label>
+                              <Label className="text-sm font-bold">{item.label}{(item.id === "pdf-sig-cn" || item.id === "pdf-sig-cont") && notAvailable("Credit note / contract PDFs use their own layout")}</Label>
                               <div className="flex items-center space-x-6 pt-1">
                                 <div className="flex items-center space-x-2">
                                   <Checkbox id={`${item.id}-yes`} checked={item.state === true} onCheckedChange={() => item.setState(true)} />
@@ -5588,7 +5602,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             { id: "pdf-fmt-stmt", label: "Statement", state: pdfFormatStatement, setState: setPdfFormatStatement },
                           ].map((item, idx) => (
                             <div key={item.id} className={cn("space-y-3", idx > 0 && "pt-6 border-t")}>
-                              <Label className="text-sm font-bold">{item.label}</Label>
+                              <Label className="text-sm font-bold">{item.label}{!["pdf-fmt-inv", "pdf-fmt-est", "pdf-fmt-prop"].includes(item.id) && notAvailable("Only invoice, estimate and proposal previews use this yet")}</Label>
                               <Select value={item.state} onValueChange={item.setState}>
                                 <SelectTrigger className="w-full h-11 border-muted-foreground/30">
                                   <SelectValue placeholder="Select format" />
@@ -5619,6 +5633,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                   </div>
                 </CardHeader>
                 <CardContent className="p-6 space-y-8">
+                  <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Not available yet — e-signatures need clients to accept estimates/proposals online (customer portal), which is not live yet. These options are saved but have no effect.</div>
                   <div className="grid grid-cols-1 gap-8 max-w-2xl">
                     {[
                       { id: "esign-prop", label: "Proposal", sublabel: "Require digital signature and identity confirmation on accept", state: esignProposal, setState: setEsignProposal },
@@ -5670,15 +5685,19 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     <div className="space-y-3">
                       <Label className="text-base font-bold">Active Tags</Label>
                       <div className="flex flex-col gap-3 pt-2">
-                        {tags.length > 0 ? (
-                          tags.map((tag) => (
+                        {tagsLoading && !(usedTags as any[]).length ? (
+                          <p className="text-sm text-muted-foreground">Loading tags…</p>
+                        ) : (usedTags as any[]).length > 0 ? (
+                          (usedTags as any[]).map(({ tag, count, modules }) => (
                             <div key={tag} className="flex items-center justify-between p-4 rounded-xl bg-primary/5 border border-primary/10 hover:bg-primary/10 transition-colors group">
                               <div className="flex items-center gap-3">
                                 <Tag className="h-4 w-4 text-primary/40" />
                                 <span className="text-sm font-semibold text-primary">{tag}</span>
+                                <span className="text-xs text-muted-foreground">{count} record{count === 1 ? "" : "s"} · {(modules || []).join(", ")}</span>
                               </div>
                               <button
-                                onClick={() => setTags(tags.filter(t => t !== tag))}
+                                title="Remove this tag from all records"
+                                onClick={() => removeTag(tag)}
                                 className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all lg:opacity-0 group-hover:opacity-100"
                               >
                                 <X className="h-4 w-4" />
@@ -5692,7 +5711,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           </div>
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground italic mt-4">Tags are dynamic. You can view existing tags and remove them from the system.</p>
+                      <p className="text-xs text-muted-foreground italic mt-4">Tags come from your Invoices, Estimates, Leads, Projects, Tickets and Tasks. Removing a tag takes it off every record that uses it (no need to click Save).</p>
                     </div>
                   </div>
                 </CardContent>
@@ -5745,7 +5764,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             <Label className="text-sm font-bold">Active</Label>
                             <div className="flex items-center space-x-6 pt-1">
                               <div className="flex items-center space-x-2">
-                                <Checkbox id="click-active-yes" checked={smsClickatellActive === true} onCheckedChange={() => setSmsClickatellActive(true)} />
+                                <Checkbox id="click-active-yes" checked={smsClickatellActive === true} onCheckedChange={() => {
+                                  setSmsClickatellActive(true);
+                                  setSmsMsg91Active(false);
+                                  setSmsTwilioActive(false);
+                                }} />
                                 <label htmlFor="click-active-yes" className="text-sm cursor-pointer select-none">Yes</label>
                               </div>
                               <div className="flex items-center space-x-2">
@@ -5819,7 +5842,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             <Label className="text-sm font-bold">Active</Label>
                             <div className="flex items-center space-x-6 pt-1">
                               <div className="flex items-center space-x-2">
-                                <Checkbox id="msg91-active-yes" checked={smsMsg91Active === true} onCheckedChange={() => setSmsMsg91Active(true)} />
+                                <Checkbox id="msg91-active-yes" checked={smsMsg91Active === true} onCheckedChange={() => {
+                                  setSmsClickatellActive(false);
+                                  setSmsMsg91Active(true);
+                                  setSmsTwilioActive(false);
+                                }} />
                                 <label htmlFor="msg91-active-yes" className="text-sm cursor-pointer select-none">Yes</label>
                               </div>
                               <div className="flex items-center space-x-2">
@@ -5897,7 +5924,11 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             <Label className="text-sm font-bold">Active</Label>
                             <div className="flex items-center space-x-6 pt-1">
                               <div className="flex items-center space-x-2">
-                                <Checkbox id="twilio-active-yes" checked={smsTwilioActive === true} onCheckedChange={() => setSmsTwilioActive(true)} />
+                                <Checkbox id="twilio-active-yes" checked={smsTwilioActive === true} onCheckedChange={() => {
+                                  setSmsClickatellActive(false);
+                                  setSmsMsg91Active(false);
+                                  setSmsTwilioActive(true);
+                                }} />
                                 <label htmlFor="twilio-active-yes" className="text-sm cursor-pointer select-none">Yes</label>
                               </div>
                               <div className="flex items-center space-x-2">
@@ -5909,6 +5940,50 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         </AccordionContent>
                       </AccordionItem>
                     </Accordion>
+
+                    {/* Send Test SMS Card */}
+                    <Card className="border shadow-sm">
+                      <CardHeader className="border-b bg-muted/30">
+                        <CardTitle className="text-lg">Send Test SMS</CardTitle>
+                      </CardHeader>
+                      <CardContent className="p-6 space-y-4">
+                        <p className="text-sm text-muted-foreground">
+                          Send a test SMS to make sure that your active SMS gateway credentials are valid and delivering. Make sure you have selected <strong>Active: Yes</strong> on a gateway above and clicked <strong>Save Settings</strong> first.
+                        </p>
+                        <div className="flex gap-2 max-w-md">
+                          <Input
+                            placeholder="e.g. +919876543210"
+                            value={testSmsPhone}
+                            onChange={(e) => setTestSmsPhone(e.target.value)}
+                          />
+                          <Button
+                            variant="secondary"
+                            disabled={isTestingSms}
+                            onClick={async () => {
+                              if (!testSmsPhone || !testSmsPhone.trim()) {
+                                toast.error("Please enter a phone number");
+                                return;
+                              }
+                              if (!smsClickatellActive && !smsMsg91Active && !smsTwilioActive) {
+                                toast.error("Please select 'Active: Yes' on Twilio or Clickatell and click 'Save Settings' first.");
+                                return;
+                              }
+                              try {
+                                setIsTestingSms(true);
+                                await settingsService.testSms({ phone: testSmsPhone });
+                                toast.success("Test SMS sent successfully");
+                              } catch (error: any) {
+                                toast.error(error.message || "Failed to send test SMS");
+                              } finally {
+                                setIsTestingSms(false);
+                              }
+                            }}
+                          >
+                            {isTestingSms ? "Sending..." : "Send"}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
 
                     <div className="pt-8 border-t space-y-8">
                       <div className="flex items-center gap-2">
@@ -6112,7 +6187,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     {activeMiscSubTab === "misc" && (
                       <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300 max-w-2xl">
                         <div className="space-y-4">
-                          <Label className="text-sm font-bold leading-relaxed">Require client to be logged in to view contract</Label>
+                          <Label className="text-sm font-bold leading-relaxed">Require client to be logged in to view contract{notAvailable("Customer portal is not live yet")}</Label>
                           <div className="flex items-center space-x-8">
                             <div className="flex items-center space-x-3">
                               <Checkbox id="contract-login-yes" checked={miscRequireContractLogin === true} onCheckedChange={() => setMiscRequireContractLogin(true)} />
@@ -6126,7 +6201,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         </div>
 
                         <div className="space-y-3 pt-6 border-t">
-                          <Label className="text-sm font-bold">Dropbox APP Key</Label>
+                          <Label className="text-sm font-bold">Dropbox APP Key{notAvailable("Dropbox is not connected")}</Label>
                           <Input value={miscDropboxAppKey} onChange={(e) => setMiscDropboxAppKey(e.target.value)} className="h-11 border-muted-foreground/30" />
                         </div>
 
@@ -6141,31 +6216,41 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         </div>
 
                         <div className="space-y-3">
-                          <Label className="text-sm font-bold">Limit Top Search Bar Results to</Label>
+                          <Label className="text-sm font-bold">Limit Top Search Bar Results to{notAvailable("The top search bar only finds pages, not records")}</Label>
                           <Input value={miscLimitSearch} onChange={(e) => setMiscLimitSearch(e.target.value)} className="h-11 border-muted-foreground/30" type="number" />
                         </div>
 
                         <div className="space-y-3">
                           <Label className="text-sm font-bold">Default Staff Role</Label>
-                          <Select value={miscDefaultRole} onValueChange={setMiscDefaultRole}>
+                          <Select
+                            value={(() => {
+                              const v = String(miscDefaultRole || "");
+                              const r = (staffRoles as any[]).find((x) => x._id === v) || (staffRoles as any[]).find((x) => String(x.name).toLowerCase() === v.toLowerCase());
+                              return r ? r._id : "none";
+                            })()}
+                            onValueChange={(v) => setMiscDefaultRole(v === "none" ? "" : v)}
+                          >
                             <SelectTrigger className="h-11 border-muted-foreground/30">
                               <SelectValue placeholder="Select Role" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="Super Admin">Super Admin</SelectItem>
-                              <SelectItem value="Admin">Admin</SelectItem>
-                              <SelectItem value="Marketing">Marketing</SelectItem>
+                              <SelectItem value="none">No default role</SelectItem>
+                              {(staffRoles as any[]).map((r) => (
+                                <SelectItem key={r._id} value={r._id}>{r.name}</SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
+                          <p className="text-xs text-muted-foreground">Pre-selected when adding a new staff member. Admin roles are never pre-selected.</p>
                         </div>
 
                         <div className="space-y-3">
                           <Label className="text-sm font-bold">Delete system activity log older then X months</Label>
-                          <Input value={miscDeleteLogMonths} onChange={(e) => setMiscDeleteLogMonths(e.target.value)} className="h-11 border-muted-foreground/30" type="number" />
+                          <Input value={miscDeleteLogMonths} onChange={(e) => setMiscDeleteLogMonths(e.target.value)} className="h-11 border-muted-foreground/30" type="number" min={0} />
+                          <p className="text-xs text-muted-foreground">Activity logs older than this are deleted automatically every night. 0 = never delete.</p>
                         </div>
 
                         <div className="space-y-4 pt-6 border-t">
-                          <Label className="text-sm font-bold leading-relaxed">Show setup menu item only when hover with mouse on main sidebar area</Label>
+                          <Label className="text-sm font-bold leading-relaxed">Show setup menu item only when hover with mouse on main sidebar area{notAvailable("The sidebar does not use this")}</Label>
                           <div className="flex items-center space-x-8">
                             <div className="flex items-center space-x-3">
                               <Checkbox id="setup-hover-yes" checked={miscShowSetupHover === true} onCheckedChange={() => setMiscShowSetupHover(true)} />
@@ -6179,7 +6264,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         </div>
 
                         <div className="space-y-4 pt-6 border-t">
-                          <Label className="text-sm font-bold leading-relaxed">Show help menu item on setup menu</Label>
+                          <Label className="text-sm font-bold leading-relaxed">Show help menu item on setup menu{notAvailable("There is no help menu item")}</Label>
                           <div className="flex items-center space-x-8">
                             <div className="flex items-center space-x-3">
                               <Checkbox id="help-menu-yes" checked={miscShowHelpMenu === true} onCheckedChange={() => setMiscShowHelpMenu(true)} />
@@ -6193,7 +6278,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         </div>
 
                         <div className="space-y-4 pt-6 border-t">
-                          <Label className="text-sm font-bold leading-relaxed">Use minified files version for css and js (only system files)</Label>
+                          <Label className="text-sm font-bold leading-relaxed">Use minified files version for css and js (only system files){notAvailable("The app build is always minified")}</Label>
                           <div className="flex items-center space-x-8">
                             <div className="flex items-center space-x-3">
                               <Checkbox id="minified-yes" checked={miscUseMinified === true} onCheckedChange={() => setMiscUseMinified(true)} />
@@ -6223,7 +6308,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
-                            <Label className="text-sm font-bold">Save last order for tables</Label>
+                            <Label className="text-sm font-bold">Save last order for tables{notAvailable("Tables do not remember their sort order yet")}</Label>
                           </div>
                           <div className="flex items-center space-x-8">
                             <div className="flex items-center space-x-3">
@@ -6275,7 +6360,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                           { id: "expense-cat", label: "Allow non-admin staff members to create Expense Category in Expense create/edit area?", state: miscInlineExpenseCategory, setState: setMiscInlineExpenseCategory },
                         ].map((item, idx) => (
                           <div key={item.id} className={cn("space-y-4", idx > 0 && "pt-8 border-t")}>
-                            <Label className="text-sm font-bold leading-relaxed">{item.label}</Label>
+                            <Label className="text-sm font-bold leading-relaxed">{item.label}{notAvailable("Only administrators can create these today")}</Label>
                             <div className="flex items-center space-x-10">
                               <div className="flex items-center space-x-3">
                                 <Checkbox id={`${item.id}-yes`} checked={item.state === true} onCheckedChange={() => item.setState(true)} />
@@ -6340,20 +6425,25 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                             <Terminal className="h-4 w-4" />
                             <span className="text-xs font-bold uppercase tracking-wider">System Cron Command</span>
                           </div>
-                          <p className="text-xs text-muted-foreground leading-relaxed">Ensure this command is configured in your server's crontab settings for all automated features to work correctly.</p>
-                          <code className="block p-4 bg-background border rounded-lg font-mono text-sm break-all shadow-inner">
-                            wget -q -O- https://taskmanager.fuertedevelopers.in/cron/index
-                          </code>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            No server crontab command is needed. The CRM runs its scheduled jobs itself while the backend is running (India time):
+                          </p>
+                          <ul className="text-sm space-y-1.5 list-disc pl-5">
+                            <li><b>Every minute</b> — lead &amp; customer reminders are delivered.</li>
+                            <li><b>Every hour</b> — task deadline reminders (at the hour set under Tasks) and ticket auto-close (Tickets).</li>
+                            <li><b>Every 3 hours</b> — Meta ads spend sync.</li>
+                            <li><b>Daily 00:15</b> — company plan / trial expiry check.</li>
+                            <li><b>Daily 02:30</b> — old activity log cleanup (Misc).</li>
+                            <li><b>Monthly, 1st at 10:00</b> — recurring WhatsApp campaigns.</li>
+                          </ul>
                         </div>
-                        <Button className="h-11 px-8 shadow-sm">
-                          Run Cron Manually
-                        </Button>
                       </div>
                     )}
 
                     {/* Invoice Content */}
                     {activeCronSection === "invoice" && (
                       <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300 max-w-2xl">
+                        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Not available yet — overdue / due reminder emails need working SMTP (Email settings), and recurring invoices are not built yet. These values are saved but nothing is sent or generated.</div>
                         <div className="space-y-3">
                           <div className="flex items-center gap-2">
                             <TooltipProvider>
@@ -6462,6 +6552,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     {/* Estimates Content */}
                     {activeCronSection === "estimates" && (
                       <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 max-w-sm">
+                        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Not available yet — expiry reminder emails need working SMTP (Email settings). These values are saved but nothing is sent.</div>
                         <div className="space-y-3">
                           <div className="flex items-center gap-2">
                             <TooltipProvider>
@@ -6489,6 +6580,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     {/* Proposals Content */}
                     {activeCronSection === "proposals" && (
                       <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 max-w-sm">
+                        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Not available yet — expiry reminder emails need working SMTP (Email settings). These values are saved but nothing is sent.</div>
                         <div className="space-y-3">
                           <div className="flex items-center gap-2">
                             <TooltipProvider>
@@ -6516,6 +6608,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     {/* Expenses Content */}
                     {activeCronSection === "expenses" && (
                       <div className="space-y-8 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Not available yet — recurring expenses are not built yet. This value is saved but nothing is generated.</div>
                         <div className="space-y-3 max-w-sm">
                           <div className="flex items-center gap-2">
                             <TooltipProvider>
@@ -6538,6 +6631,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     {/* Contracts Content */}
                     {activeCronSection === "contracts" && (
                       <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300 max-w-sm">
+                        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Not available yet — contract expiry / sign reminder emails need working SMTP (Email settings). These values are saved but nothing is sent.</div>
                         <div className="space-y-3">
                           <div className="flex items-center gap-2">
                             <TooltipProvider>
@@ -6621,12 +6715,12 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                         </div>
 
                         <div className="space-y-3 pt-6 border-t border-dashed">
-                          <Label className="text-sm font-bold">Automaticaly stop task timers after (hours)</Label>
+                          <Label className="text-sm font-bold">Automaticaly stop task timers after (hours){notAvailable("Task timers run in the browser, not on the server")}</Label>
                           <Input value={cronTaskStopTimers} onChange={(e) => setCronTaskStopTimers(e.target.value)} className="h-11 border-muted-foreground/30" placeholder="0" />
                         </div>
 
                         <div className="space-y-4 pt-4">
-                          <Label className="text-sm font-bold">Send email reminder for unbilled tasks?</Label>
+                          <Label className="text-sm font-bold">Send email reminder for unbilled tasks?{notAvailable("Needs working SMTP (Email settings)")}</Label>
                           <div className="flex items-center space-x-10 p-5 bg-muted/20 rounded-2xl">
                             <div className="flex items-center space-x-3">
                               <Checkbox id="billable-yes" checked={cronTaskBillableReminder === true} onCheckedChange={() => setCronTaskBillableReminder(true)} />

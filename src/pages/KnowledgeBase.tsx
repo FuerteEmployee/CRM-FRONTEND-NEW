@@ -48,13 +48,14 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import ReactQuill from "react-quill";
+import { defaultPageSize } from "@/lib/tablePageSize";
 import "react-quill/dist/quill.snow.css";
 
 
 const KnowledgeBase = () => {
   const [search, setSearch] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState("all");
-  const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [itemsPerPage, setItemsPerPage] = useState(() => String(defaultPageSize(10)));
   const [currentPage, setCurrentPage] = useState(1);
   const [isAddGroupModalOpen, setIsAddGroupModalOpen] = useState(false);
   const [isNewArticleModalOpen, setIsNewArticleModalOpen] = useState(false);

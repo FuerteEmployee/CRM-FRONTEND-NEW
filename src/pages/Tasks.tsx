@@ -67,6 +67,7 @@ import { TaskViewModal } from "@/components/tasks/TaskViewModal";
 import { InquiryOutcomeDialog } from "@/components/tasks/InquiryOutcomeDialog";
 import { TasksKanban, type KanbanTask } from "@/pages/TasksKanban";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 export const taskStatusConfig = [
   { id: 1, label: "Not Started", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" },
@@ -131,7 +132,7 @@ const Tasks = () => {
   }, [search]);
   const [activeStatus, setActiveStatus] = useState<number | "all">("all");
   const [activeCategory, setActiveCategory] = useState<string>("all");
-  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(25);
+  const [itemsPerPage, setItemsPerPage] = useState<number | "all">(() => defaultPageSize(25));
   const [currentPage, setCurrentPage] = useState(1);
   useEffect(() => {
     setCurrentPage(1);
@@ -392,8 +393,9 @@ const Tasks = () => {
       if (taskId && attachedFiles.length > 0) {
         try {
           await fileService.uploadFiles(taskId, "task", attachedFiles);
-        } catch (uploadErr) {
+        } catch (uploadErr: any) {
           console.error("Failed to upload attached files/voice notes:", uploadErr);
+          toast({ title: "Task saved, attachments not uploaded", description: uploadErr?.message || "Failed to upload files.", variant: "destructive" });
         }
       }
       return res;
