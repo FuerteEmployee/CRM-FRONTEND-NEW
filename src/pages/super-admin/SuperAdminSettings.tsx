@@ -5,7 +5,9 @@ import { ImagePlus, Loader2, Save, Trash2, Type } from "lucide-react";
 import { apiClient as api } from "@/api/client";
 import { mediaService } from "@/api/services/media.service";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
-import { PANEL_BRANDING_QUERY_KEY, usePanelBranding, type PanelBranding } from "@/lib/panelBranding";
+import { PANEL_BRANDING_QUERY_KEY, usePanelBranding, usePanelBrandingQuery, type PanelBranding } from "@/lib/panelBranding";
+import { useSaSkeleton } from "@/lib/superAdminQueries";
+import { SuperAdminSettingsSkeleton } from "@/components/ui/page-skeleton";
 
 const MAX_NAME = 60;
 const IMAGE_RULES = {
@@ -17,6 +19,7 @@ type ImageKey = keyof typeof IMAGE_RULES;
 export default function SuperAdminSettings() {
   const queryClient = useQueryClient();
   const saved = usePanelBranding();
+  const showSkeleton = useSaSkeleton(usePanelBrandingQuery().isPending);
   const [form, setForm] = useState<PanelBranding>(saved);
   const [nameError, setNameError] = useState("");
   const [uploading, setUploading] = useState<ImageKey | null>(null);
@@ -109,6 +112,8 @@ export default function SuperAdminSettings() {
       </div>
     );
   };
+
+  if (showSkeleton) return <SuperAdminSettingsSkeleton />;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

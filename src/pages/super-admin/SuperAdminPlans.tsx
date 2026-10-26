@@ -10,7 +10,7 @@ import { apiClient as api } from "@/api/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SuperAdminPlansSkeleton } from "@/components/ui/page-skeleton";
-import { useMinimumLoading } from "@/hooks/useMinimumLoading";
+import { useInvalidateSa, useSaPlans, useSaSkeleton } from "@/lib/superAdminQueries";
 
 interface SaasPlan {
   _id: string;
@@ -110,25 +110,20 @@ const DEFAULT_PLAN: Partial<SaasPlan> = {
 };
 
 export default function SuperAdminPlans() {
-  const [plans, setPlans] = useState<SaasPlan[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Cached (lib/superAdminQueries.ts); a save refreshes every Super Admin page.
+  const plansQuery = useSaPlans();
+  const plans = (plansQuery.data || []) as SaasPlan[];
+  const invalidateSa = useInvalidateSa();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<SaasPlan | null>(null);
   const [formData, setFormData] = useState<Partial<SaasPlan>>(DEFAULT_PLAN);
   const [saving, setSaving] = useState(false);
 
-  const fetchPlans = async () => {
-    try {
-      const response = await api.get("/super-admin/plans");
-      setPlans(response);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to load plans");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const fetchPlans = () => invalidateSa();
 
-  useEffect(() => { fetchPlans(); }, []);
+  useEffect(() => {
+    if (plansQuery.error) toast.error((plansQuery.error as Error).message || "Failed to load plans");
+  }, [plansQuery.error]);
 
   const openCreateModal = () => {
     setEditingPlan(null);
@@ -169,19 +164,42 @@ export default function SuperAdminPlans() {
       toast.error(`Banner days can be at most ${maxBannerDays} for a ${formData.billing_cycle} plan`);
       return;
     }
-    // Making a used plan Inactive blocks those companies (like Suspend).
+    const maxUsers = formData.features.max_users;
+    if (maxUsers !== -1 && !(Number.isInteger(maxUsers) && maxUsers >= 1)) {
+      toast.error("Team Members must be 1 or more, or tick Unlimited");
+      return;
+    }
+    if (typeof formData.price !== "number" || Number.isNaN(formData.price) || formData.price < 0) {
+      toast.error("Price is required (use 0 for a free plan)");
+      return;
+    }
     const used = editingPlan?.tenant_count || 0;
+    // Inactive only closes the plan to new companies; existing ones keep working.
     if (editingPlan && editingPlan.active !== false && formData.active === false && used > 0) {
       const ok = window.confirm(
-        `${used} compan${used === 1 ? "y is" : "ies are"} on "${editingPlan.name}". Making it Inactive will BLOCK their CRM and HRMS login until the plan is Active again or they are moved to another plan. Continue?`
+        `Make "${editingPlan.name}" Inactive?
+
+New companies won't be able to get this plan. The ${used} compan${used === 1 ? "y" : "ies"} already on it keep working as before.
+(To stop a company, use Suspend on the Customer page.)`
       );
       if (!ok) return;
+    }
+    // Billing length changed on a plan in use: ask whether current companies'
+    // end dates should follow, or only new companies and renewals.
+    let recalculate_existing = false;
+    if (editingPlan && used > 0 && formData.billing_cycle !== editingPlan.billing_cycle) {
+      recalculate_existing = window.confirm(
+        `Billing changes from ${editingPlan.billing_cycle} to ${formData.billing_cycle}.
+
+OK = also recalculate the end date of the ${used} compan${used === 1 ? "y" : "ies"} already on this plan (from each one's current start date).
+Cancel = keep their current end dates; only new companies and renewals get the new length.`
+      );
     }
     setSaving(true);
     try {
       if (editingPlan) {
-        await api.put(`/super-admin/plans/${editingPlan._id}`, formData);
-        toast.success("Plan updated successfully");
+        const saved: any = await api.put(`/super-admin/plans/${editingPlan._id}`, { ...formData, recalculate_existing });
+        toast.success(saved?.recalculated ? `Plan updated. End dates recalculated for ${saved.recalculated} compan${saved.recalculated === 1 ? "y" : "ies"}.` : "Plan updated successfully");
       } else {
         await api.post("/super-admin/plans", formData);
         toast.success("Plan created successfully");
@@ -216,7 +234,7 @@ export default function SuperAdminPlans() {
     }));
   };
 
-  const showSkeleton = useMinimumLoading(loading);
+  const showSkeleton = useSaSkeleton(plansQuery.isPending);
   if (showSkeleton) return <SuperAdminPlansSkeleton />;
 
   return (
@@ -269,7 +287,7 @@ export default function SuperAdminPlans() {
                 </p>
                 {!plan.active && !!plan.tenant_count && (
                   <p className="text-xs font-semibold text-red-600 mt-0.5">
-                    ⛔ Inactive — these {plan.tenant_count} compan{plan.tenant_count === 1 ? "y is" : "ies are"} blocked from logging in
+                    Inactive — closed to new companies; the {plan.tenant_count} on it keep working
                   </p>
                 )}
                 {!!plan.banner_warning_days &&
@@ -348,7 +366,7 @@ export default function SuperAdminPlans() {
 
       {/* ── Centered Popup Modal ── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 overscroll-contain">
           <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl border border-gray-200 flex flex-col max-h-[90vh]">
 
             {/* Modal Header */}
@@ -364,7 +382,7 @@ export default function SuperAdminPlans() {
 
           {/* Modal Body — Responsive columns, scrollable body */}
           <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-            <div className="px-6 py-5 overflow-y-auto flex-1 min-h-0">
+            <div className="px-6 py-5 overflow-y-auto overscroll-contain flex-1 min-h-0">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
                 {/* ── LEFT: Plan Details ── */}
@@ -372,7 +390,7 @@ export default function SuperAdminPlans() {
                   <p className="text-[11px] font-bold text-blue-600 uppercase tracking-wider pb-1.5 border-b border-gray-100">Plan Details</p>
 
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs font-semibold text-gray-600">Plan Name *</label>
+                    <label className="text-xs font-semibold text-gray-600">Plan Name<span className="text-red-500 ml-0.5">*</span></label>
                     <input
                       type="text" required value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -393,15 +411,16 @@ export default function SuperAdminPlans() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-semibold text-gray-600">Price (₹)</label>
+                      <label className="text-xs font-semibold text-gray-600">Price (₹)<span className="text-red-500 ml-0.5">*</span></label>
                       <input
                         type="number" required min="0" step="0.01" value={formData.price}
                         onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
                         className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
+                      <p className="text-[11px] text-gray-400">0 = free plan. A change applies from each company's next renewal.</p>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-semibold text-gray-600">Billing</label>
+                      <label className="text-xs font-semibold text-gray-600">Billing<span className="text-red-500 ml-0.5">*</span></label>
                       <select
                         value={formData.billing_cycle}
                         onChange={(e) => setFormData({ ...formData, billing_cycle: e.target.value as any })}
@@ -411,6 +430,7 @@ export default function SuperAdminPlans() {
                         <option value="yearly">Yearly</option>
                         <option value="lifetime">Lifetime</option>
                       </select>
+                      <p className="text-[11px] text-gray-400">Plan length: Monthly 30 days, Yearly 365 days, Lifetime never ends.</p>
                     </div>
                   </div>
 
@@ -422,6 +442,7 @@ export default function SuperAdminPlans() {
                         onChange={(e) => setFormData({ ...formData, trial_days: parseInt(e.target.value) })}
                         className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
+                      <p className="text-[11px] text-gray-400">Free days before payment, for website sign-ups and "Trial" companies (0 = 7-day default on sign-up).</p>
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-gray-600">Plan Status</label>
@@ -437,7 +458,32 @@ export default function SuperAdminPlans() {
                         </span>
                         {formData.active ? "Active" : "Inactive"}
                       </button>
+                      <p className="text-[11px] text-gray-400">Inactive = new companies can't get this plan. Companies already on it keep working.</p>
                     </div>
+                  </div>
+
+                  {/* Team Members limit (features.max_users, -1 = unlimited) */}
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-gray-600">Team Members<span className="text-red-500 ml-0.5">*</span></label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="number" min="1" step="1"
+                        disabled={formData.features.max_users === -1}
+                        value={formData.features.max_users === -1 ? "" : formData.features.max_users}
+                        onChange={(e) => setFormData({ ...formData, features: { ...formData.features, max_users: e.target.value === "" ? ("" as any) : parseInt(e.target.value) } })}
+                        placeholder={formData.features.max_users === -1 ? "Unlimited" : "e.g. 5"}
+                        className="w-32 border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 disabled:bg-gray-100"
+                      />
+                      <label className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.features.max_users === -1}
+                          onChange={(e) => setFormData({ ...formData, features: { ...formData.features, max_users: e.target.checked ? -1 : 5 } })}
+                        />
+                        Unlimited
+                      </label>
+                    </div>
+                    <p className="text-[11px] text-gray-400">Active staff logins a company on this plan may have (the owner counts).</p>
                   </div>
 
                   {/* Banner Warning Days */}

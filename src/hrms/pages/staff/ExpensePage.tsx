@@ -628,7 +628,7 @@ export default function ExpensePage() {
               header: "Amount",
               accessorKey: (ex) => (
                 <div className="font-black text-sm text-primary">
-                  ₹{ex.amount.toLocaleString("en-IN")}
+                  ₹{Number(ex.amount).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               ),
             },

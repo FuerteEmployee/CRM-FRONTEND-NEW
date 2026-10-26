@@ -175,9 +175,9 @@ const SalarySettlementLedgerPage = () => {
     const id = s._id || s.id || "";
     const dirLabel =
       s.direction === "employee_to_ge"
-        ? `${employeeName(s)} pays GE`
+        ? `${employeeName(s)} pays Company`
         : s.direction === "ge_to_employee"
-          ? `GE pays ${employeeName(s)}`
+          ? `Company pays ${employeeName(s)}`
           : "no money movement";
     const ok = await confirm({
       title: "Settle this record?",
@@ -245,7 +245,7 @@ const SalarySettlementLedgerPage = () => {
         "Est. Actual": s.computedActualSalary || "—",
         "Brand Slip": s.brandSlipAmount || "—",
         Variance: s.variance || "—",
-        Direction: s.direction === "employee_to_ge" ? "GE Incoming" : s.direction === "ge_to_employee" ? "GE Outgoing" : "None",
+        Direction: s.direction === "employee_to_ge" ? "Company Incoming" : s.direction === "ge_to_employee" ? "Company Outgoing" : "None",
         "Settlement Amount": s.settlementAmount || 0,
         Status: s.status,
       }));
@@ -268,7 +268,7 @@ const SalarySettlementLedgerPage = () => {
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold">Salary Settlement Ledger</h1>
-          <p className="text-sm text-muted-foreground">Track employee↔GE salary settlements</p>
+          <p className="text-sm text-muted-foreground">Track employee↔Company salary settlements</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => setIsAddOpen(true)} className="gap-2">
@@ -287,7 +287,7 @@ const SalarySettlementLedgerPage = () => {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                  Employee → GE Incoming
+                  Employee → Company Incoming
                 </p>
                 <p className="text-3xl font-bold text-blue-700">
                   ₹{summary.totalEmployeeToGE.toLocaleString("en-IN")}
@@ -303,7 +303,7 @@ const SalarySettlementLedgerPage = () => {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                  GE → Employee Outgoing
+                  Company → Employee Outgoing
                 </p>
                 <p className="text-3xl font-bold text-emerald-700">
                   ₹{summary.totalGEToEmployee.toLocaleString("en-IN")}
@@ -398,8 +398,8 @@ const SalarySettlementLedgerPage = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Directions</SelectItem>
-                  <SelectItem value="employee_to_ge">Employee → GE</SelectItem>
-                  <SelectItem value="ge_to_employee">GE → Employee</SelectItem>
+                  <SelectItem value="employee_to_ge">Employee → Company</SelectItem>
+                  <SelectItem value="ge_to_employee">Company → Employee</SelectItem>
                   <SelectItem value="none">None</SelectItem>
                 </SelectContent>
               </Select>
@@ -506,7 +506,7 @@ const SalarySettlementLedgerPage = () => {
                           }
                         >
                           {s.direction === "employee_to_ge"
-                            ? "↑ GE"
+                            ? "↑ Company"
                             : s.direction === "ge_to_employee"
                               ? "↓ Emp"
                               : "—"}

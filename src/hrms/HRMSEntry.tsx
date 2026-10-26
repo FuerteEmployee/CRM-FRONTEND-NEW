@@ -5,6 +5,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import { AppRoutes } from "./AppRoutes";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { LiveTracker } from "./components/staff/LiveTracker";
+import { Toaster } from "./components/ui/toaster";
 
 export const HRMSEntry = () => {
   return (
@@ -17,6 +18,8 @@ export const HRMSEntry = () => {
               <AppRoutes />
             </ConfirmProvider>
           </StoreProvider>
+          {/* HRMS pages toast through hrms/hooks/use-toast — a separate store from the CRM's Toaster in App.tsx */}
+          <Toaster />
         </AuthProvider>
       </ThemeProvider>
     </ErrorBoundary>

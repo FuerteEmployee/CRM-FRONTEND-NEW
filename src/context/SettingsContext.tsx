@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { settingsService } from "@/api/services/settings.service";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { letterFavicon } from "@/lib/brand";
+import { isPanelBrandedLogin } from "@/lib/panelBranding";
 
 // public/favicon.ico used to be the Trinetra logo, so it was never a real
 // "no favicon" default — treat it (and any cached copy of it) as unset.
@@ -160,11 +161,13 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (settings.aiAgentName) {
       localStorage.setItem("crm_ai_agent_name", settings.aiAgentName);
     }
+    // Panel-branded login pages set their own title and favicon.
+    const panelBrandedPage = isPanelBrandedLogin();
     if (settings.companyName) {
-      document.title = settings.companyName;
+      if (!panelBrandedPage) document.title = /\bCRM$/i.test(settings.companyName.trim()) ? settings.companyName : `${settings.companyName} CRM`;
       localStorage.setItem("crm_company_name", settings.companyName);
     } else {
-      document.title = "CRM";
+      if (!panelBrandedPage) document.title = "CRM";
       localStorage.removeItem("crm_company_name");
     }
     if (settings.compLogoLight) {
@@ -174,7 +177,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       localStorage.setItem("crm_comp_logo_dark", settings.compLogoDark);
     }
     
-    if (settings.favicon) {
+    if (settings.favicon && !panelBrandedPage) {
       const link: HTMLLinkElement = document.querySelector("link[rel*='icon']") || document.createElement('link');
       const faviconUrl = resolveImageUrl(settings.favicon);
       link.type = faviconUrl.startsWith("data:image/svg") ? "image/svg+xml" : "image/x-icon";

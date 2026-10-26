@@ -208,14 +208,26 @@ const PersonnelCard = ({ emp, loc, isActive, isLive, onClick, isPathLoading }: P
           isActive ? "border-indigo-200" : "border-slate-100"
         )}>
           {emp.avatar ? (
-            <img src={emp.avatar} alt={emp.name} className="w-full h-full object-cover" />
-          ) : (
-            <div className={cn("w-full h-full flex items-center justify-center text-white text-xs font-bold",
+            <img
+              src={resolveImageUrl(emp.avatar)}
+              alt={emp.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+                const fallback = e.currentTarget.parentElement?.querySelector(".avatar-fallback-initials");
+                if (fallback) (fallback as HTMLElement).style.display = "flex";
+              }}
+            />
+          ) : null}
+          <div
+            className={cn(
+              "avatar-fallback-initials w-full h-full items-center justify-center text-white text-xs font-bold",
+              emp.avatar ? "hidden" : "flex",
               isActive ? "bg-indigo-500" : "bg-slate-400"
-            )}>
-              {initials}
-            </div>
-          )}
+            )}
+          >
+            {initials}
+          </div>
         </div>
         {loc && (
           <span className={cn(
@@ -1055,7 +1067,16 @@ const EmployeePage = () => {
                     <div key={emp._id || emp.id} className="flex items-center justify-between px-4 py-3 border-b border-slate-50 last:border-0">
                       <div className="flex items-center gap-3">
                         <div className="w-9 h-9 rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center border border-slate-200">
-                          {emp.avatar ? <img src={emp.avatar} alt={emp.name} className="w-full h-full object-cover" /> : <UserIcon className="w-4 h-4 text-slate-400" />}
+                          {emp.avatar ? (
+                            <img
+                              src={resolveImageUrl(emp.avatar)}
+                              alt={emp.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => { e.currentTarget.style.display = "none"; }}
+                            />
+                          ) : (
+                            <UserIcon className="w-4 h-4 text-slate-400" />
+                          )}
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-slate-700">{emp.name}</p>

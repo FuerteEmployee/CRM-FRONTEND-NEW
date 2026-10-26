@@ -295,11 +295,18 @@ useEffect(() => {
     resetTranscript();
     consumedRef.current = 0;
     if (awakeTimerRef.current) clearTimeout(awakeTimerRef.current);
-    toast({
-      title: aiAgentName,
-      description: "Microphone access is blocked for this site. Check your browser's site permissions and allow microphone access, then try again.",
-      variant: "destructive",
-    });
+    // The wake word auto-starts on every page load, so without this a user who
+    // blocked the mic got the same red popup on every page they opened.
+    let alreadyWarned = false;
+    try { alreadyWarned = sessionStorage.getItem("ai-mic-blocked-warned") === "1"; } catch { /* storage unavailable */ }
+    if (!alreadyWarned) {
+      try { sessionStorage.setItem("ai-mic-blocked-warned", "1"); } catch { /* storage unavailable */ }
+      toast({
+        title: aiAgentName,
+        description: "Microphone access is blocked for this site. Check your browser's site permissions and allow microphone access, then try again.",
+        variant: "destructive",
+      });
+    }
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [isMicrophoneAvailable]);

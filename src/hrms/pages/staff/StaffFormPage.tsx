@@ -48,6 +48,8 @@ import { managingCompanyService, type ManagingCompany } from "@/hrms/services/ma
 import { ManageCompaniesDialog } from "@/hrms/components/staff/ManageCompaniesDialog";
 import { toast } from "@/hrms/hooks/use-toast";
 import { useAuth } from "@/hrms/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
+import { hasBranchSalaryManagement } from "@/lib/branchSalary";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -63,7 +65,7 @@ import {
 import { ScrollArea } from "@/hrms/components/ui/scroll-area";
 import { Checkbox } from "@/hrms/components/ui/checkbox";
 import { cn } from "@/hrms/lib/utils";
-import { API_BASE_URL } from "@/hrms/services/apiClient";
+import { getFileUrl } from "@/hrms/utils/fileUrl";
 import { LANGUAGES_WITH_SYSTEM_DEFAULT } from "@/lib/languages";
 // CRM (Setup > Staff) counterparts — the "CRM Info", "Permissions" and
 // "Assigned Customers" tabs edit the exact same shared staff/user document
@@ -205,15 +207,8 @@ const FEATURES_CONFIG = [
   { name: "HRMS Designations", caps: ["View(Global)", "Create", "Edit", "Delete"] },
 ];
 
-const getFileUrl = (url?: string) => {
-  if (!url) return "";
-  if (url.startsWith("http") || url.startsWith("data:")) return url;
-  const baseUrl = API_BASE_URL.replace(/\/api$/, "");
-  const cleanPath = url.replace(/\\/g, "/").replace(/^\/+/, "");
-  return `${baseUrl}/${cleanPath}`;
-};
 
-const staffSchema = z.object({
+const staffBaseSchema = z.object({
   // Identity
   name: z.string().min(2, "Full name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
@@ -288,6 +283,9 @@ const staffSchema = z.object({
   // backend returns null for them. Requiredness is enforced conditionally in
   // the superRefine below (only branch-managed employees need one).
   managingCompanyId: z.string().nullable().optional(),
+  // "Salary Managed By: Branch" picks an HRMS branch; the backend maps it to
+  // the branch's ManagingCompany (hrms/utils/branchManagingCompany.js).
+  managingBranchId: z.string().nullable().optional(),
   joiningDate: z.string().optional(),
   shiftId: z.string().optional(),
   designation: z.string().optional(),
@@ -367,14 +365,17 @@ const staffSchema = z.object({
       isIncluded: z.boolean().default(true),
     }).optional(),
   }).optional(),
-}).superRefine((data, ctx) => {
+});
+
+// Used when the company has the "branch_salary_management" add-on (fields shown).
+const staffSchema = staffBaseSchema.superRefine((data, ctx) => {
   // Managing company is required ONLY for branch-managed employees. For
   // screen_time-managed staff it stays empty/null and must not be demanded.
-  if (data.salaryManagedBy === "branch" && !data.managingCompanyId) {
+  if (data.salaryManagedBy === "branch" && !data.managingBranchId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ["managingCompanyId"],
-      message: "Managing company is required for branch-managed employees",
+      path: ["managingBranchId"],
+      message: "Select the branch that manages this employee's salary",
     });
   }
 });
@@ -387,6 +388,9 @@ export default function StaffFormPage() {
   const { id } = useParams();
   const isEdit = !!id;
   useAuth();
+  const { user: crmUser } = usePermissions();
+  // Branch salary management add-on shows "Salary Managed By" / "Managing Branch".
+  const branchSalaryEnabled = hasBranchSalaryManagement(crmUser);
 
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -400,6 +404,7 @@ export default function StaffFormPage() {
   // CRM (Setup > Staff) fields for the linked person — same shared staff
   // document Setup > Staff edits; fully editable here too (see staffSchema).
   const [crmInfo, setCrmInfo] = useState<any>(null);
+  const [crmStaffId, setCrmStaffId] = useState<string>("");
   const [crmRoles, setCrmRoles] = useState<any[]>([]);
   const [crmDepartments, setCrmDepartments] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
@@ -417,7 +422,7 @@ export default function StaffFormPage() {
   const [avatarPreview, setAvatarPreview] = useState<string>("");
 
   const form = useForm<StaffFormValues>({
-    resolver: zodResolver(staffSchema),
+    resolver: zodResolver(branchSalaryEnabled ? staffSchema : staffBaseSchema),
     defaultValues: {
       name: "",
       email: "",
@@ -452,6 +457,7 @@ export default function StaffFormPage() {
       payType: "Monthly",
       salaryAmount: 0,
       salaryManagedBy: "screen_time",
+      managingBranchId: "",
       joiningDate: new Date().toISOString().split('T')[0],
       shiftId: "",
       weeklyHolidays: [],
@@ -542,7 +548,7 @@ export default function StaffFormPage() {
       setLoading(true);
       try {
         const [branchesData, deptsData, desigsData, shiftsData, spList, companiesData, rolesRes, crmDeptsRes, clientsRes] = await Promise.all([
-          hrmsbranchService.getAll(),
+          hrmsbranchService.getAll({ limit: 1000 }), // API pages at 10 by default
           departmentService.getAll(),
           designationService.getAll(),
           shiftService.getAll(),
@@ -567,7 +573,20 @@ export default function StaffFormPage() {
           // Sanitize ID in case it comes with a colon prefix (e.g. from some legacy links)
           const cleanId = (id as string).startsWith(":") ? (id as string).substring(1) : id;
           const user = await staffService.getById(cleanId as string);
-          setCrmInfo((user as any)?.crmInfo || null);
+          const crm = (user as any)?.crmInfo || null;
+          setCrmInfo(crm);
+          setCrmStaffId(crm?.staffId || "");
+
+          // Same as SetupStaffForm.tsx: show the CRM role's permissions with
+          // this staff member's own overrides layered on top.
+          const rolesList = Array.isArray(rolesRes) ? rolesRes : (rolesRes as any)?.data || [];
+          const crmRolePerms = rolesList.find((r: any) => r._id === crm?.role)?.permissions || {};
+          const mergedPermissions: Record<string, any> = { ...crmRolePerms };
+          Object.entries(crm?.permissions || {}).forEach(([feature, caps]) => {
+            if (caps && typeof caps === "object") {
+              mergedPermissions[feature] = { ...(mergedPermissions[feature] || {}), ...(caps as any) };
+            }
+          });
 
           let salespersonProfile: any = null;
           try {
@@ -583,7 +602,9 @@ export default function StaffFormPage() {
               dob: user.dob ? new Date(user.dob).toISOString().split('T')[0] : "",
               joiningDate: user.joiningDate ? new Date(user.joiningDate).toISOString().split('T')[0] : "",
               gender: typeof user.gender === "string" ? user.gender : "",
-              role: (user.role && typeof user.role === "object") ? ((user.role as any)._id || (user.role as any).id) : (user.role as string || ""),
+              // The Permissions tab's Role dropdown lists CRM (Setup > Roles) roles,
+              // so load the linked Staff's CRM role — not User.role (an HRMS role).
+              role: crm?.role || "",
               hrmsBranchId: ((user as any).hrmsBranchId && typeof (user as any).hrmsBranchId === "object")
                 ? ((user as any).hrmsBranchId._id || (user as any).hrmsBranchId.id || "")
                 : ((user as any).hrmsBranchId as string || ""),
@@ -600,6 +621,7 @@ export default function StaffFormPage() {
                 : ((user as any).managingCompanyId as string || ""),
 
               salaryManagedBy: (user as any).salaryManagedBy || "screen_time",
+              managingBranchId: (user as any).managingBranchId || "",
               isSalesperson: !!(user as any).isSalesperson,
               salespersonCode: salespersonProfile?.salespersonCode || "",
               salespersonSince: salespersonProfile?.salespersonSince ? new Date(salespersonProfile.salespersonSince).toISOString().split('T')[0] : "",
@@ -612,20 +634,18 @@ export default function StaffFormPage() {
               underManagerId: salespersonProfile?.underManagerId?._id || salespersonProfile?.underManagerId || "",
               salespersonRemarks: salespersonProfile?.otherInfo || "",
 
-              // CRM (Setup > Staff) fields — GET nests skype/facebook/linkedin/
-              // admin/permissions under crmInfo; the others aren't part of that
-              // read-only bundle's shape, so fall back to a flat field in case
-              // the backend already returns them there too.
-              skype: (user as any)?.crmInfo?.skype || (user as any)?.skype || "",
-              facebook: (user as any)?.crmInfo?.facebook || (user as any)?.facebook || "",
-              linkedin: (user as any)?.crmInfo?.linkedin || (user as any)?.linkedin || "",
-              admin: !!((user as any)?.crmInfo?.admin ?? (user as any)?.admin),
-              default_language: (user as any)?.default_language || "System Default",
-              direction: (user as any)?.direction || "System Default",
-              email_signature: (user as any)?.email_signature || "",
-              departments: Array.isArray((user as any)?.departments) ? (user as any).departments : [],
+              // CRM (Setup > Staff) fields — GET nests them under crmInfo, read
+              // from the linked Staff record; updateUser writes them back there.
+              skype: crm?.skype || "",
+              facebook: crm?.facebook || "",
+              linkedin: crm?.linkedin || "",
+              admin: !!crm?.admin,
+              default_language: crm?.default_language || "System Default",
+              direction: crm?.direction || "System Default",
+              email_signature: crm?.email_signature || "",
+              departments: Array.isArray(crm?.departments) ? crm.departments : [],
               send_welcome_email: (user as any)?.send_welcome_email !== false,
-              permissions: (user as any)?.crmInfo?.permissions || {},
+              permissions: mergedPermissions,
 
               // Ensure arrays are always arrays
               weeklyHolidays: Array.isArray(user.weeklyHolidays) ? user.weeklyHolidays : [],
@@ -688,9 +708,11 @@ export default function StaffFormPage() {
   // Pre-select customers already assigned (as sales person or admin contact)
   // to this staff member, the same way SetupStaffForm.tsx does — once the
   // clients list has loaded.
+  // Customers are assigned to the Setup > Staff record, so match on its id
+  // (crmStaffId), not this page's HRMS User id.
   useEffect(() => {
-    if (!isEdit || !id || clients.length === 0) return;
-    const cleanId = (id as string).startsWith(":") ? (id as string).substring(1) : id;
+    if (!isEdit || !crmStaffId || clients.length === 0) return;
+    const cleanId = crmStaffId;
     const assignedIds = clients
       .filter((c: any) => {
         const isAdmin = Array.isArray(c.admins) && c.admins.some((a: any) => {
@@ -702,7 +724,7 @@ export default function StaffFormPage() {
       })
       .map((c: any) => c._id);
     setSelectedClientIds(assignedIds);
-  }, [id, isEdit, clients]);
+  }, [crmStaffId, isEdit, clients]);
 
   const handleRoleChange = (roleId: string) => {
     const selectedRole = crmRoles.find((r: any) => r._id === roleId);
@@ -779,14 +801,23 @@ export default function StaffFormPage() {
           }
         });
       });
-      const submitValues = { ...values, permissions: permissionOverrides };
+      const submitValues: any = { ...values, permissions: permissionOverrides };
+      if (isEdit) {
+        // On edit, User.role is the HRMS role (the backend ignores "role");
+        // the Permissions tab's dropdown is the linked Staff's CRM role.
+        submitValues.crmRole = values.role;
+        delete submitValues.role;
+      }
+      // mapUser fills a missing avatar with a dicebear initials URL for display —
+      // never save that placeholder back as the staff member's real photo.
+      if (submitValues.avatar?.includes("api.dicebear.com")) submitValues.avatar = "";
 
       const formData = new FormData();
       const appendToFormData = (data: any, rootKey?: string) => {
         Object.keys(data).forEach(key => {
           const value = data[key];
           const fullKey = rootKey ? `${rootKey}.${key}` : key;
-          const idFields = ["role", "hrmsBranchId", "department", "designation", "shiftId", "salaryTemplateId", "managingCompanyId"];
+          const idFields = ["role", "crmRole", "hrmsBranchId", "department", "designation", "shiftId", "salaryTemplateId", "managingCompanyId", "managingBranchId"];
           if (idFields.includes(key) && (value === "" || value === "none" || value === "__none__" || value === null || value === undefined)) {
             formData.append(fullKey, "null");
             return;
@@ -808,6 +839,10 @@ export default function StaffFormPage() {
             let finalValue = value;
             if (typeof value === "number" && isNaN(value)) finalValue = 0;
             if (Array.isArray(finalValue)) {
+              // Empty arrays append nothing — tell the backend to clear them.
+              if (finalValue.length === 0 && (fullKey === "weeklyHolidays" || fullKey === "departments")) {
+                formData.append("clearedArrays", fullKey);
+              }
               finalValue.forEach(v => formData.append(fullKey, v));
             } else {
               formData.append(fullKey, finalValue instanceof Date ? finalValue.toISOString() : finalValue);
@@ -835,14 +870,18 @@ export default function StaffFormPage() {
       if (savedUser) {
         const userId = savedUser.id || savedUser._id;
         // Persist the Assigned Customers selection — same endpoint/call
-        // Setup > Staff uses (customerService.transferOrAssign).
+        // Setup > Staff uses (customerService.transferOrAssign), which is
+        // keyed by the Setup > Staff id, not this HRMS User id.
+        const assignStaffId = crmStaffId || savedUser.staffId;
         try {
-          await customerService.transferOrAssign({
-            toStaffId: userId,
-            clientIds: selectedClientIds,
-            assignAs: "both",
-            sync: true,
-          });
+          if (assignStaffId) {
+            await customerService.transferOrAssign({
+              toStaffId: String(assignStaffId),
+              clientIds: selectedClientIds,
+              assignAs: "both",
+              sync: true,
+            });
+          }
         } catch (assignError) {
           console.warn("Customer assignment sync failed", assignError);
           toast({ title: "Staff Saved", description: "Staff saved, but assigned customers could not be synced.", variant: "default" });
@@ -1402,7 +1441,7 @@ export default function StaffFormPage() {
                             <FormField control={form.control} name="payType" render={({ field }) => (
                               <FormItem>
                                 <FormLabel className={labelClass}>Pay Cycle</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <Select onValueChange={field.onChange} value={field.value}>
                                   <FormControl><SelectTrigger className={inputClass}><SelectValue placeholder="Pay Type" /></SelectTrigger></FormControl>
                                   <SelectContent className="rounded-md"><SelectItem value="Monthly">Monthly</SelectItem><SelectItem value="Weekly">Weekly</SelectItem><SelectItem value="Daily">Daily</SelectItem><SelectItem value="Hourly">Hourly</SelectItem></SelectContent>
                                 </Select>
@@ -1416,6 +1455,50 @@ export default function StaffFormPage() {
                               </FormItem>
                             )} />
                           </div>
+
+                          {/* Same two fields as Setup > Staff (SetupStaffForm.tsx) — both save
+                              through utils/branchManagingCompany.js, so either form shows the other's choice.
+                              Only for companies with the "branch_salary_management" add-on. */}
+                          {branchSalaryEnabled && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <FormField control={form.control} name="salaryManagedBy" render={({ field }) => (
+                              <FormItem>
+                                <FormLabel className={labelClass}>Salary Managed By</FormLabel>
+                                <Select
+                                  value={field.value}
+                                  onValueChange={(v) => {
+                                    field.onChange(v);
+                                    if (v === "screen_time") form.setValue("managingBranchId", "", { shouldDirty: true });
+                                  }}
+                                >
+                                  <FormControl><SelectTrigger className={inputClass}><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
+                                  <SelectContent className="rounded-md">
+                                    <SelectItem value="screen_time">Own Company (Internal)</SelectItem>
+                                    <SelectItem value="branch">Branch</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </FormItem>
+                            )} />
+                            {form.watch("salaryManagedBy") === "branch" && (
+                              <FormField control={form.control} name="managingBranchId" render={({ field }) => (
+                                <FormItem>
+                                  <FormLabel className={labelClass}>Managing Branch</FormLabel>
+                                  <Select value={field.value || "none"} onValueChange={(v) => field.onChange(v === "none" ? "" : v)}>
+                                    <FormControl><SelectTrigger className={inputClass}><SelectValue placeholder="Select branch" /></SelectTrigger></FormControl>
+                                    <SelectContent className="rounded-md">
+                                      <SelectItem value="none">*None</SelectItem>
+                                      {branches.map((b) => <SelectItem key={b._id || b.id} value={b._id || b.id}>{b.name}</SelectItem>)}
+                                    </SelectContent>
+                                  </Select>
+                                  {branches.length === 0 && (
+                                    <p className="text-xs text-muted-foreground">No branches yet — add them in HRMS &gt; Branch Management.</p>
+                                  )}
+                                  <FormMessage />
+                                </FormItem>
+                              )} />
+                            )}
+                          </div>
+                          )}
 
                           <div className="p-4 rounded-lg bg-white border border-slate-200 space-y-6">
                             <h4 className="text-xs font-semibold text-slate-700 flex items-center gap-2"><Info className="h-3.5 w-3.5 text-primary" /> Salary Breakdown</h4>

@@ -14,6 +14,9 @@ export const customerService = {
 
   bulkDelete: (ids) => apiClient.post("/clients/bulk-delete", { ids }),
 
+  // Adds one group to many customers (keeps each customer's other groups).
+  bulkAssignGroup: (ids, groupId) => apiClient.post("/clients/bulk-assign-group", { ids, groupId }),
+
   transferOrAssign: (data) => apiClient.post("/clients/transfer-or-assign", data),
 
   importClients: (data, branchId) =>

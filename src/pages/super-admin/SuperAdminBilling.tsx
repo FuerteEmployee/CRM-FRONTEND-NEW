@@ -1,14 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   CreditCard, TrendingUp, IndianRupee, Activity,
   Zap, Globe, Shield, Clock, CheckCircle2, ArrowRight, Package
 } from "lucide-react";
-import { apiClient as api } from "@/api/client";
+import { useSaAllTenants, useSaDashboard, useSaSkeleton } from "@/lib/superAdminQueries";
 import { SuperAdminBillingSkeleton } from "@/components/ui/page-skeleton";
-import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { format } from "date-fns";
-import { getDaysLeft, getExpiryDate, isLifetimePlan, planPriceLabel } from "@/lib/tenantExpiry";
+import { getDaysLeft, getExpiryDate, isLifetimePlan, isTenantExpired, planPriceLabel } from "@/lib/tenantExpiry";
 
 interface Tenant {
   _id: string;
@@ -70,33 +69,34 @@ const BILLING_FEATURES = [
 ];
 
 export default function SuperAdminBilling() {
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [revenue, setRevenue] = useState<{ monthly: number; paying: number }>({ monthly: 0, paying: 0 });
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
-  const showBillingSkeleton = useMinimumLoading(loading);
-
-  useEffect(() => {
-    // Revenue comes from the dashboard endpoint so both pages always show
-    // the same figure (one backend rule: utils/saasRevenue.js).
-    Promise.all([api.get("/super-admin/tenants"), api.get("/super-admin/dashboard")])
-      .then(([tenantRes, dash]: [Tenant[], any]) => {
-        setTenants(Array.isArray(tenantRes) ? tenantRes : []);
-        setRevenue({ monthly: Number(dash?.monthly_revenue) || 0, paying: Number(dash?.paying_customers) || 0 });
-        setLoadError("");
-      })
-      .catch((err: any) => setLoadError(err?.message || "Couldn't load billing"))
-      .finally(() => setLoading(false));
-  }, []);
+  // Revenue comes from the dashboard endpoint so both pages always show the
+  // same figure (one backend rule: utils/saasRevenue.js). Both are cached and
+  // shared with the Dashboard/Alerts pages (lib/superAdminQueries.ts).
+  const tenantsQuery = useSaAllTenants();
+  const dashboardQuery = useSaDashboard();
+  const tenants = (tenantsQuery.data || []) as Tenant[];
+  const dash: any = dashboardQuery.data;
+  const revenue = { monthly: Number(dash?.monthly_revenue) || 0, paying: Number(dash?.paying_customers) || 0 };
+  const queryError = (tenantsQuery.error || dashboardQuery.error) as Error | null;
+  const loadError = queryError ? queryError.message || "Couldn't load billing" : "";
+  const showBillingSkeleton = useSaSkeleton(tenantsQuery.isPending || dashboardQuery.isPending);
 
   const activeTenants = tenants.filter((t) => t.status === "active");
+  // By date: "active" companies whose paid period has ended are shown as Ended.
+  const runningCount = activeTenants.filter((t) => !isTenantExpired(t as any)).length;
+  const billingBadge = (t: Tenant) => {
+    if (isTenantExpired(t as any)) return { label: "Ended", cls: "bg-red-50 text-red-700 border-red-200" };
+    const price = t.plan_id && typeof t.plan_id === "object" ? Number(t.plan_id.price) || 0 : 0;
+    if (price === 0) return { label: "Free", cls: "bg-gray-50 text-gray-600 border-gray-200" };
+    return { label: "Active", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+  };
   const trialTenants = tenants.filter((t) => t.status === "trial");
   const formatINR = (n: number) =>
     `₹${(Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const stats = [
     { label: "Est. Monthly Revenue", value: formatINR(revenue.monthly), icon: IndianRupee, color: "bg-blue-50 text-blue-600", sub: "Yearly ÷ 12 · lifetime and ended plans not counted" },
-    { label: "Paying Subscriptions", value: revenue.paying.toString(), icon: CreditCard, color: "bg-emerald-50 text-emerald-600", sub: `${activeTenants.length} marked Active` },
+    { label: "Paying Subscriptions", value: revenue.paying.toString(), icon: CreditCard, color: "bg-emerald-50 text-emerald-600", sub: `${runningCount} active by date · free plans not counted` },
     { label: "Trial Customers", value: trialTenants.length.toString(), icon: TrendingUp, color: "bg-indigo-50 text-indigo-600", sub: "Pending conversion" },
   ];
 
@@ -143,7 +143,7 @@ export default function SuperAdminBilling() {
       <TableContainer>
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-sm font-bold text-gray-900">Current Subscriptions</h2>
-          <span className="text-xs text-gray-400">{activeTenants.length} active customer{activeTenants.length !== 1 ? "s" : ""}</span>
+          <span className="text-xs text-gray-400">{runningCount} active · {activeTenants.length - runningCount} ended</span>
         </div>
         {activeTenants.length === 0 ? (
           <div className="py-12 text-center text-gray-400 text-sm">No active subscriptions yet.</div>
@@ -190,9 +190,14 @@ export default function SuperAdminBilling() {
                     })()}
                   </TableCell>
                   <TableCell>
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <CheckCircle2 className="h-3 w-3" /> Active
-                    </span>
+                    {(() => {
+                      const badge = billingBadge(t);
+                      return (
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold border ${badge.cls}`}>
+                          {badge.label === "Active" && <CheckCircle2 className="h-3 w-3" />} {badge.label}
+                        </span>
+                      );
+                    })()}
                   </TableCell>
                 </TableRow>
               ))}

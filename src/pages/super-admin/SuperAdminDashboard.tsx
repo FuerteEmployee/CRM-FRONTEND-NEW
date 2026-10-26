@@ -1,12 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   Building2, Package, TrendingUp, Activity,
   ShieldCheck, Clock, AlertTriangle, CheckCircle2, RefreshCw,
   Ban, PlayCircle, UserPlus, UserMinus,
 } from "lucide-react";
-import { apiClient as api } from "@/api/client";
+import { useSaDashboard, useSaSkeleton } from "@/lib/superAdminQueries";
 import { SuperAdminDashboardSkeleton } from "@/components/ui/page-skeleton";
-import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 import { formatDistanceToNow } from "date-fns";
 
 interface DashboardMetrics {
@@ -16,6 +15,7 @@ interface DashboardMetrics {
   suspended_customers: number;
   total_customers: number;
   active_plans: number;
+  total_plans?: number;
   owner_count: number;
   new_this_month: number;
   expiring_soon: number;
@@ -53,30 +53,12 @@ const formatINR = (n: number) =>
   `₹${(Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function SuperAdminDashboard() {
-  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [loadError, setLoadError] = useState("");
-
-  const fetchMetrics = async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-    try {
-      const response = await api.get("/super-admin/dashboard");
-      // The api client turns a 404/network failure into [] — that's not data.
-      if (!response || Array.isArray(response)) throw new Error("No response from server");
-      setMetrics(response);
-      setLoadError("");
-    } catch (error: any) {
-      console.error("Failed to fetch super admin metrics", error);
-      setLoadError(error?.message || "Couldn't load the dashboard");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  useEffect(() => { fetchMetrics(); }, []);
+  // Cached (lib/superAdminQueries.ts): revisits show the last data at once.
+  const { data, isPending, isFetching, error, refetch } = useSaDashboard();
+  const metrics = (data as DashboardMetrics | undefined) ?? null;
+  const loadError = error ? (error as Error).message || "Couldn't load the dashboard" : "";
+  const refreshing = isFetching && !isPending;
+  const fetchMetrics = (_isRefresh?: boolean) => { refetch(); };
 
   const cards = [
     {
@@ -96,7 +78,7 @@ export default function SuperAdminDashboard() {
     {
       title: "Active Plans",
       value: metrics?.active_plans ?? 0,
-      sub: `${metrics?.owner_count ?? 0} company owners`,
+      sub: `of ${metrics?.total_plans ?? metrics?.active_plans ?? 0} plans in total`,
       icon: Package,
       color: "from-indigo-500 to-purple-500",
     },
@@ -109,7 +91,7 @@ export default function SuperAdminDashboard() {
     },
   ];
 
-  const showSkeleton = useMinimumLoading(loading);
+  const showSkeleton = useSaSkeleton(isPending);
   if (showSkeleton) return <SuperAdminDashboardSkeleton />;
 
   return (

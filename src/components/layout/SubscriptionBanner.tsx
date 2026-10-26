@@ -2,7 +2,7 @@ import { AlertTriangle, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { usePermissionContext } from "@/context/PermissionContext";
-import { bannerWarningDays, getDaysLeft } from "@/lib/tenantExpiry";
+import { bannerWarningDays, getDaysLeft, graceDaysLeft } from "@/lib/tenantExpiry";
 
 // "Plan expiring soon" banner shown on every CRM page. It starts showing the
 // number of days before expiry that Super Admin set on the plan
@@ -15,9 +15,13 @@ export function SubscriptionBanner() {
   if (!tenant || user?.is_superadmin) return null;
 
   const daysLeft = getDaysLeft(tenant);
-  if (daysLeft === null || daysLeft <= 0 || daysLeft > bannerWarningDays(tenant)) return null;
+  // Plan already ended: inside the grace period the banner stays (red) with
+  // the days of grace left; after it the "Subscription Expired" popup takes over.
+  const grace = graceDaysLeft(tenant);
+  const inGrace = grace !== null && grace > 0;
+  if (daysLeft === null || (!inGrace && (daysLeft <= 0 || daysLeft > bannerWarningDays(tenant)))) return null;
 
-  const urgent = daysLeft <= 7;
+  const urgent = inGrace || daysLeft <= 7;
   return (
     <div
       className={`mb-4 flex flex-col gap-3 rounded-xl border p-4 shadow-sm md:flex-row md:items-center md:justify-between ${
@@ -30,7 +34,9 @@ export function SubscriptionBanner() {
         <AlertTriangle className={`mt-0.5 h-5 w-5 shrink-0 md:mt-0 ${urgent ? "text-red-600" : "text-amber-600"}`} />
         <div>
           <p className={`text-sm font-bold ${urgent ? "text-red-800 dark:text-red-400" : "text-amber-800 dark:text-amber-400"}`}>
-            Your plan expires in {daysLeft} day{daysLeft !== 1 ? "s" : ""}
+            {inGrace
+              ? `Your plan has ended — ${grace} day${grace !== 1 ? "s" : ""} of grace left`
+              : `Your plan expires in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}`}
           </p>
           <p className={`text-xs ${urgent ? "text-red-700/80" : "text-amber-700/80"}`}>
             {isAdmin

@@ -60,7 +60,7 @@ import { customerService } from "@/api/services/customer.service";
 import { quotationService } from "@/api/services/quotation.service";
 import { formatDate } from "@/lib/dateFormat";
 import { useCurrency } from "@/context/CurrencyContext";
-import { isTenantExpired } from "@/lib/tenantExpiry";
+import { isPastGrace } from "@/lib/tenantExpiry";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty } from "@/components/ui/table";
 
 const OverviewSection = ({ title, icon: Icon, items }: { title: string; icon: React.ElementType; items: { label: string; value: number; percentage: string; color?: string }[] }) => (
@@ -145,7 +145,8 @@ const Dashboard = () => {
   const basePath = isStaff ? "/staff" : "/admin";
 
   // The "expiring soon" banner lives in DashboardLayout (every page) now.
-  const isExpired = !user?.is_superadmin && isTenantExpired(user?.tenant as any);
+  // The expired popup/lock starts after the grace period (lib/tenantExpiry.ts).
+  const isExpired = !user?.is_superadmin && isPastGrace(user?.tenant as any);
 
   // Show expired popup immediately on every page load when expired — no delay, no dismiss state.
   // useState initialises directly from isExpired so it's true on first render when expired.

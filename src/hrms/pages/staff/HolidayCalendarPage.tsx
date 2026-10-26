@@ -101,7 +101,13 @@ const HolidayCalendarPage = () => {
 
   const openAdd = () => {
     setEditingId(null);
-    setForm({ ...emptyForm, date: `${year}-01-01` });
+    const today = new Date();
+    // If viewing the current year → default to today; otherwise → Jan 1 of that year
+    const defaultDate =
+      today.getFullYear() === year
+        ? today.toISOString().slice(0, 10)          // YYYY-MM-DD of today
+        : `${year}-01-01`;
+    setForm({ ...emptyForm, date: defaultDate });
     setDialogOpen(true);
   };
 

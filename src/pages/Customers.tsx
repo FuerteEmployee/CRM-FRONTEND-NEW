@@ -298,12 +298,10 @@ const Customers = () => {
         await customerService.bulkDelete(selectedCustomers);
         toast({ title: "Success", description: `Deleted ${selectedCustomers.length} customers.` });
       } else {
-        const updates: any = {};
-        if (bulkState.groups) updates.groups = [bulkState.groups];
-
-        if (Object.keys(updates).length > 0) {
-          await Promise.all(selectedCustomers.map(id => customerService.update(id, updates)));
-          toast({ title: "Success", description: `Updated ${selectedCustomers.length} customers.` });
+        if (bulkState.groups) {
+          // Adds the group and keeps each customer's other groups.
+          await customerService.bulkAssignGroup(selectedCustomers, bulkState.groups);
+          toast({ title: "Success", description: `Added the group to ${selectedCustomers.length} customers.` });
         }
       }
       queryClient.invalidateQueries({ queryKey: ["customers"] });
@@ -311,7 +309,7 @@ const Customers = () => {
       setBulkActionOpen(false);
       setBulkState({ massDelete: false, groups: "" });
     } catch (err: any) {
-      toast({ title: "Error", description: "Failed to perform bulk action."});
+      toast({ title: "Error", description: apiError(err, "Failed to perform bulk action."), variant: "destructive" });
     } finally {
       setIsBulkLoading(false);
     }
@@ -437,17 +435,34 @@ const Customers = () => {
   };
 
   const paginatedCustomers = customersResult?.rows ?? [];
+  // Rows seen on any page, so a selection made on page 1 still reaches the WhatsApp dialog from page 2.
+  const seenCustomersRef = useRef(new Map<string, any>());
+  paginatedCustomers.forEach((c: any) => seenCustomersRef.current.set(String(c._id), c));
+  const selectedCustomerRows = selectedCustomers.map((id) => seenCustomersRef.current.get(String(id))).filter(Boolean);
   const totalCustomers = customersResult?.total ?? 0;
   const activeCustomers = customersResult?.activeCount ?? 0;
   const inactiveCustomers = customersResult?.inactiveCount ?? 0;
   const totalPages = customersResult?.pages ?? 1;
   const itemsPerPageNum = itemsPerPage === "all" ? Math.max(totalCustomers, 1) : itemsPerPage;
-  const activeContacts = 0;
-  const inactiveContacts = 0;
+  // Contact counters come from the company's contacts (they used to be a fixed 0).
+  const { data: allContacts = [] } = useQuery<any[]>({
+    queryKey: ["customer-contacts-all"],
+    queryFn: async () => {
+      const res: any = await customerService.getAllContacts();
+      return Array.isArray(res) ? res : res?.data ?? [];
+    },
+    staleTime: 60 * 1000,
+  });
+  const activeContacts = allContacts.filter((c: any) => c.active !== false).length;
+  const inactiveContacts = allContacts.length - activeContacts;
+  const loggedInContacts = allContacts.filter((c: any) => !!c.last_login).length;
+  const apiError = (err: any, fallback: string) => err?.response?.data?.message || err?.message || fallback;
   const createMutation = useMutation({
     mutationFn: customerService.create,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      resetCustomerForm();
+      setIsNewCustomerOpen(false);
       toast({
         title: "Success",
         description: "Customer created successfully.",
@@ -456,7 +471,7 @@ const Customers = () => {
     onError: (err: any) => {
       toast({
         title: "Error",
-        description: err.message || "Failed to create customer",
+        description: apiError(err, "Failed to create customer"),
         variant: "destructive",
       });
     },
@@ -465,8 +480,13 @@ const Customers = () => {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) =>
       customerService.update(id, data),
-    onSuccess: () => {
+    onSuccess: (_res: any, vars: { id: string; data: any }) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      // The list's Active switch also uses this — only the edit dialog closes.
+      if (editItem && (editItem as any)._id === vars.id) {
+        resetCustomerForm();
+        setIsNewCustomerOpen(false);
+      }
       toast({
         title: "Updated",
         description: "Customer updated successfully.",
@@ -475,7 +495,7 @@ const Customers = () => {
     onError: (err: any) => {
       toast({
         title: "Error",
-        description: err.message || "Failed to update customer",
+        description: apiError(err, "Failed to update customer"),
         variant: "destructive",
       });
     },
@@ -603,22 +623,55 @@ const Customers = () => {
     setEditItem(null);
   };
 
+  // Same rules the server checks (client_controller) — caught here so the user sees them before saving.
+  const customerFormError = (c: any): string | null => {
+    const company = String(c.company || "").trim();
+    if (!company) return "Company name is required";
+    if (company.length > 200) return "Company name must be 200 characters or less";
+    if (c.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(c.email).trim())) return "Email is not a valid email address";
+    if (c.phonenumber) {
+      const digits = String(c.phonenumber).replace(/\D/g, "").length;
+      if (!/^\+?[\d\s()-]+$/.test(String(c.phonenumber).trim()) || digits < 10 || digits > 15) return "Phone must be a valid phone number (10–15 digits)";
+    }
+    const pan = String(c.pan_number || "").trim().toUpperCase();
+    if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) return "PAN number must look like ABCDE1234F";
+    const gst = String(c.gst_number || "").trim().toUpperCase();
+    if (gst) {
+      if (!/^(0[1-9]|[12][0-9]|3[0-8]|97|99)[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gst)) return "GST number must be a valid 15-character GSTIN (e.g. 24ABCDE1234F1Z5)";
+      if (pan && gst.slice(2, 12) !== pan) return "GST number does not match the PAN number";
+    }
+    if (c.website) {
+      const s = String(c.website).trim();
+      try {
+        const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(s) ? s : `https://${s}`);
+        if (!["http:", "https:"].includes(u.protocol) || !u.hostname.includes(".")) throw new Error();
+      } catch {
+        return "Website must be a web address like https://example.com";
+      }
+    }
+    for (const [label, z] of [["Zip code", c.zip], ["Billing zip code", c.billing_zip], ["Shipping zip code", c.shipping_zip]]) {
+      if (z && !/^\d{6}$/.test(String(z).trim())) return `${label} must be exactly 6 digits`;
+    }
+    return null;
+  };
+  const savingRef = useRef(false);
+
   const handleSaveCustomer = () => {
-    if (!newCustomer.company) {
-      toast({
-        title: "Warning",
-        description: "Company name is required",
-        variant: "destructive",
-      });
+    const error = customerFormError(newCustomer);
+    if (error) {
+      toast({ title: "Warning", description: error, variant: "destructive" });
       return;
     }
+    // Ref, not state: a double-click fires both handlers before React re-renders.
+    if (savingRef.current || createMutation.isPending || updateMutation.isPending) return;
+    savingRef.current = true;
+    const data = { ...newCustomer, company: String(newCustomer.company).trim() };
+    const done = { onSettled: () => { savingRef.current = false; } };
     if (editItem) {
-      updateMutation.mutate({ id: (editItem as any)._id, data: newCustomer });
+      updateMutation.mutate({ id: (editItem as any)._id, data }, done);
     } else {
-      createMutation.mutate(newCustomer);
+      createMutation.mutate(data, done);
     }
-    resetCustomerForm();
-    setIsNewCustomerOpen(false);
   };
 
   return (
@@ -671,7 +724,7 @@ const Customers = () => {
           </Card>
           <Card className="border-t-2 border-t-muted-foreground">
             <CardContent className="p-3 text-center">
-              <p className="text-lg font-bold">0</p>
+              <p className="text-lg font-bold">{loggedInContacts}</p>
               <p className="text-xs text-muted-foreground">
                 Contacts Logged In
               </p>
@@ -1072,21 +1125,47 @@ const Customers = () => {
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          onClick={() => setNewCustomer({
+                            ...newCustomer,
+                            billing_street: newCustomer.address || "",
+                            billing_city: newCustomer.city || "",
+                            billing_state: newCustomer.state || "",
+                            billing_zip: newCustomer.zip || "",
+                            billing_country: newCustomer.country || "",
+                          })}
+                        >
                           Same as Customer Info
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          onClick={() => setNewCustomer({
+                            ...newCustomer,
+                            shipping_street: newCustomer.billing_street || "",
+                            shipping_city: newCustomer.billing_city || "",
+                            shipping_state: newCustomer.billing_state || "",
+                            shipping_zip: newCustomer.billing_zip || "",
+                            shipping_country: newCustomer.billing_country || "",
+                          })}
+                        >
                           Copy Billing Address
                         </Button>
                       </div>
                     </TabsContent>
                   </Tabs>
                   <div className="flex gap-2 pt-2">
-                    <DialogTrigger asChild>
-                      <Button className="flex-1" onClick={handleSaveCustomer}>
-                        {editItem ? "Update" : "Save"}
-                      </Button>
-                    </DialogTrigger>
+                    <Button
+                      className="flex-1"
+                      onClick={handleSaveCustomer}
+                      disabled={createMutation.isPending || updateMutation.isPending}
+                    >
+                      {createMutation.isPending || updateMutation.isPending ? "Saving..." : editItem ? "Update" : "Save"}
+                    </Button>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -1251,7 +1330,6 @@ const Customers = () => {
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="Active">Active</SelectItem>
-                <SelectItem value="Lead">Lead</SelectItem>
                 <SelectItem value="Inactive">Inactive</SelectItem>
               </SelectContent>
             </Select>
@@ -1321,6 +1399,7 @@ const Customers = () => {
                 <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl font-black uppercase text-[10px] tracking-widest" asChild>
                   <Link to="/admin/contacts">Contacts</Link>
                 </Button>
+                {can("Customers", "Edit") && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -1336,10 +1415,11 @@ const Customers = () => {
                   <MessageCircle className="h-4 w-4" />
                   WhatsApp
                 </Button>
+                )}
                 <BulkWhatsAppDialog
                   open={bulkWhatsAppOpen}
                   onOpenChange={setBulkWhatsAppOpen}
-                  customers={paginatedCustomers}
+                  customers={selectedCustomerRows}
                   selectedIds={selectedCustomers}
                   onSent={() => setSelectedCustomers([])}
                 />
@@ -1351,26 +1431,28 @@ const Customers = () => {
                   setBulkState({ massDelete: false, groups: "" }); // clear unsaved bulk choices on open/close
                   setBulkActionOpen(open);
                 }}>
+                  {(can("Customers", "Edit") || can("Customers", "Delete")) && (
                   <DialogTrigger asChild>
                     <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700">
                       Bulk Actions
                     </Button>
                   </DialogTrigger>
+                  )}
                   <DialogContent className="max-w-md bg-white">
                     <DialogHeader>
                       <DialogTitle className="text-lg font-bold">Bulk Actions</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id="mass_delete" 
+                      <div className={can("Customers", "Delete") ? "flex items-center space-x-2" : "hidden"}>
+                        <Checkbox
+                          id="mass_delete"
                           className="border-red-200 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" 
                           checked={bulkState.massDelete}
                           onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
                         />
                         <Label htmlFor="mass_delete" className="text-sm font-semibold text-red-600">Mass Delete</Label>
                       </div>
-                      <div className="space-y-1.5 pt-2">
+                      <div className={can("Customers", "Edit") ? "space-y-1.5 pt-2" : "hidden"}>
                         <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Assign to Group</Label>
                         <Select value={bulkState.groups} onValueChange={(val) => setBulkState({...bulkState, groups: val})} disabled={bulkState.massDelete}>
                           <SelectTrigger className="h-10 bg-slate-50/50 border-slate-200 rounded-lg">

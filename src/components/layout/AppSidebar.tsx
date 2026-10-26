@@ -101,7 +101,7 @@ import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { Badge } from "@/components/ui/badge";
 import { useNotificationContext } from "@/context/NotificationContext";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isTenantExpired } from "@/lib/tenantExpiry";
+import { isPastGrace } from "@/lib/tenantExpiry";
 import { moduleForPath } from "@/lib/planModules";
 
 const fallbackNav = [
@@ -358,7 +358,8 @@ export function AppSidebar() {
   const isPilot = canAccessBankDetails(user?.email);
   const hasSetupAccess = !isHrmsOnly && (isAdmin || canView("Settings"));
 
-  const isExpired = !user?.is_superadmin && isTenantExpired(user?.tenant as any);
+  // The expired popup/lock starts after the grace period (lib/tenantExpiry.ts).
+  const isExpired = !user?.is_superadmin && isPastGrace(user?.tenant as any);
 
   const [menuMode, setMenuMode] = useState<"main" | "setup">(
     () =>

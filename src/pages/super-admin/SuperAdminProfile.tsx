@@ -62,7 +62,8 @@ export default function SuperAdminProfile() {
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user?._id) return;
-    if (pwdData.newPassword.length < 6) { toast.error("Password must be at least 6 characters"); return; }
+    // Same minimum as the Customer page's owner password.
+    if (pwdData.newPassword.length < 8) { toast.error("Password must be at least 8 characters"); return; }
     if (pwdData.newPassword !== pwdData.confirmPassword) { toast.error("Passwords do not match"); return; }
     passwordMutation.mutate({ password: pwdData.newPassword });
   };

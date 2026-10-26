@@ -62,10 +62,24 @@ const ExpenseManagementPage = () => {
   }, []);
 
   const getEmployeeName = (idOrObj: any): string => {
-    if (!idOrObj) return "Staff Member";
-    if (typeof idOrObj === "object") return idOrObj.name || "Staff Member";
-    const emp = employees.find((e) => String((e as any)._id || e.id) === String(idOrObj));
-    return emp ? emp.name : "Staff Member";
+    if (!idOrObj) return "Former Employee";
+    if (typeof idOrObj === "object") {
+      if (idOrObj.name) return idOrObj.name;
+      if (idOrObj.firstname) return `${idOrObj.firstname} ${idOrObj.lastname || ""}`.trim();
+      if (idOrObj.email) return idOrObj.email;
+      const innerId = idOrObj._id || idOrObj.id;
+      if (innerId) {
+        const found = employees.find(
+          (e) => String((e as any)._id || e.id) === String(innerId) || String((e as any).staffId) === String(innerId)
+        );
+        if (found) return found.name;
+      }
+      return "Former Employee";
+    }
+    const emp = employees.find(
+      (e) => String((e as any)._id || e.id) === String(idOrObj) || String((e as any).staffId) === String(idOrObj)
+    );
+    return emp ? emp.name : "Former Employee";
   };
 
   if (!hasPermission("manage_expenses")) {
@@ -142,7 +156,7 @@ const ExpenseManagementPage = () => {
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
-                      <p className="text-sm font-bold text-slate-700">₹{exp.amount.toLocaleString("en-IN")}</p>
+                      <p className="text-sm font-bold text-slate-700">₹{Number(exp.amount).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                       <Badge className={`mt-0.5 text-[9px] font-bold border-0 bg-${c}-100 text-${c}-700`}>{exp.status}</Badge>
                     </div>
                     <DropdownMenu>

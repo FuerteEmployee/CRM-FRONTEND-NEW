@@ -761,6 +761,7 @@ export default function EstimateCreate() {
                         tax: taxId,
                         tax2: tax2Id,
                         unit: item.unit || "",
+                        itemHSN: item.hsn_sac_code || "",
                         item_group: item.group || ""
                       }));
                     }}
