@@ -17,6 +17,7 @@ import { mainSidebarService } from "@/api/services/mainsidebar.service";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 import { hasQuotationApproval, QUOTATION_APPROVE_PERMISSION } from "@/lib/quotationApproval";
+import { hasPurchaseOrders, PURCHASE_ORDERS_PERMISSION } from "@/lib/purchaseOrders";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 interface Permission {
@@ -207,7 +208,11 @@ export default function SetupRolesLegacy() {
   const queryClient = useQueryClient();
   const { can, user } = usePermissions();
   const features = useMemo(
-    () => (hasQuotationApproval(user) ? [...FEATURES_CONFIG, QUOTATION_APPROVE_PERMISSION] : FEATURES_CONFIG),
+    () => [
+      ...FEATURES_CONFIG,
+      ...(hasQuotationApproval(user) ? [QUOTATION_APPROVE_PERMISSION] : []),
+      ...(hasPurchaseOrders(user) ? [PURCHASE_ORDERS_PERMISSION] : []),
+    ],
     [user],
   );
 

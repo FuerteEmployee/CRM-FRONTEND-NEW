@@ -12,12 +12,29 @@ class SettingsService {
     return apiClient.post("/settings", settingsData);
   }
 
+  // Setup > Settings > Tags: tags used on the company's records.
+  async getTags() {
+    return apiClient.get("/settings/tags");
+  }
+
+  async deleteTag(tag) {
+    return apiClient.delete(`/settings/tags/${encodeURIComponent(tag)}`);
+  }
+
   async testEmail(data) {
     return apiClient.post("/settings/test-email", data);
   }
 
+  async testSms(data) {
+    return apiClient.post("/settings/test-sms", data);
+  }
+
   async getSystemInfo() {
     return apiClient.get("/settings/system-info");
+  }
+
+  async getVersionInfo() {
+    return apiClient.get("/settings/version");
   }
 
   // Email Templates

@@ -9,6 +9,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { quotationService } from '@/api/services/quotation.service';
 import { hasQuotationApproval } from '@/lib/quotationApproval';
+import { hasPurchaseOrders } from '@/lib/purchaseOrders';
+import { purchaseOrderService } from '@/api/services/purchaseOrder.service';
 
 export interface NotificationItem {
   id: string;
@@ -95,6 +97,30 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       .catch(() => { /* not critical */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?._id, approvalCanApprove]);
+
+  // Same reminder for purchase orders waiting on a PO approver.
+  const poCanApprove = hasPurchaseOrders(user) && can("Purchase Orders", "Approve");
+  useEffect(() => {
+    if (!user?._id || !poCanApprove) return;
+    const key = `poApprovalReminded:${user._id}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+    } catch { /* storage unavailable — just remind */ }
+    purchaseOrderService.pendingApprovals()
+      .then((list: any) => {
+        const count = Array.isArray(list) ? list.length : 0;
+        if (count > 0) {
+          addNotification(
+            "Purchase orders awaiting approval",
+            `${count} PO${count === 1 ? " is" : "s are"} waiting for your Yes/No.`,
+            `${isStaff ? "/staff" : "/admin"}/purchase-orders?tab=approvals`,
+          );
+        }
+        try { sessionStorage.setItem(key, "1"); } catch { /* ignore */ }
+      })
+      .catch(() => { /* not critical */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?._id, poCanApprove]);
 
   const addNotification = (title: string, message: string, link?: string) => {
     const newNotification: NotificationItem = {
@@ -228,6 +254,11 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     // Fired by the backend's reminderDelivery cron (Backend/src/cron/reminderDelivery.js)
     // the moment a Lead or Customer reminder's scheduled time arrives.
     socket.on("reminderDue", (payload: any) => {
+      // Task deadline reminders come from the Cron Job settings (taskTicketAutomation.js).
+      if (payload?.relType === "task") {
+        addNotification("Task Deadline", payload?.description || "A task is due soon.", `${isStaff ? "/staff" : "/admin"}/tasks`);
+        return;
+      }
       const title = payload?.relType === "customer" ? "Customer Reminder" : "Lead Reminder";
       // Only leads have a deep-link target today (Leads.tsx's ?leadView=
       // param opens that lead straight on its Reminders tab) — customer
@@ -251,6 +282,23 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       } else if (payload?.event === "rejected") {
         const reason = payload?.comment ? ` Reason: ${payload.comment}` : "";
         addNotification("Quotation rejected", `${number} was rejected by ${payload?.by || "an approver"}.${reason}`, `${base}/quotations?tab=list`);
+      }
+    });
+
+    // Purchase Orders add-on (Backend purchase_order_controller.js): same
+    // pattern — approvers hear about POs that broke the pricing rules, makers
+    // hear Yes/No.
+    socket.on("purchaseOrderApproval", (payload: any) => {
+      const base = isStaff ? "/staff" : "/admin";
+      const number = payload?.number || "A purchase order";
+      const link = payload?.poId ? `${base}/purchase-orders?po=${payload.poId}` : `${base}/purchase-orders`;
+      if (payload?.event === "requested") {
+        addNotification("PO needs your approval", `${payload?.by || "A staff member"} sent ${number} — it breaks the pricing rules.`, link);
+      } else if (payload?.event === "approved") {
+        addNotification("PO approved", `${number} was approved by ${payload?.by || "an approver"}.`, link);
+      } else if (payload?.event === "rejected") {
+        const reason = payload?.reason ? ` Reason: ${payload.reason}` : "";
+        addNotification("PO sent back", `${payload?.by || "An approver"} said No to ${number}.${reason}`, link);
       }
     });
 

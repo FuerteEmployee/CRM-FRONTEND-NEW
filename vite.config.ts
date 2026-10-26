@@ -2,9 +2,28 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
+import { execSync } from "child_process";
+
+// Shown in Setup > Settings > System Update: which commit this build came from.
+const git = (args: string) => {
+  try {
+    return execSync(`git ${args}`, { cwd: __dirname, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+  } catch {
+    return "";
+  }
+};
+const APP_BUILD = {
+  commit: git("rev-parse --short HEAD"),
+  commitDate: git("log -1 --format=%cI"),
+  builtAt: new Date().toISOString(),
+};
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   base: "/",
+  define: {
+    __APP_BUILD__: JSON.stringify(APP_BUILD),
+  },
   server: {
     host: "::",
     port: 5183,

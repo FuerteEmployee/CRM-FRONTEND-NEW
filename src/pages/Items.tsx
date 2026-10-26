@@ -39,6 +39,7 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const ITEM_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Item Name", sample: "Laptop Stand", required: true, core: true },
@@ -73,7 +74,7 @@ const Items = () => {
   useOpenCreateModal(() => setIsCreateOpen(true));
   const [viewItem, setViewItem] = useState<any>(null);
   const [editItem, setEditItem] = useState<any>(null);
-  const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [itemsPerPage, setItemsPerPage] = useState(() => String(defaultPageSize(10)));
   const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
   const queryClient = useQueryClient();

@@ -404,12 +404,13 @@
     @apply text-sm text-muted-foreground;
   }
 
-  /* Theme Table Variable Applications */
-  table thead {
+  /* Theme Table Variable Applications — document layouts (.printable-table,
+     invoiceFormatLayouts.tsx) keep their own header colours. */
+  table:not(.printable-table) thead {
     background-color: hsl(var(--items-table-heading-bg)) !important;
   }
 
-  table th {
+  table:not(.printable-table) th {
     color: hsl(var(--items-table-heading-text)) !important;
     background-color: hsl(var(--items-table-heading-bg)) !important;
   }

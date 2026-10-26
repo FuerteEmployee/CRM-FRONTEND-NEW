@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSettings } from "@/context/SettingsContext";
 import { useParams, useNavigate } from "react-router-dom";
 import { LANGUAGES_WITH_SYSTEM_DEFAULT } from "@/lib/languages";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -43,6 +44,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 import { hasQuotationApproval, QUOTATION_APPROVE_PERMISSION } from "@/lib/quotationApproval";
 import { hasBranchSalaryManagement } from "@/lib/branchSalary";
+import { hasPurchaseOrders, PURCHASE_ORDERS_PERMISSION } from "@/lib/purchaseOrders";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -269,8 +271,12 @@ export default function SetupStaffForm() {
   const queryClient = useQueryClient();
   const [showPassword, setShowPassword] = useState(false);
   const { can, isStaff, isModuleEnabled, user } = usePermissions();
-  // Quotation approval add-on adds a "Quotations > Approve" row.
-  const permissionFeatures = hasQuotationApproval(user) ? [...FEATURES_CONFIG, QUOTATION_APPROVE_PERMISSION] : FEATURES_CONFIG;
+  // Add-ons add their own rows: "Quotations > Approve" and "Purchase Orders".
+  const permissionFeatures = [
+    ...FEATURES_CONFIG,
+    ...(hasQuotationApproval(user) ? [QUOTATION_APPROVE_PERMISSION] : []),
+    ...(hasPurchaseOrders(user) ? [PURCHASE_ORDERS_PERMISSION] : []),
+  ];
   // Branch salary management add-on shows "Salary Managed By" / "Managing Branch".
   const branchSalaryEnabled = hasBranchSalaryManagement(user);
   const basePath = isStaff ? "/staff" : "/admin";
@@ -697,6 +703,19 @@ export default function SetupStaffForm() {
       createMutation.mutate(buildFormData(finalData));
     }
   };
+
+  // Setup > Settings > Misc > "Default Staff Role" (role id, or a role name in
+  // older settings). Admin roles are never pre-selected — giving admin rights
+  // must be a deliberate choice.
+  const { getSetting } = useSettings();
+  const defaultRoleSetting = String(getSetting("miscDefaultRole", "") || "").trim();
+  useEffect(() => {
+    if (id !== "new" || !defaultRoleSetting || !roles.length || formData.role) return;
+    const r = roles.find((x) => x._id === defaultRoleSetting) || roles.find((x) => x.name?.toLowerCase() === defaultRoleSetting.toLowerCase());
+    const isAdminRole = ["admin", "super admin"].includes(String(r?.name || "").toLowerCase());
+    if (r && !isAdminRole) handleRoleChange(r._id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, defaultRoleSetting, roles.length]);
 
   const handleRoleChange = (roleId: string) => {
     const selectedRole = roles.find((r) => r._id === roleId);

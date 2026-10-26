@@ -13,6 +13,8 @@ export const estimateService = {
     return apiClient.get(`/estimates${query ? `?${query}` : ""}`);
   },
   getEstimateById: (id) => apiClient.get(`/estimates/${id}`),
+  // Next estimate number + Setup > Settings > Estimates defaults for a new estimate.
+  getNextEstimateNumber: (date) => apiClient.get(`/estimates/next-number${date ? `?date=${encodeURIComponent(date)}` : ""}`),
   createEstimate: (data) => apiClient.post("/estimates", data),
   updateEstimate: (id, data) => apiClient.put(`/estimates/${id}`, data),
   deleteEstimate: (id) => apiClient.delete(`/estimates/${id}`),

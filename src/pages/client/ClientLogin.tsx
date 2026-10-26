@@ -6,6 +6,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
+import { APP_LANGUAGES, appLanguageFromSetting, applyAppLanguage, currentAppLanguage } from "@/lib/appLanguage";
 
 const ClientLogin = () => {
   const [email, setEmail] = useState("");
@@ -14,6 +15,13 @@ const ClientLogin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { settings } = useSettings();
+  // Setup > Settings > Localization: Default Language / Disable Languages.
+  const defaultLanguage = appLanguageFromSetting(settings?.locLanguage);
+  const languagesDisabled = [true, 1, "1", "true"].includes(settings?.locDisableLanguages);
+  const [selectedLanguage, setSelectedLanguage] = useState(() => {
+    const cur = currentAppLanguage();
+    return APP_LANGUAGES.find((l) => l.code === cur || l.code === cur.split("-")[0])?.code || defaultLanguage;
+  });
   const [logoError, setLogoError] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
@@ -86,15 +94,18 @@ const ClientLogin = () => {
             <form onSubmit={handleLogin} className="space-y-5">
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-[#64748B] ml-0.5">Language</label>
-                <select className="flex h-10 w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm ring-offset-background transition-colors focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/5">
-                  <option>{settings?.locLanguage || "English"}</option>
-                  {!settings?.locDisableLanguages && (
-                    <>
-                      <option>Spanish</option>
-                      <option>French</option>
-                      <option>German</option>
-                    </>
-                  )}
+                <select
+                  className="flex h-10 w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm ring-offset-background transition-colors focus:border-[#2563EB] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/5"
+                  value={languagesDisabled ? defaultLanguage : selectedLanguage}
+                  disabled={languagesDisabled}
+                  onChange={(e) => {
+                    setSelectedLanguage(e.target.value);
+                    applyAppLanguage(e.target.value, { userPicked: true });
+                  }}
+                >
+                  {(languagesDisabled ? APP_LANGUAGES.filter((l) => l.code === defaultLanguage) : APP_LANGUAGES).map((l) => (
+                    <option key={l.code} value={l.code}>{l.name}</option>
+                  ))}
                 </select>
               </div>
 

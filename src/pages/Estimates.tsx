@@ -30,6 +30,7 @@ import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
 import { hrmsbranchService } from "@/api/services/hrmsbranch.service";
 import { useSettings } from "@/context/SettingsContext";
+import { getCompanyInfo, companyInfoHtml } from "@/lib/companyInfo";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 
 const ESTIMATE_IMPORT_COLUMNS: ImportColumn[] = [
@@ -79,7 +80,9 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
   const { formatAmount, symbol } = useCurrency();
   const { user } = usePermissions();
   const { getSetting } = useSettings();
-  const companyName = getSetting("companyName", "Fuerte Developers");
+  // Company name + details from Setup > Settings > Company Information (no other company's name as fallback).
+  const companyName = getSetting("companyName", "");
+  const companyInfoBlock = companyInfoHtml(getCompanyInfo((k) => getSetting(k, "")));
   const canUseBankDetails = canAccessBankDetails(user?.email);
 
   const { data: currencies = [] } = useQuery({
@@ -232,7 +235,7 @@ const EstimateDetailPanel = ({ estimate, onClose, onEdit, onView, isFullscreen, 
           <div class="header">
             <div>
               <div class="title">${estimateNumber}</div>
-              <div class="company">${companyName}</div>
+              <div class="company">${companyName}</div>${companyInfoBlock}
             </div>
             <div style="text-align: right">
               <div style="margin-bottom: 15px;">

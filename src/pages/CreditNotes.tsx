@@ -1,6 +1,9 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useSettings } from "@/context/SettingsContext";
+import { getCompanyInfo, companyInfoHtml } from "@/lib/companyInfo";
+import { escapeHtml } from "@/lib/richText";
+import { settingOn } from "@/lib/invoiceDisplay";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,6 +69,7 @@ import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
 import { useCurrency } from "@/context/CurrencyContext";
 import { financeService } from "@/api/services/finance.service";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const statusMap: Record<number, { label: string; color: string }> = {
   1: { label: "Open", color: "bg-yellow-50 text-yellow-700 border-yellow-200" },
@@ -80,7 +84,7 @@ const CreditNotes = () => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
     return () => clearTimeout(t);
   }, [search]);
-  const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [itemsPerPage, setItemsPerPage] = useState(() => String(defaultPageSize(10)));
   const [currentPage, setCurrentPage] = useState(1);
   const [viewItem, setViewItem] = useState<any>(null);
   const navigate = useNavigate();
@@ -413,7 +417,9 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
   const [applyAmounts, setApplyAmounts] = useState<Record<string, string>>({});
   const [isApplying, setIsApplying] = useState(false);
   const { getSetting } = useSettings();
-  const companyName = getSetting("companyName", "Fuerte Developers");
+  // Company name + details from Setup > Settings > Company Information (no other company's name as fallback).
+  const companyName = getSetting("companyName", "");
+  const companyInfoBlock = companyInfoHtml(getCompanyInfo((k) => getSetting(k, "")));
 
   const handleApplyCredits = async () => {
     setIsApplying(true);
@@ -483,6 +489,9 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
 
   if (!item) return null;
 
+  // Setup > Settings > Credit Notes > "Show Project Name On Credit Note".
+  const cnProjectName = settingOn(getSetting("cnShowProject", false)) ? String(item.project_name || "") : "";
+
   const status = statusMap[item.status] || statusMap[1];
 
   // This view only ever renders ONE credit note (`item`), so its currency is fixed for the whole component.
@@ -532,7 +541,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
           <div class="header">
             <div>
               <div class="title">${item.number || `CN-${item._id?.substring(0, 6)}`}</div>
-              <div class="company">${companyName}</div>
+              <div class="company">${companyName}</div>${companyInfoBlock}
             </div>
             <div style="text-align: right">
               <div style="margin-bottom: 15px;">
@@ -541,7 +550,7 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
               </div>
               <div class="meta">
                 <b>Credit Note Date:</b> ${item.date ? formatDate(item.date) : '-'}<br/>
-                <b>Reference:</b> ${item.reference || '-'}
+                <b>Reference:</b> ${item.reference || '-'}${cnProjectName ? `<br/><b>Project:</b> ${escapeHtml(cnProjectName)}` : ''}
               </div>
             </div>
           </div>
@@ -716,6 +725,11 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                     <p className="text-[13px] font-semibold text-slate-800">
                       Reference: <span className="font-normal text-slate-600">{item.reference || "-"}</span>
                     </p>
+                    {cnProjectName && (
+                      <p className="text-[13px] font-semibold text-slate-800">
+                        Project: <span className="font-normal text-slate-600">{cnProjectName}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -798,6 +812,16 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                     <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Client Note</p>
                     <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                       <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap">{item.client_note}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Terms & Conditions (if any) */}
+                {item.terms && (
+                  <div className="mt-6">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Terms &amp; Conditions</p>
+                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                      <p className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap">{item.terms}</p>
                     </div>
                   </div>
                 )}

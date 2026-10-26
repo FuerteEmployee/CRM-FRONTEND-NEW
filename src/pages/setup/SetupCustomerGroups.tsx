@@ -50,7 +50,8 @@ export default function SetupCustomerGroups() {
       setIsModalOpen(false);
       setNewGroupName("");
     },
-    onError: () => toast.error("Failed to create customer group"),
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message || "Failed to create customer group"),
   });
 
   const bulkCreateMutation = useMutation({
@@ -61,7 +62,8 @@ export default function SetupCustomerGroups() {
       setIsBulkModalOpen(false);
       setBulkGroupNames("");
     },
-    onError: () => toast.error("Failed to create customer groups"),
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message || "Failed to create customer groups"),
   });
 
   const updateMutation = useMutation({
@@ -74,7 +76,8 @@ export default function SetupCustomerGroups() {
       setEditingGroupId(null);
       setNewGroupName("");
     },
-    onError: () => toast.error("Failed to update customer group"),
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message || "Failed to update customer group"),
   });
 
   const deleteMutation = useMutation({
@@ -83,7 +86,8 @@ export default function SetupCustomerGroups() {
       queryClient.invalidateQueries({ queryKey: ["customer-groups"] });
       toast.success("Customer group deleted successfully");
     },
-    onError: () => toast.error("Failed to delete customer group"),
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message || "Failed to delete customer group"),
   });
 
   const bulkDeleteMutation = useMutation({
@@ -94,7 +98,8 @@ export default function SetupCustomerGroups() {
       queryClient.invalidateQueries({ queryKey: ["customer-groups"] });
       toast.success("Selected items deleted successfully.");
     },
-    onError: () => toast.error("Failed to delete selected items"),
+    onError: (err: any) =>
+      toast.error(err?.response?.data?.message || "Failed to delete selected items"),
   });
 
   const handleSave = () => {
@@ -184,6 +189,15 @@ export default function SetupCustomerGroups() {
             label: "Name",
             className: "text-foreground font-medium",
             width: "3/4",
+          },
+          {
+            key: "totalCustomers",
+            label: "Customers",
+            render: (_value: any, row: any) => (
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary">
+                {row.totalCustomers || 0}
+              </span>
+            ),
           },
         ]}
       />

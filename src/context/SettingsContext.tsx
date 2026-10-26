@@ -3,6 +3,9 @@ import { settingsService } from "@/api/services/settings.service";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { letterFavicon } from "@/lib/brand";
 import { isPanelBrandedLogin } from "@/lib/panelBranding";
+import { setDateFormatConfig } from "@/lib/dateFormat";
+import { applyCompanyLanguage } from "@/lib/appLanguage";
+import { cacheTablePageSize } from "@/lib/tablePageSize";
 
 // public/favicon.ico used to be the Trinetra logo, so it was never a real
 // "no favicon" default — treat it (and any cached copy of it) as unset.
@@ -11,7 +14,11 @@ const isOldDefaultFavicon = (v?: string | null) => !v || /\/favicon\.ico(\?|$)/.
 // Companies with no uploaded favicon: Kiran's domain gets its own icon, every
 // other company gets the first letter of its name.
 const fallbackFavicon = (companyName?: string) =>
-  window.location.hostname.includes("kiranenginers") ? "/icons/kiran-192.png" : letterFavicon(companyName);
+  window.location.hostname.includes("kiranenginers")
+    ? "/icons/kiran-192.png"
+    : window.location.hostname.includes("offixnest")
+      ? "/icons/offixnest-192.png"
+      : letterFavicon(companyName);
 
 interface SettingsContextType {
   settings: Record<string, any>;
@@ -32,11 +39,14 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // used as the non-Trinetra fallback. Leaving it empty here means the real
     // fallback chain (OG Image, then the neutral monogram UI already built
     // into Login/ClientLogin) takes over correctly once refreshSettings runs.
-    const defaultCompanyName = isTrinetra ? "Trinetra TechnoWorld" : "";
-    const defaultLogoLight = isTrinetra ? "/trinetra-logo.jpg" : "";
-    const defaultLogoDark = isTrinetra ? "/trinetra-logo.jpg" : "";
+    const isOffixnest = host.includes("offixnest");
+    const defaultCompanyName = isTrinetra ? "Trinetra TechnoWorld" : isOffixnest ? "Offixnest" : "";
+    const defaultLogoLight = isTrinetra ? "/trinetra-logo.jpg" : isOffixnest ? "/offixnest-logo.png" : "";
+    const defaultLogoDark = isTrinetra ? "/trinetra-logo.jpg" : isOffixnest ? "/offixnest-logo.png" : "";
     const rawCachedName = localStorage.getItem("crm_company_name") || defaultCompanyName;
-    const cachedName = (rawCachedName === "Fuerte CRM" || rawCachedName === "Fuerte Developers" || rawCachedName === "CRMPro" || rawCachedName === "CRM Pro Inc.") ? "" : rawCachedName;
+    // Only the platform's own placeholder names are hidden; a company's real
+    // name is cached as-is (a real company may well be "Fuerte Developers").
+    const cachedName = (rawCachedName === "Fuerte CRM" || rawCachedName === "CRMPro" || rawCachedName === "CRM Pro Inc.") ? "" : rawCachedName;
     const storedFavicon = localStorage.getItem("crm_favicon");
     const cachedFavicon = isTrinetra
       ? storedFavicon || "/trinetra-icon.jpg"
@@ -64,7 +74,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const settingsArray = Array.isArray(response) ? response : (response?.settings || []);
       
       const settingsMap: Record<string, any> = {};
+      // The API marks the company's own name with its tenant_id; a name with
+      // no tenant is the platform default and is the only one ever hidden.
+      let companyNameIsOwn = false;
       settingsArray.forEach((s: any) => {
+        if (s.name === "companyName") companyNameIsOwn = !!s.tenant_id;
         let val = s.value;
         // Basic type conversion — only for string-encoded values (e.g. from
         // an <Input>). A value already stored as a real boolean/number
@@ -120,15 +134,15 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           settingsMap.favicon = "/trinetra-icon.jpg";
         }
       } else {
-        if (settingsMap.companyName === "CRMPro" || settingsMap.companyName === "Trinetra TechnoWorld" || settingsMap.companyName === "Fuerte Developers" || settingsMap.companyName === "Fuerte CRM" || settingsMap.companyName === "CRM Pro Inc.") {
-          settingsMap.companyName = "";
+        if (!companyNameIsOwn && (settingsMap.companyName === "CRMPro" || settingsMap.companyName === "Trinetra TechnoWorld" || settingsMap.companyName === "Fuerte Developers" || settingsMap.companyName === "Fuerte CRM" || settingsMap.companyName === "CRM Pro Inc.")) {
+          settingsMap.companyName = host.includes("offixnest") ? "Offixnest" : "";
         }
         // No non-Trinetra tenant has a real default logo file to fall back
         // to (logo-icon.png is mislabeled — see the comment above the
         // initial-state defaults) — fall back to the OG Image instead if
         // one's been uploaded; otherwise leave it unset so Login/ClientLogin
         // show their neutral monogram fallback rather than any wrong image.
-        const fallbackLogo = settingsMap.ogImage || "";
+        const fallbackLogo = host.includes("offixnest") ? "/offixnest-logo.png" : settingsMap.ogImage || "";
         if (!settingsMap.compLogoLight || settingsMap.compLogoLight === "/trinetra-logo.jpg") {
           settingsMap.compLogoLight = fallbackLogo;
         }
@@ -140,8 +154,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       }
 
-      if (!settingsMap.aiAgentName) {
-        settingsMap.aiAgentName = localStorage.getItem("crm_ai_agent_name") || "CRM Agent";
+      // Same default the backend prompts use; a cleared name must not fall
+      // back to the previously cached one.
+      if (typeof settingsMap.aiAgentName !== "string" || !settingsMap.aiAgentName.trim()) {
+        settingsMap.aiAgentName = "CRM Agent";
       }
 
       setSettings(settingsMap);
@@ -155,6 +171,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     refreshSettings();
   }, [refreshSettings]);
+
+  // Misc > "Tables Pagination Limit" for the list pages' first render.
+  useEffect(() => {
+    cacheTablePageSize((settings as any).miscTablePagination);
+  }, [(settings as any).miscTablePagination]);
 
   // Apply global branding dynamically
   useEffect(() => {
@@ -217,13 +238,20 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
     }
 
-    // Apply RTL Direction
-    const isClientPath = window.location.pathname === '/' || (!window.location.pathname.startsWith('/admin'));
-    if (isClientPath) {
-      document.documentElement.dir = settings.rtlCustomers === true ? 'rtl' : 'ltr';
-    } else {
-      document.documentElement.dir = settings.rtlAdmin === true ? 'rtl' : 'ltr';
+    // Apply RTL Direction. Admin, staff and super-admin panels follow "RTL
+    // Admin Area"; everything else (customer portal, public pages) follows
+    // "RTL Customers Area". Older rows store these as 1/0 instead of true/false.
+    const isOn = (v: any) => v === true || v === 1 || v === "1" || v === "true";
+    const path = window.location.pathname;
+    const isAdminArea = path.startsWith('/admin') || path.startsWith('/staff') || path.startsWith('/superadmin');
+    document.documentElement.dir = (isAdminArea ? isOn(settings.rtlAdmin) : isOn(settings.rtlCustomers)) ? 'rtl' : 'ltr';
+
+    // Localization: date/time display (lib/dateFormat.ts) and the default
+    // language (lib/appLanguage.ts). Only once real values have loaded.
+    if (settings.locDateFormat !== undefined || settings.locTimeFormat !== undefined || settings.locTimezone !== undefined) {
+      setDateFormatConfig(settings);
     }
+    applyCompanyLanguage(settings.locLanguage, isOn(settings.locDisableLanguages));
   }, [settings]);
 
   const getSetting = (name: string, defaultValue: any = "") => {

@@ -46,6 +46,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCurrency } from "@/context/CurrencyContext";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const Expenses = () => {
   const [search, setSearch] = useState("");
@@ -54,7 +55,7 @@ const Expenses = () => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350);
     return () => clearTimeout(t);
   }, [search]);
-  const [itemsPerPage, setItemsPerPage] = useState("10");
+  const [itemsPerPage, setItemsPerPage] = useState(() => String(defaultPageSize(10)));
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedExpenses, setSelectedExpenses] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);

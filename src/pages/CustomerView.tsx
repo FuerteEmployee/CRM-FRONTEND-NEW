@@ -211,6 +211,7 @@ import {
 } from "@/components/ui/command";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { RichTextEditor } from "@/components/shared/RichTextEditor";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 export function VoiceTextarea({ value, onChange, className, placeholder, name }: any) {
   const [isRecording, setIsRecording] = useState(false);
@@ -429,7 +430,7 @@ export default function CustomerView() {
     }
   }, [activeTab, navigate]);
 
-  const [itemsPerPage, setItemsPerPage] = useState("25");
+  const [itemsPerPage, setItemsPerPage] = useState(() => String(defaultPageSize(25)));
   const [formData, setFormData] = useState<any>({});
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isEditingContact, setIsEditingContact] = useState(false);

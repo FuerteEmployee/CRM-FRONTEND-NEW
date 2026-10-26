@@ -89,3 +89,12 @@ export const LANGUAGES_SETUP_KEYS: LanguageOption[] = LANGUAGE_TABLE.map(([name]
     .replace(/^_+|_+$/g, "");
   return { value: key, label: name };
 });
+
+/** Setup > Settings > Localization language key ("gujarati", "English", "gu") -> ISO-ish code ("gu"). */
+export const languageCodeFromSetupKey = (key?: string | null): string => {
+  const k = String(key ?? "").trim().toLowerCase();
+  if (!k) return "";
+  const i = LANGUAGES_SETUP_KEYS.findIndex((l) => l.value === k || l.label.toLowerCase() === k);
+  if (i >= 0) return LANGUAGE_TABLE[i][1];
+  return LANGUAGE_TABLE.some(([, code]) => code === k) ? k : "";
+};

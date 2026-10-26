@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Palette, RotateCcw, Save, X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useThemeStyle } from "@/context/ThemeContext";
 import { toast } from "sonner";
 import { applyThemeToDom, normalizeToHex } from "@/lib/themeUtils";
@@ -254,6 +254,12 @@ export default function SetupThemeStyle() {
       },
     }));
   }, []);
+
+  // Live preview only lasts while this page is open: leaving it without
+  // saving puts the saved theme back.
+  const savedThemeRef = useRef(themeSettings);
+  useEffect(() => { savedThemeRef.current = themeSettings; }, [themeSettings]);
+  useEffect(() => () => { applyThemeToDom(savedThemeRef.current || defaultTheme); }, []);
 
   const handleSave = async () => {
     try {

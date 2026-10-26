@@ -49,6 +49,22 @@ const SubscriptionCreate = () => {
 
   const stripeKey = getSetting("stripe_secret_key") || getSetting("stripe_publishable_key");
 
+  // Edit: load the saved subscription into the form.
+  const { data: existing } = useQuery({
+    queryKey: ["subscription", id],
+    queryFn: () => salesService.getSubscriptionById(id),
+    enabled: isEditing,
+  });
+  useEffect(() => {
+    if (!existing || !existing._id) return;
+    setFormData((prev: any) => ({
+      ...prev,
+      ...existing,
+      client: (existing.client?._id || existing.client || "").toString(),
+      date_subscribed: existing.date_subscribed ? new Date(existing.date_subscribed).toISOString().split("T")[0] : prev.date_subscribed,
+    }));
+  }, [existing]);
+
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: () => customerService.getAll(),

@@ -2,6 +2,8 @@ import { Button } from "@/components/ui/button";
 import { Download, ChevronDown, FileSpreadsheet, FileJson, FileType, Printer } from "lucide-react";
 import { toast } from "sonner";
 import * as XLSX from "xlsx";
+import { useSettings } from "@/context/SettingsContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -87,6 +89,11 @@ const downloadBlob = (blob: Blob, filename: string) => {
 
 export function ExportButton({ data, filename, columns }: ExportButtonProps) {
   const dated = `${filename}_${new Date().toISOString().split("T")[0]}`;
+  // Setup > Settings > Misc > "Show table export button": all staff / only administrators / nobody.
+  const { getSetting } = useSettings();
+  const { isAdmin, user } = usePermissions();
+  const exportMode = String(getSetting("miscTableExport", "all") || "all");
+  const exportHidden = exportMode === "hide" || (exportMode === "admins" && !isAdmin && !user?.is_superadmin);
 
   const handleExport = async (type: "xlsx" | "csv" | "pdf" | "print") => {
     if (type === "print") {
@@ -138,6 +145,8 @@ export function ExportButton({ data, filename, columns }: ExportButtonProps) {
       toast.error("Failed to generate export file");
     }
   };
+
+  if (exportHidden) return null;
 
   return (
     <DropdownMenu>

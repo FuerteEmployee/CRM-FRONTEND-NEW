@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { ExportButton } from "@/components/ui/export-button";
 import { TaskViewModal } from "@/components/tasks/TaskViewModal";
+import { defaultPageSize } from "@/lib/tablePageSize";
 
 const taskStatusConfig = [
   { id: 1, label: "Not Started", bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-200" },
@@ -34,7 +35,7 @@ const taskStatusConfig = [
 
 const TaskOverview = () => {
   const [search, setSearch] = useState("");
-  const [itemsPerPage, setItemsPerPage] = useState(25);
+  const [itemsPerPage, setItemsPerPage] = useState(() => defaultPageSize(25));
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedTask, setSelectedTask] = useState<any>(null);
   

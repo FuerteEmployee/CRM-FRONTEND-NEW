@@ -42,6 +42,7 @@ import { mainSidebarService } from "@/api/services/mainsidebar.service";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 import { hasQuotationApproval, QUOTATION_APPROVE_PERMISSION } from "@/lib/quotationApproval";
+import { hasPurchaseOrders, PURCHASE_ORDERS_PERMISSION } from "@/lib/purchaseOrders";
 
 interface Role {
   _id: string;
@@ -205,6 +206,7 @@ const FEATURE_GROUP_META: Record<string, { group: string; emoji: string }> = {
   "Quotations": { group: "Sales & CRM", emoji: "🛍️" },
 
   "Purchases": { group: "Purchases & Vendors", emoji: "📦" },
+  "Purchase Orders": { group: "Purchases & Vendors", emoji: "📦" },
   "Vendors": { group: "Purchases & Vendors", emoji: "📦" },
   "Items": { group: "Purchases & Vendors", emoji: "📦" },
 
@@ -455,9 +457,14 @@ export default function SetupRolesNew() {
   const queryClient = useQueryClient();
   const { can, user } = usePermissions();
   const approvalOn = hasQuotationApproval(user);
+  const poOn = hasPurchaseOrders(user);
   const features = useMemo(
-    () => (approvalOn ? [...FEATURES_CONFIG, QUOTATION_APPROVE_PERMISSION] : FEATURES_CONFIG),
-    [approvalOn],
+    () => [
+      ...FEATURES_CONFIG,
+      ...(approvalOn ? [QUOTATION_APPROVE_PERMISSION] : []),
+      ...(poOn ? [PURCHASE_ORDERS_PERMISSION] : []),
+    ],
+    [approvalOn, poOn],
   );
   const groupedFeatures = useMemo(() => groupFeatures(features), [features]);
 

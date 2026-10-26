@@ -62,6 +62,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useCurrency } from "@/context/CurrencyContext";
+import { useSettings } from "@/context/SettingsContext";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 
 export default function InvoiceCreate() {
@@ -78,10 +79,22 @@ export default function InvoiceCreate() {
     enabled: isEdit
   });
 
+  // New invoice: number, due date, client note and terms come from Setup >
+  // Settings > Invoices (GET /invoices/next-number). The number stays
+  // editable; while untouched the server assigns the next free one on save.
+  const [autoNumber, setAutoNumber] = useState(!isEdit);
+  const [dueTouched, setDueTouched] = useState(false);
+  const { data: invoiceDefaults } = useQuery({
+    queryKey: ["invoice-next-number"],
+    queryFn: () => salesService.getNextInvoiceNumber(),
+    enabled: !isEdit,
+    staleTime: 0,
+  });
+
   const [formData, setFormData] = useState({
     client: clientId || "",
     project: "",
-    number: `INV-${Math.floor(Math.random() * 1000000)}`,
+    number: "",
     date: new Date().toISOString().split('T')[0],
     duedate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     prevent_overdue_reminders: false,
@@ -94,6 +107,7 @@ export default function InvoiceCreate() {
     adminnote: "",
     client_note: "",
     terms: "",
+    document_type: "",
     voucherType: "",
     partyAddress: "",
     partyGroup: "",
@@ -279,6 +293,50 @@ export default function InvoiceCreate() {
     queryFn: () => financeService.getTaxes().then((res: any) => res.data || res)
   });
 
+  // ── Setup > Settings defaults for a NEW invoice ──
+  const { getSetting } = useSettings();
+  const settingOn = (v: any) => v === true || v === 1 || v === "1" || v === "true";
+  // Default Tax is stored as a tax id (or, from older settings, a percentage).
+  const defaultTaxId = (() => {
+    const v = String(getSetting("defaultTax", "none") ?? "none");
+    if (!v || v === "none") return "";
+    const t = (taxes as any[]).find((x) => x._id === v) || (taxes as any[]).find((x) => String(x.taxrate) === v);
+    return t?._id || "";
+  })();
+
+  useEffect(() => {
+    if (isEdit || !invoiceDefaults) return;
+    setFormData((p) => ({
+      ...p,
+      number: autoNumber ? invoiceDefaults.number : p.number,
+      client_note: p.client_note || invoiceDefaults.clientNote || "",
+      terms: p.terms || invoiceDefaults.terms || "",
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoiceDefaults, isEdit]);
+
+  // Due date = invoice date + "Invoice due after (days)", until changed by hand.
+  useEffect(() => {
+    if (isEdit || dueTouched || !invoiceDefaults || !formData.date) return;
+    const d = new Date(formData.date);
+    if (isNaN(d.getTime())) return;
+    d.setDate(d.getDate() + Number(invoiceDefaults.dueAfter || 0));
+    setFormData((p) => ({ ...p, duedate: d.toISOString().split("T")[0] }));
+  }, [formData.date, invoiceDefaults, isEdit, dueTouched]);
+
+  // "Automatically assign logged in staff as sale agent".
+  useEffect(() => {
+    if (isEdit || !user?._id || !settingOn(getSetting("autoAssignStaff", false))) return;
+    setFormData((p) => (p.sale_agent ? p : { ...p, sale_agent: String(user._id) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, user?._id]);
+
+  // Default Tax preselected on the next item row.
+  useEffect(() => {
+    if (isEdit || !defaultTaxId) return;
+    setNewItem((p) => (p.tax ? p : { ...p, tax: defaultTaxId }));
+  }, [defaultTaxId, isEdit]);
+
   useEffect(() => {
     // apiClient.get() swallows non-auth HTTP errors and resolves with `[]`
     // instead of throwing (see api/client.js) — so a deleted/invalid invoice
@@ -310,6 +368,7 @@ export default function InvoiceCreate() {
         adminnote: invoice.adminnote || "",
         client_note: invoice.notes || "",
         terms: invoice.terms || "",
+        document_type: invoice.document_type || "",
         voucherType: invoice.voucherType || "",
         partyAddress: invoice.partyAddress || "",
         partyGroup: invoice.partyGroup || "",
@@ -411,7 +470,7 @@ export default function InvoiceCreate() {
       long_description: "",
       qty: 1,
       rate: 0,
-      tax: "",
+      tax: isEdit ? "" : defaultTaxId,
       unit: "",
       itemGroup: "",
       itemHSN: "",
@@ -512,7 +571,10 @@ export default function InvoiceCreate() {
     
     const payload: any = { 
       client: formData.client,
-      number: formData.number, // Don't add random suffix if user set it or in edit mode
+      number: formData.number,
+      // Untouched number on a new invoice: the server gives the next free one.
+      auto_number: !isEdit && autoNumber,
+      terms: formData.terms,
       date: formData.date,
       duedate: formData.duedate,
       currency: formData.currency || currencies.find((c: any) => c.isdefault)?.name || currencies[0]?.name || "USD",
@@ -521,6 +583,7 @@ export default function InvoiceCreate() {
       project: formData.project || undefined,
       created_by: formData.sale_agent || undefined,
       status: finalStatus,
+      document_type: formData.document_type,
       voucherType: formData.voucherType,
       partyAddress: formData.partyAddress,
       partyGroup: formData.partyGroup,
@@ -677,16 +740,22 @@ export default function InvoiceCreate() {
                   <span className="text-destructive text-lg leading-none">*</span>
                   <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/50 cursor-help" />
                 </div>
-                <div className="flex">
-                  <div className="h-12 px-4 flex items-center bg-muted/50 border border-r-0 border-border/50 rounded-l-2xl text-xs font-black text-muted-foreground uppercase tracking-widest">
-                    INV-
-                  </div>
-                  <Input 
-                    className="h-12 rounded-l-none rounded-r-2xl border-border/50 bg-background shadow-sm font-mono font-bold text-lg tracking-wider"
-                    value={formData.number.replace('INV-', '')}
-                    onChange={(e) => setFormData(p => ({ ...p, number: `INV-${e.target.value}` }))}
-                  />
-                </div>
+                <Input
+                  className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-mono font-bold text-lg tracking-wider"
+                  value={formData.number}
+                  placeholder={!isEdit && !invoiceDefaults ? "Loading next number…" : ""}
+                  onChange={(e) => {
+                    setAutoNumber(false);
+                    setFormData(p => ({ ...p, number: e.target.value }));
+                  }}
+                />
+                {!isEdit && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {autoNumber
+                      ? "Next number from Setup > Settings > Invoices — the next free number is assigned when you save."
+                      : "Custom number — it must not be used by another invoice."}
+                  </p>
+                )}
               </div>
 
               {/* Dates */}
@@ -711,7 +780,10 @@ export default function InvoiceCreate() {
                     type="date" 
                     className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
                     value={formData.duedate}
-                    onChange={(e) => setFormData(p => ({ ...p, duedate: e.target.value }))}
+                    onChange={(e) => {
+                      setDueTouched(true);
+                      setFormData(p => ({ ...p, duedate: e.target.value }));
+                    }}
                   />
                 </div>
               </div>
@@ -731,6 +803,24 @@ export default function InvoiceCreate() {
 
               {/* Voucher / Party Details */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-border/30 border-dashed">
+                {isEkagraUser(user?.email) && (
+                  <div className="space-y-2.5 sm:col-span-2">
+                    <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Document Type (Letterhead PDF)</Label>
+                    <Select
+                      value={formData.document_type || "auto"}
+                      onValueChange={(v) => setFormData(p => ({ ...p, document_type: v === "auto" ? "" : v }))}
+                    >
+                      <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium sm:max-w-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">As per Settings</SelectItem>
+                        <SelectItem value="invoice">Invoice</SelectItem>
+                        <SelectItem value="proforma">Proforma Invoice</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2.5">
                   <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Voucher Type</Label>
                   <Input

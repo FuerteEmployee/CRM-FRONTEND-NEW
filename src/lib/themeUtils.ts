@@ -216,5 +216,44 @@ export const applyThemeToDom = (theme: any) => {
     // we'll inject the raw CSS since advanced users will target their own #ids anyway.
     injectCustomCss('custom-css-admin', theme.customCss.admin);
     injectCustomCss('custom-css-customers', theme.customCss.customers);
+    syncAreaCss();
   }
+};
+
+// ── Theme Style > Custom CSS: "Admin Area" vs "Customers Area" ─────────────
+// Both are injected as-is; only the one for the current part of the app is
+// enabled (App.tsx calls setCssArea on every route change).
+export type CssArea = "admin" | "customers";
+let currentCssArea: CssArea = "admin";
+
+// Customer portal routes (ClientLayout in App.tsx) and the client login.
+const CUSTOMER_AREA_ROOTS = ["client", "dashboard", "projects", "invoices", "contracts", "estimates", "proposals", "support", "knowledge-base"];
+export const cssAreaForPath = (pathname: string): CssArea =>
+  CUSTOMER_AREA_ROOTS.includes(pathname.split("/").filter(Boolean)[0] || "") ? "customers" : "admin";
+
+const syncAreaCss = () => {
+  // Setting innerHTML recreates the sheet, so re-apply after every injection.
+  const admin = document.getElementById('custom-css-admin') as HTMLStyleElement | null;
+  const customers = document.getElementById('custom-css-customers') as HTMLStyleElement | null;
+  if (admin?.sheet) admin.sheet.disabled = currentCssArea !== "admin";
+  if (customers?.sheet) customers.sheet.disabled = currentCssArea !== "customers";
+};
+
+export const setCssArea = (area: CssArea) => {
+  currentCssArea = area;
+  syncAreaCss();
+};
+
+// ── Theme cache: one per company, so a shared browser never shows another
+// company's colours / CSS before the settings load. ──────────────────────
+export const themeCacheKey = (): string => {
+  let id = "";
+  try {
+    const user = JSON.parse(localStorage.getItem("crm_user") || "null");
+    id = String(user?.tenant?._id || user?.tenant_id || "");
+    if (!id) id = localStorage.getItem("crm_brand_tenant") || localStorage.getItem("crm_brand_code") || "";
+  } catch {
+    /* storage unavailable */
+  }
+  return `crm_theme_style_cache${id ? ":" + id : ""}`;
 };

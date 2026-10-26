@@ -1,4 +1,5 @@
 import { useState, useEffect, Fragment } from "react";
+import { useSettings } from "@/context/SettingsContext";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -86,6 +87,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export default function TicketCreate() {
+  // Setup > Settings > Support > "Use services".
+  const { getSetting: getSupportSetting } = useSettings();
+  const useServices = (() => { const v = getSupportSetting("supUseServices", true); return v === "" || v === true || v === 1 || v === "1" || v === "true"; })();
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -492,7 +496,7 @@ export default function TicketCreate() {
                     </Select>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-2" style={useServices ? undefined : { display: "none" }}>
                         <Label className="text-xs font-black uppercase tracking-widest text-slate-500 ml-1">Service</Label>
                         <div className="flex gap-2">
                             <div className="flex-1">

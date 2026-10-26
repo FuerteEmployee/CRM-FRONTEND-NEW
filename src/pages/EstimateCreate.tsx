@@ -53,6 +53,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useSettings } from "@/context/SettingsContext";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
@@ -65,6 +66,18 @@ export default function EstimateCreate() {
   const { toast } = useToast();
   const { formatAmount, symbol } = useCurrency();
 
+  // New estimate: number/expiry/note/terms come from Setup > Settings >
+  // Estimates. The number stays editable; while untouched the server assigns
+  // the next free one on save.
+  const [autoNumber, setAutoNumber] = useState(!isEdit);
+  const [expiryTouched, setExpiryTouched] = useState(false);
+  const { data: estimateDefaults } = useQuery({
+    queryKey: ["estimate-next-number"],
+    queryFn: () => estimateService.getNextEstimateNumber(),
+    enabled: !isEdit,
+    staleTime: 0,
+  });
+
   const { data: estimate } = useQuery({
     queryKey: ["estimate", id],
     queryFn: () => estimateService.getEstimateById(id!),
@@ -72,7 +85,7 @@ export default function EstimateCreate() {
   });
 
   const [formData, setFormData] = useState({
-    number: `EST-${Math.floor(100000 + Math.random() * 900000)}`,
+    number: "",
     client: clientId || "",
     project: "",
     date: new Date().toISOString().split('T')[0],
@@ -233,6 +246,49 @@ export default function EstimateCreate() {
   }, [estimate, taxes]);
 
   const { user, isModuleEnabled } = usePermissions();
+
+  // ── Setup > Settings defaults for a NEW estimate ──
+  const { getSetting } = useSettings();
+  const settingOn = (v: any) => v === true || v === 1 || v === "1" || v === "true";
+  // Finance > General > Default Tax (a tax id, or a percentage in older settings).
+  const defaultTaxId = (() => {
+    const v = String(getSetting("defaultTax", "none") ?? "none");
+    if (!v || v === "none") return "";
+    const t = (taxes as any[]).find((x) => x._id === v) || (taxes as any[]).find((x) => String(x.taxrate) === v);
+    return t?._id || "";
+  })();
+
+  useEffect(() => {
+    if (isEdit || !estimateDefaults) return;
+    setFormData((p) => ({
+      ...p,
+      number: autoNumber ? estimateDefaults.number : p.number,
+      notes: p.notes || estimateDefaults.clientNote || "",
+      terms: p.terms || estimateDefaults.terms || "",
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [estimateDefaults, isEdit]);
+
+  // Expiry date = estimate date + "Estimate Due After (days)", until changed by hand.
+  useEffect(() => {
+    if (isEdit || expiryTouched || !estimateDefaults || !formData.date) return;
+    const d = new Date(formData.date);
+    if (isNaN(d.getTime())) return;
+    d.setDate(d.getDate() + Number(estimateDefaults.dueAfter || 0));
+    setFormData((p) => ({ ...p, expirydate: d.toISOString().split("T")[0] }));
+  }, [formData.date, estimateDefaults, isEdit, expiryTouched]);
+
+  // Finance > General > "Automatically assign logged in staff as sale agent".
+  useEffect(() => {
+    if (isEdit || !user?._id || !settingOn(getSetting("autoAssignStaff", false))) return;
+    setFormData((p) => (p.sale_agent ? p : { ...p, sale_agent: String(user._id) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?._id, isEdit]);
+
+  useEffect(() => {
+    if (isEdit || !defaultTaxId) return;
+    setNewItem((p) => (p.tax ? p : { ...p, tax: defaultTaxId }));
+  }, [defaultTaxId, isEdit]);
   const isPilot = isTrinetraPilotUser(user?.email);
   // Branch is sourced from the HRMS module — only show/fetch it when the
   // tenant's plan actually includes HRMS, even for a pilot-flagged user.
@@ -326,7 +382,7 @@ export default function EstimateCreate() {
       rate: 0,
       amount: 0,
       amountOverridden: false,
-      tax: "",
+      tax: isEdit ? "" : defaultTaxId,
       tax2: "",
       unit: "",
       item_group: ""
@@ -379,6 +435,7 @@ export default function EstimateCreate() {
 
     const payload: any = {
       ...formData,
+      auto_number: !isEdit && autoNumber,
       items: items.map(item => ({
         description: item.description,
         long_description: item.long_description,
@@ -566,16 +623,22 @@ export default function EstimateCreate() {
                   <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Estimate Number</Label>
                   <span className="text-destructive text-lg leading-none">*</span>
                 </div>
-                <div className="flex">
-                  <div className="h-12 px-4 flex items-center bg-muted/50 border border-r-0 border-border/50 rounded-l-2xl text-xs font-black text-muted-foreground uppercase tracking-widest">
-                    EST-
-                  </div>
-                  <Input
-                    className="h-12 rounded-l-none rounded-r-2xl border-border/50 bg-background shadow-sm font-mono font-bold text-lg tracking-wider"
-                    value={formData.number.replace('EST-', '')}
-                    onChange={(e) => setFormData(p => ({ ...p, number: `EST-${e.target.value}` }))}
-                  />
-                </div>
+                <Input
+                  className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-mono font-bold text-lg tracking-wider"
+                  value={formData.number}
+                  placeholder={!isEdit && !estimateDefaults ? "Loading next number…" : ""}
+                  onChange={(e) => {
+                    setAutoNumber(false);
+                    setFormData(p => ({ ...p, number: e.target.value }));
+                  }}
+                />
+                {!isEdit && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {autoNumber
+                      ? "Next number from Setup > Settings > Estimates — the next free number is assigned when you save."
+                      : "Custom number — it must not be used by another estimate."}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -599,7 +662,10 @@ export default function EstimateCreate() {
                     type="date"
                     className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
                     value={formData.expirydate}
-                    onChange={(e) => setFormData(p => ({ ...p, expirydate: e.target.value }))}
+                    onChange={(e) => {
+                      setExpiryTouched(true);
+                      setFormData(p => ({ ...p, expirydate: e.target.value }));
+                    }}
                   />
                 </div>
               </div>

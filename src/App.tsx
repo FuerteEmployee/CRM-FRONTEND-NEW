@@ -3,7 +3,16 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { useEffect as useAreaEffect } from "react";
+import { setCssArea, cssAreaForPath } from "@/lib/themeUtils";
+
+// Theme Style > Custom CSS: switch between the "Admin Area" and "Customers Area" CSS.
+function CssAreaSync() {
+  const { pathname } = useLocation();
+  useAreaEffect(() => setCssArea(cssAreaForPath(pathname)), [pathname]);
+  return null;
+}
 import { PermissionProvider, usePermissionContext } from "@/context/PermissionContext";
 import { getLandingPath } from "@/lib/landingPath";
 import { ModuleGuard } from "@/components/layout/ModuleGuard";
@@ -74,6 +83,7 @@ import { ReportSales, ReportExpenses, ReportExpensesVsIncome, ReportLeads, Repor
 import CustomerView from "./pages/CustomerView";
 import InvoiceCreate from "./pages/InvoiceCreate";
 import QuotationModule from "./pages/quotations/QuotationModule";
+import PurchaseOrders from "./pages/purchase-orders/PurchaseOrders";
 import FAQ from "./pages/FAQ";
 import NotFound from "./pages/NotFound";
 import SessionExpired from "./pages/SessionExpired";
@@ -203,7 +213,7 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
 // "localhost"/"127.0.0.1" included so this is testable from a local dev
 // server too — remove before deploying if you need to see the signup page locally.
 const isWhiteLabelHost = () =>
-  ["rudraverse.trinetratechnoworld.com", "crm.beontimeofficial.com", "crm.citysmile.in", "crm.kiranenginers.com", "localhost", "127.0.0.1"].includes(
+  ["rudraverse.trinetratechnoworld.com", "crm.beontimeofficial.com", "crm.citysmile.in", "crm.kiranenginers.com", "crm.offixnest.com", "localhost", "127.0.0.1"].includes(
     window.location.hostname
   );
 
@@ -253,6 +263,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="invoices/edit/:id" element={<Wrapper><InvoiceCreate /></Wrapper>} />
     <Route path="quotations" element={<Wrapper><QuotationModule /></Wrapper>} />
     <Route path="purchases" element={<Wrapper><Purchases /></Wrapper>} />
+    <Route path="purchase-orders" element={<Wrapper><PurchaseOrders /></Wrapper>} />
     <Route path="vendors" element={<Wrapper><Vendors /></Wrapper>} />
     <Route path="vendors/:id" element={<Wrapper><VendorView /></Wrapper>} />
     <Route path="expenses" element={<Wrapper><Expenses /></Wrapper>} />
@@ -431,6 +442,7 @@ const MainApp = () => {
 
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <CssAreaSync />
       <Routes>
         {/* Root → smart redirect based on who is logged in */}
         <Route path="/" element={<SmartRoot />} />

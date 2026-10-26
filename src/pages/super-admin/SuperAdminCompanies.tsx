@@ -59,7 +59,9 @@ const TENANT_FEATURES: { key: string; label: string; hint: string }[] = [
   { key: "patient_conversion", label: "Patient conversion & treatment", hint: "Convert with treatment + amount, treatment totals" },
   { key: "lead_followups", label: "Follow-up reminders dashboard", hint: "Today / overdue / upcoming follow-ups on Leads" },
   { key: "face_attendance", label: "HRMS Face Attendance (BOT Lens)", hint: "Face kiosk punch in/out + selfie face check for enrolled staff" },
-  { key: "quotation_approval", label: "Quotation approval", hint: "Makers request approval; staff with Quotations > Approve sign off before sending" },];
+  { key: "quotation_approval", label: "Quotation approval", hint: "Makers request approval; staff with Quotations > Approve sign off before sending" },
+  { key: "purchase_orders", label: "Purchase Orders", hint: "Purchase/Sales POs, price master, margin rules with approver Yes/No, PO PDF on WhatsApp" },
+];
 
 const STATUS_CONFIG = {
   active:   { label: "Active",   icon: CheckCircle2, cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },

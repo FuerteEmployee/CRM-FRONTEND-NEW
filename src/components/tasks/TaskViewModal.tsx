@@ -45,6 +45,7 @@ import { fileService } from "@/api/services/file.service";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/context/CurrencyContext";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useSettings } from "@/context/SettingsContext";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { InquiryOutcomeDialog } from "@/components/tasks/InquiryOutcomeDialog";
 import { TaskVoiceNotes, isAudioFile } from "@/components/tasks/TaskVoiceNotes";
@@ -105,6 +106,11 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
   const [checklistAssignedTo, setChecklistAssignedTo] = useState("");
 
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const { getSetting } = useSettings();
+  // Setup > Settings > Tasks > "Modal Width Class".
+  const modalWidthClass = ({ "modal-lg": "max-w-[1000px]", "modal-xl": "max-w-[1200px]", "modal-xxl": "max-w-[1400px]" } as Record<string, string>)[
+    String(getSetting("taskModalWidthClass", "modal-lg") || "modal-lg").trim()
+  ] || "max-w-[1000px]";
   const [timerStartMs, setTimerStartMs] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -181,8 +187,8 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
       queryClient.invalidateQueries({ queryKey: ["task-files", task._id] });
       toast({ title: "Success", description: "File uploaded successfully." });
     },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to upload file.", variant: "destructive" });
+    onError: (err: any) => {
+      toast({ title: "Error", description: err?.message || "Failed to upload file.", variant: "destructive" });
     }
   });
 
@@ -318,10 +324,20 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
     return staff ? staff.label : "Unknown";
   };
 
+  // Setup > Settings > Tasks: timer round off + "Change task status to In Progress on timer started".
+  const roundTimerHours = (seconds: number) => {
+    const mode = String(getSetting("taskRoundOffTimer", "no") || "no");
+    const step = Math.max(parseInt(String(getSetting("taskRoundOffMultiplier", "5") ?? "5"), 10) || 0, 0);
+    if (mode === "no" || !step) return seconds / 3600;
+    const minutes = seconds / 60;
+    const fn = mode === "up" ? Math.ceil : mode === "down" ? Math.floor : Math.round;
+    return (fn(minutes / step) * step) / 60;
+  };
+
   const handleToggleTimer = () => {
     if (isTimerRunning) {
       setIsTimerRunning(false);
-      const hours = elapsedSeconds / 3600;
+      const hours = roundTimerHours(elapsedSeconds);
       if (hours > 0) {
         timeEntryService.createTimeEntry({
           task: task._id,
@@ -343,6 +359,10 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
       setIsTimerRunning(true);
       setTimerStartMs(Date.now());
       setElapsedSeconds(0);
+      const on = (v: any) => v === true || v === 1 || v === "1" || v === "true";
+      if (!task.isTodo && on(getSetting("taskStatusInProgressOnTimer", false)) && Number(task.status) !== 2 && Number(task.status) !== 5) {
+        updateMutation.mutate({ id: task._id, isTodo: false, data: { status: 2 } });
+      }
     }
   };
 
@@ -428,7 +448,7 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-[1000px] h-[85vh] p-0 overflow-hidden flex flex-col bg-white rounded-2xl gap-0 [&>button]:hidden">
+      <DialogContent className={`${modalWidthClass} h-[85vh] p-0 overflow-hidden flex flex-col bg-white rounded-2xl gap-0 [&>button]:hidden`}>
         
         {/* Header - Fixed Height */}
         <div className="h-20 border-b border-slate-200 flex items-center justify-between px-6 flex-shrink-0 bg-slate-50/50">
