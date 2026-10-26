@@ -13,7 +13,11 @@ const isOldDefaultFavicon = (v?: string | null) => !v || /\/favicon\.ico(\?|$)/.
 // Companies with no uploaded favicon: Kiran's domain gets its own icon, every
 // other company gets the first letter of its name.
 const fallbackFavicon = (companyName?: string) =>
-  window.location.hostname.includes("kiranenginers") ? "/icons/kiran-192.png" : letterFavicon(companyName);
+  window.location.hostname.includes("kiranenginers")
+    ? "/icons/kiran-192.png"
+    : window.location.hostname.includes("offixnest")
+      ? "/icons/offixnest-192.png"
+      : letterFavicon(companyName);
 
 interface SettingsContextType {
   settings: Record<string, any>;
@@ -34,9 +38,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // used as the non-Trinetra fallback. Leaving it empty here means the real
     // fallback chain (OG Image, then the neutral monogram UI already built
     // into Login/ClientLogin) takes over correctly once refreshSettings runs.
-    const defaultCompanyName = isTrinetra ? "Trinetra TechnoWorld" : "";
-    const defaultLogoLight = isTrinetra ? "/trinetra-logo.jpg" : "";
-    const defaultLogoDark = isTrinetra ? "/trinetra-logo.jpg" : "";
+    const isOffixnest = host.includes("offixnest");
+    const defaultCompanyName = isTrinetra ? "Trinetra TechnoWorld" : isOffixnest ? "Offixnest" : "";
+    const defaultLogoLight = isTrinetra ? "/trinetra-logo.jpg" : isOffixnest ? "/offixnest-logo.png" : "";
+    const defaultLogoDark = isTrinetra ? "/trinetra-logo.jpg" : isOffixnest ? "/offixnest-logo.png" : "";
     const rawCachedName = localStorage.getItem("crm_company_name") || defaultCompanyName;
     // Only the platform's own placeholder names are hidden; a company's real
     // name is cached as-is (a real company may well be "Fuerte Developers").
@@ -129,14 +134,14 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
       } else {
         if (!companyNameIsOwn && (settingsMap.companyName === "CRMPro" || settingsMap.companyName === "Trinetra TechnoWorld" || settingsMap.companyName === "Fuerte Developers" || settingsMap.companyName === "Fuerte CRM" || settingsMap.companyName === "CRM Pro Inc.")) {
-          settingsMap.companyName = "";
+          settingsMap.companyName = host.includes("offixnest") ? "Offixnest" : "";
         }
         // No non-Trinetra tenant has a real default logo file to fall back
         // to (logo-icon.png is mislabeled — see the comment above the
         // initial-state defaults) — fall back to the OG Image instead if
         // one's been uploaded; otherwise leave it unset so Login/ClientLogin
         // show their neutral monogram fallback rather than any wrong image.
-        const fallbackLogo = settingsMap.ogImage || "";
+        const fallbackLogo = host.includes("offixnest") ? "/offixnest-logo.png" : settingsMap.ogImage || "";
         if (!settingsMap.compLogoLight || settingsMap.compLogoLight === "/trinetra-logo.jpg") {
           settingsMap.compLogoLight = fallbackLogo;
         }

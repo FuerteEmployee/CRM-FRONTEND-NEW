@@ -14,6 +14,7 @@ export const resolveImageUrl = (val?: string) => {
   // Do not prepend backend origin for static frontend assets
   if (
     trimmed.startsWith("/trinetra-") ||
+    trimmed.startsWith("/offixnest-") ||
     trimmed.startsWith("/favicon.ico") ||
     trimmed.startsWith("/icons/")
   ) {

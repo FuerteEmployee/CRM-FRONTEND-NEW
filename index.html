@@ -261,24 +261,26 @@
           const host = window.location.hostname;
           const isTrinetra = host.includes("trinetratechnoworld") || host.includes("erp.");
           const isKiran = host.includes("kiranenginers");
+          const isOffixnest = host.includes("offixnest");
 
           // Dynamically change the manifest file link for PWA install based on domain
           const updateManifest = () => {
             const manifestEl = document.getElementById("app-manifest");
             if (manifestEl) {
-              const manifestUrl = isTrinetra ? "/manifest-trinetra.json" : isKiran ? "/manifest-kiran.json" : "/manifest.webmanifest";
+              const manifestUrl = isTrinetra ? "/manifest-trinetra.json" : isKiran ? "/manifest-kiran.json" : isOffixnest ? "/manifest-offixnest.json" : "/manifest.webmanifest";
               manifestEl.setAttribute("href", manifestUrl);
             }
             // iPhone "Add to Home Screen" reads apple-touch-icon, not the manifest
             const appleIcon = document.querySelector("link[rel='apple-touch-icon']");
             if (appleIcon && isKiran) appleIcon.setAttribute("href", "/icons/kiran-apple-180.png");
             if (appleIcon && isTrinetra) appleIcon.setAttribute("href", "/icons/icon-192.png");
+            if (appleIcon && isOffixnest) appleIcon.setAttribute("href", "/icons/offixnest-apple-180.png");
           };
           updateManifest();
           window.addEventListener("DOMContentLoaded", updateManifest);
 
           // Determine default favicon and title
-          const defaultTitle = isTrinetra ? "Trinetra TechnoWorld" : isKiran ? "Kiran CRM" : "Fuerte Developers";
+          const defaultTitle = isTrinetra ? "Trinetra TechnoWorld" : isKiran ? "Kiran CRM" : isOffixnest ? "Offixnest" : "Fuerte Developers";
           const knownName = localStorage.getItem("crm_company_name") || defaultTitle;
           // No uploaded favicon: first letter of the company name (same as
           // src/lib/brand.ts letterFavicon). favicon.ico used to be the
@@ -287,7 +289,7 @@
             '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#2563eb"/>' +
             '<text x="32" y="44" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="38" font-weight="700" fill="#ffffff">' +
             (knownName.trim().charAt(0) || "C").toUpperCase().replace(/[<>&]/g, "") + "</text></svg>");
-          const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : isKiran ? "/icons/kiran-192.png" : letterIcon;
+          const defaultFavicon = isTrinetra ? "/trinetra-icon.jpg" : isKiran ? "/icons/kiran-192.png" : isOffixnest ? "/icons/offixnest-192.png" : letterIcon;
           const storedFavicon = localStorage.getItem("crm_favicon");
           const isOldDefault = !storedFavicon || /\/favicon\.ico(\?|$)/.test(storedFavicon) || (!isTrinetra && storedFavicon.indexOf("/trinetra-icon.jpg") !== -1);
           const cachedFavicon = isOldDefault ? defaultFavicon : storedFavicon;
