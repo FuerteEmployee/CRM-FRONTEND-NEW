@@ -48,6 +48,8 @@ interface Tenant {
   billing_cycle_start?: string;
   billing_cycle_end?: string;
   enabled_features?: string[];
+  // Restricted add-ons this company can't have on this server (backend .env).
+  locked_features?: string[];
   createdAt: string;
 }
 
@@ -955,7 +957,7 @@ export default function SuperAdminCompanies() {
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Add-on features</label>
                 <div className="space-y-2">
-                  {TENANT_FEATURES.map((f) => {
+                  {TENANT_FEATURES.filter((f) => !(selectedTenant.locked_features || []).includes(f.key)).map((f) => {
                     const on = manageForm.enabled_features.includes(f.key);
                     return (
                       <button
