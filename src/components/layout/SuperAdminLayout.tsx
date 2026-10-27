@@ -17,6 +17,8 @@ import { usePermissionContext } from "@/context/PermissionContext";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { usePanelBranding, useApplyPanelBranding } from "@/lib/panelBranding";
+import { useQueryClient } from "@tanstack/react-query";
+import { prefetchSaPage } from "@/lib/superAdminQueries";
 
 const mainItems = [
   { name: "Dashboard", path: "/super-admin/dashboard", icon: LayoutDashboard },
@@ -35,6 +37,7 @@ const systemItems = [
 
 export function SuperAdminLayout() {
   const location = useLocation();
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { logout, user } = usePermissionContext();
   const { settings } = useSettings();
@@ -124,6 +127,7 @@ export function SuperAdminLayout() {
                 key={item.path}
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
+                onMouseEnter={() => prefetchSaPage(queryClient, item.path)}
                 className={`group flex items-center gap-2.5 px-3 py-2 rounded-md transition-all duration-200 relative text-[13px] font-medium
                   ${isActive
                     ? "bg-gray-100 text-gray-900 font-semibold"
@@ -163,6 +167,7 @@ export function SuperAdminLayout() {
               <Link
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
+                onMouseEnter={() => prefetchSaPage(queryClient, item.path)}
                 className={`group flex items-center gap-2.5 px-3 py-2 rounded-md transition-all duration-200 relative text-[13px] font-medium
                   ${isActive
                     ? "bg-gray-100 text-gray-900 font-semibold"

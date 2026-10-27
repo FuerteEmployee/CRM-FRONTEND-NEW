@@ -235,6 +235,10 @@ const MyLeavesPage = () => {
       toast({ title: "Missing Date", description: "Please select an end date."});
       return;
     }
+    if (newLeave.leaveOption === "multiple_days" && newLeave.toDate < newLeave.fromDate) {
+      toast({ title: "Invalid Dates", description: "To date cannot be before From date.", variant: "destructive" });
+      return;
+    }
 
     const payload = {
       ...newLeave,

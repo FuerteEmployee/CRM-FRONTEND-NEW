@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/hrms/components/ui/card";
 import { cn } from "@/hrms/lib/utils";
 import { Navigation, RefreshCw, Signal, Users } from "lucide-react";
 import { format } from "date-fns";
+import { getFileUrl } from "@/hrms/utils/fileUrl";
 
 // ─── Tiny helpers ────────────────────────────────────────────────────────────
 
@@ -101,14 +102,26 @@ export const PersonnelCard = ({ emp, loc, isActive, isLive, isStale, onClick, is
           isActive ? "border-indigo-200" : isStale ? "border-slate-200" : "border-slate-100"
         )}>
           {emp.avatar ? (
-            <img src={emp.avatar} alt={emp.name} className="w-full h-full object-cover" />
-          ) : (
-            <div className={cn("w-full h-full flex items-center justify-center text-white text-xs font-bold",
+            <img
+              src={getFileUrl(emp.avatar)}
+              alt={emp.name}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+                const fallback = e.currentTarget.parentElement?.querySelector(".avatar-fallback-initials");
+                if (fallback) (fallback as HTMLElement).style.display = "flex";
+              }}
+            />
+          ) : null}
+          <div
+            className={cn(
+              "avatar-fallback-initials w-full h-full items-center justify-center text-white text-xs font-bold",
+              emp.avatar ? "hidden" : "flex",
               isActive ? "bg-indigo-500" : isStale ? "bg-slate-400" : "bg-slate-400"
-            )}>
-              {initials}
-            </div>
-          )}
+            )}
+          >
+            {initials}
+          </div>
         </div>
         {loc && (
           <span className={cn(

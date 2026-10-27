@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,6 +57,10 @@ const ITEM_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Tax Inclusive", sample: "No", core: false },
 ];
 
+// Number from a form value: blank or non-numeric → fallback (0 stays 0).
+const numOr = (v: any, fallback: number) =>
+  v === "" || v === null || v === undefined || !Number.isFinite(Number(v)) ? fallback : Number(v);
+
 const Items = () => {
   const { symbol } = useCurrency();
   const [search, setSearch] = useState("");
@@ -79,6 +83,12 @@ const Items = () => {
   // Branch is sourced from the HRMS module — only show/fetch it when the
   // tenant's plan actually includes HRMS, even for a pilot-flagged user.
   const canUseBranch = isPilot && isModuleEnabled("hrms");
+  // Stored permission keys are "Items" + "Create"/"Edit"/"Delete" (PermissionContext.can compares exactly).
+  const canCreate = can("Items", "Create");
+  const canDelete = can("Items", "Delete");
+  // Blocks a second submit while the first save is still in flight (double-click → one request).
+  const createSavingRef = useRef(false);
+  const editSavingRef = useRef(false);
 
   const { data: branchesRaw = [] } = useQuery<any[]>({
     queryKey: ["hrms-branches-list"],
@@ -213,6 +223,7 @@ const Items = () => {
         hsn_sac_code: "",
         cess_rate: "0",
         tax_inclusive: false,
+        branch: "",
         custom_fields: {},
       });
     },
@@ -250,15 +261,24 @@ const Items = () => {
     mutationFn: (rows: any[]) => itemService.import(rows),
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["items"] });
-      const count = data?.data?.count ?? data?.count ?? 0;
-      const skipped = data?.data?.skipped ?? data?.skipped ?? 0;
+      const body = data?.data ?? data ?? {};
+      const count = body.count ?? 0;
+      const skipped = body.skipped ?? 0;
+      const rowErrors: any[] = Array.isArray(body.errors) ? body.errors : [];
+      const errorText = rowErrors.slice(0, 3).map((e: any) => `Row ${e.row}: ${(e.reasons || []).join(", ")}`).join("; ");
       toast({
         title: count === 0 ? "No New Items" : "Import Successful",
-        description: count === 0 ? "All items already exist." : `Imported ${count} item(s)${skipped ? `, skipped ${skipped} duplicate(s)` : ""}.`,
-        variant: count === 0 ? "destructive" : "default"
+        description: (body.message || (count === 0 ? "All items already exist." : `Imported ${count} item(s)${skipped ? `, skipped ${skipped} duplicate(s)` : ""}.`))
+          + (errorText ? ` ${errorText}${rowErrors.length > 3 ? " …" : ""}` : ""),
+        variant: count === 0 || rowErrors.length ? "destructive" : "default"
       });
     },
-    onError: (err: any) => toast({ title: "Import Failed", description: err?.response?.data?.message || err.message, variant: "destructive" }),
+    onError: (err: any) => {
+      const body = err?.response?.data || {};
+      const rowErrors: any[] = Array.isArray(body.errors) ? body.errors : [];
+      const errorText = rowErrors.slice(0, 3).map((e: any) => `Row ${e.row}: ${(e.reasons || []).join(", ")}`).join("; ");
+      toast({ title: "Import Failed", description: [body.message || err.message, errorText].filter(Boolean).join(" "), variant: "destructive" });
+    },
   });
 
   const getRowValue = (row: Record<string, any>, aliases: string[]) => {
@@ -359,14 +379,11 @@ const Items = () => {
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        try {
-          await itemService.bulkDelete(selectedItems);
-        } catch {
-          await Promise.allSettled(selectedItems.map(id => itemService.delete(id)));
-        }
+        const res: any = await itemService.bulkDelete(selectedItems);
+        const deleted = res?.data?.count ?? res?.count ?? selectedItems.length;
         toast({
           title: "Success",
-          description: `Deleted ${selectedItems.length} selected item(s).`,
+          description: `Deleted ${deleted} selected item(s).`,
           className: "bg-emerald-600 text-white border-none"
         });
       }
@@ -387,27 +404,43 @@ const Items = () => {
 
   // Auto-calculation handlers
   const handleCreateQuantityChange = (val: string) => {
-    const qty = Number(val) || 0;
-    const rate = Number(createForm.rate) || 0;
+    const qty = numOr(val, 1);
+    const rate = numOr(createForm.rate, 0);
     setCreateForm((p: any) => ({ ...p, quantity: val, amount: String(qty * rate) }));
   };
 
   const handleCreateRateChange = (val: string) => {
-    const qty = Number(createForm.quantity) || 0;
-    const rate = Number(val) || 0;
+    const qty = numOr(createForm.quantity, 1);
+    const rate = numOr(val, 0);
     setCreateForm((p: any) => ({ ...p, rate: val, amount: String(qty * rate) }));
   };
 
   const handleEditQuantityChange = (val: string) => {
-    const qty = Number(val) || 0;
-    const rate = Number(editForm.rate) || 0;
+    const qty = numOr(val, 1);
+    const rate = numOr(editForm.rate, 0);
     setEditForm((p: any) => ({ ...p, quantity: val, amount: String(qty * rate) }));
   };
 
   const handleEditRateChange = (val: string) => {
-    const qty = Number(editForm.quantity) || 0;
-    const rate = Number(val) || 0;
+    const qty = numOr(editForm.quantity, 1);
+    const rate = numOr(val, 0);
     setEditForm((p: any) => ({ ...p, rate: val, amount: String(qty * rate) }));
+  };
+
+  // Same payload for create and edit. Quantity 0 stays 0 (blank → 1); amount is
+  // always quantity × rate; "No Tax" is sent as null.
+  const buildPayload = (form: any) => {
+    const quantity = numOr(form.quantity, 1);
+    const rate = numOr(form.rate, 0);
+    return {
+      ...form,
+      name: (form.name || "").trim(),
+      quantity,
+      rate,
+      amount: quantity * rate,
+      cess_rate: numOr(form.cess_rate, 0),
+      tax: form.tax === "none" || !form.tax ? null : form.tax,
+    };
   };
 
   const validateForm = (form: any) => {
@@ -417,6 +450,27 @@ const Items = () => {
     }
     if (!form.name || !form.name.trim()) {
       toast({ title: "Required Field", description: "Item Name is required.", variant: "destructive" });
+      return false;
+    }
+    const numberError = (label: string, v: any, max?: number) => {
+      if (v === "" || v === null || v === undefined) return null;
+      const n = Number(v);
+      if (!Number.isFinite(n)) return `${label} must be a number.`;
+      if (n < 0) return `${label} cannot be negative.`;
+      if (max !== undefined && n > max) return `${label} must be ${max} or less.`;
+      return null;
+    };
+    const fieldError =
+      (form.name.trim().length > 300 ? "Item Name must be 300 characters or less." : null) ||
+      numberError("Quantity", form.quantity) ||
+      numberError("Rate", form.rate) ||
+      numberError("Cess Rate", form.cess_rate, 100) ||
+      (form.hsn_sac_code && !/^(\d{4}|\d{6}|\d{8})$/.test(String(form.hsn_sac_code).trim()) ? "HSN/SAC Code must be 4, 6 or 8 digits." : null) ||
+      ((form.unit || "").length > 50 ? "Unit must be 50 characters or less." : null) ||
+      ((form.group || "").length > 100 ? "Group must be 100 characters or less." : null) ||
+      ((form.long_description || "").length > 5000 ? "Description must be 5000 characters or less." : null);
+    if (fieldError) {
+      toast({ title: "Invalid Field", description: fieldError, variant: "destructive" });
       return false;
     }
 
@@ -434,32 +488,22 @@ const Items = () => {
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (createSavingRef.current || createMutation.isPending) return;
     if (!validateForm(createForm)) return;
 
-    const payload = {
-      ...createForm,
-      quantity: Number(createForm.quantity) || 1,
-      rate: Number(createForm.rate) || 0,
-      amount: Number(createForm.amount) || 0,
-      cess_rate: Number(createForm.cess_rate) || 0,
-      tax: createForm.tax === "none" ? undefined : createForm.tax,
-    };
-    createMutation.mutate(payload);
+    const payload = buildPayload(createForm);
+    createSavingRef.current = true;
+    createMutation.mutate(payload, { onSettled: () => { createSavingRef.current = false; } });
   };
 
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (editSavingRef.current || updateMutation.isPending) return;
     if (!validateForm(editForm)) return;
 
-    const payload = {
-      ...editForm,
-      quantity: Number(editForm.quantity) || 1,
-      rate: Number(editForm.rate) || 0,
-      amount: Number(editForm.amount) || 0,
-      cess_rate: Number(editForm.cess_rate) || 0,
-      tax: editForm.tax === "none" ? null : editForm.tax,
-    };
-    updateMutation.mutate({ id: editItem._id, data: payload });
+    const payload = buildPayload(editForm);
+    editSavingRef.current = true;
+    updateMutation.mutate({ id: editItem._id, data: payload }, { onSettled: () => { editSavingRef.current = false; } });
   };
 
   const openEdit = (item: any) => {
@@ -613,7 +657,7 @@ const Items = () => {
             </div>
           </div>
 
-          {can("items", "create") && (
+          {can("Items", "Create") && (
             <Dialog open={isCreateOpen} onOpenChange={(open) => {
               setIsCreateOpen(open);
               // discard unsaved values when closed without saving
@@ -676,7 +720,9 @@ const Items = () => {
                       <Input
                         type="number"
                         placeholder="1"
-                        value={createForm.quantity}
+                        min={0}
+                    step="any"
+                    value={createForm.quantity}
                         onChange={(e) => handleCreateQuantityChange(e.target.value)}
                         className="rounded-xl h-11 border-slate-200"
                       />
@@ -686,7 +732,9 @@ const Items = () => {
                       <Input
                         type="number"
                         placeholder="0.00"
-                        value={createForm.rate}
+                        min={0}
+                    step="any"
+                    value={createForm.rate}
                         onChange={(e) => handleCreateRateChange(e.target.value)}
                         className="rounded-xl h-11 border-slate-200"
                       />
@@ -699,8 +747,10 @@ const Items = () => {
                         type="number"
                         placeholder="0.00"
                         value={createForm.amount}
-                        onChange={(e) => setCreateForm((p: any) => ({ ...p, amount: e.target.value }))}
-                        className="rounded-xl h-11 border-slate-200 font-bold text-slate-900"
+                    readOnly
+                    tabIndex={-1}
+                    title="Amount = Quantity × Rate"
+                                                className="rounded-xl h-11 border-slate-200 font-bold text-slate-900 bg-slate-50 cursor-not-allowed"
                       />
                     </div>
                     <div className="space-y-2">
@@ -755,7 +805,10 @@ const Items = () => {
                       <Input
                         type="number"
                         placeholder="0"
-                        value={createForm.cess_rate}
+                        min={0}
+                    max={100}
+                    step="any"
+                    value={createForm.cess_rate}
                         onChange={(e) => setCreateForm((p: any) => ({ ...p, cess_rate: e.target.value }))}
                         className="rounded-xl h-11 border-slate-200"
                       />
@@ -804,6 +857,7 @@ const Items = () => {
                 ))}
               </SelectContent>
             </Select>
+            {canDelete && (
             <Dialog open={bulkActionOpen} onOpenChange={(open) => {
               if (open && selectedItems.length === 0) {
                 toast({ title: "Error", description: "Please select at least one item first."});
@@ -841,11 +895,13 @@ const Items = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            )}
             <ExportButton
               data={loadAllFilteredItems}
               filename="items"
               columns={exportColumns}
             />
+            {canCreate && (
             <ImportDialog
               title="Import Items"
               columns={ITEM_IMPORT_COLUMNS}
@@ -856,6 +912,7 @@ const Items = () => {
               sheetName="Items"
               mappingNote="Your Excel columns (Item Name, Group, Description, Quantity, Rate, Amount, Unit, Tax, HSN/SAC, Branch) will be automatically detected and mapped to items."
             />
+            )}
             {canUseBranch && (
               <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
                 <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
@@ -980,8 +1037,8 @@ const Items = () => {
                         <TableCell>
                           <TableActions
                             onView={() => setViewItem(item)}
-                            onEdit={can("items", "edit") ? () => openEdit(item) : undefined}
-                            onDelete={can("items", "delete") ? () => deleteMutation.mutate(item._id) : undefined}
+                            onEdit={can("Items", "Edit") ? () => openEdit(item) : undefined}
+                            onDelete={can("Items", "Delete") ? () => deleteMutation.mutate(item._id) : undefined}
                           />
                         </TableCell>
                       </TableRow>
@@ -1144,6 +1201,8 @@ const Items = () => {
                   <Input
                     type="number"
                     placeholder="1"
+                    min={0}
+                    step="any"
                     value={editForm.quantity}
                     onChange={(e) => handleEditQuantityChange(e.target.value)}
                     className="rounded-xl h-11 border-slate-200"
@@ -1154,6 +1213,8 @@ const Items = () => {
                   <Input
                     type="number"
                     placeholder="0.00"
+                    min={0}
+                    step="any"
                     value={editForm.rate}
                     onChange={(e) => handleEditRateChange(e.target.value)}
                     className="rounded-xl h-11 border-slate-200"
@@ -1167,8 +1228,10 @@ const Items = () => {
                     type="number"
                     placeholder="0.00"
                     value={editForm.amount}
-                    onChange={(e) => setEditForm((p: any) => ({ ...p, amount: e.target.value }))}
-                    className="rounded-xl h-11 border-slate-200 font-bold text-slate-900"
+                    readOnly
+                    tabIndex={-1}
+                    title="Amount = Quantity × Rate"
+                                        className="rounded-xl h-11 border-slate-200 font-bold text-slate-900 bg-slate-50 cursor-not-allowed"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1223,6 +1286,9 @@ const Items = () => {
                   <Input
                     type="number"
                     placeholder="0"
+                    min={0}
+                    max={100}
+                    step="any"
                     value={editForm.cess_rate}
                     onChange={(e) => setEditForm((p: any) => ({ ...p, cess_rate: e.target.value }))}
                     className="rounded-xl h-11 border-slate-200"

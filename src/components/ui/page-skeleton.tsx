@@ -163,6 +163,35 @@ export const SuperAdminBillingSkeleton = () => (
   </div>
 );
 
+/** SuperAdminSettings — one card of label + field rows */
+export const SuperAdminSettingsSkeleton = () => (
+  <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="space-y-2">
+      <Skeleton className="h-7 w-40" />
+      <Skeleton className="h-4 w-80" />
+    </div>
+    <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-6">
+      <Skeleton className="h-4 w-36" />
+      <div className="space-y-2">
+        <Skeleton className="h-3 w-24" />
+        <Skeleton className="h-11 w-full rounded-lg" />
+      </div>
+      {Array.from({ length: 2 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4">
+          <Skeleton className="h-20 w-20 rounded-xl" />
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-40 rounded-lg" />
+            <Skeleton className="h-3 w-56" />
+          </div>
+        </div>
+      ))}
+      <div className="flex justify-end">
+        <Skeleton className="h-10 w-24 rounded-lg" />
+      </div>
+    </div>
+  </div>
+);
+
 /** SuperAdminAlerts — filter pills + list of alert cards */
 export const SuperAdminAlertsSkeleton = () => (
   <div className="p-6 max-w-7xl mx-auto space-y-6">

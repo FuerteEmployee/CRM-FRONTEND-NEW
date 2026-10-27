@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Building2, Plus, Search, Activity, Ban, PlayCircle,
   Package, CheckCircle2, XCircle, Settings, Clock,
@@ -10,9 +10,9 @@ import { apiClient as api } from "@/api/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { SuperAdminTablePageSkeleton } from "@/components/ui/page-skeleton";
-import { useMinimumLoading } from "@/hooks/useMinimumLoading";
+import { useInvalidateSa, useSaPlans, useSaSkeleton, useSaTenantPage } from "@/lib/superAdminQueries";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TablePagination } from "@/components/ui/table";
-import { getDaysLeft, getExpiryDate, isLifetimePlan, planPriceLabel } from "@/lib/tenantExpiry";
+import { getDaysLeft, getExpiryDate, isLifetimePlan, planPriceLabel, graceDaysLeft } from "@/lib/tenantExpiry";
 import { clampPhone10, phone10Error } from "@/lib/validation";
 
 interface SaasPlan {
@@ -42,10 +42,14 @@ interface Tenant {
   plan_id: SaasPlan | null;
   owner_id: Owner | null;
   status: "active" | "inactive" | "trial" | "expired";
+  // Status by date from the backend (an ended Active/Trial company = "expired").
+  effective_status?: "active" | "inactive" | "trial" | "expired";
   trial_ends_at?: string;
   billing_cycle_start?: string;
   billing_cycle_end?: string;
   enabled_features?: string[];
+  // Restricted add-ons this company can't have on this server (backend .env).
+  locked_features?: string[];
   createdAt: string;
 }
 
@@ -110,9 +114,6 @@ const parseDomains = (value: string) =>
 const DEFAULT_COUNTS = { active: 0, inactive: 0, trial: 0, expired: 0 };
 
 export default function SuperAdminCompanies() {
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [plans, setPlans] = useState<SaasPlan[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -120,9 +121,6 @@ export default function SuperAdminCompanies() {
   // Server-side pagination — mirrors the pattern used in Estimates.tsx.
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(25);
-  const [total, setTotal] = useState(0);
-  const [pages, setPages] = useState(1);
-  const [counts, setCounts] = useState<typeof DEFAULT_COUNTS>(DEFAULT_COUNTS);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isManageOpen, setIsManageOpen] = useState(false);
@@ -144,58 +142,37 @@ export default function SuperAdminCompanies() {
   // never end up requesting a page that no longer exists for the new filter.
   useEffect(() => { setCurrentPage(1); }, [debouncedSearch, statusFilter]);
 
-  // Only show the full-page skeleton on the very first load — page/search/
-  // status changes (and post-CRUD refreshes) should swap the table rows in
-  // place instead of blanking the whole page every time.
-  const isFirstLoad = useRef(true);
+  // Cached server-side pages (lib/superAdminQueries.ts). The previous rows
+  // stay on screen while a new page/search/status loads, and the full-page
+  // skeleton shows only on the very first load.
+  const pageQuery = useSaTenantPage({
+    page: currentPage,
+    limit: itemsPerPage,
+    search: debouncedSearch || undefined,
+    status: statusFilter !== "all" ? statusFilter : undefined,
+  });
+  const plansQuery = useSaPlans();
+  const plans = (plansQuery.data || []) as SaasPlan[];
+  const invalidateSa = useInvalidateSa();
+  const res: any = pageQuery.data;
+  // Defensive fallback: the api client can swallow an error into [].
+  const tenants: Tenant[] = Array.isArray(res) ? res : res?.data || [];
+  const total: number = Array.isArray(res) ? res.length : res?.total || 0;
+  const pages: number = Array.isArray(res) ? 1 : res?.pages || 1;
+  const counts: typeof DEFAULT_COUNTS = (!Array.isArray(res) && res?.counts) || DEFAULT_COUNTS;
+  const fetchData = () => invalidateSa();
 
-  const fetchData = async () => {
-    try {
-      if (isFirstLoad.current) setLoading(true);
-      const res = await api.get("/super-admin/tenants", {
-        params: {
-          page: currentPage,
-          limit: itemsPerPage,
-          search: debouncedSearch || undefined,
-          status: statusFilter !== "all" ? statusFilter : undefined,
-        },
-      });
-      if (Array.isArray(res)) {
-        // Defensive fallback (e.g. the api client swallowed an error into
-        // `[]`) — still render something rather than crash.
-        setTenants(res);
-        setTotal(res.length);
-        setPages(1);
-        setCounts(DEFAULT_COUNTS);
-      } else {
-        // The last row of a later page changed status out of the filter —
-        // step back a page instead of showing an empty table with no pager.
-        if ((res?.data || []).length === 0 && currentPage > 1) {
-          setCurrentPage((p) => p - 1);
-          return;
-        }
-        setTenants(res?.data || []);
-        setTotal(res?.total || 0);
-        setPages(res?.pages || 1);
-        setCounts(res?.counts || DEFAULT_COUNTS);
-      }
-    } catch (error: any) {
-      toast.error(error.message || "Failed to load data");
-    } finally {
-      if (isFirstLoad.current) {
-        setLoading(false);
-        isFirstLoad.current = false;
-      }
-    }
-  };
-
-  useEffect(() => { fetchData(); }, [currentPage, itemsPerPage, debouncedSearch, statusFilter]);
-
-  // The plans list is unrelated to tenant pagination — fetch it once on
-  // mount instead of on every page/search/status change.
+  // The last row of a later page changed status out of the filter — step
+  // back a page instead of showing an empty table with no pager.
   useEffect(() => {
-    api.get("/super-admin/plans").then(setPlans).catch(() => {});
-  }, []);
+    if (!pageQuery.isPlaceholderData && res && !Array.isArray(res) && (res.data || []).length === 0 && currentPage > 1) {
+      setCurrentPage((p) => p - 1);
+    }
+  }, [res, currentPage, pageQuery.isPlaceholderData]);
+
+  useEffect(() => {
+    if (pageQuery.error) toast.error((pageQuery.error as Error).message || "Failed to load data");
+  }, [pageQuery.error]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,7 +199,10 @@ export default function SuperAdminCompanies() {
   const handleManageSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTenant) return;
-    const phoneErr = phone10Error(manageForm.phonenumber);
+    // A company without an owner can be edited without owner details; the
+    // mobile is required only for an existing owner or a new one being added.
+    const ownerDetailsNeeded = !!selectedTenant.owner_id || !!manageForm.email || !!manageForm.password;
+    const phoneErr = phone10Error(manageForm.phonenumber, ownerDetailsNeeded);
     const passwordErr = passwordError(manageForm.password, false);
     setManageErrors({ phone: phoneErr || undefined, password: passwordErr || undefined });
     if (phoneErr || passwordErr) return;
@@ -302,7 +282,7 @@ export default function SuperAdminCompanies() {
     );
   };
 
-  const showSkeleton = useMinimumLoading(loading);
+  const showSkeleton = useSaSkeleton(pageQuery.isPending);
   if (showSkeleton) return <SuperAdminTablePageSkeleton />;
 
   return (
@@ -400,9 +380,13 @@ export default function SuperAdminCompanies() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <div className="h-9 w-9 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
-                          {tenant.company_name.charAt(0).toUpperCase()}
+                          {(tenant.company_name || "?").charAt(0).toUpperCase()}
                         </div>
-                        <span className="font-semibold text-gray-900 text-sm">{tenant.company_name}</span>
+                        {tenant.company_name ? (
+                          <span className="font-semibold text-gray-900 text-sm">{tenant.company_name}</span>
+                        ) : (
+                          <span className="text-sm italic text-red-500" title="This company has no name. Use Edit to set one.">No name — click Edit</span>
+                        )}
                       </div>
                     </TableCell>
                     {/* Email */}
@@ -456,7 +440,7 @@ export default function SuperAdminCompanies() {
                     {/* Status */}
                     <TableCell>
                       <div className="flex flex-col gap-1">
-                        <StatusBadge status={tenant.status} />
+                        <StatusBadge status={tenant.effective_status || tenant.status} />
                         {tenant.status === "trial" && (() => {
                           const days = getDaysLeft(tenant) ?? 0;
                           if (days > 0) {
@@ -472,7 +456,11 @@ export default function SuperAdminCompanies() {
                           if (days > 0) {
                             return <span className={`text-[11px] font-semibold ${days <= 3 ? "text-red-500" : days <= 7 ? "text-amber-600" : "text-gray-500"}`}>{days} day{days !== 1 ? "s" : ""} left</span>;
                           }
-                          return <span className="text-[11px] text-red-500 font-semibold">Expired</span>;
+                          const grace = graceDaysLeft(tenant);
+                          if (grace) {
+                            return <span className="text-[11px] text-orange-600 font-semibold">In grace — {grace} day{grace !== 1 ? "s" : ""} left to renew</span>;
+                          }
+                          return <span className="text-[11px] text-red-500 font-semibold">Plan ended — renew to re-activate</span>;
                         })()}
                         {tenant.status === "expired" && (
                           <span className="text-[11px] text-red-500 font-semibold">Plan ended</span>
@@ -524,6 +512,8 @@ export default function SuperAdminCompanies() {
                         {(() => {
                           // A suspended company is re-activated, not renewed.
                           if (tenant.status === "inactive") return null;
+                          // Nothing to renew without a plan (the backend refuses it).
+                          if (!tenant.plan_id) return null;
                           const daysLeft = getDaysLeft(tenant);
                           if (daysLeft === null || daysLeft > 30) return null;
                           return (
@@ -596,7 +586,7 @@ export default function SuperAdminCompanies() {
 
     {/* ── Add Customer Modal ── */}
     {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 overscroll-contain">
           <div className="bg-white border border-gray-200 rounded-xl w-full max-w-md shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
               <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
@@ -608,10 +598,10 @@ export default function SuperAdminCompanies() {
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto">
+            <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto overscroll-contain">
               {/* Company Name */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Company Name</label>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Company Name<span className="text-red-500 ml-0.5">*</span></label>
                 <div className="relative">
                   <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
@@ -645,7 +635,7 @@ export default function SuperAdminCompanies() {
 
               {/* Email */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Email ID</label>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Email ID<span className="text-red-500 ml-0.5">*</span></label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
@@ -662,7 +652,7 @@ export default function SuperAdminCompanies() {
 
               {/* Owner mobile — one mobile = one account, exactly 10 digits */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Mobile Number</label>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Mobile Number<span className="text-red-500 ml-0.5">*</span></label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
@@ -681,7 +671,7 @@ export default function SuperAdminCompanies() {
 
               {/* Password */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Password</label>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Password<span className="text-red-500 ml-0.5">*</span></label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
@@ -741,7 +731,7 @@ export default function SuperAdminCompanies() {
 
       {/* ── Manage Subscription Modal ── */}
       {isManageOpen && selectedTenant && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 overscroll-contain">
           <div className="bg-white border border-gray-200 rounded-xl w-full max-w-md shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center flex-shrink-0">
               <div>
@@ -760,10 +750,10 @@ export default function SuperAdminCompanies() {
               </button>
             </div>
 
-            <form onSubmit={handleManageSave} className="p-6 space-y-4 overflow-y-auto">
+            <form onSubmit={handleManageSave} className="p-6 space-y-4 overflow-y-auto overscroll-contain">
               {/* Company Name */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Company Name</label>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Company Name<span className="text-red-500 ml-0.5">*</span></label>
                 <div className="relative">
                   <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
@@ -839,12 +829,12 @@ export default function SuperAdminCompanies() {
 
               {/* Email */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Email ID</label>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Email ID{(selectedTenant?.owner_id || manageForm.password) && <span className="text-red-500 ml-0.5">*</span>}</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type="email"
-                    required
+                    required={!!selectedTenant?.owner_id || !!manageForm.password}
                     value={manageForm.email}
                     onChange={(e) => setManageForm({ ...manageForm, email: e.target.value })}
                     className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
@@ -856,7 +846,7 @@ export default function SuperAdminCompanies() {
 
               {/* Owner mobile — required; older companies without one are asked here */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Owner Mobile Number</label>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Owner Mobile Number{(selectedTenant?.owner_id || manageForm.password) && <span className="text-red-500 ml-0.5">*</span>}</label>
                 <div className="relative">
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
@@ -905,13 +895,17 @@ export default function SuperAdminCompanies() {
                 <div className="relative">
                   <Package className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
                   <Select
-                    value={manageForm.plan_id}
-                    onValueChange={(val) => setManageForm({ ...manageForm, plan_id: val })}
+                    value={manageForm.plan_id || "none"}
+                    onValueChange={(val) => setManageForm({ ...manageForm, plan_id: val === "none" ? "" : val })}
                   >
                     <SelectTrigger className="w-full pl-9 h-10 bg-white border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500">
                       <SelectValue placeholder="Select a plan" />
                     </SelectTrigger>
                     <SelectContent>
+                      {/* "" is sent as "no plan" (tenant_controller.updateTenant). */}
+                      <SelectItem value="none">
+                        <span className="text-gray-500 italic">No Plan</span>
+                      </SelectItem>
                       {plans.filter((p) => p.active !== false || p._id === manageForm.plan_id).map((p) => (
                         <SelectItem key={p._id} value={p._id}>
                           <span className="flex items-center gap-2">
@@ -963,7 +957,7 @@ export default function SuperAdminCompanies() {
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Add-on features</label>
                 <div className="space-y-2">
-                  {TENANT_FEATURES.map((f) => {
+                  {TENANT_FEATURES.filter((f) => !(selectedTenant.locked_features || []).includes(f.key)).map((f) => {
                     const on = manageForm.enabled_features.includes(f.key);
                     return (
                       <button

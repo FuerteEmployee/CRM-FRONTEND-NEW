@@ -43,6 +43,7 @@ import { customerService } from "@/api/services/customer.service";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 import { hasQuotationApproval, QUOTATION_APPROVE_PERMISSION } from "@/lib/quotationApproval";
+import { hasBranchSalaryManagement } from "@/lib/branchSalary";
 import { hasPurchaseOrders, PURCHASE_ORDERS_PERMISSION } from "@/lib/purchaseOrders";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -61,9 +62,7 @@ import { departmentService as hrmsDepartmentService } from "@/hrms/services/depa
 import { designationService as hrmsDesignationService } from "@/hrms/services/designationService";
 import { shiftService as hrmsShiftService } from "@/hrms/services/shiftService";
 import { salespersonService } from "@/hrms/services/salespersonService";
-import { managingCompanyService, type ManagingCompany } from "@/hrms/services/managingCompanyService";
-import { ManageCompaniesDialog } from "@/hrms/components/staff/ManageCompaniesDialog";
-import { ConfirmProvider } from "@/hrms/contexts/ConfirmContext";
+import { getFileUrl } from "@/hrms/utils/fileUrl";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 interface Role {
@@ -207,7 +206,7 @@ const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 // Foreign-key selects that must be sent as the literal string "null" (not "" or
 // omitted) so the backend's expandDotNotation casts them to a real null instead
 // of leaving a stale/invalid ObjectId string in place.
-const ID_FIELDS = ["role", "hrmsBranchId", "department", "designation", "shiftId", "managingCompanyId"];
+const ID_FIELDS = ["role", "hrmsBranchId", "department", "designation", "shiftId", "managingCompanyId", "managingBranchId"];
 
 const emptyHrmsProfile = () => ({
   gender: "",
@@ -241,6 +240,9 @@ const emptyHrmsProfile = () => ({
   // Managing company (matches HRMS's StaffFormPage.tsx staffSchema)
   salaryManagedBy: "screen_time" as "screen_time" | "branch",
   managingCompanyId: "",
+  // "Salary Managed By: Branch" picks an HRMS branch; the backend maps it to
+  // the branch's ManagingCompany (hrms/utils/branchManagingCompany.js).
+  managingBranchId: "",
   // Salesperson Profile (matches HRMS's StaffFormPage.tsx staffSchema)
   salespersonCode: "",
   salespersonSince: "",
@@ -253,6 +255,14 @@ const emptyHrmsProfile = () => ({
   underManagerId: "",
   salespersonRemarks: "",
 });
+
+// Browsers still let "e", "+" and "-" into type="number" boxes — block them so only amounts can be typed.
+const blockNonNumericKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
+};
+const digitsOnly = (v: string, max: number) => v.replace(/\D/g, "").slice(0, max);
+const upperAlnum = (v: string, max: number) => v.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, max);
+const percent = (v: string) => Math.min(100, Math.max(0, parseFloat(v) || 0));
 
 export default function SetupStaffForm() {
   const { id } = useParams();
@@ -267,6 +277,8 @@ export default function SetupStaffForm() {
     ...(hasQuotationApproval(user) ? [QUOTATION_APPROVE_PERMISSION] : []),
     ...(hasPurchaseOrders(user) ? [PURCHASE_ORDERS_PERMISSION] : []),
   ];
+  // Branch salary management add-on shows "Salary Managed By" / "Managing Branch".
+  const branchSalaryEnabled = hasBranchSalaryManagement(user);
   const basePath = isStaff ? "/staff" : "/admin";
   // Employment Details / Salary & Banking / Legal Documents are HRMS-only
   // fields — a tenant whose plan doesn't include the HRMS module shouldn't
@@ -347,7 +359,7 @@ export default function SetupStaffForm() {
   const { data: hrmsBranches = [] } = useQuery({
     queryKey: ["hrms-branches-picker"],
     queryFn: async () => {
-      const res = await hrmsbranchService.getAll();
+      const res = await hrmsbranchService.getAll({ limit: 1000 }); // API pages at 10 by default
       return res?.data || [];
     },
     enabled: hrmsEnabled,
@@ -380,13 +392,6 @@ export default function SetupStaffForm() {
       const list = await salespersonService.getAll();
       return list.filter((s: any) => s.isManager);
     },
-    enabled: hrmsEnabled,
-  });
-
-  const [companiesDialogOpen, setCompaniesDialogOpen] = useState(false);
-  const { data: managingCompanies = [], refetch: refetchManagingCompanies } = useQuery<ManagingCompany[]>({
-    queryKey: ["managing-companies-picker"],
-    queryFn: () => managingCompanyService.list(),
     enabled: hrmsEnabled,
   });
 
@@ -441,6 +446,7 @@ export default function SetupStaffForm() {
           managingCompanyId: (member.managingCompanyId && typeof member.managingCompanyId === "object")
             ? (member.managingCompanyId._id || member.managingCompanyId.id || "")
             : (member.managingCompanyId || defaults.managingCompanyId),
+          managingBranchId: member.managingBranchId || defaults.managingBranchId,
           salespersonCode: member.salespersonCode || defaults.salespersonCode,
           salespersonSince: member.salespersonSince ? String(member.salespersonSince).substring(0, 10) : defaults.salespersonSince,
           accountGroup: member.accountGroup || defaults.accountGroup,
@@ -507,6 +513,10 @@ export default function SetupStaffForm() {
         if ((fullKey === "dob" || fullKey === "joiningDate") && value === "") return;
 
         if (Array.isArray(value)) {
+          // Empty arrays append nothing — tell the backend to clear them.
+          if (value.length === 0 && (fullKey === "weeklyHolidays" || fullKey === "departments")) {
+            fd.append("clearedArrays", fullKey);
+          }
           value.forEach((v) => fd.append(fullKey, v));
         } else {
           fd.append(fullKey, value instanceof Date ? value.toISOString() : String(value));
@@ -594,14 +604,41 @@ export default function SetupStaffForm() {
 
     if (!formData.firstname.trim()) errors.push("First name is required");
     if (!formData.lastname.trim()) errors.push("Last name is required");
+    for (const [label, v] of [["First name", formData.firstname], ["Last name", formData.lastname]] as const) {
+      if (v.trim().length > 100) errors.push(`${label} must be 100 characters or less`);
+      if (/[<>]/.test(v)) errors.push(`${label} cannot contain < or >`);
+    }
     if (!/^\S+@\S+\.\S+$/.test(formData.email.trim())) errors.push("A valid email address is required");
     if (!tenDigits.test(formData.phonenumber)) errors.push("Mobile number must be exactly 10 digits");
 
     if (isCreate && !formData.password.trim()) {
       errors.push("Password is required for new accounts");
-    } else if (formData.password && formData.password.length < 8) {
-      errors.push("Password must be at least 8 characters");
+    } else if (formData.password && !(formData.password.length >= 8 && /[A-Za-z]/.test(formData.password) && /\d/.test(formData.password))) {
+      errors.push("Password must be at least 8 characters and include a letter and a number");
     }
+
+    // Same format / range rules the server enforces (staff_controller.staffInputError).
+    const today = new Date().toISOString().slice(0, 10);
+    if (formData.dob && formData.dob > today) errors.push("Date of birth cannot be in the future");
+    if (formData.dob && formData.joiningDate && formData.joiningDate < formData.dob) errors.push("Joining date cannot be before the date of birth");
+    const pan = formData.legalDocuments.panNumber.trim().toUpperCase();
+    if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) errors.push("PAN number must look like ABCDE1234F");
+    const aadhaar = formData.legalDocuments.aadhaarNumber.replace(/[\s-]/g, "");
+    if (aadhaar && !/^[2-9][0-9]{11}$/.test(aadhaar)) errors.push("Aadhaar number must be 12 digits");
+    const ifsc = formData.bankInfo.ifscCode.trim().toUpperCase();
+    if (ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) errors.push("IFSC code must look like HDFC0001234");
+    const account = formData.bankInfo.accountNumber.trim();
+    if (account && !/^\d{9,18}$/.test(account)) errors.push("Account number must be 9 to 18 digits");
+    const base = Number(formData.salaryAmount) || 0;
+    if (Number(formData.salaryAmount) < 0) errors.push("Base salary cannot be negative");
+    const parts = formData.salaryConfig as Record<string, { value?: number | string } | undefined>;
+    for (const [key, part] of Object.entries(parts || {})) {
+      if (part && typeof part === "object" && part.value !== undefined && part.value !== "" && !(Number(part.value) >= 0)) {
+        errors.push(`${key.toUpperCase()} cannot be negative`);
+      }
+    }
+    const basicPlusHra = (Number(parts?.basic?.value) || 0) + (Number(parts?.hra?.value) || 0);
+    if (base > 0 && basicPlusHra > base) errors.push(`Basic + HRA (₹${basicPlusHra}) cannot be more than the Base Salary (₹${base})`);
 
     if (formData.residentialPhone && !tenDigits.test(formData.residentialPhone)) {
       errors.push("Residential phone must be exactly 10 digits");
@@ -609,8 +646,8 @@ export default function SetupStaffForm() {
     if (formData.emergencyContact.phone && !tenDigits.test(formData.emergencyContact.phone)) {
       errors.push("Emergency contact phone must be exactly 10 digits");
     }
-    if (formData.salaryManagedBy === "branch" && !formData.managingCompanyId) {
-      errors.push("Managing company is required for branch-managed employees");
+    if (branchSalaryEnabled && formData.salaryManagedBy === "branch" && !formData.managingBranchId) {
+      errors.push("Select the branch that manages this employee's salary");
     }
 
     return errors;
@@ -781,6 +818,21 @@ export default function SetupStaffForm() {
     updateMutation.isPending ||
     fieldsDisabled;
 
+  // Typing /setup/staff/new (or another person's id) into the address bar must
+  // not open a form the user isn't allowed to save — the list already hides the buttons.
+  const isCreatePage = !id || id === "new";
+  const isOwnProfile = !isCreatePage && String(id) === String((user as any)?._id || (user as any)?.id || "");
+  const formAllowed = isCreatePage ? can("Staff", "Create") : can("Staff", "Edit") || isOwnProfile;
+  if (!formAllowed) {
+    return (
+      <DashboardLayout>
+        <div className="p-6 text-center text-muted-foreground">
+          You don't have permission to {isCreatePage ? "add staff members" : "edit this staff member"}.
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6 pb-20 bg-white min-h-screen">
@@ -889,7 +941,7 @@ export default function SetupStaffForm() {
                     {avatarFile ? (
                       <img src={URL.createObjectURL(avatarFile)} alt="Avatar preview" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     ) : formData.avatar ? (
-                      <img src={formData.avatar} alt="Avatar" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                      <img src={getFileUrl(formData.avatar)} alt="Avatar" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                     ) : (
                       <div className="flex flex-col items-center gap-2 text-slate-300">
                         <User className="h-16 w-16" />
@@ -1037,7 +1089,9 @@ export default function SetupStaffForm() {
                 <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Residential Phone</label>
                 <Input
                   value={formData.residentialPhone}
-                  onChange={(e) => setFormData({ ...formData, residentialPhone: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, residentialPhone: digitsOnly(e.target.value, 10) })}
+                  inputMode="numeric"
+                  maxLength={10}
                   placeholder="10 digit number"
                   className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                 />
@@ -1063,7 +1117,9 @@ export default function SetupStaffForm() {
                   <Input
                     placeholder="10 digit number"
                     value={formData.emergencyContact.phone}
-                    onChange={(e) => setFormData({ ...formData, emergencyContact: { ...formData.emergencyContact, phone: e.target.value } })}
+                    onChange={(e) => setFormData({ ...formData, emergencyContact: { ...formData.emergencyContact, phone: digitsOnly(e.target.value, 10) } })}
+                    inputMode="numeric"
+                    maxLength={10}
                     className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                   />
                 </div>
@@ -1519,7 +1575,8 @@ export default function SetupStaffForm() {
                     <Input
                       placeholder="HDFC0001234"
                       value={formData.bankInfo.ifscCode}
-                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, ifscCode: e.target.value.toUpperCase() } })}
+                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, ifscCode: upperAlnum(e.target.value, 11) } })}
+                      maxLength={11}
                       className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm uppercase"
                     />
                   </div>
@@ -1528,7 +1585,9 @@ export default function SetupStaffForm() {
                     <Input
                       placeholder="Enter full account number"
                       value={formData.bankInfo.accountNumber}
-                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, accountNumber: e.target.value } })}
+                      onChange={(e) => setFormData({ ...formData, bankInfo: { ...formData.bankInfo, accountNumber: digitsOnly(e.target.value, 18) } })}
+                      inputMode="numeric"
+                      maxLength={18}
                       className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                     />
                   </div>
@@ -1581,6 +1640,8 @@ export default function SetupStaffForm() {
                       <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Base Salary (₹)</label>
                       <Input
                         type="number"
+                        min={0}
+                        onKeyDown={blockNonNumericKeys}
                         value={formData.salaryAmount}
                         onChange={(e) => setFormData({ ...formData, salaryAmount: e.target.value })}
                         className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
@@ -1588,6 +1649,7 @@ export default function SetupStaffForm() {
                     </div>
                   </div>
 
+                  {branchSalaryEnabled && (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Salary Managed By</label>
@@ -1598,6 +1660,7 @@ export default function SetupStaffForm() {
                             ...formData,
                             salaryManagedBy: v,
                             managingCompanyId: v === "screen_time" ? "" : formData.managingCompanyId,
+                            managingBranchId: v === "screen_time" ? "" : formData.managingBranchId,
                           })
                         }
                       >
@@ -1605,43 +1668,37 @@ export default function SetupStaffForm() {
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="screen_time">Screen Time (Internal)</SelectItem>
-                          <SelectItem value="branch">Branch / External Company</SelectItem>
+                          {/* Stored value stays "screen_time" (the original HRMS's name for
+                              "the company itself pays"); only the label is tenant-neutral. */}
+                          <SelectItem value="screen_time">Own Company (Internal)</SelectItem>
+                          <SelectItem value="branch">Branch</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     {formData.salaryManagedBy === "branch" && (
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Managing Company</label>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2 text-[11px]"
-                            onClick={() => setCompaniesDialogOpen(true)}
-                            disabled={fieldsDisabled}
-                          >
-                            Manage
-                          </Button>
-                        </div>
+                        <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Managing Branch</label>
                         <Select
-                          value={formData.managingCompanyId || "none"}
-                          onValueChange={(v) => setFormData({ ...formData, managingCompanyId: v === "none" ? "" : v })}
+                          value={formData.managingBranchId || "none"}
+                          onValueChange={(v) => setFormData({ ...formData, managingBranchId: v === "none" ? "" : v })}
                         >
                           <SelectTrigger className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm">
-                            <SelectValue placeholder="Select company" />
+                            <SelectValue placeholder="Select branch" />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">*None</SelectItem>
-                            {managingCompanies.map((c) => (
-                              <SelectItem key={c._id || c.id} value={c._id || c.id || ""}>{c.name}</SelectItem>
+                            {hrmsBranches.map((b: any) => (
+                              <SelectItem key={b._id || b.id} value={b._id || b.id || ""}>{b.name}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        {hrmsBranches.length === 0 && (
+                          <p className="text-xs text-muted-foreground ml-1">No branches yet — add them in HRMS &gt; Branch Management.</p>
+                        )}
                       </div>
                     )}
                   </div>
+                  )}
 
                   <div className="p-4 rounded-lg bg-white border border-slate-200 space-y-6">
                     <h4 className="text-xs font-semibold text-slate-700 flex items-center gap-2">
@@ -1652,6 +1709,8 @@ export default function SetupStaffForm() {
                         <label className="text-[11px] font-bold text-slate-500 uppercase">Basic Salary</label>
                         <Input
                           type="number"
+                          min={0}
+                          onKeyDown={blockNonNumericKeys}
                           value={formData.salaryConfig.basic.value}
                           onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, basic: { value: e.target.value } } })}
                           className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
@@ -1661,6 +1720,8 @@ export default function SetupStaffForm() {
                         <label className="text-[11px] font-bold text-slate-500 uppercase">HRA</label>
                         <Input
                           type="number"
+                          min={0}
+                          onKeyDown={blockNonNumericKeys}
                           value={formData.salaryConfig.hra.value}
                           onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, hra: { value: e.target.value } } })}
                           className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
@@ -1700,6 +1761,8 @@ export default function SetupStaffForm() {
                           </label>
                           <Input
                             type="number"
+                            min={0}
+                            onKeyDown={blockNonNumericKeys}
                             value={formData.salaryConfig.pf.value}
                             disabled={!formData.salaryConfig.pf.isIncluded}
                             onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, pf: { ...formData.salaryConfig.pf, value: e.target.value } } })}
@@ -1716,6 +1779,8 @@ export default function SetupStaffForm() {
                         <label className="text-[11px] font-bold text-slate-500 uppercase">ESIC</label>
                         <Input
                           type="number"
+                          min={0}
+                          onKeyDown={blockNonNumericKeys}
                           value={formData.salaryConfig.esic.value}
                           onChange={(e) => setFormData({ ...formData, salaryConfig: { ...formData.salaryConfig, esic: { value: e.target.value } } })}
                           className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
@@ -1740,7 +1805,8 @@ export default function SetupStaffForm() {
                   <Input
                     placeholder="ABCDE1234F"
                     value={formData.legalDocuments.panNumber}
-                    onChange={(e) => setFormData({ ...formData, legalDocuments: { ...formData.legalDocuments, panNumber: e.target.value.toUpperCase() } })}
+                    onChange={(e) => setFormData({ ...formData, legalDocuments: { ...formData.legalDocuments, panNumber: upperAlnum(e.target.value, 10) } })}
+                    maxLength={10}
                     className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm uppercase"
                   />
                 </div>
@@ -1764,7 +1830,7 @@ export default function SetupStaffForm() {
                         <span className="text-[10px] font-bold text-slate-600 px-4 text-center truncate w-full">PAN Document (PDF)</span>
                       </div>
                     ) : (
-                      <img src={formData.legalDocuments.panUrl} alt="PAN" className="h-full w-full object-cover rounded-md" />
+                      <img src={getFileUrl(formData.legalDocuments.panUrl)} alt="PAN" className="h-full w-full object-cover rounded-md" />
                     )
                   ) : (
                     <>
@@ -1797,7 +1863,9 @@ export default function SetupStaffForm() {
                   <Input
                     placeholder="1234 5678 9012"
                     value={formData.legalDocuments.aadhaarNumber}
-                    onChange={(e) => setFormData({ ...formData, legalDocuments: { ...formData.legalDocuments, aadhaarNumber: e.target.value } })}
+                    onChange={(e) => setFormData({ ...formData, legalDocuments: { ...formData.legalDocuments, aadhaarNumber: digitsOnly(e.target.value, 12) } })}
+                    inputMode="numeric"
+                    maxLength={12}
                     className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                   />
                 </div>
@@ -1821,7 +1889,7 @@ export default function SetupStaffForm() {
                         <span className="text-[10px] font-bold text-slate-600 px-4 text-center truncate w-full">Aadhaar Document (PDF)</span>
                       </div>
                     ) : (
-                      <img src={formData.legalDocuments.aadhaarUrl} alt="Aadhaar" className="h-full w-full object-cover rounded-md" />
+                      <img src={getFileUrl(formData.legalDocuments.aadhaarUrl)} alt="Aadhaar" className="h-full w-full object-cover rounded-md" />
                     )
                   ) : (
                     <>
@@ -1860,7 +1928,7 @@ export default function SetupStaffForm() {
                   {passportPhotoFile ? (
                     <img src={URL.createObjectURL(passportPhotoFile)} alt="Photo" className="h-full w-full object-cover rounded-md" />
                   ) : formData.legalDocuments.passportPhotoUrl ? (
-                    <img src={formData.legalDocuments.passportPhotoUrl} alt="Photo" className="h-full w-full object-cover rounded-md" />
+                    <img src={getFileUrl(formData.legalDocuments.passportPhotoUrl)} alt="Photo" className="h-full w-full object-cover rounded-md" />
                   ) : (
                     <>
                       <div className="h-10 w-10 rounded-md bg-white shadow-sm flex items-center justify-center text-purple-500 group-hover:scale-105 transition-transform"><Plus className="h-5 w-5" /></div>
@@ -1959,7 +2027,10 @@ export default function SetupStaffForm() {
                   type="number"
                   placeholder="Commission splitting share"
                   value={formData.incentiveSharingPercent}
-                  onChange={(e) => setFormData({ ...formData, incentiveSharingPercent: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => setFormData({ ...formData, incentiveSharingPercent: percent(e.target.value) })}
+                  min={0}
+                  max={100}
+                  onKeyDown={blockNonNumericKeys}
                   className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                   disabled={fieldsDisabled}
                 />
@@ -1970,7 +2041,10 @@ export default function SetupStaffForm() {
                   type="number"
                   placeholder="Direct commission earning share"
                   value={formData.primaryIncentivePercent}
-                  onChange={(e) => setFormData({ ...formData, primaryIncentivePercent: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => setFormData({ ...formData, primaryIncentivePercent: percent(e.target.value) })}
+                  min={0}
+                  max={100}
+                  onKeyDown={blockNonNumericKeys}
                   className="h-10 rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm"
                   disabled={fieldsDisabled}
                 />
@@ -2211,23 +2285,6 @@ export default function SetupStaffForm() {
           </div>
           </div>
         </Tabs>
-
-        {/* ManageCompaniesDialog is an HRMS component and needs HRMS's ConfirmContext,
-            which isn't mounted on the Setup side — provide it locally here. */}
-        <ConfirmProvider>
-          <ManageCompaniesDialog
-            open={companiesDialogOpen}
-            onOpenChange={setCompaniesDialogOpen}
-            companies={managingCompanies}
-            onChanged={() => {
-              refetchManagingCompanies().then(({ data }) => {
-                if (formData.managingCompanyId && data && !data.some((c) => (c._id || c.id) === formData.managingCompanyId)) {
-                  setFormData((prev: any) => ({ ...prev, managingCompanyId: "" }));
-                }
-              });
-            }}
-          />
-        </ConfirmProvider>
       </div>
     </DashboardLayout>
   );

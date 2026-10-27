@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Bell, AlertTriangle, Info, CheckCircle2, XCircle, Clock, RefreshCw } from "lucide-react";
 import { apiClient as api } from "@/api/client";
 import { toast } from "sonner";
 import { formatDistanceToNow, differenceInDays } from "date-fns";
 import { SuperAdminAlertsSkeleton } from "@/components/ui/page-skeleton";
-import { useMinimumLoading } from "@/hooks/useMinimumLoading";
-import { getDaysLeft, getExpiryDate, isLifetimePlan } from "@/lib/tenantExpiry";
+import { useQueryClient } from "@tanstack/react-query";
+import { saQueries, useSaAllTenants, useSaDismissedAlerts, useSaSkeleton } from "@/lib/superAdminQueries";
+import { bannerWarningDays, getDaysLeft, getExpiryDate, isLifetimePlan } from "@/lib/tenantExpiry";
 
 interface Tenant {
   _id: string;
@@ -105,13 +106,14 @@ function generateAlerts(tenants: Tenant[]): Alert[] {
       });
     }
 
-    // A plan switched to Inactive blocks every company on it.
+    // A company on a discontinued (Inactive) plan keeps working, but the plan
+    // can't be renewed for new companies — worth moving it eventually.
     if (plan && plan.active === false && tenant.status !== "inactive") {
       alerts.push({
         id: `plan-inactive-${tenant._id}-${plan._id}`,
-        type: "danger",
-        title: "Plan Inactive — Company Blocked",
-        message: `${tenant.company_name} is on "${plan.name}", which is Inactive, so it can't log in. Make the plan Active or move the company to another plan.`,
+        type: "info",
+        title: "Company on an Inactive Plan",
+        message: `${tenant.company_name} is on "${plan.name}", which is Inactive (closed to new companies). It keeps working; move it to an active plan when convenient.`,
         time: ago(tenant.updatedAt || tenant.createdAt),
         tenant: tenant.company_name,
       });
@@ -138,10 +140,12 @@ function generateAlerts(tenants: Tenant[]): Alert[] {
           time: `ended ${ago(end)}`,
           tenant: tenant.company_name,
         });
-      } else if (daysLeft <= 5) {
+      } else if (daysLeft <= bannerWarningDays(tenant)) {
+        // Same window as the plan's "Show Banner Before Expiry" setting, so
+        // the alert appears when the company starts seeing its renewal banner.
         alerts.push({
           id: `billing-${tenant._id}-${day(end)}`,
-          type: "info",
+          type: daysLeft <= 7 ? "warning" : "info",
           title: "Billing Cycle Ending",
           message: `${tenant.company_name}'s plan ends ${daysLeft === 1 ? "within a day" : `in ${daysLeft} days`}. Ensure renewal is processed.`,
           time: `ends ${ago(end)}`,
@@ -205,36 +209,36 @@ function generateAlerts(tenants: Tenant[]): Alert[] {
 }
 
 export default function SuperAdminAlerts() {
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Cached and shared with Billing (lib/superAdminQueries.ts).
+  const tenantsQuery = useSaAllTenants();
+  const dismissedQuery = useSaDismissedAlerts();
+  const queryClient = useQueryClient();
+  const tenants = (tenantsQuery.data || []) as Tenant[];
+  const alerts = useMemo(() => generateAlerts(tenants), [tenants]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [filterType, setFilterType] = useState<string>("all");
+  const [showDismissed, setShowDismissed] = useState(false);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [tenantsRes, dismissedRes] = await Promise.all([
-        api.get("/super-admin/tenants"),
-        api.get("/super-admin/alerts/dismissed"),
-      ]);
-      setTenants(tenantsRes);
-      setAlerts(generateAlerts(tenantsRes));
-      setDismissed(new Set(dismissedRes));
-    } catch (error: any) {
-      toast.error(error.message || "Failed to load alerts");
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    if (dismissedQuery.data) setDismissed(new Set(dismissedQuery.data));
+  }, [dismissedQuery.data]);
+
+  useEffect(() => {
+    const err = (tenantsQuery.error || dismissedQuery.error) as Error | null;
+    if (err) toast.error(err.message || "Failed to load alerts");
+  }, [tenantsQuery.error, dismissedQuery.error]);
+
+  const fetchData = () => {
+    tenantsQuery.refetch();
+    dismissedQuery.refetch();
   };
-
-  useEffect(() => { fetchData(); }, []);
+  const saveDismissed = () => queryClient.invalidateQueries({ queryKey: saQueries.dismissedAlerts.queryKey });
 
   // Optimistic: update locally right away, persist to the server so the
   // dismissal survives a refresh; roll back and notify on failure.
   const dismiss = (id: string) => {
     setDismissed((prev) => new Set([...prev, id]));
-    api.post("/super-admin/alerts/dismiss", { alert_id: id }).catch(() => {
+    api.post("/super-admin/alerts/dismiss", { alert_id: id }).then(saveDismissed).catch(() => {
       setDismissed((prev) => {
         const next = new Set(prev);
         next.delete(id);
@@ -247,8 +251,9 @@ export default function SuperAdminAlerts() {
   const dismissAll = () => {
     const idsToMark = visible.map((a) => a.id);
     if (idsToMark.length === 0) return;
+    if (!window.confirm(`Mark ${idsToMark.length} alert${idsToMark.length === 1 ? "" : "s"} as read? You can bring them back with "Show dismissed".`)) return;
     setDismissed((prev) => new Set([...prev, ...idsToMark]));
-    api.post("/super-admin/alerts/dismiss-all", { alert_ids: idsToMark }).catch(() => {
+    api.post("/super-admin/alerts/dismiss-all", { alert_ids: idsToMark }).then(saveDismissed).catch(() => {
       setDismissed((prev) => {
         const next = new Set(prev);
         idsToMark.forEach((id) => next.delete(id));
@@ -258,18 +263,33 @@ export default function SuperAdminAlerts() {
     });
   };
 
-  const visible = alerts.filter(
-    (a) => !dismissed.has(a.id) && (filterType === "all" || a.type === filterType)
-  );
-
-  const counts = {
-    danger: alerts.filter((a) => !dismissed.has(a.id) && a.type === "danger").length,
-    warning: alerts.filter((a) => !dismissed.has(a.id) && a.type === "warning").length,
-    info: alerts.filter((a) => !dismissed.has(a.id) && a.type === "info").length,
-    success: alerts.filter((a) => !dismissed.has(a.id) && a.type === "success").length,
+  // Undo Dismiss / Mark All Read: optimistic, rolled back on failure.
+  const restore = (ids: string[]) => {
+    if (ids.length === 0) return;
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+    api.post("/super-admin/alerts/restore", { alert_ids: ids }).then(saveDismissed).catch(() => {
+      setDismissed((prev) => new Set([...prev, ...ids]));
+      toast.error("Failed to restore — please try again");
+    });
   };
 
-  const showSkeleton = useMinimumLoading(loading);
+  // "Show dismissed" switches the list to the alerts dismissed earlier.
+  const pool = alerts.filter((a) => (showDismissed ? dismissed.has(a.id) : !dismissed.has(a.id)));
+  const dismissedCount = alerts.filter((a) => dismissed.has(a.id)).length;
+  const visible = pool.filter((a) => filterType === "all" || a.type === filterType);
+
+  const counts = {
+    danger: pool.filter((a) => a.type === "danger").length,
+    warning: pool.filter((a) => a.type === "warning").length,
+    info: pool.filter((a) => a.type === "info").length,
+    success: pool.filter((a) => a.type === "success").length,
+  };
+
+  const showSkeleton = useSaSkeleton(tenantsQuery.isPending || dismissedQuery.isPending);
   if (showSkeleton) return <SuperAdminAlertsSkeleton />;
 
   return (
@@ -290,12 +310,28 @@ export default function SuperAdminAlerts() {
             <RefreshCw className="h-4 w-4" />
             Refresh
           </button>
-          {visible.length > 0 && (
+          {(dismissedCount > 0 || showDismissed) && (
+            <button
+              onClick={() => setShowDismissed((v) => !v)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              {showDismissed ? "Back to alerts" : `Show dismissed (${dismissedCount})`}
+            </button>
+          )}
+          {!showDismissed && visible.length > 0 && (
             <button
               onClick={dismissAll}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Mark All Read
+            </button>
+          )}
+          {showDismissed && visible.length > 0 && (
+            <button
+              onClick={() => restore(visible.map((a) => a.id))}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+            >
+              Restore all
             </button>
           )}
         </div>
@@ -335,9 +371,11 @@ export default function SuperAdminAlerts() {
           <div className="p-4 bg-emerald-50 rounded-full mb-4">
             <Bell className="h-8 w-8 text-emerald-500" />
           </div>
-          <h3 className="text-base font-semibold text-gray-900 mb-1">All clear!</h3>
+          <h3 className="text-base font-semibold text-gray-900 mb-1">{showDismissed ? "No dismissed alerts" : "All clear!"}</h3>
           <p className="text-sm text-gray-400 max-w-xs">
-            {tenants.length === 0
+            {showDismissed
+              ? "Alerts you dismiss show up here, so you can bring them back."
+              : tenants.length === 0
               ? "No customers found. Add customers to start seeing alerts."
               : "No alerts for your current customers. Everything looks good."}
           </p>
@@ -373,12 +411,21 @@ export default function SuperAdminAlerts() {
                   <p className="text-sm text-gray-500 mt-1">{alert.message}</p>
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{alert.tenant}</span>
-                    <button
-                      onClick={() => dismiss(alert.id)}
-                      className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      Dismiss
-                    </button>
+                    {showDismissed ? (
+                      <button
+                        onClick={() => restore([alert.id])}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                      >
+                        Restore
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => dismiss(alert.id)}
+                        className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        Dismiss
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

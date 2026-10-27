@@ -50,6 +50,29 @@ export const getDaysLeft = (t: TenantLike | null | undefined): number | null => 
   return Math.ceil((end.getTime() - Date.now()) / DAY_MS);
 };
 
+/**
+ * Grace period after a plan/trial ends: the company keeps working and sees a
+ * "renew now" banner; the "Subscription Expired" popup comes only after it.
+ * Same length as the backend's TENANT_GRACE_DAYS (cron/tenantExpiry.js).
+ */
+export const GRACE_DAYS = 7;
+
+/** Grace days left after the period ended, or null when it hasn't ended (or never ends). */
+export const graceDaysLeft = (t: TenantLike | null | undefined): number | null => {
+  if (!t || t.status === "expired") return t?.status === "expired" ? 0 : null;
+  const days = getDaysLeft(t);
+  if (days === null || days > 0) return null;
+  return Math.max(0, GRACE_DAYS + days);
+};
+
+/** True once the grace period is over too (or the company is marked expired). */
+export const isPastGrace = (t: TenantLike | null | undefined): boolean => {
+  if (!t) return false;
+  if (t.status === "expired") return true;
+  const days = getDaysLeft(t);
+  return days !== null && days <= -GRACE_DAYS;
+};
+
 /** True when the company's plan/trial has ended (or it is marked expired). */
 export const isTenantExpired = (t: TenantLike | null | undefined): boolean => {
   if (!t) return false;

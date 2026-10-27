@@ -27,7 +27,7 @@ import { useSettings } from "@/context/SettingsContext";
 import { useCurrency } from "@/context/CurrencyContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
 import { getLandingPath } from "@/lib/landingPath";
-import { usePanelBranding, useApplyPanelBranding } from "@/lib/panelBranding";
+import { usePanelBranding, useApplyPanelBranding, isPanelBrandedLogin } from "@/lib/panelBranding";
 import { AlreadyLoggedInBanner } from "@/components/auth/AlreadyLoggedInBanner";
 import { TwoFactorCodeForm } from "@/components/auth/TwoFactorCodeForm";
 import { getDeviceInfo, getLoginLocation } from "@/hrms/utils/deviceId";
@@ -53,11 +53,14 @@ const Login = () => {
   const [stage, setStage] = useState<"credentials" | "otp">("credentials");
   // The Super Admin login shows the panel's own branding, never a company's.
   const isSuperAdminLogin = window.location.pathname.startsWith("/super-admin");
+  // On the shared server the company is unknown until login, so the admin
+  // login shows the panel (Fuerte) branding too.
+  const usePanelBrand = isSuperAdminLogin || isPanelBrandedLogin();
   const panelBranding = usePanelBranding();
-  const brand = isSuperAdminLogin
+  const brand = usePanelBrand
     ? { name: panelBranding.panelName, logoLight: panelBranding.panelLogo, logoDark: panelBranding.panelLogo }
     : { name: settings?.companyName, logoLight: settings?.compLogoLight, logoDark: settings?.compLogoDark };
-  useApplyPanelBranding(panelBranding, [settings], isSuperAdminLogin);
+  useApplyPanelBranding(panelBranding, [settings], usePanelBrand, isSuperAdminLogin ? undefined : panelBranding.panelName);
 
   const completeLogin = (response: any) => {
     toast.success("Welcome back!");
@@ -135,20 +138,15 @@ const Login = () => {
 
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
-          {brand.logoLight && !logoLightError ? (
-            <div className="flex items-center gap-2">
-              <img src={resolveImageUrl(brand.logoLight)} alt="Logo" className="h-10 w-auto object-contain" onError={() => setLogoLightError(true)} />
-            </div>
-          ) : (
-            <>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-primary font-extrabold text-lg shadow-lg">
-                {brand.name?.charAt(0) || "C"}
-              </div>
-              <span className="text-2xl font-bold tracking-tight">
-                {brand.name}
-              </span>
-            </>
-          )}
+          {/* Company logo (or its first letter) on a white tile, then "CRM". */}
+          <div className="flex h-14 min-w-14 max-w-[220px] items-center justify-center rounded-xl bg-white p-1.5 shadow-lg">
+            {brand.logoLight && !logoLightError ? (
+              <img src={resolveImageUrl(brand.logoLight)} alt="Logo" className="h-full w-auto object-contain" onError={() => setLogoLightError(true)} />
+            ) : (
+              <span className="text-2xl font-extrabold text-primary">{brand.name?.charAt(0) || "C"}</span>
+            )}
+          </div>
+          <span className="text-2xl font-bold tracking-tight">CRM</span>
         </div>
 
         {/* Hero Text */}
@@ -201,19 +199,13 @@ const Login = () => {
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center justify-center gap-2 mb-2">
             {brand.logoDark && !logoDarkError ? (
-              <div className="flex items-center gap-2">
-                <img src={resolveImageUrl(brand.logoDark)} alt="Logo" className="h-9 w-auto object-contain" onError={() => setLogoDarkError(true)} />
-              </div>
+              <img src={resolveImageUrl(brand.logoDark)} alt="Logo" className="h-11 max-w-[180px] w-auto object-contain" onError={() => setLogoDarkError(true)} />
             ) : (
-              <>
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-base">
-                  {brand.name?.charAt(0) || "C"}
-                </div>
-                <span className="text-xl font-bold">
-                  {brand.name}
-                </span>
-              </>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg">
+                {brand.name?.charAt(0) || "C"}
+              </div>
             )}
+            <span className="text-xl font-bold">CRM</span>
           </div>
 
           {stage === "otp" ? (

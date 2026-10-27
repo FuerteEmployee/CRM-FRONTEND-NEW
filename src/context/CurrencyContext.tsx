@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { financeService } from "@/api/services/finance.service";
+import { usePermissionContext } from "@/context/PermissionContext";
 
 interface Currency {
   _id: string;
@@ -33,6 +34,11 @@ const CurrencyContext = createContext<CurrencyContextType>({
 });
 
 export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // GET /api/currencies needs Settings › View (admins always). Staff without
+  // it (e.g. a Purchase Orders maker) got a 403 in the console on every page —
+  // skip the call for them; the ₹ defaults below are used instead.
+  const { user, canView } = usePermissionContext();
+  const allowed = !!user && canView("Settings");
   // Share the same query key as SetupCurrencies so both use the same cached data
   const { data: currencies = [], refetch: refetchQuery } = useQuery<Currency[]>({
     queryKey: ["currencies"],
@@ -42,7 +48,7 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     retryDelay: 1000,
     // No token yet (e.g. on the public login page) — skip the call instead
     // of firing a guaranteed 401.
-    enabled: !!localStorage.getItem("crm_token"),
+    enabled: !!localStorage.getItem("crm_token") && allowed,
   });
 
   const defaultCurrency: Currency | null =
@@ -68,8 +74,10 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // A plain invalidate wouldn't actually fetch while the query is
     // `enabled: false` pre-login — call the query's own refetch, which
     // fetches regardless of `enabled`, so currencies load right after login.
-    refetchQuery();
-  }, [refetchQuery]);
+    // Skipped without Settings › View (the query turns on by itself once the
+    // signed-in user is known and allowed).
+    if (allowed) refetchQuery();
+  }, [refetchQuery, allowed]);
 
   return (
     <CurrencyContext.Provider

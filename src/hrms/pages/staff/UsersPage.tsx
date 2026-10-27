@@ -46,7 +46,7 @@ import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { departmentService } from "@/hrms/services/departmentService";
 import { designationService, type Designation } from "@/hrms/services/designationService";
 import { shiftService, type Shift } from "@/hrms/services/shiftService";
-import { API_BASE_URL } from "@/hrms/services/apiClient";
+import { getFileUrl } from "@/hrms/utils/fileUrl";
 import { useNavigate, useLocation } from "react-router-dom";
 import { usePermission } from "@/hrms/hooks/usePermission";
 import { useAuth } from "@/hrms/contexts/AuthContext";
@@ -129,13 +129,6 @@ const FIELD_ALIASES: Record<string, string[]> = {
   emergencyRelation: ["Relation", "Emergency Relation", "Relationship"],
 };
 
-const getFileUrl = (url?: string) => {
-  if (!url) return "";
-  if (url.startsWith("http") || url.startsWith("data:")) return url;
-  const baseUrl = API_BASE_URL.replace(/\/api$/, "");
-  const cleanPath = url.replace(/\\/g, "/").replace(/^\/+/, "");
-  return `${baseUrl}/${cleanPath}`;
-};
 
 export default function UsersPage() {
   const navigate = useNavigate();

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -262,15 +262,52 @@ const Vendors = () => {
   const setField = (field: string, value: any) =>
     setFormData((f: any) => ({ ...f, [field]: value }));
 
+  // Same rules the backend enforces (vendor_controller.cleanVendorInput), so the
+  // user sees the problem before the request is sent.
+  const validateVendor = (f: typeof emptyForm): string | null => {
+    const company = String(f.company_name || "").trim();
+    if (!company) return "Company Name is required";
+    if (company.length > 200) return "Company Name must be 200 characters or less";
+    const phone = String(f.phone_number || "").trim();
+    if (phone) {
+      const digits = phone.replace(/\D/g, "").length;
+      if (!/^\+?[\d\s()-]+$/.test(phone) || digits < 10 || digits > 15) return "Phone Number must be a valid phone number (10–15 digits)";
+    }
+    const email = String(f.email || "").trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Email is not a valid email address";
+    const pan = String(f.pan_number || "").trim().toUpperCase();
+    if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(pan)) return "PAN Number must look like ABCDE1234F";
+    const gst = String(f.gst_number || "").trim().toUpperCase();
+    if (gst) {
+      if (!/^(0[1-9]|[12][0-9]|3[0-8]|97|99)[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(gst)) {
+        return "GST Number must be a valid 15-character GSTIN (e.g. 24ABCDE1234F1Z5)";
+      }
+      if (pan && gst.slice(2, 12) !== pan) return "GST Number does not match the PAN number";
+    }
+    const tagged = Object.entries(f).find(([, v]) => /<\s*\/?\s*[a-z!?][^>]*>/i.test(String(v ?? "")));
+    if (tagged) return "Fields must not contain HTML tags";
+    return null;
+  };
+
+  // Ref guard: a double-click fires handleSave twice before React re-renders
+  // the disabled button, so only the first click may send a request.
+  const savingRef = useRef(false);
   const handleSave = () => {
-    if (!formData.company_name) {
-      toast({ title: "Error", description: "Company Name is required", variant: "destructive" });
+    if (savingRef.current) return;
+    const error = validateVendor(formData);
+    if (error) {
+      toast({ title: "Error", description: error, variant: "destructive" });
       return;
     }
+    const data: any = Object.fromEntries(
+      Object.entries(formData).map(([k, v]) => [k, typeof v === "string" ? v.trim() : v])
+    );
+    savingRef.current = true;
+    const done = { onSettled: () => { savingRef.current = false; } };
     if (editingVendor) {
-      updateMutation.mutate({ id: editingVendor._id, data: formData });
+      updateMutation.mutate({ id: editingVendor._id, data }, done);
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(data, done);
     }
   };
 
@@ -325,15 +362,29 @@ const Vendors = () => {
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await vendorService.bulkDelete(selectedIds);
-        toast({ title: "Success", description: `Deleted ${selectedIds.length} vendors.` });
+        if (!can("Vendors", "Delete")) throw new Error("You do not have permission to delete vendors.");
+        // Vendors that still have purchase bills are skipped by the server; its
+        // message lists them, so show it as-is.
+        const res: any = await vendorService.bulkDelete(selectedIds);
+        toast({
+          title: res?.skipped?.length ? "Partly done" : "Success",
+          description: res?.message || `Deleted ${selectedIds.length} vendors.`,
+          variant: res?.skipped?.length ? "destructive" : "default",
+        });
       } else {
-        if (!bulkState.sales_person) {
+        const salesPerson = bulkState.sales_person.trim();
+        if (!can("Vendors", "Edit")) throw new Error("You do not have permission to edit vendors.");
+        if (!salesPerson) {
           toast({ title: "Error", description: "Choose Mass Delete or enter a Sales Person to update."});
           setIsBulkLoading(false);
           return;
         }
-        await Promise.all(selectedIds.map((id) => vendorService.update(id, { sales_person: bulkState.sales_person })));
+        const results = await Promise.allSettled(selectedIds.map((id) => vendorService.update(id, { sales_person: salesPerson })));
+        const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+        if (failed.length) {
+          invalidate();
+          throw new Error(`Updated ${results.length - failed.length} of ${results.length} vendors. ${failed[0].reason?.response?.data?.message || failed[0].reason?.message || ""}`);
+        }
         toast({ title: "Success", description: `Updated ${selectedIds.length} vendors.` });
       }
       setSelectedIds([]);
@@ -452,6 +503,7 @@ const Vendors = () => {
                             <Label htmlFor="massDelete" className="text-red-600 font-bold">Mass Delete</Label>
                           </div>
                         )}
+                        {can("Vendors", "Edit") && (
                         <div className="grid grid-cols-1 gap-5 pt-5 border-t">
                           <div className="space-y-2">
                             <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Sales Person</Label>
@@ -464,6 +516,7 @@ const Vendors = () => {
                             />
                           </div>
                         </div>
+                        )}
                       </div>
                       <DialogFooter className="mt-6 border-t pt-4">
                         <DialogClose asChild>

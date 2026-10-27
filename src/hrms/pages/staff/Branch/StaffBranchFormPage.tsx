@@ -349,8 +349,19 @@ export default function StaffBranchFormPage() {
       return;
     }
 
+    if (formData.pincode && !/^\d{6}$/.test(String(formData.pincode).trim()))
+      return toast.error("PIN code must be exactly 6 digits");
+    const latNum = Number(formData.latitude);
+    const lngNum = Number(formData.longitude);
+    if (formData.latitude !== "" && formData.latitude != null && !(latNum >= -90 && latNum <= 90))
+      return toast.error("Latitude must be between -90 and 90");
+    if (formData.longitude !== "" && formData.longitude != null && !(lngNum >= -180 && lngNum <= 180))
+      return toast.error("Longitude must be between -180 and 180");
+
     if (formData.geoFenceEnabled && (!formData.latitude || !formData.longitude))
       return toast.error("Set the branch location before enabling geo-fence");
+    if (formData.geoFenceEnabled && !(Number(formData.radius) > 0))
+      return toast.error("Geo-fence radius must be greater than 0");
     setLoading(true);
     try {
       const { supervisorIds: _loadedSupervisors, ...rest } = formData;
@@ -632,8 +643,8 @@ export default function StaffBranchFormPage() {
             </div>
             <div className="space-y-1.5">
               <Label className={lbl}>Pin Code</Label>
-              <Input value={formData.pincode} onChange={e => set("pincode", e.target.value)}
-                placeholder="360001" className={inp} />
+              <Input value={formData.pincode} onChange={e => set("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))}
+                inputMode="numeric" placeholder="360001" className={inp} />
             </div>
           </div>
         </TabsContent>

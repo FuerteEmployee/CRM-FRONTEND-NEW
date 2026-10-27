@@ -320,6 +320,10 @@ const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
       toast({ title: "Fill all required fields", variant: "destructive" });
       return;
     }
+    if (!(Number(form.amount) > 0)) {
+      toast({ title: "Amount must be greater than ₹0", variant: "destructive" });
+      return;
+    }
     setIsSaving(true);
     try {
       await apiClient.post("/advance-salary", {
@@ -880,12 +884,16 @@ const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
                 <IndianRupee className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                 <Input
                   type="number"
+                  min={1}
                   placeholder="e.g. 10000"
                   value={form.amount}
                   onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                  className={cn("pl-8 h-9 rounded-lg bg-slate-50 border-slate-200 text-sm", overLimit && "border-red-300 bg-red-50")}
+                  className={cn("pl-8 h-9 rounded-lg bg-slate-50 border-slate-200 text-sm", (overLimit || (form.amount !== "" && !(Number(form.amount) > 0))) && "border-red-300 bg-red-50")}
                 />
               </div>
+              {form.amount !== "" && !(Number(form.amount) > 0) && (
+                <p className="text-[11px] text-red-600 font-semibold">Amount must be greater than ₹0</p>
+              )}
               {form.type === "Advance Salary" && advanceLimit && (
                 <p className={cn("text-[11px]", overLimit ? "text-red-600 font-semibold" : "text-slate-500")}>
                   {advanceLimit.fixedSalary > 0 ? (
@@ -953,7 +961,7 @@ const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={isSaving || !form.employeeId || !form.amount || !form.reason || overLimit}
+              disabled={isSaving || !form.employeeId || !(Number(form.amount) > 0) || !form.reason || overLimit}
               className={cn(
                 "rounded-lg text-white border-0 font-semibold shadow-sm px-6 text-sm flex items-center gap-2",
                 form.type === "Loan" ? "bg-violet-500 hover:bg-violet-600" : "gradient-primary"

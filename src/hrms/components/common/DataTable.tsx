@@ -11,7 +11,7 @@ import {
 } from "@/hrms/components/ui/table";
 import { Card } from "@/hrms/components/ui/card";
 import { Skeleton } from "@/hrms/components/ui/skeleton";
-import { useState, useMemo, useEffect, useRef } from "react";
+import { isValidElement, useState, useMemo, useEffect, useRef } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { cn } from "@/hrms/lib/utils";
 
@@ -215,7 +215,10 @@ export function DataTable<T extends { id?: string | number; _id?: string | numbe
               >
                 {columns.map((col, idx) => (
                   <div key={idx} className="flex justify-between items-start gap-4 border-b pb-1.5 last:border-0 last:pb-0">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pt-1">{col.header}</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground pt-1">
+                      {/* A select-all checkbox header is a table control, not a label — repeating it on every card showed two checkboxes. */}
+                      {isValidElement(col.header) && (col.header.props as any)?.onCheckedChange ? null : col.header}
+                    </span>
                     <div className="text-sm font-medium text-foreground text-right break-words max-w-[65%]">
                       {renderValue(item, col)}
                     </div>

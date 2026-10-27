@@ -267,10 +267,10 @@ export default function StaffBranchListPage() {
         return names.length ? <span className="text-xs font-medium text-slate-700">{names.join(", ")}</span> : <span className="text-slate-400">—</span>;
       },
     },
-    { header: "City", accessorKey: "city", minWidth: 150 },
-    { header: "State", accessorKey: "state", minWidth: 150 },
-    { header: "Phone", accessorKey: "phone", minWidth: 140 },
-    { header: "Email", accessorKey: "email", minWidth: 200 },
+    { header: "City", accessorKey: (b: HRMSBranch) => b.city || "—", minWidth: 150 },
+    { header: "State", accessorKey: (b: HRMSBranch) => b.state || "—", minWidth: 150 },
+    { header: "Phone", accessorKey: (b: HRMSBranch) => b.phone || "—", minWidth: 140 },
+    { header: "Email", accessorKey: (b: HRMSBranch) => b.email || "—", minWidth: 200 },
     {
       header: "Status",
       minWidth: 110,

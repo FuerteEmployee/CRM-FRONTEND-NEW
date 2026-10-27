@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Edit, Trash2, Layers, ChevronRight, CheckCircle2, XCircle } from "lucide-react";
 import { PageHeader } from "@/hrms/components/common/PageHeader";
 import { Button } from "@/hrms/components/ui/button";
@@ -64,6 +64,8 @@ export default function IncentiveSlabsPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [editing, setEditing]   = useState<IncentiveRule | null>(null);
   const [form, setForm]         = useState({ ...EMPTY_RULE });
+  const [saving, setSaving]     = useState(false);
+  const savingRef               = useRef(false);
 
   const fetchRules = async () => {
     setLoading(true);
@@ -163,6 +165,17 @@ export default function IncentiveSlabsPage() {
       toast({ title: "Validation", description: "Add at least one slab entry", variant: "destructive" });
       return;
     }
+    const pctOver100 = (type: string | undefined, v: number) => (type || "percentage") === "percentage" && v > 100;
+    if (form.rewardType === "slab") {
+      const bad = form.slabs.findIndex((s: any) => Number(s.value) < 0 || pctOver100(s.type, Number(s.value)));
+      if (bad >= 0) {
+        toast({ title: "Validation", description: `Slab ${bad + 1}: incentive must be between 0 and 100%`, variant: "destructive" });
+        return;
+      }
+    } else if (Number(form.rewardValue) < 0 || pctOver100(form.rewardType, Number(form.rewardValue))) {
+      toast({ title: "Validation", description: "Reward value must be 0 or more (and at most 100%)", variant: "destructive" });
+      return;
+    }
 
     const payload = {
       ...form,
@@ -171,6 +184,10 @@ export default function IncentiveSlabsPage() {
       brandId: null,
     };
 
+    // Ref, not state: a double-click fires both handlers before React re-renders.
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     try {
       if (editing?._id) {
         await incentiveRuleService.update(editing._id, payload);
@@ -183,6 +200,9 @@ export default function IncentiveSlabsPage() {
       fetchRules();
     } catch (err: any) {
       toast({ title: "Error", description: err?.response?.data?.message || "Save failed", variant: "destructive" });
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
 
@@ -485,9 +505,9 @@ export default function IncentiveSlabsPage() {
                 className="flex-1 h-10 rounded-xl border-slate-200 text-xs font-bold">
                 Cancel
               </Button>
-              <Button onClick={handleSave}
+              <Button onClick={handleSave} disabled={saving}
                 className="flex-1 h-10 rounded-xl gradient-primary text-white border-0 text-xs font-bold">
-                {editing ? "Save Changes" : "Create Rule"}
+                {saving ? "Saving..." : editing ? "Save Changes" : "Create Rule"}
               </Button>
             </div>
           </div>

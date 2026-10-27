@@ -643,6 +643,8 @@ export function DataTable<T extends Record<string, any>>({
                               size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/5"
                               onClick={() => onEdit(item)}
+                              aria-label="Edit"
+                              title="Edit"
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
@@ -653,6 +655,8 @@ export function DataTable<T extends Record<string, any>>({
                               size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/5"
                               onClick={() => onDelete(item)}
+                              aria-label="Delete"
+                              title="Delete"
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>

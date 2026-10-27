@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
+import { getFileUrl } from "@/hrms/utils/fileUrl";
 
 const STAFF_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "First Name", sample: "Jane", required: true, core: true },
@@ -62,6 +63,7 @@ interface StaffMember {
   role?: Role;
   active: boolean;
   last_login?: string;
+  avatar?: string;
 }
 
 export default function SetupStaff() {
@@ -170,7 +172,7 @@ export default function SetupStaff() {
       onAdd={can("Staff", "Create") ? handleAdd : undefined}
       onEdit={can("Staff", "Edit") ? handleEdit : undefined}
       onDelete={can("Staff", "Delete") ? handleDelete : undefined}
-      enableBulkActions={true}
+      enableBulkActions={can("Staff", "Delete")}
       onBulkDelete={(items) => bulkDeleteMutation.mutate(items as StaffMember[])}
       columns={[
         {
@@ -179,7 +181,7 @@ export default function SetupStaff() {
           render: (member: StaffMember) => (
             <div className="flex items-center gap-3">
               <Avatar className="h-9 w-9 border">
-                <AvatarImage src="" />
+                <AvatarImage src={getFileUrl(member.avatar)} className="object-cover" />
                 <AvatarFallback className="bg-muted text-muted-foreground font-semibold">
                   {member.firstname?.[0] || ""}
                   {member.lastname?.[0] || ""}

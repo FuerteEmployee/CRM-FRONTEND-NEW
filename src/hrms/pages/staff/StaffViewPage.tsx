@@ -41,7 +41,7 @@ import { Skeleton } from "@/hrms/components/ui/skeleton";
 import { staffService } from "@/hrms/services/staffService";
 import { storeService } from "@/hrms/services/storeService";
 import { employeeApi } from "@/hrms/services/api";
-import { API_BASE_URL } from "@/hrms/services/apiClient";
+import { getFileUrl } from "@/hrms/utils/fileUrl";
 import { User, Store as StoreType } from "@/hrms/types";
 import { toast } from "@/hrms/hooks/use-toast";
 import { cn } from "@/hrms/lib/utils";
@@ -58,13 +58,6 @@ import {
   isToday,
 } from "date-fns";
 
-const getFileUrl = (url?: string) => {
-  if (!url) return "";
-  if (url.startsWith("http") || url.startsWith("data:")) return url;
-  const baseUrl = API_BASE_URL.replace(/\/api$/, "");
-  const cleanPath = url.replace(/\\/g, "/").replace(/^\/+/, "");
-  return `${baseUrl}/${cleanPath}`;
-};
 
 const isPdf = (url?: string) => url?.toLowerCase().endsWith('.pdf');
 
