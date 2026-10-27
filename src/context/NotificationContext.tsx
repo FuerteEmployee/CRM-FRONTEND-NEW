@@ -286,14 +286,17 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     });
 
     // Purchase Orders add-on (Backend purchase_order_controller.js): same
-    // pattern — approvers hear about POs that broke the pricing rules, makers
-    // hear Yes/No.
+    // pattern — approvers hear about every PO sent for approval (with the
+    // points to check, if any), makers hear Yes/No.
     socket.on("purchaseOrderApproval", (payload: any) => {
       const base = isStaff ? "/staff" : "/admin";
       const number = payload?.number || "A purchase order";
       const link = payload?.poId ? `${base}/purchase-orders?po=${payload.poId}` : `${base}/purchase-orders`;
       if (payload?.event === "requested") {
-        addNotification("PO needs your approval", `${payload?.by || "A staff member"} sent ${number} — it breaks the pricing rules.`, link);
+        // Round 29 (S5): every PO goes for approval — the old text said it broke the pricing rules.
+        const reasons: string[] = Array.isArray(payload?.reasons) ? payload.reasons : [];
+        const points = reasons.length ? ` To check: ${reasons.slice(0, 3).join("; ")}${reasons.length > 3 ? ` (+${reasons.length - 3} more)` : ""}.` : "";
+        addNotification("PO needs your approval", `${number} from ${payload?.by || "a staff member"} is waiting for your approval.${points}`, link);
       } else if (payload?.event === "approved") {
         addNotification("PO approved", `${number} was approved by ${payload?.by || "an approver"}.`, link);
       } else if (payload?.event === "rejected") {

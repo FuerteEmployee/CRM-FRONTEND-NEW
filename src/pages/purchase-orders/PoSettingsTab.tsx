@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,42 +7,98 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowDown, ArrowUp, Eye, Loader2, Plus, Trash2 } from "lucide-react";
+import { Eye, Loader2, Plus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSettings } from "@/context/SettingsContext";
 import { purchaseOrderService } from "@/api/services/purchaseOrder.service";
-import { PRICE_FIELD_LABEL } from "./poCalc";
 import { buildPoPdf, PO_PLACEHOLDERS } from "./poPdf";
+import { buildProformaPdf } from "./proformaPdf";
+import { amountInWords, computeProforma } from "./proformaCalc";
+import { daysOnBlur, emailError, gstinError, phoneError, poPrefixError, validDaysError } from "./poValidation";
 
-const LIST_PRICE_FIELDS = ["master_price", "distributor_price", "end_customer_price"];
+// PO Settings (round 28): the company's own details for the PO / proforma
+// PDFs (Q4 — prefilled from the CRM company profile until saved), PO numbers
+// "<prefix>/<nn>/<FY>" (R2), the Purchase PO pricing rule (R6: price only up
+// is fixed; the margin minimum is pointed out to the approver), the supplier
+// (Brady) block, proforma numbering, the WhatsApp template. The PDF layouts
+// are fixed (F1 / F3) — "Preview" shows them with made-up sample lines.
 
-// A made-up PO so the format can be previewed before any real PO exists.
-const samplePo = (settings: any, type: "purchase" | "sales") => ({
-  type,
-  po_number: `${type === "purchase" ? settings.divisions?.[0]?.purchase_prefix || "PPO" : settings.divisions?.[0]?.sales_prefix || "SPO"}-${new Date().getFullYear()}-0001`,
+const fy = (() => {
+  const d = new Date(Date.now() + 330 * 60000);
+  const start = d.getUTCMonth() >= 3 ? d.getUTCFullYear() : d.getUTCFullYear() - 1;
+  return `${String(start % 100).padStart(2, "0")}-${String((start + 1) % 100).padStart(2, "0")}`;
+})();
+
+const COMPANY_FIELDS: [string, string, boolean?][] = [
+  ["name", "Company name *"],
+  ["line2", "Second line (e.g. what you do)"],
+  ["gstin", "GSTIN"],
+  ["state", "State (for IGST / CGST+SGST on proformas)"],
+  ["phone", "Phone"],
+  ["email", "Email"],
+  ["logo_url", "Logo URL (empty = the CRM logo)"],
+  ["address", "Address", true],
+];
+const BANK_FIELDS: [string, string][] = [
+  ["bank_account_name", "Account name"],
+  ["bank_name_branch", "Bank / Branch"],
+  ["bank_account_no", "Account no."],
+  ["bank_ifsc", "IFSC"],
+];
+const TERM_FIELDS: [string, string][] = [
+  ["payment_terms", "Payment terms (proforma)"],
+  ["delivery_terms", "Delivery time (proforma)"],
+];
+
+// Made-up sample documents for the previews (no real data).
+const samplePo = (form: any) => ({
+  type: "purchase",
+  po_number: `${form.divisions?.[0]?.purchase_prefix || "PPO"}/01/${fy}`,
   po_date: new Date().toISOString(),
-  expected_date: new Date(Date.now() + 7 * 86400000).toISOString(),
-  supplier: settings.supplier,
-  customer_snapshot: { name: "Sample Customer Pvt Ltd", address: "Ahmedabad, Gujarat", gstin: "24AAAAA0000A1Z5", phone: "9876543210" },
-  tax_mode: "intra",
+  supplier: form.supplier,
   notes: "Sample notes",
   items: [
-    { item_code: "BRD-001", name: "Sample label cartridge", hsn: "84439959", unit: "Nos", qty: 10, rate: type === "purchase" ? 950 : 1350, discount_pct: 0, tax_rate: 18, amount: type === "purchase" ? 9500 : 13500 },
-    { item_code: "BRD-002", name: "Sample safety sign", hsn: "49111090", unit: "Nos", qty: 5, rate: type === "purchase" ? 200 : 300, discount_pct: 5, tax_rate: 12, amount: type === "purchase" ? 1000 : 1500 },
+    { item_code: "SAMPLE-CAT-1", y_code: "Y0000001", hsn: "84439959", unit: "Nos", qty: 2, rate: 1000, amount: 2000, tax_rate: 18 },
+    { item_code: "SAMPLE-CAT-2", y_code: "Y0000002", hsn: "39199090", unit: "Nos", qty: 1, rate: 500, amount: 500, tax_rate: 18 },
   ],
-  totals: type === "purchase"
-    ? { subtotal: 10500, cgst: 915, sgst: 915, igst: 0, grand_total: 12330 }
-    : { subtotal: 15000, cgst: 1305, sgst: 1305, igst: 0, grand_total: 17610 },
+  totals: { subtotal: 2500, tax_total: 450, grand_total: 2950 },
 });
+const sampleProforma = (form: any) => {
+  const { lines, totals } = computeProforma([
+    { ref_no: "SAMPLE-CAT-1", description: "Y0000001", hsn: "84439959", qty: 2, unit: "Nos", rate: 1250, disc_pct: 0, gst_pct: 18 },
+    { ref_no: "", description: "Freight / packing", hsn: "", qty: 1, unit: "", rate: 200, disc_pct: 0, gst_pct: 18, is_extra: true },
+  ], "igst", 500);
+  return {
+    number: `${form.proforma?.prefix || ""}0001`, date: new Date().toISOString(), valid_until: new Date(Date.now() + 15 * 86400000).toISOString(),
+    customer_po_number: "SAMPLE-PO-1", tax_type: "igst", bill_to: { name: "Sample Customer", address: "Sample address", gstin: "", email: "customer@example.test", phone: "9000000000" },
+    lines, totals, amount_in_words: amountInWords(totals.grand_total), seller: form.company,
+  };
+};
 
-const Field = ({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) => (
-  <div className="space-y-1.5">
+// error (round 29, S4): the same message the server would give, under the field.
+const Field = ({ label, children, hint, error }: { label: string; children: React.ReactNode; hint?: string; error?: string }) => (
+  <div className="space-y-1.5 min-w-0">
     <Label className="text-xs font-semibold">{label}</Label>
     {children}
-    {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+    {error ? <p className="text-[11px] text-red-700">{error}</p> : hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
   </div>
 );
+
+// S4: per-field checks (same rules as the server).
+const companyError = (k: string, v: string) =>
+  k === "name" ? (String(v || "").trim() ? "" : "Company details: the company name is required")
+  : k === "gstin" ? gstinError(v, { label: "Company GSTIN" })
+  : k === "phone" ? phoneError(v, { label: "Company phone" })
+  : k === "email" ? emailError(v, { label: "Company email" })
+  : "";
+const supplierError = (k: string, v: string) =>
+  k === "name" ? (String(v || "").trim() ? "" : "The supplier needs a name")
+  : k === "gstin" ? gstinError(v, { label: "Supplier GSTIN" })
+  : k === "phone" ? phoneError(v, { label: "Supplier phone" })
+  : k === "whatsapp" ? phoneError(v, { label: "Supplier WhatsApp number" })
+  : k === "email" ? emailError(v, { label: "Supplier email" })
+  : "";
 
 export const PoSettingsTab = ({ settings }: { settings: any }) => {
   const { toast } = useToast();
@@ -51,33 +107,46 @@ export const PoSettingsTab = ({ settings }: { settings: any }) => {
   const { getSetting } = useSettings();
   const canEdit = !!(isAdmin || user?.admin === true || user?.is_superadmin);
   const [form, setForm] = useState<any>(null);
+  const [companyDirty, setCompanyDirty] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewType, setPreviewType] = useState<"purchase" | "sales">("purchase");
   const [previewing, setPreviewing] = useState(false);
+  // S5: "Valid for (days)" keeps what is typed; the number is stored on blur.
+  const [daysText, setDaysText] = useState("15");
+  // S1: the series list for "Default series".
+  const { data: seriesData } = useQuery<any>({ queryKey: ["po-item-series", "all"], queryFn: () => purchaseOrderService.itemSeries() });
 
   useEffect(() => {
-    if (settings) setForm(JSON.parse(JSON.stringify(settings)));
+    if (settings) {
+      setForm(JSON.parse(JSON.stringify(settings)));
+      setCompanyDirty(false);
+      setDaysText(String(settings.proforma?.valid_days ?? 15));
+    }
   }, [settings]);
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      purchaseOrderService.updateSettings({
+    mutationFn: () => {
+      const { prefilled, saved_at, ...company } = form.company || {};
+      return purchaseOrderService.updateSettings({
         divisions: form.divisions,
-        rules: form.rules,
+        rules: { purchase: { ...form.rules.purchase } },
         supplier: form.supplier,
         whatsapp: form.whatsapp,
-        format: form.format,
-      }),
+        proforma: { ...form.proforma, valid_days: daysOnBlur(daysText) },
+        default_series: form.default_series ?? "",
+        ...(companyDirty || !form.company?.prefilled ? { company } : {}),
+      });
+    },
     onSuccess: (saved: any) => {
       queryClient.setQueryData(["po-settings"], saved);
-      toast({ title: "PO settings saved", description: `PO format is now version ${saved.format_version}.` });
+      toast({ title: "PO settings saved" });
     },
     onError: (err: any) => toast({ title: "Could not save", description: err.message, variant: "destructive" }),
   });
 
   if (!form) return null;
 
-  const set = (path: string, value: any) =>
+  const set = (path: string, value: any) => {
+    if (path.startsWith("company.")) setCompanyDirty(true);
     setForm((prev: any) => {
       const next = JSON.parse(JSON.stringify(prev));
       const keys = path.split(".");
@@ -86,26 +155,14 @@ export const PoSettingsTab = ({ settings }: { settings: any }) => {
       obj[keys[keys.length - 1]] = value;
       return next;
     });
-
-  const setRule = (type: string, key: string, value: any) => set(`rules.${type}.${key}`, value);
-  const pctValue = (v: any) => (v === null || v === undefined ? "" : v);
-  const pctInput = (v: string) => (v.trim() === "" ? null : Number(v));
-
-  const moveColumn = (i: number, dir: -1 | 1) => {
-    const cols = [...form.format.columns];
-    const j = i + dir;
-    if (j < 0 || j >= cols.length) return;
-    [cols[i], cols[j]] = [cols[j], cols[i]];
-    set("format.columns", cols);
   };
 
-  const showPreview = async () => {
+  const showPreview = async (kind: "po" | "proforma") => {
     setPreviewing(true);
     try {
-      const doc = await buildPoPdf(samplePo(form, previewType), form.format, {
-        logoUrl: getSetting("compLogoLight"),
-        companyName: getSetting("companyName"),
-      });
+      const doc = kind === "po"
+        ? await buildPoPdf(samplePo(form), form.company, { logoUrl: getSetting("compLogoLight") })
+        : await buildProformaPdf(sampleProforma(form), { logoUrl: getSetting("compLogoLight") });
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(URL.createObjectURL(doc.output("blob")));
     } finally {
@@ -114,68 +171,97 @@ export const PoSettingsTab = ({ settings }: { settings: any }) => {
   };
 
   const disabled = !canEdit;
+  const r = form.rules?.purchase || {};
+  const daysError = validDaysError(daysOnBlur(daysText));
+  const divisionErrors = (form.divisions || []).map((d: any) => ({
+    name: String(d.name || "").trim() ? "" : "Every division needs a name",
+    prefix: poPrefixError(d.purchase_prefix, { label: `Division "${d.name || ""}": PO number prefix` }),
+  }));
+  const formErrors = [
+    ...COMPANY_FIELDS.map(([k]) => (companyDirty || !form.company?.prefilled ? companyError(k, form.company?.[k] || "") : "")),
+    ...["name", "gstin", "phone", "whatsapp", "email"].map((k) => supplierError(k, form.supplier?.[k] || "")),
+    ...divisionErrors.flatMap((e: any) => [e.name, e.prefix]),
+    daysError,
+  ].filter(Boolean);
+  const seriesList: { name: string; count: number }[] = seriesData?.series || [];
 
   return (
     <div className="space-y-5">
       {!canEdit && <p className="text-sm text-muted-foreground">Only an admin can change PO settings.</p>}
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Pricing rules</CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {(["purchase", "sales"] as const).map((type) => {
-            const r = form.rules[type];
-            return (
-              <div key={type} className="space-y-3 rounded-md border p-4">
-                <div className="font-semibold text-sm">{type === "purchase" ? "Purchase PO" : "Sales PO"}</div>
-                <Field label="List price is" hint="Discount is measured against this price.">
-                  <Select value={r.list_price_field} onValueChange={(v) => setRule(type, "list_price_field", v)} disabled={disabled}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {LIST_PRICE_FIELDS.map((f) => <SelectItem key={f} value={f}>{PRICE_FIELD_LABEL[f]}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+        <CardHeader><CardTitle className="text-base">Company details for PO and proforma</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          {form.company?.prefilled && (
+            <p className="text-xs text-amber-700">Filled in from your company profile (Setup › Settings). Check them and press Save — the PDFs print only what is here.</p>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {COMPANY_FIELDS.map(([k, label, wide]) => (
+              <div key={k} className={wide ? "md:col-span-3" : ""}>
+                <Field label={label} error={canEdit ? companyError(k, form.company?.[k] || "") : ""}>
+                  {wide
+                    ? <Textarea rows={2} value={form.company?.[k] || ""} disabled={disabled} onChange={(e) => set(`company.${k}`, e.target.value)} />
+                    : <Input value={form.company?.[k] || ""} disabled={disabled} onChange={(e) => set(`company.${k}`, e.target.value)} />}
                 </Field>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Max discount %" hint="Empty = no limit">
-                    <Input type="number" min={0} max={100} value={pctValue(r.max_discount_pct)} disabled={disabled}
-                      onChange={(e) => setRule(type, "max_discount_pct", pctInput(e.target.value))} />
-                  </Field>
-                  <Field label="Min margin %" hint="Empty = no check">
-                    <Input type="number" min={0} max={100} value={pctValue(r.min_margin_pct)} disabled={disabled}
-                      onChange={(e) => setRule(type, "min_margin_pct", pctInput(e.target.value))} />
-                  </Field>
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm">Selling below list price needs approval</Label>
-                  <Switch checked={r.allow_below_list === false} disabled={disabled}
-                    onCheckedChange={(on) => setRule(type, "allow_below_list", !on)} />
-                </div>
               </div>
-            );
-          })}
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {BANK_FIELDS.map(([k, label]) => (
+              <Field key={k} label={label}><Input value={form.company?.[k] || ""} disabled={disabled} onChange={(e) => set(`company.${k}`, e.target.value)} /></Field>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {TERM_FIELDS.map(([k, label]) => (
+              <Field key={k} label={label}><Input value={form.company?.[k] || ""} disabled={disabled} onChange={(e) => set(`company.${k}`, e.target.value)} /></Field>
+            ))}
+            <Field label="Terms printed on the PO">
+              <Textarea rows={2} value={form.company?.po_terms || ""} disabled={disabled} onChange={(e) => set("company.po_terms", e.target.value)} />
+            </Field>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => showPreview("po")} disabled={previewing}>
+              {previewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />} Preview PO PDF
+            </Button>
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => showPreview("proforma")} disabled={previewing}>
+              <Eye className="h-4 w-4" /> Preview proforma PDF
+            </Button>
+          </div>
+          {previewUrl && <iframe title="PDF preview" src={previewUrl} className="w-full h-[700px] rounded-md border" />}
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Divisions and PO numbers</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Pricing rule (Purchase PO)</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="text-sm space-y-1">
+            <p>The selling price to the customer can only go <b>up</b> — never below the End User Price (or the Distributor Price for a customer set to "Distributor" in the PO editor).</p>
+            <p className="text-xs text-muted-foreground">Every PO goes to an approver. A raised price, a margin under the minimum, or a cost taken from the Distributor Price is shown to them.</p>
+          </div>
+          <Field label="Minimum margin % (shown to the approver)" hint="Empty = no check">
+            <Input type="number" min={0} max={100} value={r.min_margin_pct ?? ""} disabled={disabled}
+              onChange={(e) => set("rules.purchase.min_margin_pct", e.target.value.trim() === "" ? null : Number(e.target.value))} />
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">PO numbers</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          <p className="text-xs text-muted-foreground">Each division keeps its own POs and number series, e.g. PPO-2026-0001. A division that already has POs can be switched off but not removed.</p>
+          <p className="text-xs text-muted-foreground">
+            A PO number looks like <b>{form.divisions?.[0]?.purchase_prefix || "DA"}/07/{fy}</b> — prefix / running number / financial year. The running number starts again every 1 April.
+          </p>
           {form.divisions.map((d: any, i: number) => (
-            <div key={i} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1fr_auto_auto] gap-3 items-end">
-              <Field label="Name">
-                <Input value={d.name} disabled={disabled} onChange={(e) => set(`divisions.${i}.name`, e.target.value)} />
-              </Field>
-              <Field label="Purchase PO prefix">
-                <Input value={d.purchase_prefix} disabled={disabled} onChange={(e) => set(`divisions.${i}.purchase_prefix`, e.target.value)} />
-              </Field>
-              <Field label="Sales PO prefix">
-                <Input value={d.sales_prefix} disabled={disabled} onChange={(e) => set(`divisions.${i}.sales_prefix`, e.target.value)} />
+            <div key={i} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto] gap-3 items-end">
+              <Field label="Division name *" error={canEdit ? divisionErrors[i]?.name : ""}><Input value={d.name} disabled={disabled} onChange={(e) => set(`divisions.${i}.name`, e.target.value)} /></Field>
+              <Field label="PO number prefix *" hint="1 to 10 letters, digits or -" error={canEdit ? divisionErrors[i]?.prefix : ""}>
+                <Input value={d.purchase_prefix} maxLength={10} disabled={disabled} onChange={(e) => set(`divisions.${i}.purchase_prefix`, e.target.value)} />
               </Field>
               <div className="flex items-center gap-2 h-10">
                 <Switch checked={d.active !== false} disabled={disabled} onCheckedChange={(on) => set(`divisions.${i}.active`, on)} />
                 <span className="text-xs">Active</span>
               </div>
-              <Button variant="ghost" size="icon" disabled={disabled || form.divisions.length <= 1}
+              <Button variant="ghost" size="icon" aria-label={`Remove division ${d.name}`} disabled={disabled || form.divisions.length <= 1}
                 onClick={() => set("divisions", form.divisions.filter((_: any, idx: number) => idx !== i))}>
                 <Trash2 className="h-4 w-4 text-red-500" />
               </Button>
@@ -189,21 +275,46 @@ export const PoSettingsTab = ({ settings }: { settings: any }) => {
       </Card>
 
       <Card>
-        <CardHeader><CardTitle className="text-base">Supplier (fixed on every Purchase PO)</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Supplier (printed on every Purchase PO)</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {[
-            ["name", "Name"], ["gstin", "GSTIN"], ["state", "State"],
-            ["phone", "Phone"], ["whatsapp", "WhatsApp number (PO PDFs go here)"], ["email", "Email"],
-          ].map(([k, label]) => (
-            <Field key={k} label={label}>
-              <Input value={form.supplier?.[k] || ""} disabled={disabled} onChange={(e) => set(`supplier.${k}`, e.target.value)} />
-            </Field>
+          {[["name", "Name *"], ["gstin", "GSTIN"], ["state", "State"], ["phone", "Phone"], ["whatsapp", "WhatsApp number (PO PDFs go here)"], ["email", "Email"]].map(([k, label]) => (
+            <Field key={k} label={label} error={canEdit ? supplierError(k, form.supplier?.[k] || "") : ""}><Input value={form.supplier?.[k] || ""} disabled={disabled} onChange={(e) => set(`supplier.${k}`, e.target.value)} /></Field>
           ))}
           <div className="md:col-span-3">
-            <Field label="Address">
-              <Textarea rows={2} value={form.supplier?.address || ""} disabled={disabled} onChange={(e) => set("supplier.address", e.target.value)} />
-            </Field>
+            <Field label="Address"><Textarea rows={2} value={form.supplier?.address || ""} disabled={disabled} onChange={(e) => set("supplier.address", e.target.value)} /></Field>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">Proforma invoices</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Field label="Number prefix" hint={`Numbers look like ${form.proforma?.prefix || ""}0197 and start again every 1 April.`}>
+            <Input value={form.proforma?.prefix || ""} disabled={disabled} onChange={(e) => set("proforma.prefix", e.target.value)} />
+          </Field>
+          <Field label="Valid for (days) *" hint="1 to 365" error={canEdit ? daysError : ""}>
+            <Input inputMode="numeric" aria-label="Valid for (days)" value={daysText} disabled={disabled}
+              onChange={(e) => setDaysText(e.target.value)}
+              onBlur={() => { const v = daysOnBlur(daysText); setDaysText(String(v)); set("proforma.valid_days", v); }} />
+          </Field>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle className="text-base">PO Items</CardTitle></CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Field label="Default series" hint="PO Items and the PO editor's item picker open on this series. A series with no items falls back to All series.">
+            <Select value={form.default_series ? form.default_series : "__all__"} disabled={disabled} onValueChange={(v) => set("default_series", v === "__all__" ? "" : v)}>
+              <SelectTrigger aria-label="Default series"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all__">All series</SelectItem>
+                {form.default_series && !seriesList.some((s) => s.name === form.default_series) && (
+                  <SelectItem value={form.default_series}>{form.default_series} (no items yet)</SelectItem>
+                )}
+                {seriesList.map((s) => <SelectItem key={s.name} value={s.name}>{s.name} ({s.count})</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
         </CardContent>
       </Card>
 
@@ -216,117 +327,21 @@ export const PoSettingsTab = ({ settings }: { settings: any }) => {
           <Field label="Language code">
             <Input value={form.whatsapp?.template_language || "en"} disabled={disabled} onChange={(e) => set("whatsapp.template_language", e.target.value)} />
           </Field>
-          <Field label="Body values, one per line" hint="Fills {{1}}, {{2}}… in order. Placeholders allowed, e.g. {{po_number}}.">
+          <Field label="Body values, one per line" hint={`Fills {{1}}, {{2}}… in order. Placeholders: ${PO_PLACEHOLDERS.join(" ")}`}>
             <Textarea rows={3} disabled={disabled} value={(form.whatsapp?.body_params || []).join("\n")}
               onChange={(e) => set("whatsapp.body_params", e.target.value.split("\n").filter((l) => l.trim() !== ""))} />
           </Field>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">PO format (PDF) — version {form.format_version}</CardTitle>
-          <div className="flex items-center gap-2">
-            <Select value={previewType} onValueChange={(v) => setPreviewType(v as any)}>
-              <SelectTrigger className="w-[150px] h-9"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="purchase">Purchase PO</SelectItem>
-                <SelectItem value="sales">Sales PO</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="sm" className="gap-2" onClick={showPreview} disabled={previewing}>
-              {previewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />} Preview
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <p className="text-xs text-muted-foreground">
-            Saving a changed format creates a new version. New POs use it; existing POs keep printing with the version they were made with.
-            Placeholders you can use in any text: {PO_PLACEHOLDERS.join(" ")}
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Field label="Purchase PO title">
-              <Input value={form.format.title_purchase} disabled={disabled} onChange={(e) => set("format.title_purchase", e.target.value)} />
-            </Field>
-            <Field label="Sales PO title">
-              <Input value={form.format.title_sales} disabled={disabled} onChange={(e) => set("format.title_sales", e.target.value)} />
-            </Field>
-            <Field label="Company name" hint="Empty = the company name from Settings.">
-              <Input value={form.format.header.company_name} disabled={disabled} onChange={(e) => set("format.header.company_name", e.target.value)} />
-            </Field>
-            <Field label="GSTIN">
-              <Input value={form.format.header.gstin} disabled={disabled} onChange={(e) => set("format.header.gstin", e.target.value)} />
-            </Field>
-            <Field label="Phone">
-              <Input value={form.format.header.phone} disabled={disabled} onChange={(e) => set("format.header.phone", e.target.value)} />
-            </Field>
-            <Field label="Email">
-              <Input value={form.format.header.email} disabled={disabled} onChange={(e) => set("format.header.email", e.target.value)} />
-            </Field>
-            <div className="md:col-span-2">
-              <Field label="Address">
-                <Textarea rows={2} value={form.format.header.address} disabled={disabled} onChange={(e) => set("format.header.address", e.target.value)} />
-              </Field>
-            </div>
-            <Field label="Branding line">
-              <Input value={form.format.branding_line} disabled={disabled} onChange={(e) => set("format.branding_line", e.target.value)} />
-            </Field>
-            <div className="flex flex-col gap-3 justify-end">
-              <div className="flex items-center gap-2">
-                <Switch checked={form.format.header.show_logo !== false} disabled={disabled} onCheckedChange={(on) => set("format.header.show_logo", on)} />
-                <span className="text-sm">Show company logo</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={form.format.show_supplier_block !== false} disabled={disabled} onCheckedChange={(on) => set("format.show_supplier_block", on)} />
-                <span className="text-sm">Show supplier block on Purchase PO</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold">Item table columns (order and visibility)</Label>
-            <div className="rounded-md border divide-y">
-              {form.format.columns.map((c: any, i: number) => (
-                <div key={c.key} className="flex items-center gap-3 px-3 py-2">
-                  <Switch checked={c.visible} disabled={disabled} onCheckedChange={(on) => set(`format.columns.${i}.visible`, on)} />
-                  <Input className="h-8 max-w-[220px]" value={c.label} disabled={disabled} onChange={(e) => set(`format.columns.${i}.label`, e.target.value)} />
-                  <span className="text-[11px] text-muted-foreground flex-1">{c.key}</span>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={disabled || i === 0} onClick={() => moveColumn(i, -1)}>
-                    <ArrowUp className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" disabled={disabled || i === form.format.columns.length - 1} onClick={() => moveColumn(i, 1)}>
-                    <ArrowDown className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {[
-              ["terms", "Terms & conditions"],
-              ["payment_terms", "Payment terms"],
-              ["delivery_terms", "Delivery terms"],
-              ["bank_details", "Bank details"],
-            ].map(([k, label]) => (
-              <Field key={k} label={label}>
-                <Textarea rows={3} value={form.format.footer[k] || ""} disabled={disabled} onChange={(e) => set(`format.footer.${k}`, e.target.value)} />
-              </Field>
-            ))}
-            <Field label="Signature label">
-              <Input value={form.format.footer.signature_label || ""} disabled={disabled} onChange={(e) => set("format.footer.signature_label", e.target.value)} />
-            </Field>
-          </div>
-
-          {previewUrl && <iframe title="PO preview" src={previewUrl} className="w-full h-[700px] rounded-md border" />}
-        </CardContent>
-      </Card>
-
       {canEdit && (
         <div className="flex justify-end">
-          <Button className="gap-2" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
-            {saveMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Save PO settings
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button className="gap-2" disabled={saveMutation.isPending || formErrors.length > 0} onClick={() => saveMutation.mutate()}>
+              {saveMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />} Save PO settings
+            </Button>
+            {formErrors.length > 0 && <p className="text-[11px] text-red-700">Fix the fields marked in red first ({formErrors.length}).</p>}
+          </div>
         </div>
       )}
     </div>

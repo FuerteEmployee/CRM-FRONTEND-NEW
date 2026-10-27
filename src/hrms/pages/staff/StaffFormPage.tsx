@@ -50,6 +50,8 @@ import { toast } from "@/hrms/hooks/use-toast";
 import { useAuth } from "@/hrms/contexts/AuthContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import { hasBranchSalaryManagement } from "@/lib/branchSalary";
+import { hasQuotationApproval, QUOTATION_APPROVE_PERMISSION } from "@/lib/quotationApproval";
+import { hasPurchaseOrders, PURCHASE_ORDERS_PERMISSION } from "@/lib/purchaseOrders";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
@@ -389,6 +391,12 @@ export default function StaffFormPage() {
   const isEdit = !!id;
   useAuth();
   const { user: crmUser } = usePermissions();
+  // Add-ons add their own rows, same as Setup > Staff: "Quotations > Approve" and "Purchase Orders".
+  const permissionFeatures = [
+    ...FEATURES_CONFIG,
+    ...(hasQuotationApproval(crmUser) ? [QUOTATION_APPROVE_PERMISSION] : []),
+    ...(hasPurchaseOrders(crmUser) ? [PURCHASE_ORDERS_PERMISSION] : []),
+  ];
   // Branch salary management add-on shows "Salary Managed By" / "Managing Branch".
   const branchSalaryEnabled = hasBranchSalaryManagement(crmUser);
 
@@ -2049,7 +2057,7 @@ export default function StaffFormPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {FEATURES_CONFIG.map((feature) => (
+                          {permissionFeatures.map((feature) => (
                             <TableRow key={feature.name}>
                               <TableCell className="font-semibold">{feature.name}</TableCell>
                               <TableCell>

@@ -2,23 +2,37 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
 
-// Builds a PO PDF from the PO Format saved in PO Settings (the version the PO
-// was created with, so an old PO reprints exactly as issued). Nothing about
-// the layout's wording lives in code: titles, header, columns and footer all
-// come from `format`.
+// R2 (round 28): the PO PDF has ONE fixed layout — the client's PO format
+// (F1): title PURCHASE ORDER, the company's own block (buyer) with PO number /
+// PO date, the SUPPLIER block, ORDER ITEMS (Sr. | Item of Requisition |
+// Description / Specification | HSN / SAC | Qty | Unit | Unit rate (INR) |
+// Taxable value (INR) | GST %), Taxable subtotal / GST amount / GRAND TOTAL
+// (INR), then the terms and signature area. Only the layout comes from the
+// client's sample — every name, address and number printed comes from the PO
+// and from PO Settings → "Company details for PO and proforma" (Q4).
+// Rates are the cost (Master Distributor Price) in whole rupees (Q3); the
+// customer's selling price and the margin are NEVER printed (R6).
 
-export type PoFormat = {
-  title_purchase: string;
-  title_sales: string;
-  header: { company_name: string; address: string; gstin: string; phone: string; email: string; show_logo: boolean };
-  branding_line: string;
-  show_supplier_block: boolean;
-  columns: { key: string; label: string; visible: boolean }[];
-  footer: { terms: string; payment_terms: string; delivery_terms: string; bank_details: string; signature_label: string };
+export type CompanyDetails = {
+  name?: string;
+  line2?: string;
+  address?: string;
+  gstin?: string;
+  state?: string;
+  phone?: string;
+  email?: string;
+  logo_url?: string;
+  bank_account_name?: string;
+  bank_name_branch?: string;
+  bank_account_no?: string;
+  bank_ifsc?: string;
+  po_terms?: string;
+  payment_terms?: string;
+  delivery_terms?: string;
 };
 
-// Placeholders usable in any text of the format (and in the WhatsApp
-// template parameters — kept in step with the backend's fillPlaceholders).
+// Placeholders usable in the WhatsApp template parameters (kept in step with
+// the backend's fillPlaceholders).
 export const PO_PLACEHOLDERS = [
   "{{po_number}}",
   "{{po_date}}",
@@ -26,32 +40,18 @@ export const PO_PLACEHOLDERS = [
   "{{party_name}}",
   "{{customer.name}}",
   "{{supplier.name}}",
+  "{{customer_po_number}}",
   "{{grand_total}}",
-  "{{company_name}}",
 ];
 
-const fmtDate = (d?: string | Date) => (d ? new Date(d).toLocaleDateString("en-IN") : "");
-// jsPDF's built-in fonts have no ₹ glyph (see QuotationModule.tsx), so the PDF uses "Rs.".
-const money = (n: number) => `Rs. ${(Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+export const fmtDate = (d?: string | Date) => (d ? new Date(d).toLocaleDateString("en-IN") : "");
+// jsPDF's built-in fonts have no ₹ glyph (see QuotationModule.tsx), so amounts print as plain numbers.
+export const num2 = (n: number) => (Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pct = (n: number) => `${Number(n) || 0}%`;
 
-export const fillPlaceholders = (text: string, po: any, companyName = "") => {
-  const party = po.type === "purchase" ? po.supplier : po.customer_snapshot;
-  const values: Record<string, string> = {
-    po_number: po.po_number || "",
-    po_date: fmtDate(po.po_date),
-    expected_date: fmtDate(po.expected_date),
-    party_name: party?.name || "",
-    "customer.name": po.customer_snapshot?.name || "",
-    "supplier.name": po.supplier?.name || "",
-    grand_total: (po.totals?.grand_total || 0).toFixed(2),
-    company_name: companyName,
-  };
-  return String(text || "").replace(/\{\{\s*([\w.]+)\s*\}\}/g, (m, key) => (key in values ? values[key] : m));
-};
-
-const loadLogo = (url?: string) =>
+export const loadLogo = (url?: string) =>
   new Promise<{ dataUrl: string; w: number; h: number } | null>((resolve) => {
-    if (!url) return resolve(null);
+    if (!url || typeof Image === "undefined") return resolve(null);
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
@@ -69,172 +69,144 @@ const loadLogo = (url?: string) =>
     img.src = resolveImageUrl(url);
   });
 
-const cellValue = (key: string, line: any, i: number) => {
-  switch (key) {
-    case "sr": return String(i + 1);
-    case "item_code": return line.item_code || "";
-    case "name": return line.description ? `${line.name}\n${line.description}` : line.name;
-    case "hsn": return line.hsn || "";
-    case "qty": return String(line.qty);
-    case "unit": return line.unit || "";
-    case "rate": return money(line.rate);
-    case "discount": return `${line.discount_pct ?? 0}%`;
-    case "tax": return `${line.tax_rate ?? 0}%`;
-    case "amount": return money(line.amount);
-    default: return "";
-  }
+const DARK: [number, number, number] = [30, 41, 59];
+const BAR: [number, number, number] = [226, 232, 240];
+
+// A full-width grey bar with a bold label (F1 "SUPPLIER", "ORDER ITEMS").
+export const sectionBar = (doc: jsPDF, y: number, left: string, right = "") => {
+  const pageW = doc.internal.pageSize.getWidth();
+  doc.setFillColor(...BAR).rect(14, y, pageW - 28, 6.5, "F");
+  doc.setFont("helvetica", "bold").setFontSize(9).setTextColor(...DARK).text(left, 16, y + 4.5);
+  if (right) doc.setFont("helvetica", "normal").text(right, pageW - 16, y + 4.5, { align: "right" });
+  doc.setTextColor(0);
+  return y + 8.5;
 };
 
-const RIGHT_ALIGNED = new Set(["qty", "rate", "discount", "tax", "amount"]);
-
-export const buildPoPdf = async (po: any, format: PoFormat, opts: { logoUrl?: string; companyName?: string } = {}) => {
+export const buildPoPdf = async (po: any, company: CompanyDetails = {}, opts: { logoUrl?: string } = {}) => {
   const doc = new jsPDF();
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const M = 14;
-  const companyName = format.header?.company_name || opts.companyName || "";
-  const fill = (t: string) => fillPlaceholders(t, po, companyName);
   let y = M;
 
-  // Header: logo, company block, branding line.
-  const logo = format.header?.show_logo !== false ? await loadLogo(opts.logoUrl) : null;
+  // Buyer block (the company's own details) — left; title + PO number / date — right.
+  const logo = await loadLogo(company.logo_url || opts.logoUrl);
   let textX = M;
   if (logo) {
-    const h = 18;
-    const w = Math.min((logo.w / logo.h) * h, 45);
+    const h = 16;
+    const w = Math.min((logo.w / logo.h) * h, 40);
     try {
       doc.addImage(logo.dataUrl, "PNG", M, y, w, h);
-      textX = M + w + 6;
+      textX = M + w + 4;
     } catch {
       /* unreadable logo — print without it */
     }
   }
-  doc.setFont("helvetica", "bold").setFontSize(14).text(companyName, textX, y + 5);
+  const leftW = pageW * 0.58 - textX;
+  doc.setFont("helvetica", "bold").setFontSize(13).text(doc.splitTextToSize(company.name || "", leftW), textX, y + 5);
+  let by = y + 10;
   doc.setFont("helvetica", "normal").setFontSize(8.5);
-  const headerLines = [
-    format.header?.address,
-    format.header?.gstin ? `GSTIN: ${format.header.gstin}` : "",
-    [format.header?.phone, format.header?.email].filter(Boolean).join("  |  "),
-  ].filter(Boolean).map(fill);
-  let hy = y + 10;
-  headerLines.forEach((l) => {
-    const wrapped = doc.splitTextToSize(l, pageW - textX - M);
-    doc.text(wrapped, textX, hy);
-    hy += wrapped.length * 3.8;
-  });
-  y = Math.max(y + 20, hy) + 1;
-  if (format.branding_line) {
-    doc.setFont("helvetica", "italic").setFontSize(9).setTextColor(30, 64, 175).text(fill(format.branding_line), M, y);
-    doc.setTextColor(0, 0, 0);
-    y += 4;
-  }
-  doc.setDrawColor(200).line(M, y, pageW - M, y);
-  y += 8;
-
-  // Title
-  const title = fill(po.type === "sales" ? format.title_sales : format.title_purchase);
-  doc.setFont("helvetica", "bold").setFontSize(15).text(title.toUpperCase(), pageW / 2, y, { align: "center" });
-  y += 8;
-
-  // Party block (left) and PO details (right)
-  const party = po.type === "purchase" ? po.supplier : po.customer_snapshot;
-  const showParty = po.type === "sales" || format.show_supplier_block !== false;
-  const boxTop = y;
-  if (showParty && party) {
-    doc.setFont("helvetica", "bold").setFontSize(8).setTextColor(110).text(po.type === "purchase" ? "SUPPLIER" : "CUSTOMER", M, y);
-    doc.setTextColor(0);
-    doc.setFontSize(11).text(party.name || "", M, y + 5);
-    doc.setFont("helvetica", "normal").setFontSize(8.5);
-    let py = y + 10;
-    [party.address, party.gstin ? `GSTIN: ${party.gstin}` : "", [party.phone, party.email].filter(Boolean).join("  |  ")]
-      .filter(Boolean)
-      .forEach((l: string) => {
-        const wrapped = doc.splitTextToSize(l, pageW / 2 - M - 4);
-        doc.text(wrapped, M, py);
-        py += wrapped.length * 3.8;
-      });
-    y = py;
-  }
-  const details: [string, string][] = [
-    ["PO No.", po.po_number],
-    ["Date", fmtDate(po.po_date)],
-  ];
-  if (po.expected_date) details.push(["Expected", fmtDate(po.expected_date)]);
-  if (po.type === "purchase" && po.customer_snapshot?.name) details.push(["Customer", po.customer_snapshot.name]);
-  let dy = boxTop;
-  details.forEach(([k, v]) => {
-    doc.setFont("helvetica", "bold").setFontSize(9).text(`${k}:`, pageW - M - 62, dy + 5);
-    doc.setFont("helvetica", "normal").text(doc.splitTextToSize(v || "", 40), pageW - M - 40, dy + 5);
-    dy += 5.5;
-  });
-  y = Math.max(y, dy + 2) + 4;
-
-  // Items
-  const cols = (format.columns || []).filter((c) => c.visible);
-  autoTable(doc, {
-    startY: y,
-    head: [cols.map((c) => c.label)],
-    body: (po.items || []).map((line: any, i: number) => cols.map((c) => cellValue(c.key, line, i))),
-    theme: "grid",
-    styles: { fontSize: 8, cellPadding: 1.8, valign: "middle" },
-    headStyles: { fillColor: [30, 41, 59], textColor: 255, fontStyle: "bold" },
-    columnStyles: Object.fromEntries(
-      cols.map((c, i) => [i, { halign: RIGHT_ALIGNED.has(c.key) ? "right" : c.key === "sr" ? "center" : "left" }]),
-    ),
-    margin: { left: M, right: M },
-  });
-  y = (doc as any).lastAutoTable.finalY + 4;
-
-  // Totals
-  const t = po.totals || {};
-  const totalRows: [string, string][] = [["Subtotal", money(t.subtotal)]];
-  if (po.tax_mode === "inter") totalRows.push(["IGST", money(t.igst)]);
-  else totalRows.push(["CGST", money(t.cgst)], ["SGST", money(t.sgst)]);
-  totalRows.push(["Grand Total", money(t.grand_total)]);
-  if (y + totalRows.length * 6 > pageH - 20) {
-    doc.addPage();
-    y = M;
-  }
-  totalRows.forEach(([k, v], i) => {
-    const last = i === totalRows.length - 1;
-    doc.setFont("helvetica", last ? "bold" : "normal").setFontSize(last ? 10.5 : 9);
-    doc.text(k, pageW - M - 60, y + 4);
-    doc.text(v, pageW - M, y + 4, { align: "right" });
-    y += last ? 7 : 5.5;
-  });
-  y += 4;
-
-  // Footer sections
-  const sections: [string, string][] = [
-    ["Notes", po.notes],
-    ["Terms & Conditions", format.footer?.terms],
-    ["Payment Terms", format.footer?.payment_terms],
-    ["Delivery Terms", format.footer?.delivery_terms],
-    ["Bank Details", format.footer?.bank_details],
-  ];
-  sections
-    .filter(([, body]) => body && String(body).trim())
-    .forEach(([heading, body]) => {
-      const wrapped = doc.splitTextToSize(fill(String(body)), pageW - M * 2);
-      if (y + 6 + wrapped.length * 3.8 > pageH - 30) {
-        doc.addPage();
-        y = M;
-      }
-      doc.setFont("helvetica", "bold").setFontSize(9).text(heading, M, y);
-      doc.setFont("helvetica", "normal").setFontSize(8.5).text(wrapped, M, y + 4.5);
-      y += 6 + wrapped.length * 3.8;
+  [company.line2, company.address, company.gstin ? `GSTIN: ${company.gstin}` : "", [company.phone, company.email].filter(Boolean).join("  |  ")]
+    .filter(Boolean)
+    .forEach((l) => {
+      const wrapped = doc.splitTextToSize(String(l), leftW);
+      doc.text(wrapped, textX, by);
+      by += wrapped.length * 3.8;
     });
 
-  // Signature
-  if (y > pageH - 30) {
+  const rx = pageW * 0.6;
+  doc.setFont("helvetica", "bold").setFontSize(16).text("PURCHASE ORDER", pageW - M, y + 6, { align: "right" });
+  autoTable(doc, {
+    startY: y + 10,
+    margin: { left: rx, right: M },
+    theme: "grid",
+    styles: { fontSize: 9, cellPadding: 1.6 },
+    columnStyles: { 0: { fontStyle: "bold", fillColor: BAR, cellWidth: 26 } },
+    body: [
+      ["PO number", po.po_number || ""],
+      ["PO date", fmtDate(po.po_date)],
+    ],
+  });
+  y = Math.max(by, (doc as any).lastAutoTable.finalY) + 6;
+
+  // SUPPLIER
+  y = sectionBar(doc, y, "SUPPLIER");
+  const s = po.supplier || {};
+  doc.setFont("helvetica", "bold").setFontSize(10).text(s.name || "", M + 2, y + 3);
+  y += 7;
+  doc.setFont("helvetica", "normal").setFontSize(8.5);
+  [s.address, s.gstin ? `GSTIN: ${s.gstin}` : "", [s.phone, s.email].filter(Boolean).join("  |  ")]
+    .filter(Boolean)
+    .forEach((l: string) => {
+      const wrapped = doc.splitTextToSize(l, pageW - 2 * M - 4);
+      doc.text(wrapped, M + 2, y);
+      y += wrapped.length * 3.8;
+    });
+  y += 3;
+
+  // ORDER ITEMS
+  y = sectionBar(doc, y, "ORDER ITEMS", "Currency: INR");
+  const items = po.items || [];
+  autoTable(doc, {
+    startY: y,
+    margin: { left: M, right: M },
+    theme: "grid",
+    head: [["Sr.", "Item of Requisition", "Description / Specification", "HSN / SAC", "Qty", "Unit", "Unit rate\n(INR)", "Taxable value\n(INR)", "GST %"]],
+    body: items.map((l: any, i: number) => [
+      String(i + 1),
+      l.item_code || l.name || "",
+      l.y_code || l.description || l.name || "",
+      l.hsn || "",
+      String(l.qty ?? ""),
+      l.unit || "",
+      num2(l.rate),
+      num2(l.amount),
+      pct(l.tax_rate),
+    ]),
+    styles: { fontSize: 8, cellPadding: 1.6, valign: "middle" },
+    headStyles: { fillColor: DARK, textColor: 255, fontStyle: "bold", halign: "center" },
+    columnStyles: { 0: { halign: "center", cellWidth: 9 }, 4: { halign: "right" }, 6: { halign: "right" }, 7: { halign: "right" }, 8: { halign: "right" } },
+  });
+  y = (doc as any).lastAutoTable.finalY + 2;
+
+  // Totals (F1: Taxable subtotal, GST amount, GRAND TOTAL (INR))
+  const t = po.totals || {};
+  if (y + 24 > pageH - 20) {
     doc.addPage();
     y = M;
   }
-  const sigY = Math.max(y + 10, pageH - 30);
-  doc.setFont("helvetica", "bold").setFontSize(9).text(`For ${companyName}`, pageW - M, sigY, { align: "right" });
-  doc.setFont("helvetica", "normal").text(fill(format.footer?.signature_label || "Authorised Signatory"), pageW - M, sigY + 14, { align: "right" });
+  autoTable(doc, {
+    startY: y,
+    margin: { left: pageW - M - 85, right: M },
+    theme: "grid",
+    styles: { fontSize: 9, cellPadding: 1.6 },
+    columnStyles: { 0: { fontStyle: "bold", fillColor: BAR }, 1: { halign: "right" } },
+    body: [
+      ["Taxable subtotal", num2(t.subtotal)],
+      ["GST amount", num2(t.tax_total ?? (t.cgst || 0) + (t.sgst || 0) + (t.igst || 0))],
+      [{ content: "GRAND TOTAL (INR)", styles: { fontStyle: "bold" } }, { content: num2(t.grand_total), styles: { fontStyle: "bold" } }],
+    ],
+  });
+  y = (doc as any).lastAutoTable.finalY + 6;
+
+  // Terms + signature area (F1 rows 19–29).
+  const terms = [company.po_terms, po.notes].filter((x) => x && String(x).trim()).join("\n");
+  const wrapped = doc.splitTextToSize(terms || " ", pageW - 2 * M - 4);
+  if (y + 12 + wrapped.length * 3.8 + 34 > pageH - 10) {
+    doc.addPage();
+    y = M;
+  }
+  y = sectionBar(doc, y, "TERMS & CONDITIONS");
+  doc.setFont("helvetica", "normal").setFontSize(8.5).text(wrapped, M + 2, y + 2);
+  y += Math.max(wrapped.length * 3.8, 8) + 6;
+  const boxW = (pageW - 2 * M - 6) / 2;
+  doc.setDrawColor(180).rect(M, y, boxW, 26).rect(M + boxW + 6, y, boxW, 26);
+  doc.setFont("helvetica", "bold").setFontSize(8.5).text("Prepared by", M + 2, y + 5);
+  doc.text(`For ${company.name || ""}`, M + boxW + 8, y + 5);
+  doc.setFont("helvetica", "normal").text("Authorised Signatory", M + 2 * boxW + 4, y + 23, { align: "right" });
 
   return doc;
 };
 
-export const poFilename = (po: any) => `${po.po_number || "PO"}.pdf`;
+// "PPO/01/26-27" -> "PPO-01-26-27.pdf" (a "/" can't be in a file name).
+export const poFilename = (po: any) => `${String(po.po_number || "PO").replace(/[\\/:*?"<>|]+/g, "-")}.pdf`;
