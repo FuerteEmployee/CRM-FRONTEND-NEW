@@ -168,39 +168,6 @@ export default defineConfig(({ mode }) => ({
             // class-variance-authority, clsx, tailwind-merge, etc.)
             return "vendor-misc";
           }
-          // Shared UI primitives and their leaf deps. Without a rule Rollup
-          // folds them into whichever module-* chunk imports them first
-          // (module-reports), and that chunk sits in an import cycle with
-          // module-hrms. HRMS's button.tsx calls cva(BUTTON_BASE) at module
-          // scope, so when module-hrms evaluated first the whole app died
-          // with "Cannot access '…' before initialization". Keep these
-          // in their own chunk, which imports no app modules.
-          if (
-            id.includes("src/components/ui/") ||
-            id.includes("src/lib/utils") ||
-            id.includes("src/hooks/use-toast") ||
-            id.includes("src/hooks/use-mobile")
-          ) {
-            return "app-ui";
-          }
-          if (id.includes("src/hrms")) {
-            return "module-hrms";
-          }
-          if (id.includes("src/pages/setup")) {
-            return "module-setup";
-          }
-          if (id.includes("src/pages/super-admin")) {
-            return "module-superadmin";
-          }
-          if (id.includes("src/pages/client")) {
-            return "module-client";
-          }
-          if (id.includes("src/pages/reports") || id.includes("src/pages/ReportPages")) {
-            return "module-reports";
-          }
-          if (id.includes("src/pages/quotations")) {
-            return "module-quotations";
-          }
         },
       },
     },
