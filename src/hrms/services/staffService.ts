@@ -8,6 +8,8 @@ export interface BulkResult {
   updated?: number;
   failed: number;
   errors: string[];
+  // Rows that imported but had something filled in or left out (e.g. no email).
+  warnings?: string[];
 }
 
 export interface BulkStaffUpdates {

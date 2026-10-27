@@ -93,15 +93,15 @@ const FIELD_ALIASES: Record<string, string[]> = {
   employeeCode: ["Emp Code", "Emp ID", "Employee ID", "Emp No", "Employee No", "Staff ID", "Code", "ID No"],
   name: ["Name", "Emp Name", "Staff Name", "Name of Employee", "Employee Full Name"],
   email: ["Email ID", "E-mail", "Mail ID", "Email Address", "Mail"],
-  mobile: ["Mobile", "Mobile Number", "Phone", "Phone No", "Contact", "Contact No", "Contact Number", "Mob No", "Cell No"],
+  mobile: ["Mobile", "Mobile Number", "Phone", "Phone No", "Phone Number", "Contact", "Contact No", "Contact Number", "Mob No", "Cell No"],
   gender: ["Sex", "M/F"],
-  department: ["Dept", "Department Name", "Dept Name"],
+  department: ["Dept", "Department Name", "Dept Name", "HRMS Department"],
   designation: ["Post", "Position", "Designation Name", "Job Title"],
   hrmsBranchId: ["Branch Name", "Location", "Site", "Work Location", "Office"],
   shiftId: ["Shift Name", "Shift Timing", "Shift Time"],
   employmentType: ["Emp Type", "Employee Type", "Type of Employment", "Employment"],
   payType: ["Pay Type", "Pay Cycle", "Payment Type", "Salary Type"],
-  salaryAmount: ["Gross Salary", "Gross", "CTC", "Monthly Salary", "Fixed Salary", "Total Salary", "Salary/CTC", "Monthly CTC"],
+  salaryAmount: ["Salary Amount", "Gross Salary", "Gross", "CTC", "Monthly Salary", "Fixed Salary", "Total Salary", "Salary/CTC", "Monthly CTC"],
   basic: ["Basic Salary", "Basic Pay"],
   hra: ["House Rent Allowance"],
   pfApplicable: ["PF Applicable", "PF (Y/N)", "PF Yes/No", "PF Y/N"],
@@ -121,7 +121,11 @@ const FIELD_ALIASES: Record<string, string[]> = {
   panNumber: ["PAN", "PAN No", "PAN Card", "PAN Card No", "PAN Card Number"],
   aadhaarNumber: ["Aadhaar", "Aadhar", "Aadhar No", "Aadhaar No", "Aadhar Card No", "Aadhaar Card No", "Aadhar Number", "Aadhaar Card Number", "UID", "UID No"],
   emergencyName: ["Emergency Contact", "Emergency Name"],
-  emergencyPhone: ["Emergency No", "Emergency Phone", "Emergency Contact No", "Emergency Number"],
+  emergencyPhone: ["Emergency No", "Emergency Phone", "Emergency Contact No", "Emergency Contact Phone", "Emergency Number"],
+  firstName: ["Given Name"],
+  lastName: ["Surname", "Family Name"],
+  weeklyHolidays: ["Weekly Off", "Week Off"],
+  totalExperience: ["Total Experience"],
   emergencyRelation: ["Relation", "Emergency Relation", "Relationship"],
 };
 
@@ -404,6 +408,9 @@ export default function UsersPage() {
   const SYSTEM_FIELDS = [
     { key: "employeeCode", label: "Employee Code", default: "Employee Code" },
     { key: "name", label: "Full Name", default: "Employee Name" },
+    // Used when the sheet splits the name (e.g. the Setup > Staff template).
+    { key: "firstName", label: "First Name", default: "First Name" },
+    { key: "lastName", label: "Last Name", default: "Last Name" },
     { key: "email", label: "Email Address", default: "Email" },
     { key: "mobile", label: "Mobile Number", default: "Mobile No" },
     { key: "gender", label: "Gender", default: "Gender" },
@@ -436,11 +443,19 @@ export default function UsersPage() {
     { key: "emergencyName", label: "Emergency Contact Name", default: "Emergency Contact Name" },
     { key: "emergencyPhone", label: "Emergency Mobile", default: "Emergency Mobile" },
     { key: "emergencyRelation", label: "Emergency Contact Relation", default: "Emergency Contact Relation" },
+    { key: "attendanceRequired", label: "Attendance Required (Yes/No)", default: "Attendance Required" },
+    { key: "weeklyHolidays", label: "Weekly Holidays", default: "Weekly Holidays" },
+    { key: "bloodGroup", label: "Blood Group", default: "Blood Group" },
+    { key: "education", label: "Education", default: "Education" },
+    { key: "totalExperience", label: "Experience", default: "Experience" },
+    { key: "isActive", label: "Active (Yes/No)", default: "Active" },
   ];
 
   // "Import" modal: drop zone + sample-file builder (replaces the old Demo button).
   const CORE_IMPORT_COLUMNS = ["Employee Code", "Employee Name", "Email", "Mobile No", "Department", "Designation", "Branch", "Shift", "Date of Joining"];
-  const REQUIRED_IMPORT_COLUMNS = ["Employee Name", "Email"];
+  // Only a name is required: a missing email gets a placeholder login ID and
+  // the mobile is optional (import_employees_controller.js).
+  const REQUIRED_IMPORT_COLUMNS = ["Employee Name"];
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [showMoreColumns, setShowMoreColumns] = useState(false);
   const [isDraggingFile, setIsDraggingFile] = useState(false);
@@ -989,7 +1004,17 @@ export default function UsersPage() {
                 </ul>
               </ScrollArea>
             )}
-            <p className="text-xs text-slate-500">Imported staff can log in with their email and the Password column (default 12345678).</p>
+            {!!importResult?.warnings?.length && (
+              <ScrollArea className="max-h-64 rounded-md border border-amber-100 bg-amber-50/40 p-3">
+                <p className="text-xs font-semibold text-amber-800 mb-1">Imported with notes</p>
+                <ul className="space-y-1 text-xs text-amber-800">
+                  {importResult.warnings.map((w, i) => <li key={i}>{w}</li>)}
+                </ul>
+              </ScrollArea>
+            )}
+            <p className="text-xs text-slate-500">
+              Imported staff can log in with their email and the Password column (default 12345678). Staff without an email log in with the ID shown above.
+            </p>
           </div>
         </DialogContent>
       </Dialog>
