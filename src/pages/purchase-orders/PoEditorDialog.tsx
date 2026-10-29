@@ -115,13 +115,16 @@ const lineFromItem = (it: any, level: PriceLevel): EditorLine => {
 // Round 30 (S6): when the search finds nothing in PO Items but the catalog is
 // in the uploaded price list → "Not in PO Items yet — Add <catalog> from the
 // price list" (Manage Prices; otherwise "Ask an admin to add it").
-const ItemPicker = ({ onPick, disabled }: { onPick: (item: any) => void; disabled?: boolean }) => {
+// Several items can be picked in one go: the list stays open, a picked item
+// shows "✓ on PO" (picking it again adds 1 to its qty), "Done" closes it.
+const ItemPicker = ({ onPick, disabled, onPoIds }: { onPick: (item: any) => void; disabled?: boolean; onPoIds?: Set<string> }) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
   const canManagePrices = can(PO_MODULE, "Manage Prices");
   const [adding, setAdding] = useState(false);
   const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState(0);
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [series, setSeries] = useState<string | null>(null);
@@ -179,8 +182,9 @@ const ItemPicker = ({ onPick, disabled }: { onPick: (item: any) => void; disable
       setAdding(false);
     }
   };
+  const closePicker = () => { setOpen(false); setSearch(""); setPicked(0); };
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(o) => (o ? setOpen(true) : closePicker())}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2" disabled={disabled}>
           <Plus className="h-4 w-4" /> Add item from PO items
@@ -217,12 +221,13 @@ const ItemPicker = ({ onPick, disabled }: { onPick: (item: any) => void; disable
             )}
             <CommandGroup>
               {items.map((it: any) => (
-                <CommandItem key={it._id} value={it._id} onSelect={() => { onPick(it); setOpen(false); setSearch(""); }}>
+                <CommandItem key={it._id} value={it._id} onSelect={() => { onPick(it); setPicked((n) => n + 1); }}>
                   <div className="flex flex-col">
                     <span className="text-sm font-medium">
                       {it.item_code || it.name}{it.y_code ? ` · ${it.y_code}` : ""}
                       {it.category && <Badge variant="outline" className="ml-2 h-4 px-1 text-[10px] font-normal">{it.category}</Badge>}
                       {it.replaced_by && <span className="ml-2 text-[10px] text-amber-700">obsolete → {it.replaced_by}</span>}
+                      {onPoIds?.has(String(it._id)) && <span className="ml-2 text-[10px] font-semibold text-emerald-700" data-testid="picker-on-po">✓ on PO</span>}
                     </span>
                     <span className="text-[11px] text-muted-foreground">
                       {it.description ? `${it.description.slice(0, 60)} · ` : ""}MDP {Number(it.master_price) > 0 ? formatInr(it.master_price) : "—"} · EP {formatInr(it.end_customer_price)}
@@ -233,6 +238,10 @@ const ItemPicker = ({ onPick, disabled }: { onPick: (item: any) => void; disable
               ))}
             </CommandGroup>
           </CommandList>
+          <div className="flex items-center justify-between gap-2 border-t px-2 py-1.5">
+            <span className="text-[11px] text-muted-foreground">{picked ? `${picked} picked — pick more or press Done` : "Click items to add them — you can pick several"}</span>
+            <Button type="button" size="sm" className="h-7" onClick={closePicker}>Done</Button>
+          </div>
         </Command>
       </PopoverContent>
     </Popover>
@@ -275,6 +284,9 @@ export const PoEditorDialog = ({ open, onOpenChange, poId, settings, onOpenPo, o
   const [recvOpen, setRecvOpen] = useState(false);
   const [recvQty, setRecvQty] = useState<Record<string, string>>({});
   const decidingRef = useRef(false);
+  // Unsaved-changes check: the form as it was opened vs now (Close / X / Esc ask first).
+  const baselineRef = useRef("");
+  const [needBaseline, setNeedBaseline] = useState(false);
   // S2: "Edit" pressed in a read-only (eye) view.
   const [unlocked, setUnlocked] = useState(false);
   // S4: per-field messages — shown after the first Save / Submit, plus what the server said.
@@ -295,6 +307,7 @@ export const PoEditorDialog = ({ open, onOpenChange, poId, settings, onOpenPo, o
     setShowErrors(false);
     setServerError(null);
     setReview(null);
+    setNeedBaseline(true);
     if (isNew) {
       setDivision(activeDivisions[0]?.key || "");
       setCustomer("");
@@ -333,6 +346,12 @@ export const PoEditorDialog = ({ open, onOpenChange, poId, settings, onOpenPo, o
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, po, isNew]);
+
+  const formSignature = JSON.stringify([division, customer, poDate, expectedDate, taxMode, notes, customerPoNo, customerPoDate, customerPoFile?.name || "",
+    lines.map((l) => [l.item_id, String(l.qty), String(l.selling_price), String(l.tax_rate)])]);
+  useEffect(() => {
+    if (needBaseline) { baselineRef.current = formSignature; setNeedBaseline(false); }
+  }, [needBaseline, formSignature]);
 
   const isOldSales = !isNew && po?.type === "sales";
   const levels = settings?.customer_price_levels || {};
@@ -610,9 +629,14 @@ export const PoEditorDialog = ({ open, onOpenChange, poId, settings, onOpenPo, o
     saveMutation.mutate(submit);
   };
 
+  const requestClose = () => {
+    if (editable && !needBaseline && formSignature !== baselineRef.current && !window.confirm("Close without saving? Your changes to this PO will be lost.")) return;
+    onOpenChange(false);
+  };
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : requestClose())}>
         <DialogContent className="max-w-6xl max-h-[92vh] overflow-y-auto grid-cols-1">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3 flex-wrap">
@@ -897,7 +921,7 @@ export const PoEditorDialog = ({ open, onOpenChange, poId, settings, onOpenPo, o
                   )}
                 </Table>
               </div>
-              {editable && <ItemPicker onPick={addItem} disabled={!rule} />}
+              {editable && <ItemPicker onPick={addItem} disabled={!rule} onPoIds={new Set(lines.map((l) => String(l.item_id)))} />}
               {editable && fieldError("items") && <p className="text-[11px] text-red-700">{fieldError("items")}</p>}
               <p className="text-[11px] text-muted-foreground">
                 The PO to Brady prints the cost (Master Distributor Price, whole rupees). The selling price can only go up from the floor; the margin columns are for you only — never printed or sent.
@@ -943,7 +967,13 @@ export const PoEditorDialog = ({ open, onOpenChange, poId, settings, onOpenPo, o
                   <div className="flex justify-between"><span>GST amount</span><span>{formatInr(calc.totals.tax_total)}</span></div>
                   <div className="flex justify-between font-bold text-base border-t pt-2"><span>Grand total (to Brady)</span><span>{formatInr(calc.totals.grand_total)}</span></div>
                   <div className="flex justify-between pt-2 border-t text-xs text-muted-foreground"><span>Customer value (selling)</span><span>{formatInr(calc.totals.sell_value)}</span></div>
-                  {rule && <div className="text-[11px] text-muted-foreground">Rule: price only up; margin ≥ {rule.min_margin_pct ?? "—"}% is pointed out to the approver.</div>}
+                  {rule && (
+                    <div className="text-[11px] text-muted-foreground" data-testid="po-rule-line">
+                      {rule.min_margin_pct === null || rule.min_margin_pct === undefined || rule.min_margin_pct === ""
+                        ? "Rule: price only up; no minimum margin is set (PO Settings)."
+                        : `Rule: price only up; a margin below ${rule.min_margin_pct}% is pointed out to the approver.`}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1025,7 +1055,7 @@ export const PoEditorDialog = ({ open, onOpenChange, poId, settings, onOpenPo, o
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+              <Button variant="outline" onClick={requestClose}>Close</Button>
               {mayEdit && !editable && (
                 <Button variant="outline" className="gap-2" onClick={() => setUnlocked(true)}><Pencil className="h-4 w-4" /> Edit</Button>
               )}

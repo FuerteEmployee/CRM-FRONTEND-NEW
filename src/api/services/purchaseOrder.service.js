@@ -44,7 +44,7 @@ export const purchaseOrderService = {
   deleteItem: (itemId) => apiClient.delete(`/purchase-orders/items/${itemId}`),
   previewItems: (rows) => apiClient.post("/purchase-orders/items/import/preview", { rows }),
   importItems: (rows) => apiClient.post("/purchase-orders/items/import", { rows }),
-  exportItems: () => apiClient.get("/purchase-orders/items/export"),
+  exportItems: (params = {}) => apiClient.get("/purchase-orders/items/export", { params }),
   itemCategories: () => apiClient.get("/purchase-orders/items/categories"),
   // Round 29 (S1): series (price-list sheets) with item counts + the default series.
   // params: active ("true" = switched-on items only, for the picker).

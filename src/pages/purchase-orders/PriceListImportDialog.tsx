@@ -228,7 +228,7 @@ export const PriceListImportDialog = ({ onDone, existingSeries = [] }: { onDone:
             <div className="space-y-3 min-w-0">
               <p className="text-sm"><FileSpreadsheet className="inline h-4 w-4 mr-1" />{fileName} — choose the sheets to import.</p>
               <p className="text-xs text-muted-foreground">
-                Only the first sheet is ticked. Tick more to import them as PO items too — the whole file is kept as the price list either way, so any other catalog no. can be added later with <b>+ Add Catalog No.</b>
+                Only the first sheet is ticked. Tick more to import them as PO items too — the whole file is kept as the price list either way, so any other catalog no. can be added later from the PO form's item picker (<b>Add … from the price list</b>).
               </p>
               <div className="rounded-md border overflow-x-auto">
                 <Table>
@@ -336,7 +336,7 @@ export const PriceListImportDialog = ({ onDone, existingSeries = [] }: { onDone:
               )}
               <p className="text-xs text-muted-foreground" data-testid="pl-import-scope">
                 Importing as PO items: <b>{included.map((s) => s.name).join(", ") || "no sheet"}</b>.{" "}
-                The whole file ({preview.summary.reference ?? 0} catalog nos. from {preview.summary.reference_sheets ?? 0} sheets) is kept as the price list for <b>+ Add Catalog No.</b>
+                The whole file ({preview.summary.reference ?? 0} catalog nos. from {preview.summary.reference_sheets ?? 0} sheets) is kept as the price list for the item picker
               </p>
               <div className="flex gap-2 flex-wrap text-xs">
                 <Badge variant="outline" className="bg-emerald-50 text-emerald-700">{preview.summary.new} new</Badge>
@@ -448,7 +448,7 @@ export const PriceListImportDialog = ({ onDone, existingSeries = [] }: { onDone:
               </div>
               {summary.referenceError && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
-                  The PO items were imported, but the price list for + Add Catalog No. was not saved: {summary.referenceError}. Upload the file again to keep it.
+                  The PO items were imported, but the price list (for the item picker) was not saved: {summary.referenceError}. Upload the file again to keep it.
                 </div>
               )}
               {summary.skipped.length > 0 && (

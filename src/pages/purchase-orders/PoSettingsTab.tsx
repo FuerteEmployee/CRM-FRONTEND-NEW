@@ -15,7 +15,10 @@ import { purchaseOrderService } from "@/api/services/purchaseOrder.service";
 import { buildPoPdf, PO_PLACEHOLDERS } from "./poPdf";
 import { buildProformaPdf } from "./proformaPdf";
 import { amountInWords, computeProforma } from "./proformaCalc";
-import { daysOnBlur, emailError, gstinError, phoneError, poPrefixError, validDaysError } from "./poValidation";
+import {
+  bankAccountNoError, daysOnBlur, emailError, gstinError, ifscError, logoUrlError, marginPctError, nameError, phoneError, poPrefixError,
+  proformaPrefixError, stateError, validDaysError, waLanguageError, waTemplateNameError,
+} from "./poValidation";
 
 // PO Settings (round 28): the company's own details for the PO / proforma
 // PDFs (Q4 — prefilled from the CRM company profile until saved), PO numbers
@@ -70,7 +73,8 @@ const sampleProforma = (form: any) => {
     { ref_no: "", description: "Freight / packing", hsn: "", qty: 1, unit: "", rate: 200, disc_pct: 0, gst_pct: 18, is_extra: true },
   ], "igst", 500);
   return {
-    number: `${form.proforma?.prefix || ""}0001`, date: new Date().toISOString(), valid_until: new Date(Date.now() + 15 * 86400000).toISOString(),
+    // The preview uses the "Valid for (days)" set below (15 until it is a valid number).
+    number: `${form.proforma?.prefix || ""}0001`, date: new Date().toISOString(), valid_until: new Date(Date.now() + (Number(form.proforma?.valid_days) || 15) * 86400000).toISOString(),
     customer_po_number: "SAMPLE-PO-1", tax_type: "igst", bill_to: { name: "Sample Customer", address: "Sample address", gstin: "", email: "customer@example.test", phone: "9000000000" },
     lines, totals, amount_in_words: amountInWords(totals.grand_total), seller: form.company,
   };
@@ -87,13 +91,19 @@ const Field = ({ label, children, hint, error }: { label: string; children: Reac
 
 // S4: per-field checks (same rules as the server).
 const companyError = (k: string, v: string) =>
-  k === "name" ? (String(v || "").trim() ? "" : "Company details: the company name is required")
+  k === "name" ? (String(v || "").trim() ? nameError(v, { label: "Company name" }) : "Company details: the company name is required")
+  : k === "state" ? stateError(v, { label: "Company state" })
+  : k === "logo_url" ? logoUrlError(v)
+  : k === "bank_account_name" ? nameError(v, { label: "Account name" })
+  : k === "bank_account_no" ? bankAccountNoError(v)
+  : k === "bank_ifsc" ? ifscError(v)
   : k === "gstin" ? gstinError(v, { label: "Company GSTIN" })
   : k === "phone" ? phoneError(v, { label: "Company phone" })
   : k === "email" ? emailError(v, { label: "Company email" })
   : "";
 const supplierError = (k: string, v: string) =>
-  k === "name" ? (String(v || "").trim() ? "" : "The supplier needs a name")
+  k === "name" ? (String(v || "").trim() ? nameError(v, { label: "Supplier name" }) : "The supplier needs a name")
+  : k === "state" ? stateError(v, { label: "Supplier state" })
   : k === "gstin" ? gstinError(v, { label: "Supplier GSTIN" })
   : k === "phone" ? phoneError(v, { label: "Supplier phone" })
   : k === "whatsapp" ? phoneError(v, { label: "Supplier WhatsApp number" })
@@ -178,8 +188,12 @@ export const PoSettingsTab = ({ settings }: { settings: any }) => {
     prefix: poPrefixError(d.purchase_prefix, { label: `Division "${d.name || ""}": PO number prefix` }),
   }));
   const formErrors = [
-    ...COMPANY_FIELDS.map(([k]) => (companyDirty || !form.company?.prefilled ? companyError(k, form.company?.[k] || "") : "")),
-    ...["name", "gstin", "phone", "whatsapp", "email"].map((k) => supplierError(k, form.supplier?.[k] || "")),
+    ...[...COMPANY_FIELDS, ...BANK_FIELDS].map(([k]) => (companyDirty || !form.company?.prefilled ? companyError(k, form.company?.[k] || "") : "")),
+    ...["name", "gstin", "state", "phone", "whatsapp", "email"].map((k) => supplierError(k, form.supplier?.[k] || "")),
+    marginPctError(r.min_margin_pct),
+    proformaPrefixError(form.proforma?.prefix),
+    waTemplateNameError(form.whatsapp?.template_name),
+    waLanguageError(form.whatsapp?.template_language),
     ...divisionErrors.flatMap((e: any) => [e.name, e.prefix]),
     daysError,
   ].filter(Boolean);
@@ -208,7 +222,12 @@ export const PoSettingsTab = ({ settings }: { settings: any }) => {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             {BANK_FIELDS.map(([k, label]) => (
-              <Field key={k} label={label}><Input value={form.company?.[k] || ""} disabled={disabled} onChange={(e) => set(`company.${k}`, e.target.value)} /></Field>
+              <Field key={k} label={label} hint={k === "bank_account_no" ? "9 to 18 digits" : k === "bank_ifsc" ? "e.g. SBIN0001234" : undefined}
+                error={canEdit ? companyError(k, form.company?.[k] || "") : ""}>
+                <Input value={form.company?.[k] || ""} disabled={disabled} maxLength={k === "bank_account_no" ? 18 : k === "bank_ifsc" ? 11 : undefined}
+                  inputMode={k === "bank_account_no" ? "numeric" : undefined}
+                  onChange={(e) => set(`company.${k}`, k === "bank_ifsc" ? e.target.value.toUpperCase() : e.target.value)} />
+              </Field>
             ))}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -238,9 +257,9 @@ export const PoSettingsTab = ({ settings }: { settings: any }) => {
             <p>The selling price to the customer can only go <b>up</b> — never below the End User Price (or the Distributor Price for a customer set to "Distributor" in the PO editor).</p>
             <p className="text-xs text-muted-foreground">Every PO goes to an approver. A raised price, a margin under the minimum, or a cost taken from the Distributor Price is shown to them.</p>
           </div>
-          <Field label="Minimum margin % (shown to the approver)" hint="Empty = no check">
+          <Field label="Minimum margin % (shown to the approver)" hint="0 to 100. Empty = no check" error={canEdit ? marginPctError(r.min_margin_pct) : ""}>
             <Input type="number" min={0} max={100} value={r.min_margin_pct ?? ""} disabled={disabled}
-              onChange={(e) => set("rules.purchase.min_margin_pct", e.target.value.trim() === "" ? null : Number(e.target.value))} />
+              onChange={(e) => set("rules.purchase.min_margin_pct", e.target.value.trim() === "" ? null : e.target.value)} />
           </Field>
         </CardContent>
       </Card>
@@ -289,7 +308,7 @@ export const PoSettingsTab = ({ settings }: { settings: any }) => {
       <Card>
         <CardHeader><CardTitle className="text-base">Proforma invoices</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Field label="Number prefix" hint={`Numbers look like ${form.proforma?.prefix || ""}0197 and start again every 1 April.`}>
+          <Field label="Number prefix" hint={`Numbers look like ${form.proforma?.prefix || ""}0197 and start again every 1 April.`} error={canEdit ? proformaPrefixError(form.proforma?.prefix) : ""}>
             <Input value={form.proforma?.prefix || ""} disabled={disabled} onChange={(e) => set("proforma.prefix", e.target.value)} />
           </Field>
           <Field label="Valid for (days) *" hint="1 to 365" error={canEdit ? daysError : ""}>
@@ -321,10 +340,10 @@ export const PoSettingsTab = ({ settings }: { settings: any }) => {
       <Card>
         <CardHeader><CardTitle className="text-base">WhatsApp template (outside the 24-hour window)</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <Field label="Template name" hint="A Meta-approved template with a DOCUMENT header.">
+          <Field label="Template name" hint="A Meta-approved template with a DOCUMENT header." error={canEdit ? waTemplateNameError(form.whatsapp?.template_name) : ""}>
             <Input value={form.whatsapp?.template_name || ""} disabled={disabled} onChange={(e) => set("whatsapp.template_name", e.target.value)} />
           </Field>
-          <Field label="Language code">
+          <Field label="Language code" hint="e.g. en or en_US" error={canEdit ? waLanguageError(form.whatsapp?.template_language) : ""}>
             <Input value={form.whatsapp?.template_language || "en"} disabled={disabled} onChange={(e) => set("whatsapp.template_language", e.target.value)} />
           </Field>
           <Field label="Body values, one per line" hint={`Fills {{1}}, {{2}}… in order. Placeholders: ${PO_PLACEHOLDERS.join(" ")}`}>

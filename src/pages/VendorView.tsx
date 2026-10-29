@@ -43,12 +43,14 @@ const VendorView = () => {
     queryKey: ["vendors", id],
     queryFn: () => vendorService.getById(id as string),
     enabled: !!id,
+    retry: (failureCount, error: any) => error?.response?.status !== 404 && failureCount < 2,
   });
 
   const { data: purchasesData, isLoading: isLoadingPurchases } = useQuery<VendorPurchasesResponse>({
     queryKey: ["vendors", id, "purchases"],
     queryFn: () => apiClient.get(`/vendors/${id}/purchases`),
     enabled: !!id,
+    retry: (failureCount, error: any) => error?.response?.status !== 404 && failureCount < 2,
   });
 
   const purchases = purchasesData?.purchases || [];

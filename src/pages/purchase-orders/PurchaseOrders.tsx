@@ -133,6 +133,9 @@ const PurchaseOrders = () => {
   if (!enabled || !canView(PO_MODULE)) return <Navigate to="/admin/dashboard" replace />;
 
   const rows = (list as any)?.data || [];
+  const filtersOn = division !== "all" || status !== "all" || !!from || !!to || !!debounced;
+  const datesBackwards = !!from && !!to && from > to;
+  const clearFilters = () => { setDivision("all"); setStatus("all"); setFrom(""); setTo(""); setSearch(""); setDebounced(""); setPage(1); };
   const byStatus = (stats as any)?.byStatus || {};
   const divisionName = (key: string) => settings?.divisions?.find((d: any) => d.key === key)?.name || key;
 
@@ -310,15 +313,21 @@ const PurchaseOrders = () => {
                       {Object.entries(PO_STATUS_LABEL).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <Input type="date" className="h-9 w-[150px]" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} title="From" />
-                  <Input type="date" className="h-9 w-[150px]" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} title="To" />
+                  <Input type="date" className="h-9 w-[150px]" value={from} max={to || undefined} onChange={(e) => { setFrom(e.target.value); setPage(1); }} title="From" aria-label="From date" />
+                  <Input type="date" className="h-9 w-[150px]" value={to} min={from || undefined} onChange={(e) => { setTo(e.target.value); setPage(1); }} title="To" aria-label="To date" />
                   <div className="relative flex-1 min-w-[200px]">
                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                     <Input className="pl-9 h-9" placeholder="Search PO no., customer PO no., customer, item..." aria-label="Search purchase orders" value={search} onChange={(e) => setSearch(e.target.value)} />
                   </div>
+                  {filtersOn && (
+                    <Button variant="ghost" size="sm" className="h-9 gap-1" onClick={clearFilters}>
+                      <XCircle className="h-4 w-4" /> Clear filters
+                    </Button>
+                  )}
                   <ExportButton
                     data={loadAllForExport}
                     filename="purchase_orders"
+                    pdfTitle="Purchase Orders"
                     columns={[
                       { key: "po_number", header: "PO No." },
                       { key: "division_name", header: "Division" },
@@ -330,7 +339,10 @@ const PurchaseOrders = () => {
                     ]}
                   />
                 </div>
-                {renderTable(rows, isLoading, "No purchase orders yet.")}
+                {datesBackwards && (
+                  <p className="px-4 pt-3 text-xs text-red-700" role="alert">The From date is after the To date — change one of them.</p>
+                )}
+                {renderTable(rows, isLoading, filtersOn ? "No purchase orders match these filters." : "No purchase orders yet. Press New Purchase PO to make one.")}
                 <TablePagination page={page} pageSize={PAGE_SIZE} total={(list as any)?.total || 0} onPageChange={setPage} />
               </CardContent>
             </Card>

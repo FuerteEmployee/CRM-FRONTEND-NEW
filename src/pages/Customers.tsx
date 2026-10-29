@@ -441,6 +441,19 @@ const Customers = () => {
   // Rows seen on any page, so a selection made on page 1 still reaches the WhatsApp dialog from page 2.
   const seenCustomersRef = useRef(new Map<string, any>());
   paginatedCustomers.forEach((c: any) => seenCustomersRef.current.set(String(c._id), c));
+
+  useEffect(() => {
+    if (!bulkWhatsAppOpen || selectedCustomers.length === 0) return;
+    const missing = selectedCustomers.filter((id) => !seenCustomersRef.current.has(String(id)));
+    if (missing.length > 0) {
+      customerService.getAll().then((res: any) => {
+        const rows: any[] = Array.isArray(res) ? res : res?.data ?? [];
+        rows.forEach((c: any) => seenCustomersRef.current.set(String(c._id), c));
+        setSelectedCustomers((prev) => [...prev]);
+      }).catch(() => {});
+    }
+  }, [bulkWhatsAppOpen, selectedCustomers]);
+
   const selectedCustomerRows = selectedCustomers.map((id) => seenCustomersRef.current.get(String(id))).filter(Boolean);
   const totalCustomers = customersResult?.total ?? 0;
   const activeCustomers = customersResult?.activeCount ?? 0;
