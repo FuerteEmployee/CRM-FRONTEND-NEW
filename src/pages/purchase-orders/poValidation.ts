@@ -108,6 +108,76 @@ export const validDaysError = (v: unknown) => {
   return !Number.isInteger(n) || n < 1 || n > 365 ? "Valid for (days) must be a whole number from 1 to 365" : "";
 };
 
+// A name (company / supplier / account holder): needs at least one letter; no < >.
+export const nameError = (v: unknown, { label = "Name", required = false } = {}) => {
+  if (isEmpty(v)) return required ? `${label} is required` : "";
+  const t = text(v);
+  if (t === null || !/[A-Za-z]/.test(t)) return `${label} must have letters, not only numbers or symbols`;
+  return /[<>]/.test(t) ? `${label} can't contain < or >` : "";
+};
+
+// State: letters, spaces and & . - (e.g. "Jammu & Kashmir").
+export const stateError = (v: unknown, { label = "State" } = {}) => {
+  if (isEmpty(v)) return "";
+  const t = text(v);
+  return t === null || t.length > 50 || !/^[A-Za-z][A-Za-z &.-]*$/.test(t) ? `${label} can only have letters, spaces and & . -` : "";
+};
+
+// Bank account no.: ONE number of 9 to 18 digits.
+export const bankAccountNoError = (v: unknown, { label = "Account no." } = {}) => {
+  if (isEmpty(v)) return "";
+  const t = text(v);
+  if (t === null || !/^\d+$/.test(t)) return `${label}: digits only — one account number, no spaces, letters or commas`;
+  return t.length < 9 || t.length > 18 ? `${label} must be 9 to 18 digits` : "";
+};
+
+// IFSC: 4 letters, 0, then 6 letters / digits (saved in capitals).
+export const ifscError = (v: unknown, { label = "IFSC" } = {}) => {
+  if (isEmpty(v)) return "";
+  const t = (text(v) ?? "").toUpperCase();
+  return /^[A-Z]{4}0[A-Z0-9]{6}$/.test(t) ? "" : `${label} must be 11 characters: 4 letters, 0, then 6 letters or digits (e.g. SBIN0001234)`;
+};
+
+// Logo URL: empty (= CRM logo), an http(s) link or a path on this CRM.
+export const logoUrlError = (v: unknown, { label = "Logo URL" } = {}) => {
+  if (isEmpty(v)) return "";
+  const t = text(v);
+  return t === null || /\s/.test(t) || !/^(https?:\/\/[^/\s]+\.[^\s]+|\/[^\s]+)$/i.test(t) ? `${label} must be a link starting with https:// (or empty for the CRM logo)` : "";
+};
+
+// Proforma number prefix: optional, up to 20 letters, digits, - _ /.
+export const proformaPrefixError = (v: unknown) => {
+  if (isEmpty(v)) return "";
+  const t = text(v);
+  return t === null || t.length > 20 || !/^[A-Za-z0-9\-_/]+$/.test(t) ? "Proforma number prefix: up to 20 letters, digits or - _ / (no spaces)" : "";
+};
+
+// Minimum margin %: empty = no check, else 0 to 100.
+export const marginPctError = (v: unknown, { label = "Purchase PO minimum margin %" } = {}) => {
+  if (isEmpty(v)) return "";
+  const n = toNumber(v);
+  return !Number.isFinite(n) || n < 0 || n > 100 ? `${label} must be from 0 to 100 (empty = no check)` : "";
+};
+
+// Unit: letters needed (Nos, Mtr, Roll).
+export const unitError = (v: unknown, { label = "Unit" } = {}) => {
+  if (isEmpty(v)) return "";
+  const t = text(v);
+  return t === null || t.length > 30 || !/[A-Za-z]/.test(t) || !/^[A-Za-z0-9 .\-/]+$/.test(t) ? `${label} must be letters like Nos, Mtr, Roll (up to 30 characters)` : "";
+};
+
+// WhatsApp template (Meta): name lower-case a-z 0-9 _ ; language "en" / "en_US".
+export const waTemplateNameError = (v: unknown) => {
+  if (isEmpty(v)) return "";
+  const t = text(v);
+  return t === null || t.length > 512 || !/^[a-z0-9_]+$/.test(t) ? "Template name: lower-case letters, digits and _ only, exactly as approved in Meta (e.g. po_document)" : "";
+};
+export const waLanguageError = (v: unknown) => {
+  if (isEmpty(v)) return "";
+  const t = text(v);
+  return t === null || !/^[a-z]{2,3}(_[A-Z]{2})?$/.test(t) ? "Language code must look like en or en_US" : "";
+};
+
 // "Valid for (days)" box (S5): the typed text is kept while typing; on blur it
 // becomes the number ("05" → 5); anything else stays as typed and shows the error.
 export const daysOnBlur = (typed: string): number | string => {

@@ -5,11 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Loader2, Plus, Search } from "lucide-react";
+import { FileSpreadsheet, Loader2, Plus, Search } from "lucide-react";
+import * as XLSX from "xlsx";
 import { useToast } from "@/hooks/use-toast";
 import { purchaseOrderService } from "@/api/services/purchaseOrder.service";
 import { formatInr } from "./poCalc";
-import { ALREADY, NO_REFERENCE, NOT_IN_REFERENCE, parseCatalogPaste, RESULT_LABEL, type FindResult } from "./catalogAdd";
+import { ALREADY, catalogsFromRows, NO_REFERENCE, NOT_IN_REFERENCE, parseCatalogPaste, RESULT_LABEL, type FindResult } from "./catalogAdd";
 
 // Round 30 (S6): PO Items → "+ Add Catalog No.". Type (or paste several)
 // catalog nos. / Y codes / obsolete catalogs → Find in the uploaded price list
@@ -37,6 +38,7 @@ export const AddCatalogDialog = ({ open, onOpenChange, onAdded, onOpenItem, onAd
   const [results, setResults] = useState<FindResult[] | null>(null);
   const [problem, setProblem] = useState("");
   const [reference, setReference] = useState<{ count: number; file_name: string } | null>(null);
+  const [fileNote, setFileNote] = useState("");
 
   const parsed = parseCatalogPaste(text);
   const inputError = touched ? parsed.error : "";
@@ -47,6 +49,28 @@ export const AddCatalogDialog = ({ open, onOpenChange, onAdded, onOpenItem, onAd
     setTouched(false);
     setResults(null);
     setProblem("");
+    setFileNote("");
+  };
+
+  // A list of catalog nos. from an Excel / CSV file → fills the box (then Find).
+  const readListFile = async (file: File | undefined) => {
+    if (!file) return;
+    setResults(null);
+    setProblem("");
+    if (!/\.(xlsx|xls|csv)$/i.test(file.name)) { setFileNote(""); setProblem("Choose an Excel (.xlsx / .xls) or .csv file"); return; }
+    if (file.size > 5 * 1024 * 1024) { setFileNote(""); setProblem("The file is larger than 5 MB"); return; }
+    try {
+      const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: "array" });
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, blankrows: false });
+      const list = catalogsFromRows(rows);
+      if (!list.length) { setFileNote(""); setProblem(`No catalog nos. found in ${file.name} — put them in a column titled "Catalog No."`); return; }
+      setText(list.join("\n"));
+      setTouched(true);
+      setFileNote(`Read ${list.length} catalog no${list.length === 1 ? "." : "s."} from ${file.name} — press Find.`);
+    } catch {
+      setFileNote("");
+      setProblem(`${file.name} could not be read — is it a real Excel / CSV file?`);
+    }
   };
 
   const fail = (err: any) => {
@@ -110,6 +134,14 @@ export const AddCatalogDialog = ({ open, onOpenChange, onAdded, onOpenItem, onAd
           {inputError
             ? <p className="text-[11px] text-red-700" role="alert">{inputError}</p>
             : <p className="text-[11px] text-muted-foreground">Catalog no., Y code or an obsolete catalog no. Paste several — one per line or separated by commas (up to 200).</p>}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Label htmlFor="po-add-catalog-file" className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border px-3 text-xs font-medium hover:bg-muted">
+              <FileSpreadsheet className="h-3.5 w-3.5 text-green-600" /> Or choose an Excel / CSV list
+            </Label>
+            <input id="po-add-catalog-file" type="file" accept=".xlsx,.xls,.csv" className="sr-only"
+              onChange={(e) => { readListFile(e.target.files?.[0]); e.target.value = ""; }} />
+            <span className="text-[11px] text-muted-foreground" data-testid="add-catalog-file-note">{fileNote || 'One catalog no. per row, in a column titled "Catalog No." (or the first column).'}</span>
+          </div>
         </div>
 
         {problem && (

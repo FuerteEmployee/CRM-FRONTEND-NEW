@@ -223,7 +223,7 @@ const Vendors = () => {
       branch: String(getField(row, "branch name", "branch")),
     }));
 
-    const valid = vendorsData.filter((v) => v.company_name);
+    const valid = vendorsData.filter((v) => v.company_name && String(v.company_name).trim().length > 0);
     if (valid.length === 0) {
       toast({
         title: "Error",
@@ -679,7 +679,7 @@ const Vendors = () => {
                 </div>
                 <div className="space-y-1.5">
                   <Label className={labelCls}>Phone Number</Label>
-                  <Input value={formData.phone_number} onChange={(e) => setField("phone_number", e.target.value.replace(/\D/g, "").slice(0, 10))} maxLength={10} inputMode="numeric" placeholder="e.g. 9876543210" className={inputCls} />
+                  <Input value={formData.phone_number} onChange={(e) => setField("phone_number", e.target.value.replace(/[^\d+\s()-]/g, "").slice(0, 20))} maxLength={20} placeholder="e.g. 9876543210 or +91 9876543210" className={inputCls} />
                 </div>
                 <div className="space-y-1.5 md:col-span-2">
                   <Label className={labelCls}>Address with State</Label>

@@ -30,6 +30,9 @@ interface ExportButtonProps {
   data: any[] | (() => Promise<any[]>);
   filename: string;
   columns?: ExportColumn[];
+  // Opt-in: "PDF" makes a real table PDF of every row (title on top) instead
+  // of opening the browser print dialog for the screen.
+  pdfTitle?: string;
 }
 
 // Raw (untyped-to-string) value for a column — a real number/Date when the
@@ -87,7 +90,7 @@ const downloadBlob = (blob: Blob, filename: string) => {
   URL.revokeObjectURL(url);
 };
 
-export function ExportButton({ data, filename, columns }: ExportButtonProps) {
+export function ExportButton({ data, filename, columns, pdfTitle }: ExportButtonProps) {
   const dated = `${filename}_${new Date().toISOString().split("T")[0]}`;
   // Setup > Settings > Misc > "Show table export button": all staff / only administrators / nobody.
   const { getSetting } = useSettings();
@@ -100,7 +103,7 @@ export function ExportButton({ data, filename, columns }: ExportButtonProps) {
       window.print();
       return;
     }
-    if (type === "pdf") {
+    if (type === "pdf" && !pdfTitle) {
       toast.info("Select 'Save as PDF' in the print dialog");
       window.print();
       return;
@@ -131,6 +134,24 @@ export function ExportButton({ data, filename, columns }: ExportButtonProps) {
         downloadBlob(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" }), `${dated}.csv`);
         toast.success(`Exported ${resolved.length} records as CSV`);
 
+      } else if (type === "pdf") {
+        const { headers, rows } = buildRows(resolved, columns);
+        const [{ jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+        const doc = new jsPDF({ orientation: headers.length > 6 ? "landscape" : "portrait", unit: "pt", format: "a4" });
+        doc.setFontSize(13);
+        doc.text(pdfTitle || filename, 40, 40);
+        doc.setFontSize(8);
+        doc.text(`${resolved.length} records · exported ${new Date().toLocaleString("en-IN")}`, 40, 54);
+        autoTable(doc, {
+          startY: 64,
+          head: [headers],
+          body: rows.map(r => r.map(cellToDisplayString)),
+          styles: { fontSize: 7.5, cellPadding: 3, overflow: "linebreak" },
+          headStyles: { fillColor: [30, 41, 59] },
+          margin: { left: 40, right: 40 },
+        });
+        doc.save(`${dated}.pdf`);
+        toast.success(`Exported ${resolved.length} records as PDF`);
       } else {
         const { headers, rows } = buildRows(resolved, columns);
         const wsData = [headers, ...rows];

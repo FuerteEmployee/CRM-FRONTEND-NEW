@@ -19,11 +19,10 @@ import { purchaseOrderService } from "@/api/services/purchaseOrder.service";
 import { PO_MODULE } from "@/lib/purchaseOrders";
 import { formatInr, PRICE_FIELD_LABEL } from "./poCalc";
 import { PriceListImportDialog } from "./PriceListImportDialog";
-import { AddCatalogDialog } from "./AddCatalogDialog";
 import { priceSheetNote } from "./catalogAdd";
 import { ActionIcon } from "./ActionIcon";
 import { poItemActions } from "./poActions";
-import { catalogNoError, cleanSeriesName, gstWarning, hsnError, reuseSeries, seriesNameError, yCodeError } from "./poValidation";
+import { catalogNoError, cleanSeriesName, gstWarning, hsnError, reuseSeries, seriesNameError, unitError, yCodeError } from "./poValidation";
 
 // The PO module's own item list + price master (backend PoItem). Separate
 // from the CRM Items module (/admin/items): nothing is read from or written
@@ -97,6 +96,7 @@ export const itemFormErrors = (f: ItemForm): Record<string, string> => {
   if (f.name.trim().length > 300) set("name", "Name can't be longer than 300 characters");
   set("y_code", yCodeError(f.y_code));
   set("hsn", hsnError(f.hsn, { label: "HSN" }));
+  set("unit", unitError(f.unit));
   const gst = Number(f.tax_rate);
   if (f.tax_rate.trim() === "" || !Number.isFinite(gst) || gst < 0 || gst > 100) set("tax_rate", "GST % must be a number from 0 to 100");
   FORM_PRICE_KEYS.forEach((k) => {
@@ -122,7 +122,6 @@ export const PoItemsTab = () => {
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<ItemForm | null>(null);
   const [details, setDetails] = useState<any>(null);
-  const [addCatalogOpen, setAddCatalogOpen] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => { setDebounced(search); setPage(1); }, 300);
@@ -194,8 +193,9 @@ export const PoItemsTab = () => {
     },
   });
 
+  // Export = the rows the table shows (same series / search / status), every page.
   const loadAllForExport = async () => {
-    const res: any = await purchaseOrderService.exportItems();
+    const res: any = await purchaseOrderService.exportItems({ search: debounced || undefined, active, category: categoryParam });
     return (res?.rows || []).map((r: any) => ({ ...r, active_label: r.active ? "Yes" : "No" }));
   };
 
@@ -204,7 +204,8 @@ export const PoItemsTab = () => {
   const gstNote = editing ? gstWarning(editing.tax_rate) : "";
   const colSpan = 12;
   const acts = poItemActions({ canManage });
-  const defaultFormSeries = current !== ALL && current !== NONE ? current : seriesNames[0] || NEW_SERIES;
+  // On "All series" a new item starts in the default series (PO Settings), not the first name A-Z.
+  const defaultFormSeries = current !== ALL && current !== NONE ? current : (seriesData?.resolved && seriesNames.includes(seriesData.resolved) ? seriesData.resolved : seriesNames[0]) || NEW_SERIES;
 
   const seriesButtons = (
     <nav aria-label="Series" className="space-y-0.5" data-testid="po-series-panel">
@@ -237,15 +238,11 @@ export const PoItemsTab = () => {
               <Plus className="h-4 w-4" /> Add item
             </Button>
           )}
-          {canManage && (
-            <Button variant="outline" className="gap-2" onClick={() => setAddCatalogOpen(true)}>
-              <Plus className="h-4 w-4" /> Add Catalog No.
-            </Button>
-          )}
           {canManage && <PriceListImportDialog onDone={refresh} existingSeries={seriesNames} />}
           <ExportButton
             data={loadAllForExport}
             filename="po_items"
+            pdfTitle="PO Items"
             columns={[
               { key: "item_code", header: "Catalog No" },
               { key: "y_code", header: "Y Code" },
@@ -385,13 +382,6 @@ export const PoItemsTab = () => {
         </aside>
       </div>
 
-      {/* Round 30 (S6): + Add Catalog No. (from the uploaded price list) */}
-      {canManage && (
-        <AddCatalogDialog open={addCatalogOpen} onOpenChange={setAddCatalogOpen} onAdded={refresh}
-          onOpenItem={(code) => { setSearch(code); setSearchAll(true); }}
-          onAddByHand={(catalog) => setEditing({ ...emptyForm(defaultFormSeries), item_code: catalog })} />
-      )}
-
       {/* Item details (R3: extra price-list columns are kept as attributes) */}
       <Dialog open={!!details} onOpenChange={(o) => !o && setDetails(null)}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
@@ -483,7 +473,8 @@ export const PoItemsTab = () => {
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-semibold" htmlFor="po-item-unit">Unit</Label>
-                <Input id="po-item-unit" maxLength={30} value={editing.unit} onChange={(e) => setEditing({ ...editing, unit: e.target.value })} />
+                <Input id="po-item-unit" maxLength={30} value={editing.unit} aria-invalid={!!errors.unit} onChange={(e) => setEditing({ ...editing, unit: e.target.value })} />
+                {errors.unit && <p className="text-[11px] text-red-700">{errors.unit}</p>}
               </div>
               <div className="space-y-1">
                 <Label className="text-xs font-semibold" htmlFor="po-item-gst">GST %</Label>

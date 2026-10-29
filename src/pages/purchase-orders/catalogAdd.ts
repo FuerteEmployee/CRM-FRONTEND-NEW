@@ -25,6 +25,27 @@ export const parseCatalogPaste = (text: string): { list: string[]; error: string
   return { list, error: "" };
 };
 
+// "+ Add Catalog No." from an Excel / CSV file: the column titled Catalog /
+// Cat. No. / Item code / Part no. / Y code (first such title in the first 10
+// rows); without a title, the first column that has values. Blank cells and
+// the title itself are skipped; the list then goes through parseCatalogPaste.
+const CATALOG_HEADER = /^(catalog(ue)?\s*(no\.?|number|#)?|cat\.?\s*no\.?|item\s*code|part\s*(no\.?|number)|y\s*code)$/i;
+export const catalogsFromRows = (rows: unknown[][]): string[] => {
+  const cell = (v: unknown) => (v === null || v === undefined ? "" : String(v).trim());
+  let col = -1;
+  let start = 0;
+  for (let r = 0; r < Math.min(rows.length, 10) && col < 0; r++) {
+    const i = (rows[r] || []).findIndex((v) => CATALOG_HEADER.test(cell(v)));
+    if (i >= 0) { col = i; start = r + 1; }
+  }
+  if (col < 0) {
+    const width = Math.max(0, ...rows.map((r) => (r || []).length));
+    for (let i = 0; i < width && col < 0; i++) if (rows.some((r) => cell((r || [])[i]))) col = i;
+  }
+  if (col < 0) return [];
+  return rows.slice(start).map((r) => cell((r || [])[col])).filter(Boolean);
+};
+
 // Upload wizard: only the FIRST item sheet is ticked (F2: M210); skipped
 // sheets stay unticked. The rest of the file is kept as the reference list.
 export const firstSheetOnly = <T extends { skip_reason?: string }>(sheets: T[]): (T & { include: boolean })[] => {
