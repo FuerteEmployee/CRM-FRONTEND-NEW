@@ -366,15 +366,16 @@ export function TopNavbar() {
       {/* Profile Dropdown — always last */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex items-center gap-2.5 pl-2 border-l border-border ml-1 outline-none group">
-            <Avatar className="h-8 w-8 ring-2 ring-transparent group-hover:ring-primary/30 transition-all">
+          <button className="flex min-w-0 shrink-0 items-center gap-2.5 pl-2 border-l border-border ml-1 outline-none group">
+            <Avatar className="h-8 w-8 shrink-0 ring-2 ring-transparent group-hover:ring-primary/30 transition-all">
               <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
                 {initials}
               </AvatarFallback>
             </Avatar>
-            <div className="hidden md:block text-left">
-              <p className="text-sm font-medium leading-none">{fullName}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
+            {/* Name only from lg up: at tablet width (768px) it pushed the page 4px sideways. */}
+            <div className="hidden lg:block min-w-0 max-w-[160px] text-left">
+              <p className="text-sm font-medium leading-none truncate">{fullName}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
                 {userRole}
               </p>
             </div>

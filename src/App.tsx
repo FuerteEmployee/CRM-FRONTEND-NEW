@@ -296,7 +296,7 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="utilities" element={<Wrapper><Utilities /></Wrapper>} />
     <Route path="reports" element={<Wrapper><Reports /></Wrapper>} />
     <Route path="faq" element={<Wrapper><FAQ /></Wrapper>} />
-    <Route path="setup" element={<Wrapper><Setup /></Wrapper>} />
+    <Route path="setup" element={<Wrapper><SetupSettings /></Wrapper>} />
     <Route path="proposals" element={<Wrapper><Proposals /></Wrapper>} />
     <Route path="proposals/create/:clientId?" element={<Wrapper><ProposalCreate /></Wrapper>} />
     <Route path="proposals/edit/:id" element={<Wrapper><ProposalCreate /></Wrapper>} />

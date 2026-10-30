@@ -20,6 +20,9 @@ export const salesService = {
   updateInvoice: (id, data) => apiClient.put(`/invoices/${id}`, data),
   deleteInvoice: (id) => apiClient.delete(`/invoices/${id}`),
   bulkDeleteInvoices: (ids) => apiClient.post("/invoices/bulk-delete", { ids }),
+  // "Send Invoice to Email": pre-filled To / Subject / Message, then send (PDF as base64).
+  getInvoiceEmailDraft: (id) => apiClient.get(`/invoices/${id}/email-draft`),
+  sendInvoiceEmail: (id, data) => apiClient.post(`/invoices/${id}/send-email`, data),
   createProposal: (data) => apiClient.post("/proposals", data),
   updateProposal: (id, data) => apiClient.put(`/proposals/${id}`, data),
   deleteProposal: (id) => apiClient.delete(`/proposals/${id}`),

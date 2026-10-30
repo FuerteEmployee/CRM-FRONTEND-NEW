@@ -40,6 +40,8 @@ import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { defaultPageSize } from "@/lib/tablePageSize";
+import { isProcurementTypesEnabled } from "@/lib/procurement";
+import { procurementService } from "@/api/services/procurement.service";
 
 const ITEM_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Item Name", sample: "Laptop Stand", required: true, core: true },
@@ -53,6 +55,9 @@ const ITEM_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "HSN/SAC", sample: "8473", core: true },
   { key: "Branch", sample: "Mumbai", core: true },
   { key: "Long Description", sample: "Premium aluminium stand with cable management", core: false },
+  { key: "Procurement Type", sample: "READY", core: false },
+  { key: "Category", sample: "Hydraulics", core: false },
+  { key: "Subcategory", sample: "Valves", core: false },
   { key: "Cess Rate", sample: 0, core: false },
   { key: "Tax Inclusive", sample: "No", core: false },
 ];
@@ -97,6 +102,13 @@ const Items = () => {
     staleTime: 5 * 60 * 1000,
   });
   const branches: { _id: string; name: string }[] = branchesRaw;
+
+  const isKiran = isProcurementTypesEnabled(user);
+  const { data: purchaseCategories = [] } = useQuery<any[]>({
+    queryKey: ["purchase-categories-items"],
+    queryFn: () => procurementService.listCategories({ includeInactive: false }).then((r: any) => r.categories || []),
+    enabled: isKiran,
+  });
 
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [bulkActionOpen, setBulkActionOpen] = useState(false);
@@ -763,6 +775,88 @@ const Items = () => {
                       />
                     </div>
                   </div>
+                  {isKiran && (
+                    <div className="p-3 bg-slate-50/90 rounded-2xl border border-slate-200/90 space-y-3">
+                      <div className="text-[11px] font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
+                        <Layers className="h-3.5 w-3.5" /> Procurement & Category Hierarchy
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-bold text-slate-700">Procurement Type</Label>
+                          <Select
+                            value={createForm.procurementType || "none"}
+                            onValueChange={(val) => {
+                              const pt = val === "none" ? "" : val;
+                              setCreateForm((p: any) => ({ ...p, procurementType: pt, categoryId: "", subcategoryId: "" }));
+                            }}
+                          >
+                            <SelectTrigger className="rounded-xl h-10 border-slate-200 bg-white text-xs">
+                              <SelectValue placeholder="Select type..." />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                              <SelectItem value="none">None</SelectItem>
+                              <SelectItem value="READY">Ready to Use</SelectItem>
+                              <SelectItem value="JOBWORK">Job Work</SelectItem>
+                              <SelectItem value="MANUFACTURE">Manufacturing</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-bold text-slate-700">Category</Label>
+                          <Select
+                            value={createForm.categoryId || "none"}
+                            onValueChange={(val) => {
+                              const cId = val === "none" ? "" : val;
+                              const selectedCat = purchaseCategories.find((c: any) => c._id === cId);
+                              setCreateForm((p: any) => ({
+                                ...p,
+                                categoryId: cId,
+                                subcategoryId: "",
+                                group: selectedCat ? selectedCat.name : p.group,
+                              }));
+                            }}
+                          >
+                            <SelectTrigger className="rounded-xl h-10 border-slate-200 bg-white text-xs">
+                              <SelectValue placeholder="Select category..." />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-slate-200 shadow-xl max-h-56">
+                              <SelectItem value="none">None</SelectItem>
+                              {purchaseCategories
+                                .filter((c: any) => !createForm.procurementType || c.procurementType === createForm.procurementType)
+                                .filter((c: any) => c.level <= 2 || !c.parentId)
+                                .map((c: any) => (
+                                  <SelectItem key={c._id} value={c._id}>
+                                    {c.name} ({c.code})
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-bold text-slate-700">Subcategory</Label>
+                          <Select
+                            value={createForm.subcategoryId || "none"}
+                            onValueChange={(val) => setCreateForm((p: any) => ({ ...p, subcategoryId: val === "none" ? "" : val }))}
+                            disabled={!createForm.categoryId}
+                          >
+                            <SelectTrigger className="rounded-xl h-10 border-slate-200 bg-white text-xs">
+                              <SelectValue placeholder="Select subcategory..." />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-slate-200 shadow-xl max-h-56">
+                              <SelectItem value="none">None</SelectItem>
+                              {purchaseCategories
+                                .filter((c: any) => c.parentId === createForm.categoryId || (c.path && c.path.includes(createForm.categoryId)))
+                                .map((c: any) => (
+                                  <SelectItem key={c._id} value={c._id}>
+                                    {c.name} ({c.code})
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label className="text-xs font-bold text-slate-700">Group / Category</Label>
@@ -993,13 +1087,27 @@ const Items = () => {
                         </TableCell>
                         <TableCell className="font-medium">{item.name || item.description}</TableCell>
                         <TableCell>
-                          {item.group ? (
-                            <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 font-bold uppercase tracking-wider text-[9px] px-2 py-0.5">
-                              {item.group}
-                            </Badge>
-                          ) : (
-                            <span className="text-slate-400 font-medium">-</span>
-                          )}
+                          <div className="flex flex-col gap-1 items-start">
+                            {item.procurementType && (
+                              <Badge className={
+                                item.procurementType === "READY"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold"
+                                  : item.procurementType === "JOBWORK"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200 text-[9px] font-bold"
+                                  : "bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-bold"
+                              }>
+                                {item.procurementType === "READY" ? "Ready" : item.procurementType === "JOBWORK" ? "Job Work" : "Manufacture"}
+                              </Badge>
+                            )}
+                            {item.categoryId?.name || item.group ? (
+                              <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200 font-bold text-[9px] px-2 py-0.5">
+                                {item.categoryId?.name || item.group}
+                                {item.subcategoryId?.name ? ` / ${item.subcategoryId.name}` : ""}
+                              </Badge>
+                            ) : (
+                              <span className="text-slate-400 font-medium">-</span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-muted-foreground max-w-xs truncate">{item.long_description || "-"}</TableCell>
                         <TableCell>{item.quantity ?? 1}</TableCell>
@@ -1244,6 +1352,88 @@ const Items = () => {
                   />
                 </div>
               </div>
+                {isKiran && (
+                  <div className="p-3 bg-slate-50/90 rounded-2xl border border-slate-200/90 space-y-3">
+                    <div className="text-[11px] font-black uppercase tracking-wider text-primary flex items-center gap-1.5">
+                      <Layers className="h-3.5 w-3.5" /> Procurement & Category Hierarchy
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold text-slate-700">Procurement Type</Label>
+                        <Select
+                          value={editForm.procurementType || "none"}
+                          onValueChange={(val) => {
+                            const pt = val === "none" ? "" : val;
+                            setEditForm((p: any) => ({ ...p, procurementType: pt, categoryId: "", subcategoryId: "" }));
+                          }}
+                        >
+                          <SelectTrigger className="rounded-xl h-10 border-slate-200 bg-white text-xs">
+                            <SelectValue placeholder="Select type..." />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl border-slate-200 shadow-xl">
+                            <SelectItem value="none">None</SelectItem>
+                            <SelectItem value="READY">Ready to Use</SelectItem>
+                            <SelectItem value="JOBWORK">Job Work</SelectItem>
+                            <SelectItem value="MANUFACTURE">Manufacturing</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold text-slate-700">Category</Label>
+                        <Select
+                          value={editForm.categoryId || "none"}
+                          onValueChange={(val) => {
+                            const cId = val === "none" ? "" : val;
+                            const selectedCat = purchaseCategories.find((c: any) => c._id === cId);
+                            setEditForm((p: any) => ({
+                              ...p,
+                              categoryId: cId,
+                              subcategoryId: "",
+                              group: selectedCat ? selectedCat.name : p.group,
+                            }));
+                          }}
+                        >
+                          <SelectTrigger className="rounded-xl h-10 border-slate-200 bg-white text-xs">
+                            <SelectValue placeholder="Select category..." />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl border-slate-200 shadow-xl max-h-56">
+                            <SelectItem value="none">None</SelectItem>
+                            {purchaseCategories
+                              .filter((c: any) => !editForm.procurementType || c.procurementType === editForm.procurementType)
+                              .filter((c: any) => c.level <= 2 || !c.parentId)
+                              .map((c: any) => (
+                                <SelectItem key={c._id} value={c._id}>
+                                  {c.name} ({c.code})
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-bold text-slate-700">Subcategory</Label>
+                        <Select
+                          value={editForm.subcategoryId || "none"}
+                          onValueChange={(val) => setEditForm((p: any) => ({ ...p, subcategoryId: val === "none" ? "" : val }))}
+                          disabled={!editForm.categoryId}
+                        >
+                          <SelectTrigger className="rounded-xl h-10 border-slate-200 bg-white text-xs">
+                            <SelectValue placeholder="Select subcategory..." />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl border-slate-200 shadow-xl max-h-56">
+                            <SelectItem value="none">None</SelectItem>
+                            {purchaseCategories
+                              .filter((c: any) => c.parentId === editForm.categoryId || (c.path && c.path.includes(editForm.categoryId)))
+                              .map((c: any) => (
+                                <SelectItem key={c._id} value={c._id}>
+                                  {c.name} ({c.code})
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-bold text-slate-700">Group / Category</Label>

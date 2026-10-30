@@ -1,3 +1,4 @@
+import { useNavigate } from "react-router-dom";
 import { useState, useMemo, useEffect } from "react";
 import { useOpenCreateModal } from "@/hooks/useOpenCreateModal";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
@@ -23,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Pencil, Trash2, ShoppingCart } from "lucide-react";
+import { Plus, Search, Pencil, Trash2, ShoppingCart, Layers } from "lucide-react";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { purchaseService } from "@/api/services/purchase.service";
 import { staffService } from "@/api/services/staff.service";
@@ -44,6 +45,8 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { ItemSelect, gstRateFromItem, type ItemRecord } from "@/components/ItemSelect";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { defaultPageSize } from "@/lib/tablePageSize";
+import { isProcurementTypesEnabled, PROCUREMENT_TYPES } from "@/lib/procurement";
+import { procurementService } from "@/api/services/procurement.service";
 
 const PURCHASE_IMPORT_COLUMNS: ImportColumn[] = [
   { key: "Bill Date", sample: "27-08-2026", core: true },
@@ -129,6 +132,7 @@ const toDateInput = (d: any) => (d ? new Date(d).toISOString().split("T")[0] : "
 
 const Purchases = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { can, user, isModuleEnabled } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
@@ -143,6 +147,16 @@ const Purchases = () => {
   const getNewPurchaseForm = () => ({ ...emptyForm, gst_rate: simplifiedRegister ? "0" : emptyForm.gst_rate });
   const [vendorFilter, setVendorFilter] = useState<string[]>([]);
   const [branchFilter, setBranchFilter] = useState("all");
+  const isKiran = isProcurementTypesEnabled(user);
+  const [procurementTypeFilter, setProcurementTypeFilter] = useState<string>("ALL");
+  const [factoryLocationFilter, setFactoryLocationFilter] = useState<string>("all");
+
+  const { data: factoryLocations = [] } = useQuery<any[]>({
+    queryKey: ["factory-locations"],
+    queryFn: () => procurementService.listLocations().then((r: any) => r.locations || []),
+    enabled: isKiran,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const { data: vendors = [] } = useQuery<VendorRecord[]>({
     queryKey: ["vendors"],
@@ -229,7 +243,7 @@ const Purchases = () => {
   const ZERO_TOTALS: PurchaseTotals = { amount: 0, cgst: 0, sgst: 0, igst: 0, total: 0 };
   interface PurchasesPage { rows: any[]; total: number; pages: number; totals: PurchaseTotals }
   const { data: purchasesResult, isLoading } = useQuery<PurchasesPage>({
-    queryKey: ["purchases", itemsPerPage, currentPage, debouncedSearch, branchFilter, vendorFilter],
+    queryKey: ["purchases", itemsPerPage, currentPage, debouncedSearch, branchFilter, vendorFilter, procurementTypeFilter, factoryLocationFilter],
     queryFn: async () => {
       if (itemsPerPage === "all") {
         const response = await purchaseService.getAll();
@@ -243,6 +257,8 @@ const Purchases = () => {
         search: debouncedSearch || undefined,
         branch: branchFilter !== "all" ? branchFilter : undefined,
         vendor: vendorFilter.length ? vendorFilter.join(",") : undefined,
+        type: isKiran && procurementTypeFilter !== "ALL" ? procurementTypeFilter : undefined,
+        locationId: isKiran && factoryLocationFilter !== "all" ? factoryLocationFilter : undefined,
       });
       if (Array.isArray(res)) return { rows: [], total: 0, pages: 1, totals: ZERO_TOTALS };
       return {
@@ -760,15 +776,15 @@ const Purchases = () => {
       const draftAmt = parseFloat(formData.amount) || 0;
       const items = draftAmt > 0
         ? [...lineItems, {
-            item_id: formData.item_id || undefined,
-            product: formData.product || "",
-            hsn_code: formData.hsn_code || "",
-            quantity: parseFloat(formData.quantity) || 0,
-            rate: parseFloat(formData.rate) || 0,
-            amount: draftAmt,
-            freight_charge: parseFloat(formData.freight_charge) || 0,
-            gst_rate: parseFloat(formData.gst_rate) || 0,
-          }]
+          item_id: formData.item_id || undefined,
+          product: formData.product || "",
+          hsn_code: formData.hsn_code || "",
+          quantity: parseFloat(formData.quantity) || 0,
+          rate: parseFloat(formData.rate) || 0,
+          amount: draftAmt,
+          freight_charge: parseFloat(formData.freight_charge) || 0,
+          gst_rate: parseFloat(formData.gst_rate) || 0,
+        }]
         : lineItems;
 
       if (items.length === 0) {
@@ -930,7 +946,7 @@ const Purchases = () => {
 
   const handleBulkAction = async () => {
     if (selectedIds.length === 0) {
-      toast({ title: "Error", description: "No purchase bills selected."});
+      toast({ title: "Error", description: "No purchase bills selected." });
       return;
     }
     setIsBulkLoading(true);
@@ -1017,6 +1033,16 @@ const Purchases = () => {
               />
             )}
             <ExportButton data={loadAllFilteredPurchases} filename="purchases" columns={exportColumns} />
+            {isKiran && (
+              <Button
+                variant="outline"
+                onClick={() => navigate("/admin/setup/settings?tab=fin-purchases")}
+                className="rounded-xl font-bold gap-2 shadow-sm px-4 h-11 text-xs border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
+              >
+                <Layers className="h-4 w-4 text-primary" />
+                Categories & Setup
+              </Button>
+            )}
             {can("Purchases", "Create") && (
               <Button
                 onClick={() => { setEditingPurchase(null); setFormData(getNewPurchaseForm()); setIsModalOpen(true); }}
@@ -1028,6 +1054,55 @@ const Purchases = () => {
             )}
           </div>
         </div>
+
+        {/* Procurement Types Tabs (Kiran Engineering) */}
+        {isKiran && (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 pb-3 bg-white p-3 rounded-xl shadow-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              {PROCUREMENT_TYPES.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    setProcurementTypeFilter(t.id);
+                    setCurrentPage(1);
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${procurementTypeFilter === t.id
+                      ? "bg-primary text-primary-foreground shadow-md shadow-primary/20 ring-2 ring-primary/20"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900"
+                    }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {factoryLocations.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-slate-400">Factory:</span>
+                <Select
+                  value={factoryLocationFilter}
+                  onValueChange={(val) => {
+                    setFactoryLocationFilter(val);
+                    setCurrentPage(1);
+                  }}
+                >
+                  <SelectTrigger className="w-[150px] h-9 text-xs font-bold bg-slate-50 border-slate-200">
+                    <SelectValue placeholder="All Factories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Factories</SelectItem>
+                    {factoryLocations.map((loc: any) => (
+                      <SelectItem key={loc._id} value={loc._id}>
+                        {loc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Summary cards */}
         <div className={`grid grid-cols-2 gap-4 ${simplifiedRegister ? "md:grid-cols-2" : "md:grid-cols-5"}`}>
@@ -1075,7 +1150,7 @@ const Purchases = () => {
                 {(can("Purchases", "Edit") || can("Purchases", "Delete")) && (
                   <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                     if (open && selectedIds.length === 0) {
-                      toast({ title: "Error", description: "Please select at least one purchase bill first."});
+                      toast({ title: "Error", description: "Please select at least one purchase bill first." });
                       return;
                     }
                     setBulkState({ massDelete: false, payment_status: "", payment_date: "", paymentmode: "" }); // clear unsaved bulk choices on open/close
@@ -1325,6 +1400,47 @@ const Purchases = () => {
                 </div>
               )}
 
+              {/* Procurement Type & Factory Location (Kiran) */}
+              {isKiran && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50/70 p-4 rounded-xl border border-slate-100">
+                  <div className="space-y-1.5">
+                    <Label className={labelCls}>* Procurement Type</Label>
+                    <Select
+                      value={formData.procurementType || "READY"}
+                      onValueChange={(val) => setField("procurementType", val)}
+                    >
+                      <SelectTrigger className={inputCls}>
+                        <SelectValue placeholder="Select type..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="READY">Ready to Use</SelectItem>
+                        <SelectItem value="JOBWORK">Job Work</SelectItem>
+                        <SelectItem value="MANUFACTURE">Manufacturing by Self</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className={labelCls}>* Receiving Factory Location</Label>
+                    <Select
+                      value={formData.locationId || "none"}
+                      onValueChange={(val) => setField("locationId", val === "none" ? "" : val)}
+                    >
+                      <SelectTrigger className={inputCls}>
+                        <SelectValue placeholder="Select receiving factory..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Select Factory</SelectItem>
+                        {factoryLocations.map((loc: any) => (
+                          <SelectItem key={loc._id} value={loc._id}>
+                            {loc.name} {loc.code ? `(${loc.code})` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
               {/* Supplier */}
               <div>
                 <div className="text-xs font-black uppercase tracking-widest text-primary mb-3">Supplier</div>
@@ -1339,33 +1455,33 @@ const Purchases = () => {
                     <Input value={formData.supplier_name} onChange={(e) => setField("supplier_name", e.target.value)} placeholder="Supplier / party name" className={inputCls} />
                   </div>
                 ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className={labelCls}>* Company Name</Label>
-                    <Input value={formData.supplier_name} onChange={(e) => setField("supplier_name", e.target.value)} placeholder="Supplier / company name" className={inputCls} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className={labelCls}>* Company Name</Label>
+                      <Input value={formData.supplier_name} onChange={(e) => setField("supplier_name", e.target.value)} placeholder="Supplier / company name" className={inputCls} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className={labelCls}>GST Number</Label>
+                      <Input value={formData.supplier_gstin} onChange={(e) => setField("supplier_gstin", e.target.value.toUpperCase())} placeholder="e.g. 24ABCDE1234F1Z5" className={`${inputCls} uppercase`} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className={labelCls}>Address with State</Label>
+                      <Input value={formData.supplier_address} onChange={(e) => setField("supplier_address", e.target.value)} placeholder="Full address including state" className={inputCls} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className={labelCls}>State (for GST/IGST)</Label>
+                      <Select value={formData.supplier_state} onValueChange={(v) => setField("supplier_state", v)}>
+                        <SelectTrigger className={`${inputCls} bg-white font-medium`}>
+                          <SelectValue placeholder="Select state" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-64">
+                          {INDIAN_STATES.map((s) => (
+                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className={labelCls}>GST Number</Label>
-                    <Input value={formData.supplier_gstin} onChange={(e) => setField("supplier_gstin", e.target.value.toUpperCase())} placeholder="e.g. 24ABCDE1234F1Z5" className={`${inputCls} uppercase`} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className={labelCls}>Address with State</Label>
-                    <Input value={formData.supplier_address} onChange={(e) => setField("supplier_address", e.target.value)} placeholder="Full address including state" className={inputCls} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className={labelCls}>State (for GST/IGST)</Label>
-                    <Select value={formData.supplier_state} onValueChange={(v) => setField("supplier_state", v)}>
-                      <SelectTrigger className={`${inputCls} bg-white font-medium`}>
-                        <SelectValue placeholder="Select state" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-64">
-                        {INDIAN_STATES.map((s) => (
-                          <SelectItem key={s} value={s}>{s}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
                 )}
               </div>
 
@@ -1448,7 +1564,7 @@ const Purchases = () => {
                     what's added on top, then how it's taxed. */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-1.5 col-span-2">
-                    <Label className={labelCls}>{simplifiedRegister ? "Particulars (Item)" : "1. Product"}</Label>
+                    <Label className={labelCls}>{simplifiedRegister ? "* Particulars (Item)" : "* 1. Product"}</Label>
                     <Input value={formData.product} onChange={(e) => setField("product", e.target.value)} placeholder="Product / goods description" className={inputCls} />
                   </div>
                   {!simplifiedRegister && (
@@ -1458,18 +1574,18 @@ const Purchases = () => {
                     </div>
                   )}
                   <div className="space-y-1.5">
-                    <Label className={labelCls}>2. Quantity</Label>
+                    <Label className={labelCls}>* 2. Quantity</Label>
                     <Input type="number" value={formData.quantity} onChange={(e) => setQtyRate("quantity", e.target.value)} placeholder="1" className={inputCls} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className={labelCls}>3. Rate</Label>
+                    <Label className={labelCls}>* 3. Rate</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
                       <Input type="number" value={formData.rate} onChange={(e) => setQtyRate("rate", e.target.value)} placeholder="0.00" className={`${inputCls} pl-7`} />
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className={labelCls}>{simplifiedRegister ? "* Amount" : "4. Price (Qty × Rate)"}</Label>
+                    <Label className={labelCls}>{simplifiedRegister ? "* Amount" : "* 4. Price (Qty × Rate)"}</Label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">{symbol}</span>
                       <Input type="number" value={formData.amount} onChange={(e) => setField("amount", e.target.value)} placeholder="0.00" className={`${inputCls} pl-7`} />
@@ -1569,65 +1685,65 @@ const Purchases = () => {
                   </div>
                 </div>
               ) : (
-              <div className="space-y-1.5">
-                <Label className={labelCls}>GST / IGST (Automatic)</Label>
-                <div className={`rounded-xl border p-4 text-sm font-bold flex flex-wrap items-center gap-x-6 gap-y-1 ${taxPreview.intra ? "bg-blue-50/50 border-blue-200 text-blue-800" : "bg-violet-50/50 border-violet-200 text-violet-800"}`}>
-                  {(lineItems.length > 0 || taxPreview.freightTotal > 0) && (
-                    <>
-                      <span>Sub Total: {money(taxPreview.subtotal)}</span>
-                      {taxPreview.freightTotal > 0 && <span>Freight: {money(taxPreview.freightTotal)}</span>}
-                    </>
-                  )}
-                  {taxPreview.intra ? (
-                    <>
-                      <span>Within Gujarat → GST</span>
-                      <span>CGST: {money(taxPreview.cgst)}</span>
-                      <span>SGST: {money(taxPreview.sgst)}</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Outside Gujarat → IGST</span>
-                      <span>IGST: {money(taxPreview.igst)}</span>
-                    </>
-                  )}
-                  <span className="text-slate-500">Round Off: {taxPreview.roundOff > 0 ? "+" : ""}{taxPreview.roundOff.toFixed(2)}</span>
-                  <span className="ml-auto text-slate-800">Total: {money(taxPreview.total)}</span>
+                <div className="space-y-1.5">
+                  <Label className={labelCls}>GST / IGST (Automatic)</Label>
+                  <div className={`rounded-xl border p-4 text-sm font-bold flex flex-wrap items-center gap-x-6 gap-y-1 ${taxPreview.intra ? "bg-blue-50/50 border-blue-200 text-blue-800" : "bg-violet-50/50 border-violet-200 text-violet-800"}`}>
+                    {(lineItems.length > 0 || taxPreview.freightTotal > 0) && (
+                      <>
+                        <span>Sub Total: {money(taxPreview.subtotal)}</span>
+                        {taxPreview.freightTotal > 0 && <span>Freight: {money(taxPreview.freightTotal)}</span>}
+                      </>
+                    )}
+                    {taxPreview.intra ? (
+                      <>
+                        <span>Within Gujarat → GST</span>
+                        <span>CGST: {money(taxPreview.cgst)}</span>
+                        <span>SGST: {money(taxPreview.sgst)}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Outside Gujarat → IGST</span>
+                        <span>IGST: {money(taxPreview.igst)}</span>
+                      </>
+                    )}
+                    <span className="text-slate-500">Round Off: {taxPreview.roundOff > 0 ? "+" : ""}{taxPreview.roundOff.toFixed(2)}</span>
+                    <span className="ml-auto text-slate-800">Total: {money(taxPreview.total)}</span>
+                  </div>
                 </div>
-              </div>
               )}
 
               {/* Payment */}
               {!simplifiedRegister && (
-              <div>
-                <div className="text-xs font-black uppercase tracking-widest text-primary mb-3">Payment</div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <Label className={labelCls}>Payment Status</Label>
-                    <Select value={formData.payment_status} onValueChange={(v) => setField("payment_status", v)}>
-                      <SelectTrigger className={`${inputCls} bg-white font-medium`}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Unpaid">Unpaid</SelectItem>
-                        <SelectItem value="Partially Paid">Partially Paid</SelectItem>
-                        <SelectItem value="Paid">Paid</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className={labelCls}>Payment Date</Label>
-                    <Input type="date" value={formData.payment_date} onChange={(e) => setField("payment_date", e.target.value)} className={inputCls} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className={labelCls}>Payment Method</Label>
-                    <Input value={formData.paymentmode} onChange={(e) => setField("paymentmode", e.target.value)} placeholder="e.g. Bank Transfer, UPI, Cash" className={inputCls} />
-                  </div>
-                  <div className="space-y-1.5 md:col-span-3">
-                    <Label className={labelCls}>Bank Details</Label>
-                    <Input value={formData.bank_details} onChange={(e) => setField("bank_details", e.target.value)} placeholder="Bank name / account / IFSC" className={inputCls} />
+                <div>
+                  <div className="text-xs font-black uppercase tracking-widest text-primary mb-3">Payment</div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <Label className={labelCls}>Payment Status</Label>
+                      <Select value={formData.payment_status} onValueChange={(v) => setField("payment_status", v)}>
+                        <SelectTrigger className={`${inputCls} bg-white font-medium`}>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Unpaid">Unpaid</SelectItem>
+                          <SelectItem value="Partially Paid">Partially Paid</SelectItem>
+                          <SelectItem value="Paid">Paid</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className={labelCls}>Payment Date</Label>
+                      <Input type="date" value={formData.payment_date} onChange={(e) => setField("payment_date", e.target.value)} className={inputCls} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className={labelCls}>Payment Method</Label>
+                      <Input value={formData.paymentmode} onChange={(e) => setField("paymentmode", e.target.value)} placeholder="e.g. Bank Transfer, UPI, Cash" className={inputCls} />
+                    </div>
+                    <div className="space-y-1.5 md:col-span-3">
+                      <Label className={labelCls}>Bank Details</Label>
+                      <Input value={formData.bank_details} onChange={(e) => setField("bank_details", e.target.value)} placeholder="Bank name / account / IFSC" className={inputCls} />
+                    </div>
                   </div>
                 </div>
-              </div>
               )}
 
               <div className="space-y-1.5">

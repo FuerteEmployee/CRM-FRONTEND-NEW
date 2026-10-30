@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Select, 
   SelectContent, 
@@ -97,13 +96,10 @@ export default function InvoiceCreate() {
     number: "",
     date: new Date().toISOString().split('T')[0],
     duedate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    prevent_overdue_reminders: false,
     tags: [] as string[],
     allowed_payment_modes: [] as string[],
     currency: "",
     sale_agent: "",
-    recurring: "no",
-    discount_type: "no_discount",
     adminnote: "",
     client_note: "",
     terms: "",
@@ -121,6 +117,12 @@ export default function InvoiceCreate() {
 
   const [status, setStatus] = useState("unpaid");
   const [amountPaid, setAmountPaid] = useState<number | "">("");
+  // Amount to record as a payment once the new invoice is saved.
+  const initialPaymentRef = useRef(0);
+  // Save & Send: after saving, open the invoice with the "Send Invoice to Email" window.
+  const sendAfterSaveRef = useRef(false);
+  // Set synchronously on the first click, so a double click cannot save twice.
+  const savingRef = useRef(false);
 
   const { data: payments = [] } = useQuery({
     queryKey: ["invoice-payments", id],
@@ -149,7 +151,6 @@ export default function InvoiceCreate() {
   const [discountValue, setDiscountValue] = useState(0);
   const [discountType, setDiscountType] = useState("percent");
   const [adjustmentValue, setAdjustmentValue] = useState(0);
-  const [showQtyAs, setShowQtyAs] = useState("qty");
 
   // Seed the invoice from a project's "Invoice Project" action (navigate state), once on mount.
   useEffect(() => {
@@ -195,23 +196,32 @@ export default function InvoiceCreate() {
     queryFn: () => customerService.getAll().then((res: any) => res.data || res)
   });
 
+  // A customer's branch name (customers store it as a name, an id or a populated object).
+  const customerBranchName = (c: any): string => {
+    if (!c?.branch) return "";
+    if (typeof c.branch === "object" && c.branch.name) return c.branch.name;
+    const id = typeof c.branch === "object" ? (c.branch._id || c.branch.id) : c.branch;
+    return branches.find((b: any) => String(b._id) === String(id))?.name || (typeof c.branch === "string" ? c.branch : "");
+  };
+  const inBranch = (c: any, branch: string) =>
+    !!branch && customerBranchName(c).toLowerCase().trim() === branch.toLowerCase().trim();
+
   const filteredCustomers = useMemo(() => {
     if (!canUseBranch) return customers;
     if (!formData.branch) return [];
-    const targetBranch = formData.branch.toLowerCase().trim();
-    const branchObj = branches.find((b: any) => b.name && b.name.toLowerCase().trim() === targetBranch);
-    return customers.filter((c: any) => {
-      const cBranchName = typeof c.branch === "object" ? c.branch?.name : c.branch;
-      const cBranchId = typeof c.branch === "object" ? (c.branch?._id || c.branch?.id) : c.branch;
-      if (cBranchName && typeof cBranchName === "string" && cBranchName.toLowerCase().trim() === targetBranch) {
-        return true;
-      }
-      if (branchObj && cBranchId && String(cBranchId) === String(branchObj._id)) {
-        return true;
-      }
-      return false;
-    });
-  }, [customers, formData.branch, canUseBranch, branches]);
+    // On edit, keep the invoice's own customer in the list even if it has no / another branch.
+    return customers.filter((c: any) => inBranch(c, formData.branch) || (isEdit && String(c._id) === String(formData.client)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customers, formData.branch, formData.client, canUseBranch, branches, isEdit]);
+
+  // Older invoices were saved without a branch: fill it in from the customer's branch,
+  // so "Please select a branch." does not block saving (and Save & Send).
+  useEffect(() => {
+    if (!isEdit || !canUseBranch || formData.branch || !formData.client || !customers.length) return;
+    const name = customerBranchName(customers.find((c: any) => String(c._id) === String(formData.client)));
+    if (name) setFormData((p) => (p.branch ? p : { ...p, branch: name }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, canUseBranch, formData.branch, formData.client, customers, branches]);
 
   const { data: customer } = useQuery({
     queryKey: ["customer", formData.client],
@@ -358,13 +368,10 @@ export default function InvoiceCreate() {
         duedate: invoice.duedate && !isNaN(new Date(invoice.duedate).getTime())
           ? new Date(invoice.duedate).toISOString().split('T')[0]
           : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        prevent_overdue_reminders: invoice.prevent_overdue_reminders || false,
         tags: invoice.tags || [],
         allowed_payment_modes: invoice.allowed_payment_modes || [],
         currency: invoice.currency || "",
         sale_agent: (invoice.created_by?._id || invoice.created_by || "").toString(),
-        recurring: invoice.recurring || "no",
-        discount_type: invoice.discount_percent > 0 ? "percent" : "no_discount",
         adminnote: invoice.adminnote || "",
         client_note: invoice.notes || "",
         terms: invoice.terms || "",
@@ -390,7 +397,8 @@ export default function InvoiceCreate() {
       setItems((invoice.items || []).map((item: any) => ({
         ...item,
         id: Math.random().toString(36).substr(2, 9),
-        tax: taxes.find(t => t.taxrate === item.tax)?._id || "",
+        // Match by rate AND name, so two taxes with the same rate map back correctly.
+        tax: (taxes.find(t => t.taxrate === item.tax && t.name === item.tax_name) || taxes.find(t => t.taxrate === item.tax))?._id || "",
         itemGroup: item.itemGroup || "",
         itemHSN: item.itemHSN || "",
         itemBatch: item.itemBatch || "",
@@ -400,20 +408,31 @@ export default function InvoiceCreate() {
         amount: item.amount ?? ((item.qty * item.rate) || 0)
       })));
       
-      setDiscountValue(invoice.discount_percent || 0);
+      if (invoice.discount_type === "fixed") {
+        setDiscountType("fixed");
+        setDiscountValue(invoice.discount_fixed || 0);
+      } else {
+        setDiscountType("percent");
+        setDiscountValue(invoice.discount_type === "no_discount" ? 0 : invoice.discount_percent || 0);
+      }
       setAdjustmentValue(invoice.adjustment || 0);
     }
   }, [invoice, taxes, taxesFetched, payments, isEdit, navigate, toast]);
 
+  // Same rule as the server (InvoiceService.calculateTotals): the invoice's
+  // GSTIN (else the customer's) state code, else the customer's state, else a
+  // state found in the address, compared with the seller's home state. With
+  // nothing to go on it is IGST, as the server saves it.
   const isIntraState = () => {
-    if (!customer) return true; // default/fallback
-    const gstin = (customer.gst_number || "").trim();
+    if (!customer) return false;
+    const homeCode = isEkagraUser(user?.email) ? "10" : "24";
+    const gstin = (formData.gstin || customer.gst_number || "").trim();
     if (/^\d{2}/.test(gstin)) {
-      return gstin.substring(0, 2) === "24"; // HOME_STATE_GST_CODE = "24"
+      return gstin.substring(0, 2) === homeCode;
     }
     const state = (customer.billing_state || customer.state || "").trim().toLowerCase();
     if (state) {
-      return state === "gujarat";
+      return state === homeStateName;
     }
     // detectStateFromAddress
     const address = `${customer.billing_street || ""} ${customer.address || ""}`.toLowerCase();
@@ -427,29 +446,35 @@ export default function InvoiceCreate() {
     const sorted = [...INDIAN_STATES].sort((x, y) => y.length - x.length);
     const detected = sorted.find((s) => address.includes(s)) || "";
     if (detected) {
-      return detected === "gujarat";
+      return detected === homeStateName;
     }
-    return true; // default
+    return false;
   };
+
+  // A picked tax wins (even "Zero"); GST % is used only when no tax is picked.
+  const lineTaxRate = (item: any) => (taxes.find((t: any) => t._id === item.tax)?.taxrate ?? Number(item.gstPercentage)) || 0;
 
   const calculations = useMemo(() => {
     const subTotal = items.reduce((acc, item) => acc + ((Number(item.qty) || 0) * (Number(item.rate) || 0)), 0);
     const totalFreight = items.reduce((acc, item) => acc + (Number(item.freight_charge) || 0), 0);
-    const discountAmount = formData.discount_type === "no_discount" ? 0 :
-      (discountType === "percent" ? (subTotal * (discountValue / 100)) : discountValue);
+    // % of the subtotal, or a fixed amount — never more than the subtotal.
+    const discountAmount = Math.min(
+      Math.max(discountType === "percent" ? (subTotal * ((Number(discountValue) || 0) / 100)) : (Number(discountValue) || 0), 0),
+      subTotal
+    );
     // Tax is charged on the discounted amount, not the full pre-discount subtotal.
     const discountFactor = subTotal > 0 ? 1 - discountAmount / subTotal : 1;
     // Freight is added to each line before GST — same rule as the Purchase module
     // (taxable value = rate*qty + freight, tax computed on top of that).
     const totalTax = items.reduce((acc, item) => {
-      const taxRate = (taxes.find(t => t._id === item.tax)?.taxrate ?? Number(item.gstPercentage)) || 0;
       const itemTaxable = ((Number(item.qty) || 0) * (Number(item.rate) || 0)) + (Number(item.freight_charge) || 0);
-      return acc + (itemTaxable * discountFactor * (taxRate / 100));
+      return acc + (itemTaxable * discountFactor * (lineTaxRate(item) / 100));
     }, 0);
-    const total = subTotal + totalFreight - discountAmount + totalTax + Number(adjustmentValue);
+    const total = Math.round((subTotal + totalFreight - discountAmount + totalTax + (Number(adjustmentValue) || 0)) * 100) / 100;
 
     return { subTotal, totalFreight, discountAmount, totalTax, total };
-  }, [items, discountValue, discountType, adjustmentValue, formData.discount_type, taxes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, discountValue, discountType, adjustmentValue, taxes]);
 
   // Freight is entered as a percentage of the draft row's Sub Total (qty ×
   // rate), defaulting to 1%, and always drives the stored rupee freight_charge
@@ -462,7 +487,14 @@ export default function InvoiceCreate() {
   }, [newItem.qty, newItem.rate, newItem.freight_percent]);
 
   const addItem = () => {
-    if (!newItem.description) return;
+    if (!String(newItem.description || "").trim()) {
+      toast({ title: "Validation Error", description: "Enter an item description first.", variant: "destructive" });
+      return;
+    }
+    if ([newItem.qty, newItem.rate, newItem.freight_percent, newItem.gstPercentage].some((v) => Number(v) < 0)) {
+      toast({ title: "Validation Error", description: "Quantity, rate, freight and GST cannot be negative.", variant: "destructive" });
+      return;
+    }
     const amount = newItem.amount || Number(newItem.qty) * Number(newItem.rate);
     setItems([...items, { ...newItem, amount, id: Date.now().toString() }]);
     setNewItem({
@@ -490,21 +522,22 @@ export default function InvoiceCreate() {
   const mutation = useMutation({
     mutationFn: (payload: any) => isEdit ? salesService.updateInvoice(id!, payload) : salesService.createInvoice(payload),
     onSuccess: async (createdInvoice: any) => {
-      // Record initial payment if specified
-      if (!isEdit && amountPaid && Number(amountPaid) > 0) {
+      // Record the initial payment; the server then sets Paid / Partially Paid.
+      const initialPayment = initialPaymentRef.current;
+      if (!isEdit && initialPayment > 0) {
         try {
           await salesService.createPayment({
             invoice: createdInvoice._id || createdInvoice.id,
-            amount: Number(amountPaid),
+            amount: initialPayment,
             date: formData.date,
-            paymentmode: formData.allowed_payment_modes[0] || "Bank Transfer",
+            paymentmode: formData.allowed_payment_modes[0] || paymentModes[0]?.name || "Bank Transfer",
             note: "Initial payment recorded during invoice creation."
           });
-        } catch (paymentErr) {
+        } catch (paymentErr: any) {
           console.error("Failed to record initial payment:", paymentErr);
           toast({
             title: "Warning",
-            description: "Invoice created, but failed to record the initial payment.",
+            description: `Invoice created, but failed to record the initial payment.${paymentErr?.response?.data?.message ? ` ${paymentErr.response.data.message}` : ""}`,
             variant: "destructive"
           });
         }
@@ -512,10 +545,16 @@ export default function InvoiceCreate() {
 
       toast({ 
         title: isEdit ? "Invoice Updated Successfully!" : "Invoice Created Successfully!", 
-        description: `Invoice ${formData.number} has been ${isEdit ? 'updated' : 'recorded'} in the system.`,
+        description: sendAfterSaveRef.current
+          ? `Invoice ${formData.number} is saved. Now send it by email.`
+          : `Invoice ${formData.number} has been ${isEdit ? 'updated' : 'recorded'} in the system.`,
         className: "bg-green-600 text-white font-bold rounded-2xl shadow-2xl border-none",
       });
-      if (clientId) {
+      const savedId = createdInvoice?._id || createdInvoice?.id || id;
+      if (sendAfterSaveRef.current && savedId) {
+        // The server marks it "sent" once the email has actually gone out.
+        navigate(`/admin/invoices?view=${savedId}&send=1`);
+      } else if (clientId) {
         // Redirect back to the customer view, specifically the invoices tab
         navigate(`/admin/customers/${clientId}?tab=invoices`);
       } else {
@@ -532,6 +571,8 @@ export default function InvoiceCreate() {
   });
 
   const handleSave = (statusArg: string) => {
+    // One save at a time — a double click used to create two invoices.
+    if (mutation.isPending || savingRef.current) return;
     if (canUseBranch && !formData.branch) {
       toast({
         title: "Validation Error",
@@ -556,19 +597,45 @@ export default function InvoiceCreate() {
       return;
     }
     
+    if (discountType === "percent" && (Number(discountValue) < 0 || Number(discountValue) > 100)) {
+      toast({ title: "Validation Error", description: "Discount must be between 0 and 100%.", variant: "destructive" });
+      return;
+    }
+    if (discountType === "fixed" && (Number(discountValue) < 0 || Number(discountValue) > calculations.subTotal)) {
+      toast({ title: "Validation Error", description: "Discount cannot be negative or more than the subtotal.", variant: "destructive" });
+      return;
+    }
+    if (calculations.total < 0) {
+      toast({ title: "Validation Error", description: "Invoice total cannot be negative.", variant: "destructive" });
+      return;
+    }
+    if (formData.date && formData.duedate && formData.duedate < formData.date) {
+      toast({ title: "Validation Error", description: "Due date cannot be before the invoice date.", variant: "destructive" });
+      return;
+    }
+
     let finalStatus = status;
-    
+    let initialPayment = Number(amountPaid) || 0;
+
     // If the user specifically saves as draft, override status to draft
     if (statusArg === 'draft') {
       finalStatus = 'draft';
+      initialPayment = 0;
+    } else if (statusArg === 'sent_later' && !isEdit && status === 'unpaid') {
+      finalStatus = statusArg;
     } else if (statusArg === 'recorded') {
-      // If they click Save & Record Payment, we automatically treat it as paid
-      finalStatus = 'paid';
-      if (!amountPaid || Number(amountPaid) <= 0) {
-        setAmountPaid(calculations.total);
-      }
+      // Save & Record Payment: pay the full total unless an amount was typed.
+      if (initialPayment <= 0) initialPayment = calculations.total;
     }
-    
+    if (!isEdit && initialPayment > calculations.total + 0.005) {
+      toast({ title: "Validation Error", description: "Amount paid cannot be more than the invoice total.", variant: "destructive" });
+      return;
+    }
+    // Paid / Partially Paid come from payments: a new invoice is saved unpaid
+    // and the initial payment below sets the real status.
+    if (!isEdit && ["paid", "partially_paid", "recorded"].includes(finalStatus)) finalStatus = "unpaid";
+    initialPaymentRef.current = isEdit ? 0 : initialPayment;
+
     const payload: any = { 
       client: formData.client,
       number: formData.number,
@@ -606,20 +673,22 @@ export default function InvoiceCreate() {
         unit: item.unit || "",
         gstPercentage: Number(item.gstPercentage) || 0,
         freight_charge: Number(item.freight_charge) || 0,
-        amount: Number(item.amount) || (Number(item.qty) || 0) * (Number(item.rate) || 0)
+        amount: Math.round((Number(item.qty) || 0) * (Number(item.rate) || 0) * 100) / 100
       })),
-      discount_percent: Number(discountType === "percent" ? discountValue : 0) || 0,
+      tags: formData.tags.map((t) => t.trim()).filter(Boolean),
+      // Saved exactly as shown in the totals box; the server recalculates the totals.
+      discount_type: discountType,
+      discount_percent: discountType === "percent" ? Number(discountValue) || 0 : 0,
+      discount_fixed: discountType === "fixed" ? Number(discountValue) || 0 : 0,
       adjustment: Number(adjustmentValue) || 0,
-      subtotal: Number(calculations.subTotal) || 0,
-      total_freight: Number(calculations.totalFreight) || 0,
-      total_tax: Number(calculations.totalTax) || 0,
-      total: Number(calculations.total) || 0
     };
 
     // Remove undefined fields to be clean
     Object.keys(payload).forEach(key => payload[key] === undefined && delete payload[key]);
     
-    mutation.mutate(payload);
+    savingRef.current = true;
+    sendAfterSaveRef.current = statusArg === 'sent';
+    mutation.mutate(payload, { onSettled: () => { savingRef.current = false; } });
   };
 
   return (
@@ -640,25 +709,31 @@ export default function InvoiceCreate() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Column: Basic Info */}
-          <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
-            <CardContent className="p-8 space-y-8">
+          <Card className="border border-border/60 shadow-sm rounded-xl bg-background overflow-hidden">
+            <CardContent className="p-4 sm:p-6 space-y-6">
               {/* Branch — pilot-only, dynamically fetched from HRMS */}
               {canUseBranch && (
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
-                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Branch</Label>
+                    <Label className="text-sm font-medium text-foreground">Branch</Label>
                     <span className="text-destructive text-lg leading-none">*</span>
                   </div>
                   <Select
                     value={formData.branch || "none"}
                     onValueChange={(v) => {
                       const val = v === "none" ? "" : v;
-                      setFormData(p => ({ ...p, branch: val, client: "", project: "" }));
+                      // Only clear the customer when it does not belong to the new branch
+                      // (and never on edit — the invoice keeps its customer).
+                      setFormData(p => {
+                        const current = customers.find((c: any) => String(c._id) === String(p.client));
+                        const keep = isEdit || (current && inBranch(current, val));
+                        return { ...p, branch: val, ...(keep ? {} : { client: "", project: "" }) };
+                      });
                     }}
                   >
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                    <SelectTrigger className="h-10 rounded-lg bg-background border-border/50 shadow-sm font-medium">
                       <SelectValue placeholder="Select Branch" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-border/50 shadow-xl">
@@ -674,7 +749,7 @@ export default function InvoiceCreate() {
               {/* Customer Selection */}
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Customer</Label>
+                  <Label className="text-sm font-medium text-foreground">Customer</Label>
                   <span className="text-destructive text-lg leading-none">*</span>
                 </div>
                 <SearchableSelect
@@ -687,9 +762,9 @@ export default function InvoiceCreate() {
 
               {/* Project Selection */}
               <div className="space-y-2.5">
-                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Project</Label>
+                <Label className="text-sm font-medium text-foreground">Project</Label>
                 <Select value={formData.project} onValueChange={(v) => setFormData(p => ({ ...p, project: v }))}>
-                  <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                  <SelectTrigger className="h-10 rounded-lg bg-background border-border/50 shadow-sm font-medium">
                     <SelectValue placeholder="Select and begin typing" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-border/50 shadow-xl">
@@ -736,12 +811,12 @@ export default function InvoiceCreate() {
               {/* Invoice Number */}
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Invoice Number</Label>
+                  <Label className="text-sm font-medium text-foreground">Invoice Number</Label>
                   <span className="text-destructive text-lg leading-none">*</span>
                   <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/50 cursor-help" />
                 </div>
                 <Input
-                  className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-mono font-bold text-lg tracking-wider"
+                  className="h-10 rounded-lg border-border/50 bg-background shadow-sm font-mono font-bold text-lg tracking-wider"
                   value={formData.number}
                   placeholder={!isEdit && !invoiceDefaults ? "Loading next number…" : ""}
                   onChange={(e) => {
@@ -762,23 +837,23 @@ export default function InvoiceCreate() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
-                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Invoice Date</Label>
+                    <Label className="text-sm font-medium text-foreground">Invoice Date</Label>
                     <span className="text-destructive text-lg leading-none">*</span>
                   </div>
                   <Input 
                     type="date" 
-                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
+                    className="h-10 rounded-lg border-border/50 bg-background shadow-sm font-bold"
                     value={formData.date}
                     onChange={(e) => setFormData(p => ({ ...p, date: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
-                    <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Due Date</Label>
+                    <Label className="text-sm font-medium text-foreground">Due Date</Label>
                   </div>
                   <Input 
                     type="date" 
-                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
+                    className="h-10 rounded-lg border-border/50 bg-background shadow-sm font-bold"
                     value={formData.duedate}
                     onChange={(e) => {
                       setDueTouched(true);
@@ -788,29 +863,16 @@ export default function InvoiceCreate() {
                 </div>
               </div>
 
-              {/* Checkbox */}
-              <div className="flex items-center space-x-3 bg-primary/5 p-4 rounded-2xl border border-primary/10">
-                <Checkbox 
-                  id="prevent-reminders" 
-                  checked={formData.prevent_overdue_reminders}
-                  onCheckedChange={(checked) => setFormData(p => ({ ...p, prevent_overdue_reminders: checked as boolean }))}
-                  className="rounded-md border-primary/20 data-[state=checked]:bg-primary"
-                />
-                <Label htmlFor="prevent-reminders" className="text-xs font-bold text-primary/80 cursor-pointer">
-                  Prevent sending overdue reminders for this invoice
-                </Label>
-              </div>
-
               {/* Voucher / Party Details */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-border/30 border-dashed">
                 {isEkagraUser(user?.email) && (
                   <div className="space-y-2.5 sm:col-span-2">
-                    <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Document Type (Letterhead PDF)</Label>
+                    <Label className="text-sm font-medium text-foreground">Document Type (Letterhead PDF)</Label>
                     <Select
                       value={formData.document_type || "auto"}
                       onValueChange={(v) => setFormData(p => ({ ...p, document_type: v === "auto" ? "" : v }))}
                     >
-                      <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium sm:max-w-sm">
+                      <SelectTrigger className="h-10 rounded-lg bg-background border-border/50 shadow-sm font-medium sm:max-w-sm">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -822,19 +884,19 @@ export default function InvoiceCreate() {
                   </div>
                 )}
                 <div className="space-y-2.5">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Voucher Type</Label>
+                  <Label className="text-sm font-medium text-foreground">Voucher Type</Label>
                   <Input
                     placeholder="e.g. Sales"
-                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    className="h-10 rounded-lg border-border/50 bg-background shadow-sm font-medium"
                     value={formData.voucherType}
                     onChange={(e) => setFormData(p => ({ ...p, voucherType: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">GSTIN/UIN</Label>
+                  <Label className="text-sm font-medium text-foreground">GSTIN/UIN</Label>
                   <Input
                     placeholder="Party GSTIN"
-                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    className="h-10 rounded-lg border-border/50 bg-background shadow-sm font-medium"
                     value={formData.gstin}
                     onChange={(e) => setFormData(p => ({ ...p, gstin: e.target.value.toUpperCase() }))}
                   />
@@ -842,10 +904,10 @@ export default function InvoiceCreate() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">VAT Number</Label>
+                  <Label className="text-sm font-medium text-foreground">VAT Number</Label>
                   <Input
                     placeholder="Party VAT number"
-                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    className="h-10 rounded-lg border-border/50 bg-background shadow-sm font-medium"
                     value={formData.vat}
                     onChange={(e) => setFormData(p => ({ ...p, vat: e.target.value }))}
                   />
@@ -857,7 +919,7 @@ export default function InvoiceCreate() {
                 )}
               </div>
               <div className="space-y-2.5">
-                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Party Address</Label>
+                <Label className="text-sm font-medium text-foreground">Party Address</Label>
                 <Textarea
                   className="min-h-[80px] rounded-2xl border-border/50 bg-background shadow-sm p-4 text-xs font-medium resize-none"
                   placeholder="Party address..."
@@ -867,19 +929,19 @@ export default function InvoiceCreate() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-2.5">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Party Group</Label>
+                  <Label className="text-sm font-medium text-foreground">Party Group</Label>
                   <Input
                     placeholder="Party Group"
-                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    className="h-10 rounded-lg border-border/50 bg-background shadow-sm font-medium"
                     value={formData.partyGroup}
                     onChange={(e) => setFormData(p => ({ ...p, partyGroup: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-2.5">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Terms of Payment</Label>
+                  <Label className="text-sm font-medium text-foreground">Terms of Payment</Label>
                   <Input
                     placeholder="e.g. Net 30"
-                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-medium"
+                    className="h-10 rounded-lg border-border/50 bg-background shadow-sm font-medium"
                     value={formData.termsOfPayment}
                     onChange={(e) => setFormData(p => ({ ...p, termsOfPayment: e.target.value }))}
                   />
@@ -889,33 +951,35 @@ export default function InvoiceCreate() {
           </Card>
 
           {/* Right Column: Settings */}
-          <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden">
-            <CardContent className="p-8 space-y-6">
+          <Card className="border border-border/60 shadow-sm rounded-xl bg-background overflow-hidden">
+            <CardContent className="p-4 sm:p-6 space-y-5">
               {/* Tags */}
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2">
                   <TagIcon className="h-3.5 w-3.5 text-primary" />
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Tags</Label>
+                  <Label className="text-sm font-medium text-foreground">Tags</Label>
                 </div>
-                <Input 
-                  placeholder="Tag" 
-                  className="h-12 rounded-2xl border-border/50 bg-background shadow-sm text-xs font-bold"
+                <Input
+                  placeholder="Tags, separated by commas"
+                  className="h-10 rounded-lg border-border/50 bg-background shadow-sm text-xs font-bold"
+                  value={formData.tags.join(", ")}
+                  onChange={(e) => setFormData(p => ({ ...p, tags: e.target.value.split(",").map((t) => t.trimStart()) }))}
                 />
               </div>
 
               {/* Payment Modes */}
               <div className="space-y-2.5">
-                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Allowed payment modes for this invoice</Label>
+                <Label className="text-sm font-medium text-foreground">Payment mode (for the amount paid now)</Label>
                 <Select 
                   value={formData.allowed_payment_modes[0]} 
                   onValueChange={(v) => setFormData(p => ({ ...p, allowed_payment_modes: [v] }))}
                 >
-                  <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                  <SelectTrigger className="h-10 rounded-lg bg-background border-border/50 shadow-sm font-medium">
                     <SelectValue placeholder="Bank" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-border/50 shadow-xl">
                     {paymentModes.map((m: any) => (
-                      <SelectItem key={m._id} value={m._id}>{m.name}</SelectItem>
+                      <SelectItem key={m._id} value={m.name}>{m.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -925,14 +989,14 @@ export default function InvoiceCreate() {
                 {/* Currency */}
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2">
-                    <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Currency</Label>
+                    <Label className="text-sm font-medium text-foreground">Currency</Label>
                     <span className="text-destructive text-lg leading-none">*</span>
                   </div>
                   <Select 
                     value={formData.currency || currencies.find((c: any) => c.isdefault)?.name}
                     onValueChange={(v) => setFormData(p => ({ ...p, currency: v }))}
                   >
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                    <SelectTrigger className="h-10 rounded-lg bg-background border-border/50 shadow-sm font-medium">
                       <SelectValue placeholder={`Default (${symbol})`} />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-border/50 shadow-xl">
@@ -944,12 +1008,12 @@ export default function InvoiceCreate() {
                 </div>
                 {/* Sale Agent */}
                 <div className="space-y-2.5">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Sale Agent</Label>
+                  <Label className="text-sm font-medium text-foreground">Sale Agent</Label>
                   <Select 
                     value={formData.sale_agent} 
                     onValueChange={(v) => setFormData(p => ({ ...p, sale_agent: v }))}
                   >
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                    <SelectTrigger className="h-10 rounded-lg bg-background border-border/50 shadow-sm font-medium">
                       <SelectValue placeholder="Select Agent" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-border/50 shadow-xl">
@@ -964,12 +1028,12 @@ export default function InvoiceCreate() {
               {/* Sales Person */}
               {isPilot && (
                 <div className="space-y-2.5">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Sales Person</Label>
+                  <Label className="text-sm font-medium text-foreground">Sales Person</Label>
                   <Select 
                     value={formData.salesPerson || "none"} 
                     onValueChange={(v) => setFormData(p => ({ ...p, salesPerson: v === "none" ? "" : v }))}
                   >
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                    <SelectTrigger className="h-10 rounded-lg bg-background border-border/50 shadow-sm font-medium">
                       <SelectValue placeholder="Select Sales Person" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-border/50 shadow-xl">
@@ -988,12 +1052,12 @@ export default function InvoiceCreate() {
               {/* Bank Details */}
               {canUseBankDetails && (
                 <div className="space-y-2.5">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Bank Details</Label>
+                  <Label className="text-sm font-medium text-foreground">Bank Details</Label>
                   <Select
                     value={formData.bank_detail || "none"}
                     onValueChange={(v) => setFormData(p => ({ ...p, bank_detail: v === "none" ? "" : v }))}
                   >
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                    <SelectTrigger className="h-10 rounded-lg bg-background border-border/50 shadow-sm font-medium">
                       <SelectValue placeholder="Select Bank Account" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-border/50 shadow-xl">
@@ -1008,41 +1072,11 @@ export default function InvoiceCreate() {
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {/* Recurring */}
-                <div className="space-y-2.5">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Recurring Invoice?</Label>
-                  <Select value={formData.recurring} onValueChange={(v) => setFormData(p => ({ ...p, recurring: v }))}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
-                      <SelectItem value="no">No</SelectItem>
-                      <SelectItem value="yes">Yes</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {/* Discount Type */}
-                <div className="space-y-2.5">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Discount Type</Label>
-                  <Select value={formData.discount_type} onValueChange={(v) => setFormData(p => ({ ...p, discount_type: v }))}>
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
-                      <SelectItem value="no_discount">No discount</SelectItem>
-                      <SelectItem value="before_tax">Before Tax</SelectItem>
-                      <SelectItem value="after_tax">After Tax</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
               {/* Status and Initial Payment */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-border/30 border-dashed">
                 {/* Status Selection */}
                 <div className="space-y-2.5">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Status</Label>
+                  <Label className="text-sm font-medium text-foreground">Status</Label>
                   <Select 
                     value={status} 
                     onValueChange={(val) => {
@@ -1055,7 +1089,7 @@ export default function InvoiceCreate() {
                     }}
                     disabled={isEdit}
                   >
-                    <SelectTrigger className="h-12 rounded-2xl bg-background border-border/50 shadow-sm font-medium">
+                    <SelectTrigger className="h-10 rounded-lg bg-background border-border/50 shadow-sm font-medium">
                       <SelectValue placeholder="Select Status" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-border/50 shadow-xl">
@@ -1063,7 +1097,7 @@ export default function InvoiceCreate() {
                       <SelectItem value="partially_paid">Partially Paid</SelectItem>
                       <SelectItem value="paid">Paid</SelectItem>
                       <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="overdue">Overdue</SelectItem>
+                      
                       <SelectItem value="cancelled">Cancelled</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1072,11 +1106,11 @@ export default function InvoiceCreate() {
 
                 {/* Amount Paid */}
                 <div className="space-y-2.5">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-primary">Amount Paid</Label>
+                  <Label className="text-sm font-medium text-foreground">Amount Paid</Label>
                   <Input 
                     type="number"
                     placeholder="e.g. 50% of total"
-                    className="h-12 rounded-2xl border-border/50 bg-background shadow-sm font-bold"
+                    className="h-10 rounded-lg border-border/50 bg-background shadow-sm font-bold"
                     value={amountPaid}
                     onChange={(e) => {
                       const val = e.target.value === "" ? "" : Number(e.target.value);
@@ -1098,9 +1132,9 @@ export default function InvoiceCreate() {
 
               {/* Admin Note */}
               <div className="space-y-2.5 pt-4">
-                <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Admin Note</Label>
+                <Label className="text-sm font-medium text-foreground">Admin Note</Label>
                 <Textarea 
-                  className="min-h-[120px] rounded-[2rem] border-border/50 bg-background/50 shadow-sm p-6 text-xs font-medium resize-none focus:ring-primary/20"
+                  className="min-h-[100px] rounded-lg border-border/50 bg-background p-3 text-sm resize-y"
                   placeholder="Private note for administration..."
                   value={formData.adminnote}
                   onChange={(e) => setFormData(p => ({ ...p, adminnote: e.target.value }))}
@@ -1111,8 +1145,8 @@ export default function InvoiceCreate() {
         </div>
 
         {/* Items Section */}
-        <Card className="border-none shadow-2xl shadow-primary/5 rounded-[2.5rem] bg-background/60 backdrop-blur-xl overflow-hidden mt-8">
-          <CardContent className="p-8 space-y-8">
+        <Card className="border border-border/60 shadow-sm rounded-xl bg-background overflow-hidden mt-8">
+          <CardContent className="p-4 sm:p-6 space-y-6">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="flex items-center gap-4 flex-1 w-full md:w-auto">
                 <div className="flex-1 max-w-sm">
@@ -1143,48 +1177,6 @@ export default function InvoiceCreate() {
                       });
                     }}
                   />
-                </div>
-                <div className="w-48">
-                  <Select>
-                    <SelectTrigger className="h-10 rounded-xl bg-background border-border/50 shadow-sm text-xs font-bold">
-                      <SelectValue placeholder="Bill Tasks" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-border/50">
-                      <SelectItem value="none">No Tasks</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <HelpCircle className="h-4 w-4 text-muted-foreground/50 cursor-help" />
-              </div>
-              
-              <div className="flex items-center gap-6 bg-muted/20 px-6 py-2 rounded-2xl border border-border/50">
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Show quantity as:</span>
-                <div className="flex items-center gap-4">
-                  {[
-                    { id: "qty", label: "Qty" },
-                    { id: "hours", label: "Hours" },
-                    { id: "qty_hours", label: "Qty/Hours" }
-                  ].map((opt) => (
-                    <label key={opt.id} className="flex items-center gap-2 cursor-pointer group">
-                      <div className={cn(
-                        "h-4 w-4 rounded-full border-2 flex items-center justify-center transition-all",
-                        showQtyAs === opt.id ? "border-primary bg-primary" : "border-border/50 group-hover:border-primary/50"
-                      )}>
-                        {showQtyAs === opt.id && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
-                      </div>
-                      <input 
-                        type="radio" 
-                        name="qty_as" 
-                        className="hidden" 
-                        checked={showQtyAs === opt.id}
-                        onChange={() => setShowQtyAs(opt.id)}
-                      />
-                      <span className={cn(
-                        "text-[11px] font-bold transition-colors",
-                        showQtyAs === opt.id ? "text-foreground" : "text-muted-foreground"
-                      )}>{opt.label}</span>
-                    </label>
-                  ))}
                 </div>
               </div>
             </div>
@@ -1332,7 +1324,7 @@ export default function InvoiceCreate() {
                       </Select>
                     </TableCell>
                     {(() => {
-                      const taxRate = taxes.find(t => t._id === newItem.tax)?.taxrate || newItem.gstPercentage || 0;
+                      const taxRate = lineTaxRate(newItem);
                       const taxable = newItem.qty * newItem.rate + (Number(newItem.freight_charge) || 0);
                       const taxAmt = taxable * (taxRate / 100);
                       return (
@@ -1355,7 +1347,7 @@ export default function InvoiceCreate() {
 
                   {/* Added Items List */}
                   {items.map((item) => {
-                    const taxRate = taxes.find(t => t._id === item.tax)?.taxrate || item.gstPercentage || 0;
+                    const taxRate = lineTaxRate(item);
                     const itemFreight = Number(item.freight_charge) || 0;
                     const taxable = item.qty * item.rate + itemFreight;
                     const taxAmt = taxable * (taxRate / 100);
@@ -1394,18 +1386,18 @@ export default function InvoiceCreate() {
               {/* Additional Notes */}
               <div className="space-y-8">
                 <div className="space-y-3">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Client Note</Label>
+                  <Label className="text-sm font-medium text-foreground">Client Note</Label>
                   <Textarea 
-                    className="min-h-[120px] rounded-[2rem] border-border/50 bg-background/50 shadow-sm p-6 text-xs font-medium resize-none focus:ring-primary/20"
+                    className="min-h-[100px] rounded-lg border-border/50 bg-background p-3 text-sm resize-y"
                     placeholder="Note for the client..."
                     value={formData.client_note}
                     onChange={(e) => setFormData(p => ({ ...p, client_note: e.target.value }))}
                   />
                 </div>
                 <div className="space-y-3">
-                  <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground">Terms & Conditions</Label>
+                  <Label className="text-sm font-medium text-foreground">Terms & Conditions</Label>
                   <Textarea 
-                    className="min-h-[120px] rounded-[2rem] border-border/50 bg-background/50 shadow-sm p-6 text-xs font-medium resize-none focus:ring-primary/20"
+                    className="min-h-[100px] rounded-lg border-border/50 bg-background p-3 text-sm resize-y"
                     placeholder="Invoice terms and conditions..."
                     value={formData.terms}
                     onChange={(e) => setFormData(p => ({ ...p, terms: e.target.value }))}
@@ -1414,7 +1406,7 @@ export default function InvoiceCreate() {
               </div>
 
               {/* Totals Box */}
-              <div className="space-y-4 bg-muted/10 p-8 rounded-[2.5rem] border border-border/50 h-fit self-end">
+              <div className="space-y-3 bg-muted/20 p-4 sm:p-6 rounded-xl border border-border/50 h-fit self-end w-full">
                 <div className="flex justify-between items-center text-sm font-bold text-muted-foreground border-b border-border/30 pb-4">
                   <span>Sub Total :</span>
                   <span className="text-foreground">{formatDocAmount(calculations.subTotal)}</span>
@@ -1460,7 +1452,7 @@ export default function InvoiceCreate() {
                   </div>
                 ) : (
                   (() => {
-                    const isIntra = !customer.state || customer.state.toLowerCase().includes(homeStateName);
+                    const isIntra = isIntraState();
                     return isIntra ? (
                       <>
                         <div className="flex justify-between items-center py-1">
@@ -1503,8 +1495,8 @@ export default function InvoiceCreate() {
                 </div>
 
                 <div className="flex justify-between items-center pt-6 border-t-2 border-primary/20">
-                  <span className="text-lg font-black uppercase tracking-widest text-primary">Total :</span>
-                  <span className="text-2xl font-black text-primary">{formatDocAmount(calculations.total)}</span>
+                  <span className="text-base font-semibold">Total</span>
+                  <span className="text-xl font-bold">{formatDocAmount(calculations.total)}</span>
                 </div>
 
                 {typeof amountPaid === "number" && amountPaid > 0 && (() => {
@@ -1528,60 +1520,43 @@ export default function InvoiceCreate() {
             </div>
 
             {/* Final Actions */}
-            <div className="pt-12 flex flex-col md:flex-row gap-4 items-center justify-end">
-              <div className="flex gap-4">
-                <Button 
-                  variant="outline"
-                  className="h-11 px-6 rounded-xl font-black uppercase tracking-widest text-[10px] border-2 hover:bg-primary/5 transition-all"
-                  onClick={() => handleSave('draft')}
+            <div className="pt-6 flex flex-wrap gap-3 items-center justify-end">
+              <Button
+                variant="ghost"
+                className="h-10 px-4 rounded-lg text-sm text-muted-foreground"
+                disabled={mutation.isPending}
+                onClick={() => navigate(-1)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                className="h-10 px-4 rounded-lg text-sm font-semibold"
+                disabled={mutation.isPending}
+                onClick={() => handleSave('draft')}
+              >
+                Save as Draft
+              </Button>
+              <div className="flex items-center -space-x-px">
+                <Button
+                  className="h-10 px-6 rounded-l-lg rounded-r-none text-sm font-semibold border-r border-white/10"
+                  disabled={mutation.isPending}
+                  onClick={() => handleSave('save')}
                 >
-                  Save as Draft
+                  {mutation.isPending ? "Saving..." : "Save"}
                 </Button>
-                <div className="flex items-center -space-x-px">
-                  <Button 
-                    className="h-11 px-8 rounded-l-xl rounded-r-none font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 active:scale-95 transition-all border-r border-white/10"
-                    onClick={() => handleSave('sent')}
-                  >
-                    Save
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button 
-                        className="h-11 px-3 rounded-l-none rounded-r-xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-primary/20 active:scale-95 transition-all"
-                      >
-                        <ChevronDown className="h-3.5 w-3.5 opacity-70" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-56 rounded-xl border-border/50 shadow-xl p-1">
-                      <DropdownMenuItem 
-                        className="gap-3 py-2.5 px-4 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
-                        onClick={() => handleSave('sent')}
-                      >
-                        <span className="text-[10px] font-black uppercase tracking-widest">Save & Send</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        className="gap-3 py-2.5 px-4 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
-                        onClick={() => handleSave('sent_later')}
-                      >
-                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Save & Send Later</span>
-                      </DropdownMenuItem>
-                      <div className="h-px bg-border/50 my-1 mx-1" />
-                      <DropdownMenuItem 
-                        className="gap-3 py-2.5 px-4 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
-                        onClick={() => handleSave('recorded')}
-                      >
-                        <span className="text-[10px] font-black uppercase tracking-widest text-primary">Save & Record Payment</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  className="h-11 px-6 rounded-xl font-black uppercase tracking-widest text-[10px] text-muted-foreground hover:bg-destructive/5 hover:text-destructive transition-colors"
-                  onClick={() => navigate(-1)}
-                >
-                  Discard Changes
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button className="h-10 px-3 rounded-l-none rounded-r-lg" disabled={mutation.isPending} aria-label="More save options">
+                      <ChevronDown className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem onClick={() => handleSave('sent')}>Save & Send</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleSave('sent_later')}>Save & Send Later</DropdownMenuItem>
+                    {!isEdit && <DropdownMenuItem onClick={() => handleSave('recorded')}>Save & Record Payment</DropdownMenuItem>}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </CardContent>

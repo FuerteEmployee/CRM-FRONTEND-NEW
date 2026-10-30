@@ -46,7 +46,9 @@ export const stripCurrencySymbol = (formatted: string, symbol: string) =>
 
 /** Tax cell of an item row: "GST 18%" (name + rate) or just "18%" with "Remove the tax name". */
 export const itemTaxLabel = (item: any, opts: Pick<DocDisplayOptions, "removeTaxName">) => {
-  const rate = Number(item.tax || item.gstPercentage || 0);
+  // Same rule as the server: the line's tax wins (even 0); GST % only when no tax is set.
+  const hasTax = item.tax !== undefined && item.tax !== null && item.tax !== "";
+  const rate = Number(hasTax ? item.tax : item.gstPercentage) || 0;
   const pct = `${rate}%`;
   const name = String(item.tax_name || "").trim();
   if (!rate) return "0%";
@@ -56,7 +58,12 @@ export const itemTaxLabel = (item: any, opts: Pick<DocDisplayOptions, "removeTax
 
 /** "Amount to words" line, e.g. "Fifty Five Thousand Nine Hundred Four Only". */
 export const amountInWords = (amount: number, opts: Pick<DocDisplayOptions, "amountToWordsLower">) => {
-  const words = amountToWords(Math.round(Number(amount) || 0));
+  // Rupees and paise, matching the printed total (1168.66 is not written as 1169).
+  const paiseTotal = Math.round(Math.abs(Number(amount) || 0) * 100);
+  const rupees = Math.floor(paiseTotal / 100) * (Number(amount) < 0 ? -1 : 1);
+  const paise = paiseTotal % 100;
+  let words = amountToWords(rupees);
+  if (paise) words = words.replace(/ Only$/, "") + ` and ${amountToWords(paise).replace(/ Only$/, "")} Paise Only`;
   return opts.amountToWordsLower ? words.toLowerCase() : words;
 };
 

@@ -19,10 +19,12 @@ import { DataTable } from "@/components/shared/DataTable";
 import { DEFAULT_WHATSAPP_QC_TEMPLATES, type WhatsappQcTemplateEntry } from "@/lib/whatsappQuickChat";
 import { WhatsappQuickChatSettingsTab } from "./WhatsappQuickChatSettingsTab";
 import { ClaudeConnectorSettingsTab } from "./ClaudeConnectorSettingsTab";
+import { PurchaseSettingsTab } from "./PurchaseSettingsTab";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isProcurementTypesEnabled } from "@/lib/procurement";
 import { getAvailableInvoicePdfFormats, DEFAULT_INVOICE_PDF_FORMAT } from "@/lib/invoicePdfFormats";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { financeService } from "@/api/services/finance.service";
 import { staffService } from "@/api/services/staff.service";
 import { leadService } from "@/api/services/lead.service";
@@ -53,6 +55,7 @@ import {
   RefreshCw,
   Server,
   FileText,
+  ShoppingCart,
   CreditCard,
   Target,
   Users,
@@ -137,7 +140,8 @@ const settingsNavigation: SettingCategory[] = [
       { id: "fin-estimates", label: "Estimates", icon: Target },
       { id: "fin-credit-notes", label: "Credit Notes", icon: CreditCard },
       { id: "fin-subscriptions", label: "Subscriptions", icon: RefreshCw },
-      { id: "fin-gateways", label: "Payment Gateways", icon: CreditCard },
+            { id: "fin-gateways", label: "Payment Gateways", icon: CreditCard },
+      { id: "fin-purchases", label: "Purchases", icon: ShoppingCart },
     ]
   },
   {
@@ -185,9 +189,18 @@ const settingsNavigation: SettingCategory[] = [
 
 
 export default function SetupSettings() {
-  const [activeTab, setActiveTab] = useState("gen-general");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "gen-general");
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
   const { settings: globalSettings, refreshSettings: refreshGlobalSettings } = useSettings();
   const { user: currentUser } = usePermissions();
+  const isKiranProcurement = isProcurementTypesEnabled(currentUser);
 
   const { data: estimateForms = [] } = useQuery({
     queryKey: ["estimate-request-forms"],
@@ -2256,6 +2269,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                 <SystemInfoPanel />
               </Card>
             )}
+
+            {activeTab === "fin-purchases" && <PurchaseSettingsTab />}
 
             {activeTab === "fin-general" && (
               <Card className="border shadow-sm">
@@ -6762,7 +6777,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
             )}
 
             {/* Placeholder for other tabs */}
-            {!["gen-general", "gen-company", "gen-localization", "gen-email", "gen-update", "gen-server", "fin-general", "fin-invoices", "fin-proposals", "fin-estimates", "fin-credit-notes", "fin-subscriptions", "fin-gateways", "feat-customers", "feat-tasks", "feat-support", "feat-leads", "int-google", "int-pusher", "int-external-api", "int-whatsapp-qc", "oth-calendar", "oth-pdf", "oth-esign", "oth-tags", "oth-sms", "misc-misc", "misc-tables", "misc-inline", "misc-cron"].includes(activeTab) && (
+            {!["gen-general", "gen-company", "gen-localization", "gen-email", "gen-update", "gen-server", "fin-general", "fin-invoices", "fin-proposals", "fin-estimates", "fin-credit-notes", "fin-subscriptions", "fin-gateways", "fin-purchases", "feat-customers", "feat-tasks", "feat-support", "feat-leads", "int-google", "int-pusher", "int-external-api", "int-whatsapp-qc", "oth-calendar", "oth-pdf", "oth-esign", "oth-tags", "oth-sms", "misc-misc", "misc-tables", "misc-inline", "misc-cron"].includes(activeTab) && (
               <Card className="border shadow-sm min-h-[400px] flex items-center justify-center bg-muted/10">
                 <div className="text-center space-y-3">
                   <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">

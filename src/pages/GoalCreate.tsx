@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,50 +6,38 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
-import { 
-  ArrowLeft, 
-  Save, 
-  Target,
-  User,
-  Calendar,
-  Info,
-  Bell,
-  Loader2
-} from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Save } from "lucide-react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { goalService } from "@/services/goal.service";
-import { apiClient } from "@/api/client";
-
-const GOAL_TYPES = [
-  { value: "total_income", label: "Achieve Total Income", description: "Income will be calculated in your base currency (not converted)" },
-  { value: "invoiced_amount", label: "Invoiced Amount", description: "" },
-  { value: "convert_leads", label: "Convert X Leads", description: "" },
-  { value: "customer_num_exclude", label: "Increase Customer Number", description: "Leads Conversion is Excluded" },
-  { value: "customer_num_include", label: "Increase Customer Number", description: "Leads Conversions is Included" },
-  { value: "contracts_by_type_added", label: "Make Contracts By Type", description: "Is calculated from the date added to database" },
-  { value: "contracts_by_type_start", label: "Make Contracts By Type", description: "Is calculated from the contract start date" },
-  { value: "estimates_conversion", label: "X Estimates Conversion", description: "Will be taken only estimates that will be converted to invoices" },
-];
+import { usePermissions } from "@/hooks/usePermissions";
+import { GOAL_TYPES, isContractGoal, toDateInput } from "@/lib/goalTypes";
 
 const GoalCreate = () => {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const { id } = useParams();
   const queryClient = useQueryClient();
+  const { can } = usePermissions();
   const isEdit = !!id;
-  
+  const listPath = `${pathname.startsWith("/staff") ? "/staff" : "/admin"}/goals`;
+  const canSave = can("Goals", isEdit ? "Edit" : "Create");
+  // Blocks a second click before React re-renders the disabled button.
+  const submitting = useRef(false);
+
   const [formData, setFormData] = useState({
     subject: "",
     goal_type: "",
     staff_member: "",
+    contract_type: "",
     achievement: "",
     start_date: "",
     end_date: "",
@@ -58,26 +46,39 @@ const GoalCreate = () => {
     notify_on_fail: true
   });
 
-  const { data: staff = [] } = useQuery({
-    queryKey: ["staff"],
-    queryFn: () => apiClient.get("/staff")
+  const { data: options } = useQuery({
+    queryKey: ["goal-options"],
+    queryFn: goalService.getGoalOptions,
   });
+  const staff = options?.staff ?? [];
+  const contractTypes = options?.contractTypes ?? [];
 
-  const { data: goalData, isLoading: isLoadingGoal } = useQuery({
+  const { data: goalData, isLoading: isLoadingGoal, isError } = useQuery({
     queryKey: ["goal", id],
     queryFn: () => goalService.getGoalById(id!),
     enabled: isEdit,
+    retry: false,
   });
+  // apiClient.get turns a 404 into [] rather than throwing.
+  const goalMissing = isEdit && (isError || (!!goalData && !goalData._id));
 
   useEffect(() => {
-    if (goalData) {
+    if (goalMissing) {
+      toast.error("Goal not found");
+      navigate(listPath);
+    }
+  }, [goalMissing, listPath, navigate]);
+
+  useEffect(() => {
+    if (goalData?._id) {
       setFormData({
         subject: goalData.subject || "",
         goal_type: goalData.goal_type || "",
         staff_member: typeof goalData.staff_member === "object" ? goalData.staff_member?._id : goalData.staff_member || "",
+        contract_type: (typeof goalData.contract_type === "object" ? goalData.contract_type?._id : goalData.contract_type) || "",
         achievement: goalData.achievement?.toString() || "",
-        start_date: goalData.start_date ? new Date(goalData.start_date).toISOString().split('T')[0] : "",
-        end_date: goalData.end_date ? new Date(goalData.end_date).toISOString().split('T')[0] : "",
+        start_date: toDateInput(goalData.start_date),
+        end_date: toDateInput(goalData.end_date),
         description: goalData.description || "",
         notify_on_achieve: goalData.notify_on_achieve ?? true,
         notify_on_fail: goalData.notify_on_fail ?? true
@@ -96,210 +97,209 @@ const GoalCreate = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["goals"] });
       toast.success(isEdit ? "Goal updated successfully" : "Goal created successfully");
-      navigate("/admin/goals");
+      navigate(listPath);
     },
     onError: (error: any) => {
-      toast.error(error.message || "Failed to save goal");
+      toast.error(error?.response?.data?.message || error.message || "Failed to save goal");
+    },
+    onSettled: () => {
+      submitting.current = false;
     }
   });
 
+  const set = (key: keyof typeof formData, value: any) => setFormData(p => ({ ...p, [key]: value }));
+
   const handleSave = () => {
-    if (!formData.subject || !formData.goal_type || !formData.staff_member || !formData.achievement || !formData.start_date || !formData.end_date) {
+    if (submitting.current) return;
+    const subject = formData.subject.trim();
+    if (!subject || !formData.goal_type || !formData.staff_member || !formData.achievement || !formData.start_date || !formData.end_date) {
       toast.error("Please fill in all required fields");
       return;
     }
-    mutation.mutate(formData);
+    if (isContractGoal(formData.goal_type) && !formData.contract_type) {
+      toast.error("Please select a contract type");
+      return;
+    }
+    if (!(Number(formData.achievement) > 0)) {
+      toast.error("Achievement must be a number greater than 0");
+      return;
+    }
+    if (formData.end_date < formData.start_date) {
+      toast.error("End date cannot be before start date");
+      return;
+    }
+    const { contract_type, ...rest } = formData;
+    submitting.current = true;
+    mutation.mutate({
+      ...rest,
+      subject,
+      ...(isContractGoal(formData.goal_type) ? { contract_type } : {}),
+    });
   };
 
   if (isEdit && isLoadingGoal) {
     return (
       <DashboardLayout>
-        <div className="max-w-2xl mx-auto p-6 space-y-5">
-          <div className="space-y-2">
-            <div className="h-7 w-40 bg-muted animate-pulse rounded" />
-            <div className="h-4 w-56 bg-muted animate-pulse rounded" />
-          </div>
+        <div className="max-w-3xl mx-auto p-6 space-y-5">
+          <div className="h-7 w-40 bg-muted animate-pulse rounded" />
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="space-y-1.5">
               <div className="h-4 w-24 bg-muted animate-pulse rounded" />
-              <div className="h-10 w-full bg-muted animate-pulse rounded-lg" />
+              <div className="h-10 w-full bg-muted animate-pulse rounded-md" />
             </div>
           ))}
-          <div className="h-10 w-32 bg-muted animate-pulse rounded-lg" />
         </div>
       </DashboardLayout>
     );
   }
 
+  const selectedType = GOAL_TYPES.find(t => t.value === formData.goal_type);
+
   return (
     <DashboardLayout>
-      <div className="space-y-6 animate-fade-in pb-20 max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => navigate("/admin/goals")}
-              className="rounded-full hover:bg-accent"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">{isEdit ? "Edit Goal" : "New Goal"}</h1>
-              <p className="text-muted-foreground text-sm font-medium">{isEdit ? "Update target achievement details" : "Define a new achievement target"}</p>
-            </div>
-          </div>
+      <div className="max-w-3xl mx-auto space-y-4 pb-10">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate(listPath)} aria-label="Back to goals">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-xl font-semibold">{isEdit ? "Edit Goal" : "New Goal"}</h1>
         </div>
 
-        {/* Linear Form */}
-        <Card className="border-border/50 shadow-sm rounded-2xl overflow-hidden">
-          <CardContent className="p-8 space-y-8">
-            {/* Subject */}
-            <div className="space-y-3">
-              <Label className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Subject *</Label>
-              <Input 
-                placeholder="Enter goal subject..." 
-                className="h-12 rounded-xl border-border/50 focus-visible:ring-primary/20 bg-accent/5 px-4 font-bold"
+        <Card>
+          <CardContent className="p-4 sm:p-6 space-y-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="goal-subject">Subject *</Label>
+              <Input
+                id="goal-subject"
+                placeholder="Enter goal subject"
+                maxLength={255}
                 value={formData.subject}
-                onChange={(e) => setFormData(p => ({ ...p, subject: e.target.value }))}
+                onChange={(e) => set("subject", e.target.value)}
               />
             </div>
 
-            {/* Goal Type */}
-            <div className="space-y-3">
-              <Label className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Goal Type *</Label>
-              <Select 
-                value={formData.goal_type} 
-                onValueChange={(val) => setFormData(p => ({ ...p, goal_type: val }))}
-              >
-                <SelectTrigger className="h-12 rounded-xl border-border/50 bg-accent/5">
-                  <SelectValue placeholder="Select goal type" />
-                </SelectTrigger>
-                <SelectContent className="max-h-80">
-                  {GOAL_TYPES.map((type) => (
-                    <SelectItem key={type.value} value={type.value} className="py-3">
-                      <div className="flex flex-col gap-0.5">
-                        <span className="font-bold">{type.label}</span>
-                        {type.description && (
-                          <span className="text-[10px] text-muted-foreground leading-tight italic">{type.description}</span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label>Goal Type *</Label>
+                <Select value={formData.goal_type} onValueChange={(val) => set("goal_type", val)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select goal type" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-80">
+                    {GOAL_TYPES.map((type) => (
+                      <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedType?.description && (
+                  <p className="text-xs text-muted-foreground">{selectedType.description}</p>
+                )}
+              </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Staff Member */}
-              <div className="space-y-3">
-                <Label className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Staff Member *</Label>
-                <Select 
-                  value={formData.staff_member} 
-                  onValueChange={(val) => setFormData(p => ({ ...p, staff_member: val }))}
-                >
-                  <SelectTrigger className="h-12 rounded-xl border-border/50 bg-accent/5">
+              <div className="space-y-1.5">
+                <Label>Staff Member *</Label>
+                <Select value={formData.staff_member} onValueChange={(val) => set("staff_member", val)}>
+                  <SelectTrigger>
                     <SelectValue placeholder="Select staff member" />
                   </SelectTrigger>
                   <SelectContent>
                     {staff.map((s: any) => (
-                      <SelectItem key={s._id} value={s._id}>
-                        <div className="flex items-center gap-2">
-                          <User className="h-3 w-3 text-primary" />
-                          <span>{s.firstname} {s.lastname}</span>
-                        </div>
-                      </SelectItem>
+                      <SelectItem key={s._id} value={s._id}>{s.firstname} {s.lastname}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Achievement */}
-              <div className="space-y-3">
-                <Label className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Achievement *</Label>
-                <Input 
+              {isContractGoal(formData.goal_type) && (
+                <div className="space-y-1.5">
+                  <Label>Contract Type *</Label>
+                  <Select value={formData.contract_type} onValueChange={(val) => set("contract_type", val)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={contractTypes.length ? "Select contract type" : "No contract types in Setup"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {contractTypes.map((t: any) => (
+                        <SelectItem key={t._id} value={t._id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <Label htmlFor="goal-achievement">Achievement *</Label>
+                <Input
+                  id="goal-achievement"
                   type="number"
-                  placeholder="e.g. 50000" 
-                  className="h-12 rounded-xl border-border/50 focus-visible:ring-primary/20 bg-accent/5"
+                  min="0"
+                  step="any"
+                  placeholder="e.g. 50000"
                   value={formData.achievement}
-                  onChange={(e) => setFormData(p => ({ ...p, achievement: e.target.value }))}
+                  onChange={(e) => set("achievement", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="goal-start">Start Date *</Label>
+                <Input
+                  id="goal-start"
+                  type="date"
+                  value={formData.start_date}
+                  onChange={(e) => set("start_date", e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="goal-end">End Date *</Label>
+                <Input
+                  id="goal-end"
+                  type="date"
+                  min={formData.start_date || undefined}
+                  value={formData.end_date}
+                  onChange={(e) => set("end_date", e.target.value)}
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Start Date */}
-              <div className="space-y-3">
-                <Label className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Start Date *</Label>
-                <div className="relative">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    type="date" 
-                    className="h-12 rounded-xl border-border/50 focus-visible:ring-primary/20 bg-accent/5 pl-12"
-                    value={formData.start_date}
-                    onChange={(e) => setFormData(p => ({ ...p, start_date: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              {/* End Date */}
-              <div className="space-y-3">
-                <Label className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">End Date *</Label>
-                <div className="relative">
-                  <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    type="date" 
-                    className="h-12 rounded-xl border-border/50 focus-visible:ring-primary/20 bg-accent/5 pl-12"
-                    value={formData.end_date}
-                    onChange={(e) => setFormData(p => ({ ...p, end_date: e.target.value }))}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Description */}
-            <div className="space-y-3">
-              <Label className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Description</Label>
-              <Textarea 
-                placeholder="Enter goal details..." 
-                className="min-h-[120px] rounded-xl border-border/50 focus-visible:ring-primary/20 bg-accent/5 p-4"
+            <div className="space-y-1.5">
+              <Label htmlFor="goal-description">Description</Label>
+              <Textarea
+                id="goal-description"
+                placeholder="Enter goal details"
+                maxLength={5000}
+                className="min-h-[100px]"
                 value={formData.description}
-                onChange={(e) => setFormData(p => ({ ...p, description: e.target.value }))}
+                onChange={(e) => set("description", e.target.value)}
               />
             </div>
 
-            {/* Notifications */}
-            <div className="space-y-4 pt-6 border-t border-border/40">
-              <div className="flex items-center gap-2 mb-2">
-                <Bell className="h-4 w-4 text-primary" />
-                <Label className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Notifications</Label>
+            <div className="space-y-2 pt-4 border-t">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="notify-achieve"
+                  checked={formData.notify_on_achieve}
+                  onCheckedChange={(c) => set("notify_on_achieve", c === true)}
+                />
+                <Label htmlFor="notify-achieve" className="font-normal cursor-pointer">Notify staff members when goal achieve</Label>
               </div>
-              
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3 group cursor-pointer" onClick={() => setFormData(p => ({ ...p, notify_on_achieve: !p.notify_on_achieve }))}>
-                  <Checkbox checked={formData.notify_on_achieve} className="rounded-md h-5 w-5 data-[state=checked]:bg-success border-border/60"/>
-                  <Label className="text-sm font-medium cursor-pointer group-hover:text-primary transition-colors">Notify staff members when goal achieve</Label>
-                </div>
-
-                <div className="flex items-center space-x-3 group cursor-pointer" onClick={() => setFormData(p => ({ ...p, notify_on_fail: !p.notify_on_fail }))}>
-                  <Checkbox checked={formData.notify_on_fail} className="rounded-md h-5 w-5 data-[state=checked]:bg-destructive border-border/60"/>
-                  <Label className="text-sm font-medium cursor-pointer group-hover:text-primary transition-colors">Notify staff members when goal failed to achieve</Label>
-                </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="notify-fail"
+                  checked={formData.notify_on_fail}
+                  onCheckedChange={(c) => set("notify_on_fail", c === true)}
+                />
+                <Label htmlFor="notify-fail" className="font-normal cursor-pointer">Notify staff members when goal failed to achieve</Label>
               </div>
             </div>
 
-            {/* Footer Save Button */}
-            <div className="flex justify-end pt-8 border-t border-border/40">
-              <Button 
-                onClick={handleSave} 
-                disabled={mutation.isPending}
-                size="sm"
-                className="rounded-lg px-8 h-10 font-bold shadow-lg shadow-primary/10 transition-all hover:scale-[1.02]"
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {mutation.isPending ? "Saving..." : isEdit ? "Update Goal" : "Save Goal"}
-              </Button>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-4 border-t">
+              <Button variant="outline" onClick={() => navigate(listPath)}>Cancel</Button>
+              {canSave && (
+                <Button onClick={handleSave} disabled={mutation.isPending}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {mutation.isPending ? "Saving..." : isEdit ? "Update Goal" : "Save Goal"}
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

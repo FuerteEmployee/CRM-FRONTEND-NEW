@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,8 @@ import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { useSettings } from "@/context/SettingsContext";
 import { getCompanyInfo, companyInfoHtml } from "@/lib/companyInfo";
 import { getDocDisplayOptions, trimZeroDecimals, stripCurrencySymbol, itemTaxLabel, amountInWords, saleAgentName, projectName } from "@/lib/invoiceDisplay";
+import { htmlToPdf, htmlToPdfBase64 } from "@/lib/htmlToPdf";
+import { Textarea } from "@/components/ui/textarea";
 import { escapeHtml } from "@/lib/richText";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { isEkagraUser } from "@/lib/ekagraTenant";
@@ -118,19 +120,28 @@ const statusCardConfig = [
   { label: "Cancelled", color: "text-slate-500", bg: "bg-slate-50/50", border: "border-slate-100", statusId: "cancelled" },
 ];
 
+// The 5 status cards: sent / sent_later count as Unpaid and recorded as Paid,
+// the same buckets the server uses for the paginated list.
+const statusBucket = (raw: string) =>
+  raw === "sent" || raw === "sent_later" ? "unpaid" : raw === "recorded" ? "paid" : (raw || "unpaid");
+
 const getStatus = (statusId: any) => {
   return statusMap[String(statusId)] ?? { label: "Unpaid", color: "bg-yellow-50 text-yellow-700 border-yellow-200" };
 };
 
 const DETAIL_TABS = ["Invoice", "Comments", "Reminders", "Tasks", "Notes", "Templates"];
 
-const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, setIsFullscreen }: {
+const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, setIsFullscreen, autoOpenEmail = false, emailOnly = false }: {
   invoice: any;
   onClose: () => void;
   onEdit: () => void;
   onView: () => void;
   isFullscreen: boolean;
   setIsFullscreen: (v: boolean) => void;
+  /** Open "Send Invoice to Email" straight away (Save & Send on the create page). */
+  autoOpenEmail?: boolean;
+  /** Render only the email window (Save & Send), closing it closes the panel. */
+  emailOnly?: boolean;
 }) => {
   const navigate = useNavigate();
   const invoiceNumber = invoice.number || `INV-${invoice._id?.substring(0, 6)}`;
@@ -138,14 +149,16 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
   const [activeTab, setActiveTab] = useState("Invoice");
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [commentText, setCommentText] = useState("");
-  const [ccEmail, setCcEmail] = useState("");
+  const [emailForm, setEmailForm] = useState({ to: "", cc: "", subject: "", message: "" });
   const [attachPdf, setAttachPdf] = useState(true);
+  const [emailDraftLoading, setEmailDraftLoading] = useState(false);
+  const [emailSending, setEmailSending] = useState(false);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ amount: "", paymentmode: "", date: new Date().toISOString().split("T")[0], transactionid: "" });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { user } = usePermissions();
+  const { user, can } = usePermissions();
   const { getSetting } = useSettings();
   // Company name + details from Setup > Settings > Company Information (no other company's name as fallback).
   const companyName = getSetting("companyName", "");
@@ -161,7 +174,7 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
       toast({ title: "Status Updated", description: "Invoice status updated successfully.", className: "bg-green-600 text-white font-bold rounded-2xl" });
     },
     onError: (err: any) => {
-      toast({ title: "Error", description: err.message || "Failed to update status.", variant: "destructive" });
+      toast({ title: "Error", description: err.response?.data?.message || err.message || "Failed to update status.", variant: "destructive" });
     }
   });
 
@@ -173,12 +186,17 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
       onClose();
     },
     onError: (err: any) => {
-      toast({ title: "Error", description: err.message || "Failed to delete invoice.", variant: "destructive" });
+      toast({ title: "Error", description: err.response?.data?.message || err.message || "Failed to delete invoice.", variant: "destructive" });
     }
   });
 
+  const handleDelete = () => {
+    if (window.confirm(`Delete invoice ${invoiceNumber}? This cannot be undone.`)) deleteMutation.mutate(d._id || d.id);
+  };
+
   const handleCopy = () => {
-    const link = `${window.location.origin}/invoice/${d._id || d.id}`;
+    // Opens the Invoices list with this invoice's panel open.
+    const link = `${window.location.origin}/admin/invoices?view=${d._id || d.id}`;
     navigator.clipboard.writeText(link);
     toast({
       title: "Copied",
@@ -237,14 +255,28 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
       setPaymentForm({ amount: "", paymentmode: "", date: new Date().toISOString().split("T")[0], transactionid: "" });
     },
     onError: (err: any) => {
-      toast({ title: "Error", description: err.message || "Failed to record payment.", variant: "destructive" });
+      toast({ title: "Error", description: err.response?.data?.message || err.message || "Failed to record payment.", variant: "destructive" });
     }
   });
+
+  // Paid / Partially Paid come from payments, so "Mark as" opens Record Payment.
+  const openPaymentDialog = (amount: number | "") => {
+    setPaymentForm({ amount: amount === "" ? "" : String(Number(amount).toFixed(2)), paymentmode: paymentModes[0]?.name || "", date: new Date().toISOString().split("T")[0], transactionid: "" });
+    setShowPaymentDialog(true);
+  };
 
   const handleRecordPayment = () => {
     const amount = Number(paymentForm.amount);
     if (!amount || amount <= 0) {
       toast({ title: "Validation Error", description: "Enter a valid payment amount.", variant: "destructive" });
+      return;
+    }
+    if (amount > balanceDue + 0.005) {
+      toast({ title: "Validation Error", description: `Amount is more than the balance due (${balanceDue.toFixed(2)}).`, variant: "destructive" });
+      return;
+    }
+    if (!paymentForm.paymentmode) {
+      toast({ title: "Validation Error", description: "Please select a payment mode.", variant: "destructive" });
       return;
     }
     recordPaymentMutation.mutate({
@@ -292,7 +324,7 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
     return `
       <html>
         <head>
-          <title>Tax Invoice ${invoiceNumber}</title>
+          <title>Tax Invoice ${escapeHtml(invoiceNumber)}</title>
           <style>
             * { box-sizing: border-box; }
             body { font-family: Arial, Helvetica, sans-serif; color: #111; padding: 24px; font-size: 12px; }
@@ -319,7 +351,7 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
     return `
       <html>
         <head>
-          <title>Invoice ${invoiceNumber}</title>
+          <title>Invoice ${escapeHtml(invoiceNumber)}</title>
           <style>
             * { box-sizing: border-box; }
             body { font-family: Arial, Helvetica, sans-serif; color: #111; padding: 24px; font-size: 12px; }
@@ -348,7 +380,7 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
       <html>
         <head>
           <meta charset="utf-8">
-          <title>${title === "PROFORMA INVOICE" ? "Proforma Invoice" : "Invoice"} ${invoiceNumber}</title>
+          <title>${title === "PROFORMA INVOICE" ? "Proforma Invoice" : "Invoice"} ${escapeHtml(invoiceNumber)}</title>
           <style>
             * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
             body { margin: 0; padding: 24px; background: #fff; }
@@ -394,10 +426,10 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
           <div class="bank-details">
             <div class="bank-details-title">Payment / Bank Details</div>
             <div class="bank-details-row">
-              <b>${bd.accountHolderName || "—"}</b><br/>
-              Bank: ${bd.bankName || "—"}<br/>
-              A/C No: ${bd.accountNumber || "—"} &nbsp; IFSC: ${bd.ifscCode || "—"}
-              ${bd.branch?.name ? `<br/>Branch: ${bd.branch.name}` : ""}
+              <b>${esc(bd.accountHolderName || "—")}</b><br/>
+              Bank: ${esc(bd.bankName || "—")}<br/>
+              A/C No: ${esc(bd.accountNumber || "—")} &nbsp; IFSC: ${esc(bd.ifscCode || "—")}
+              ${bd.branch?.name ? `<br/>Branch: ${esc(bd.branch.name)}` : ""}
             </div>
           </div>
         `
@@ -406,7 +438,7 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
     return `
       <html>
         <head>
-          <title>Invoice ${invoiceNumber}</title>
+          <title>Invoice ${escapeHtml(invoiceNumber)}</title>
           <style>
             body { font-family: system-ui, sans-serif; padding: 40px; color: #1e293b; max-width: 800px; margin: 0 auto; }
             .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
@@ -431,13 +463,13 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
         <body>
           <div class="header">
             <div>
-              <div class="title">${invoiceNumber}</div>
-              <div class="company">${companyName}</div>${companyInfoBlock}
+              <div class="title">${esc(invoiceNumber)}</div>
+              <div class="company">${esc(companyName)}</div>${companyInfoBlock}
             </div>
             <div style="text-align: right">
               <div style="margin-bottom: 15px;">
                 <div style="font-size: 12px; color: #64748b; font-weight: bold; margin-bottom: 5px;">BILL TO</div>
-                <div class="company" style="color: #2563eb;">${d.client?.company || 'Customer'}</div>
+                <div class="company" style="color: #2563eb;">${esc(d.client?.company || 'Customer')}</div>
               </div>
               <div class="meta">
                 <b>Invoice Date:</b> ${d.date ? formatDate(d.date) : '-'}<br/>
@@ -500,24 +532,74 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
     `;
   };
 
-  const handlePdfAction = (action: 'view' | 'new_tab' | 'download' | 'print') => {
+  const pdfFileName = `Invoice_${String(invoiceNumber).replace(/[^\w.-]+/g, "_")}.pdf`;
+
+  const handlePdfAction = async (action: 'view' | 'new_tab' | 'download' | 'print') => {
     const html = generatePdfHtml();
+    if (action === 'download') {
+      try {
+        (await htmlToPdf(html)).save(pdfFileName);
+        toast({ title: "Download Started", description: `${pdfFileName} is downloading.` });
+      } catch (err: any) {
+        toast({ title: "Error", description: err?.message || "Could not create the PDF.", variant: "destructive" });
+      }
+      return;
+    }
     const blob = new Blob([action === 'print' ? html.replace('<body>', '<body onload="window.print()">') : html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
+    window.open(url, action === 'view' ? 'PDF_Viewer' : '_blank', action === 'view' ? 'width=800,height=900' : '');
+  };
 
-    if (action === 'download') {
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Invoice_${invoiceNumber}.html`;
-      a.click();
-      toast({ title: "Download Started", description: "Your document is downloading." });
-    } else {
-      window.open(url, action === 'view' ? 'PDF_Viewer' : '_blank', action === 'view' ? 'width=800,height=900' : '');
+  // ── Send Invoice to Email ──
+  const openEmailDialog = async () => {
+    setAttachPdf(true);
+    setEmailForm({ to: "", cc: "", subject: "", message: "" });
+    setShowEmailDialog(true);
+    setEmailDraftLoading(true);
+    try {
+      const draft: any = await salesService.getInvoiceEmailDraft(invoice._id || invoice.id);
+      setEmailForm({ to: (draft?.to || []).join(", "), cc: "", subject: draft?.subject || "", message: draft?.message || "" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.response?.data?.message || err.message || "Could not load the email template.", variant: "destructive" });
+    } finally {
+      setEmailDraftLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (autoOpenEmail) openEmailDialog();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoOpenEmail]);
+
+  const handleSendEmail = async () => {
+    if (!emailForm.to.trim()) {
+      toast({ title: "Validation Error", description: "Please enter at least one email address in To.", variant: "destructive" });
+      return;
+    }
+    if (!emailForm.subject.trim() || !emailForm.message.trim()) {
+      toast({ title: "Validation Error", description: "Subject and message are required.", variant: "destructive" });
+      return;
+    }
+    setEmailSending(true);
+    try {
+      const pdf_base64 = attachPdf ? await htmlToPdfBase64(generatePdfHtml()) : undefined;
+      const res: any = await salesService.sendInvoiceEmail(d._id || d.id, { ...emailForm, pdf_base64 });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoice._id || invoice.id] });
+      toast({ title: "Email Sent", description: res?.message || "Invoice emailed.", className: "bg-green-600 text-white font-bold rounded-2xl" });
+      setShowEmailDialog(false);
+      if (emailOnly) onClose();
+    } catch (err: any) {
+      toast({ title: "Email not sent", description: err.response?.data?.message || err.message || "Failed to send the email.", variant: "destructive" });
+    } finally {
+      setEmailSending(false);
     }
   };
 
   return (
     <>
+      {/* Save & Send shows only the email window, not the whole invoice panel behind it. */}
+      {!emailOnly && <>
       <input
         type="file"
         ref={fileInputRef}
@@ -586,27 +668,28 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
           <Badge variant="outline" className={cn("text-xs font-semibold px-2.5 py-0.5 bg-transparent", status.color)}>
             {status.label}
           </Badge>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-end gap-1.5">
             {/* Edit */}
-            <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg" title="Edit" onClick={onEdit}>
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
+            {can("Invoices", "Edit") && (
+              <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg" title="Edit" onClick={onEdit}>
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+            )}
 
             {/* Record Payment */}
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 px-3 rounded-lg gap-1.5 text-xs font-bold border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-              title="Record Payment"
-              onClick={() => {
+            {can("Payments", "Create") && d.status !== "cancelled" && balanceDue > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 px-3 rounded-lg gap-1.5 text-xs font-bold border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                title="Record Payment"
                 // start from a clean form so values from a cancelled attempt don't carry over
-                setPaymentForm({ amount: balanceDue > 0 ? String(balanceDue.toFixed(2)) : "", paymentmode: "", date: new Date().toISOString().split("T")[0], transactionid: "" });
-                setShowPaymentDialog(true);
-              }}
-            >
-              <Wallet className="h-3.5 w-3.5" />
-              Record Payment
-            </Button>
+                onClick={() => openPaymentDialog(balanceDue)}
+              >
+                <Wallet className="h-3.5 w-3.5" />
+                Record Payment
+              </Button>
+            )}
 
             {/* PDF dropdown */}
             <DropdownMenu>
@@ -625,15 +708,17 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
             </DropdownMenu>
 
             {/* Email — opens Send dialog */}
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-8 w-8 rounded-lg"
-              title="Send Email"
-              onClick={() => { setCcEmail(""); setAttachPdf(true); setShowEmailDialog(true); }}
-            >
-              <Mail className="h-3.5 w-3.5" />
-            </Button>
+            {can("Invoices", "Edit") && (
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-8 w-8 rounded-lg"
+                title="Send Email"
+                onClick={openEmailDialog}
+              >
+                <Mail className="h-3.5 w-3.5" />
+              </Button>
+            )}
 
             {/* More dropdown */}
             <DropdownMenu>
@@ -645,17 +730,21 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={onView}>View Invoice</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>Attach File</DropdownMenuItem>
-                <DropdownMenuItem onClick={handleCopy}>Copy</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("unpaid")}>Mark as Unpaid</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("paid")}>Mark as Paid</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("partially_paid")}>Mark as Partially Paid</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateStatusMutation.mutate("cancelled")}>Mark as Cancelled</DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => deleteMutation.mutate(d._id || d.id)}>Delete</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleCopy}>Copy link</DropdownMenuItem>
+                {can("Invoices", "Edit") && totalPaid === 0 && <DropdownMenuItem onClick={() => updateStatusMutation.mutate("unpaid")}>Mark as Unpaid</DropdownMenuItem>}
+                {can("Payments", "Create") && d.status !== "cancelled" && balanceDue > 0 && (
+                  <>
+                    <DropdownMenuItem onClick={() => openPaymentDialog(balanceDue)}>Mark as Paid (record payment)</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openPaymentDialog("")}>Mark as Partially Paid (record payment)</DropdownMenuItem>
+                  </>
+                )}
+                {can("Invoices", "Edit") && <DropdownMenuItem onClick={() => updateStatusMutation.mutate("cancelled")}>Mark as Cancelled</DropdownMenuItem>}
+                {can("Invoices", "Delete") && <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleDelete}>Delete</DropdownMenuItem>}
               </DropdownMenuContent>
             </DropdownMenu>
 
             {/* Convert dropdown */}
-            <DropdownMenu>
+            {can("Invoices", "Create") && <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button size="sm" className="h-8 px-3 rounded-lg gap-1 text-xs font-bold bg-green-600 hover:bg-green-700 text-white">
                   Convert <ChevronDown className="h-3 w-3" />
@@ -680,7 +769,7 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                   Convert to Credit Note
                 </DropdownMenuItem>
               </DropdownMenuContent>
-            </DropdownMenu>
+            </DropdownMenu>}
           </div>
         </div>
 
@@ -882,63 +971,109 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
             <p className="text-sm text-muted-foreground italic text-center py-10">No templates available.</p>
           )}
           {activeTab === "Emails Tracking" && (
-            <p className="text-sm text-muted-foreground italic text-center py-10">No tracked emails sent.</p>
+            (d.email_log || []).length === 0 ? (
+              <p className="text-sm text-muted-foreground italic text-center py-10">No emails sent yet.</p>
+            ) : (
+              <div className="divide-y rounded-lg border text-sm">
+                {[...(d.email_log || [])].reverse().map((e: any, i: number) => (
+                  <div key={i} className="p-3 space-y-0.5">
+                    <div className="font-medium break-words">{e.subject}</div>
+                    <div className="text-muted-foreground break-words">To: {(e.to || []).join(", ")}{(e.cc || []).length ? ` · CC: ${e.cc.join(", ")}` : ""}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {e.sent_at ? new Date(e.sent_at).toLocaleString() : ""}{e.pdf_attached ? " · PDF attached" : ""}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
           )}
           {activeTab === "View Tracking" && (
             <p className="text-sm text-muted-foreground italic text-center py-10">No views tracked yet.</p>
           )}
         </div>
       </div>
+      </>}
 
       {/* ── Send Invoice Email Dialog ── */}
-      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
-        <DialogContent className="max-w-2xl p-6">
+      <Dialog
+        open={showEmailDialog}
+        onOpenChange={(open) => {
+          if (emailSending) return;
+          setShowEmailDialog(open);
+          if (!open && emailOnly) onClose();
+        }}
+      >
+        <DialogContent className="max-w-2xl p-4 sm:p-6 max-h-[90vh] overflow-y-auto">
           <div className="space-y-4">
-            <h2 className="text-lg font-bold text-foreground">Send Invoice to Email</h2>
+            <h2 className="text-lg font-semibold">Send Invoice to Email</h2>
 
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="attach-pdf"
-                checked={attachPdf}
-                onChange={e => setAttachPdf(e.target.checked)}
-                className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
-              />
-              <label htmlFor="attach-pdf" className="text-sm font-medium cursor-pointer">Attach PDF</label>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium block mb-1.5">CC</label>
-              <Input
-                value={ccEmail}
-                onChange={e => setCcEmail(e.target.value)}
-                className="rounded-lg border-border/60"
-              />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium block mb-1.5">Preview Template</label>
-              <div className="border border-border/50 rounded-xl overflow-hidden">
-                <div className="flex items-center gap-4 px-3 py-2 border-b border-border/40 bg-muted/30 text-xs text-muted-foreground">
-                  {["File", "Edit", "View", "Insert", "Format", "Tools", "Table"].map(m => (
-                    <span key={m} className="cursor-pointer hover:text-foreground">{m}</span>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40 bg-muted/20 text-xs text-muted-foreground">
-                  <span className="border border-border/40 rounded px-2 py-0.5">System Font</span>
-                  <span className="border border-border/40 rounded px-2 py-0.5">12pt</span>
-                </div>
-                <textarea
-                  rows={8}
-                  className="w-full p-4 text-sm resize-none focus:outline-none bg-background"
-                  defaultValue={`Dear {contact_name}\n\nPlease find our attached invoice.\n\nThis invoice is due on: {invoice_duedate}\nYou can view the invoice on the following link: {invoice_number}\n\nPlease don't hesitate to comment online if you have any questions.\n\nWe look forward to your communication.\n\nKind Regards,\n{email_signature}`}
-                />
+            {emailDraftLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-9 bg-muted animate-pulse rounded-md" />)}
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="email-to">To</Label>
+                  <Input
+                    id="email-to"
+                    placeholder="customer@example.com, accounts@example.com"
+                    value={emailForm.to}
+                    onChange={e => setEmailForm(f => ({ ...f, to: e.target.value }))}
+                  />
+                  {!emailForm.to && (
+                    <p className="text-xs text-muted-foreground">This customer has no contact with "Invoice emails" ticked. Type an email address.</p>
+                  )}
+                </div>
 
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" className="rounded-lg" onClick={() => setShowEmailDialog(false)}>Cancel</Button>
-              <Button className="rounded-lg">Send</Button>
+                <div className="space-y-1.5">
+                  <Label htmlFor="email-cc">CC</Label>
+                  <Input
+                    id="email-cc"
+                    placeholder="Optional, separate with commas"
+                    value={emailForm.cc}
+                    onChange={e => setEmailForm(f => ({ ...f, cc: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="email-subject">Subject</Label>
+                  <Input
+                    id="email-subject"
+                    maxLength={300}
+                    value={emailForm.subject}
+                    onChange={e => setEmailForm(f => ({ ...f, subject: e.target.value }))}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="email-message">Message</Label>
+                  <Textarea
+                    id="email-message"
+                    rows={9}
+                    value={emailForm.message}
+                    onChange={e => setEmailForm(f => ({ ...f, message: e.target.value }))}
+                  />
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="attach-pdf"
+                    checked={attachPdf}
+                    onChange={e => setAttachPdf(e.target.checked)}
+                    className="h-4 w-4 rounded border-border accent-primary cursor-pointer"
+                  />
+                  <label htmlFor="attach-pdf" className="text-sm cursor-pointer">Attach PDF ({pdfFileName})</label>
+                </div>
+              </>
+            )}
+
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-1">
+              <Button variant="outline" disabled={emailSending} onClick={() => setShowEmailDialog(false)}>Cancel</Button>
+              <Button disabled={emailSending || emailDraftLoading} onClick={handleSendEmail}>
+                {emailSending ? (attachPdf ? "Creating PDF & sending..." : "Sending...") : "Send"}
+              </Button>
             </div>
           </div>
         </DialogContent>
@@ -1024,6 +1159,28 @@ const Invoices = () => {
   const [itemsPerPage, setItemsPerPage] = useState(() => String(defaultPageSize(10)));
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  // "Copy link" gives /admin/invoices?view=<id>: open that invoice's panel.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const viewId = searchParams.get("view");
+  // Save & Send on the create page lands here with ?view=<id>&send=1.
+  const [autoEmailId, setAutoEmailId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!viewId) return;
+    const sendNow = searchParams.get("send") === "1";
+    salesService.getInvoiceById(viewId)
+      .then((res: any) => {
+        const doc = res?.data || res;
+        if (doc?._id) {
+          setSelectedInvoice(doc);
+          setAutoEmailId(sendNow ? doc._id : null);
+        } else {
+          toast({ title: "Invoice not found", variant: "destructive" });
+        }
+      })
+      .catch(() => toast({ title: "Invoice not found", variant: "destructive" }))
+      .finally(() => setSearchParams((p) => { p.delete("view"); p.delete("send"); return p; }, { replace: true }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewId]);
   const [previewInvoice, setPreviewInvoice] = useState<any>(null);
   // The list row only carries the customer's company name; load the full
   // invoice (customer GST/VAT/address/email/phone) for the print preview.
@@ -1154,18 +1311,27 @@ const Invoices = () => {
     setIsBulkLoading(true);
     try {
       if (bulkState.massDelete) {
-        await salesService.bulkDeleteInvoices(selectedIds);
-        toast({ title: "Success", description: `Deleted ${selectedIds.length} items.` });
+        // The server skips invoices with payments — show its own count/message.
+        const res: any = await salesService.bulkDeleteInvoices(selectedIds);
+        const body = res?.data ?? res;
+        toast({ title: "Done", description: body?.message || `Deleted ${body?.deletedCount ?? 0} invoice(s).` });
       } else if (bulkState.status) {
-        await Promise.all(selectedIds.map(id => salesService.updateInvoice(id, { status: bulkState.status })));
-        toast({ title: "Success", description: `Updated ${selectedIds.length} items.` });
+        const results = await Promise.allSettled(selectedIds.map(id => salesService.updateInvoice(id, { status: bulkState.status })));
+        const failed = results.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
+        const updated = results.length - failed.length;
+        const reason = failed[0]?.reason?.response?.data?.message;
+        toast({
+          title: failed.length ? "Partly done" : "Success",
+          description: `Updated ${updated} invoice(s).${failed.length ? ` ${failed.length} not changed${reason ? `: ${reason}` : "."}` : ""}`,
+          variant: failed.length ? "destructive" : "default",
+        });
       }
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       setSelectedIds([]);
       setBulkActionOpen(false);
       setBulkState({ massDelete: false, status: "" });
-    } catch {
-      toast({ title: "Error", description: "Failed to perform bulk action."});
+    } catch (err: any) {
+      toast({ title: "Error", description: err?.response?.data?.message || "Failed to perform bulk action.", variant: "destructive" });
     } finally {
       setIsBulkLoading(false);
     }
@@ -1202,7 +1368,7 @@ const Invoices = () => {
     rows: any[];
     total: number;
     pages: number;
-    statusAgg: { status: string; count: number; total: number }[];
+    statusAgg: { status: string; count: number; total: number; byCurrency?: Record<string, number> }[];
   }
 
   // Paginated server-side once a finite page size is chosen; "All" keeps
@@ -1218,14 +1384,13 @@ const Invoices = () => {
         // Status-card counts/totals always reflect the whole tenant list,
         // independent of the currently active filters — matches the
         // paginated path's server-side aggregate below.
-        const bucketOf = (raw: string) =>
-          raw === "sent" || raw === "sent_later" ? "unpaid" : raw === "recorded" ? "paid" : (raw || "unpaid");
-        const aggMap = new Map<string, { count: number; total: number }>();
+        const aggMap = new Map<string, { count: number; total: number; byCurrency: Record<string, number> }>();
         rows.forEach((inv: any) => {
-          const b = bucketOf(inv.status);
-          const cur = aggMap.get(b) || { count: 0, total: 0 };
+          const b = statusBucket(inv.status);
+          const cur = aggMap.get(b) || { count: 0, total: 0, byCurrency: {} };
           cur.count++;
           cur.total += inv.total || 0;
+          cur.byCurrency[inv.currency || ""] = (cur.byCurrency[inv.currency || ""] || 0) + (inv.total || 0);
           aggMap.set(b, cur);
         });
         const statusAgg = Array.from(aggMap.entries()).map(([status, v]) => ({ status, ...v }));
@@ -1233,7 +1398,7 @@ const Invoices = () => {
         const q = debouncedSearch.toLowerCase();
         const rowsFiltered = rows.filter((i: any) => {
           const matchSearch = invoiceMatchesSearch(i, q);
-          const matchStatus = statusFilter === "all" || String(i.status) === statusFilter;
+          const matchStatus = statusFilter === "all" || statusBucket(i.status) === statusFilter;
           const matchBranch = branchFilter === "all" || getInvoiceBranchName(i) === branchFilter;
           return matchSearch && matchStatus && matchBranch;
         });
@@ -1263,9 +1428,10 @@ const Invoices = () => {
     mutationFn: (rows: any[]) => salesService.importInvoices(rows),
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      const count = data?.data?.count ?? data?.count ?? 0;
-      const skipped = data?.data?.skipped ?? data?.skipped ?? 0;
-      toast({ title: count === 0 ? "No New Invoices" : "Import Successful", description: count === 0 ? "All invoices already exist." : `Imported ${count} invoice(s)${skipped ? `, skipped ${skipped} duplicate(s)` : ""}.`, variant: count === 0 ? "destructive" : "default" });
+      const body = data?.data ?? data;
+      const count = body?.count ?? 0;
+      // The server message says exactly what was renamed / skipped and why.
+      toast({ title: count === 0 ? "Nothing Imported" : "Import Successful", description: body?.message || `Imported ${count} invoice(s).`, variant: count === 0 ? "destructive" : "default" });
     },
     onError: (err: any) => toast({ title: "Import Failed", description: err?.response?.data?.message || err.message, variant: "destructive" }),
   });
@@ -1289,7 +1455,7 @@ const Invoices = () => {
     onError: (error: any) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete invoice.",
+        description: error.response?.data?.message || error.message || "Failed to delete invoice.",
         variant: "destructive",
       });
     },
@@ -1298,13 +1464,15 @@ const Invoices = () => {
   const stats = useMemo(() => {
     const counts: Record<string, number> = { unpaid: 0, paid: 0, partially_paid: 0, overdue: 0, cancelled: 0 };
     const totals: Record<string, number> = { unpaid: 0, paid: 0, partially_paid: 0, overdue: 0, cancelled: 0 };
+    const byCurrency: Record<string, Record<string, number>> = {};
     (invoicesResult?.statusAgg ?? []).forEach((s) => {
       if (counts[s.status] !== undefined) {
         counts[s.status] = s.count;
         totals[s.status] = s.total;
+        byCurrency[s.status] = s.byCurrency || { "": s.total };
       }
     });
-    return { counts, totals };
+    return { counts, totals, byCurrency };
   }, [invoicesResult]);
 
   // Flatten invoices into one row per line item for export — invoice-level
@@ -1359,7 +1527,7 @@ const Invoices = () => {
     const q = debouncedSearch.toLowerCase();
     return rows.filter((i: any) => {
       const matchSearch = invoiceMatchesSearch(i, q);
-      const matchStatus = statusFilter === "all" || String(i.status) === statusFilter;
+      const matchStatus = statusFilter === "all" || statusBucket(i.status) === statusFilter;
       const matchBranch = branchFilter === "all" || getInvoiceBranchName(i) === branchFilter;
       return matchSearch && matchStatus && matchBranch;
     });
@@ -1420,8 +1588,14 @@ const Invoices = () => {
                     </span>
                     <div className="flex items-baseline justify-between mt-2">
                       <span className="text-xl font-black text-slate-900">{count}</span>
-                      <span className="text-[11px] font-bold text-slate-500">
-                        ₹{total.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      <span className="text-[11px] font-bold text-slate-500 text-right">
+                        {Object.entries(stats.byCurrency[config.statusId] || { "": total })
+                          .filter(([, amt], _i, all) => amt !== 0 || all.length === 1)
+                          .map(([cur, amt]) => {
+                            const c = currencies.find((x: any) => x.name === cur) || currencies.find((x: any) => x.isdefault);
+                            return `${c?.symbol ?? symbol}${Number(amt).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                          })
+                          .join(" + ")}
                       </span>
                     </div>
                   </div>
@@ -1446,7 +1620,7 @@ const Invoices = () => {
                 ))}
               </SelectContent>
             </Select>
-            <Dialog open={bulkActionOpen} onOpenChange={(open) => {
+            {(can("Invoices", "Delete") || can("Invoices", "Edit")) && <Dialog open={bulkActionOpen} onOpenChange={(open) => {
               if (open && selectedIds.length === 0) {
                 toast({ title: "Error", description: "Please select at least one item first."});
                 return;
@@ -1465,7 +1639,7 @@ const Invoices = () => {
                   <DialogTitle className="text-lg font-bold">Bulk Actions</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                  <div className="flex items-center space-x-2">
+                  {can("Invoices", "Delete") && <div className="flex items-center space-x-2">
                     <Checkbox
                       id="mass_delete"
                       className="border-red-200 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
@@ -1473,8 +1647,8 @@ const Invoices = () => {
                       onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
                     />
                     <Label htmlFor="mass_delete" className="text-sm font-semibold text-red-600">Mass Delete</Label>
-                  </div>
-                  <div className="space-y-1.5 pt-2">
+                  </div>}
+                  {can("Invoices", "Edit") && <div className="space-y-1.5 pt-2">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Change Status</Label>
                     <Select value={bulkState.status} onValueChange={(val) => setBulkState({...bulkState, status: val})} disabled={bulkState.massDelete}>
                       <SelectTrigger className="h-10 bg-slate-50/50 border-slate-200 rounded-lg">
@@ -1483,13 +1657,12 @@ const Invoices = () => {
                       <SelectContent>
                         <SelectItem value="draft">Draft</SelectItem>
                         <SelectItem value="sent">Sent</SelectItem>
-                        <SelectItem value="paid">Paid</SelectItem>
-                        <SelectItem value="partially_paid">Partially Paid</SelectItem>
+                        <SelectItem value="unpaid">Unpaid</SelectItem>
                         <SelectItem value="overdue">Overdue</SelectItem>
                         <SelectItem value="cancelled">Cancelled</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
+                  </div>}
                 </div>
                 <DialogFooter className="gap-2 sm:gap-0">
                   <Button variant="ghost" onClick={() => setBulkActionOpen(false)} className="font-bold uppercase tracking-widest text-[10px]">Close</Button>
@@ -1498,13 +1671,13 @@ const Invoices = () => {
                   </Button>
                 </DialogFooter>
               </DialogContent>
-            </Dialog>
+            </Dialog>}
             <ExportButton
               data={async () => buildExportRows(await loadAllFilteredInvoices())}
               filename="invoices"
               columns={exportColumns}
             />
-            <ImportDialog
+            {can("Invoices", "Create") && <ImportDialog
               title="Import Invoices"
               columns={INVOICE_IMPORT_COLUMNS}
               onData={handleImportData}
@@ -1513,7 +1686,7 @@ const Invoices = () => {
               templateFilename="invoices_sample_import.xlsx"
               sheetName="Invoices"
               mappingNote="Your Excel columns (Voucher Number, Bill Date, Party Name, GSTIN/UIN, Item Name, Quantity, Rate, Amount, Branch) will be automatically detected and mapped to invoices."
-            />
+            />}
             {canUseBranch && (
               <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
                 <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
@@ -1629,8 +1802,25 @@ const Invoices = () => {
         </TableContainer>
       </div>
 
+      {/* Save & Send: only the "Send Invoice to Email" window, no invoice panel behind it. */}
+      {selectedInvoice && autoEmailId === (selectedInvoice._id || selectedInvoice.id) && (
+        <InvoiceDetailPanel
+          invoice={selectedInvoice}
+          emailOnly
+          autoOpenEmail
+          onClose={() => { setSelectedInvoice(null); setAutoEmailId(null); }}
+          onView={() => {}}
+          onEdit={() => {}}
+          isFullscreen={false}
+          setIsFullscreen={() => {}}
+        />
+      )}
+
       {/* Centered popup dialog */}
-      <Dialog open={!!selectedInvoice} onOpenChange={(open) => { if (!open) { setSelectedInvoice(null); setIsFullscreen(false); } }}>
+      <Dialog
+        open={!!selectedInvoice && autoEmailId !== (selectedInvoice._id || selectedInvoice.id)}
+        onOpenChange={(open) => { if (!open) { setSelectedInvoice(null); setIsFullscreen(false); } }}
+      >
         <DialogContent className={cn("w-full p-0 overflow-hidden rounded-2xl transition-all", isFullscreen ? "max-w-[95vw]" : "max-w-3xl")}>
           {selectedInvoice && (
             <InvoiceDetailPanel

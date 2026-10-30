@@ -69,6 +69,7 @@ import React, { useState, useEffect } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { hasPurchaseOrders, PO_MODULE, PO_URL } from "@/lib/purchaseOrders";
+import { isProcurementTypesEnabled } from "@/lib/procurement";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
@@ -157,6 +158,7 @@ const setupMenuItems = [
     title: "Finance",
     icon: DollarSign,
     subItems: [
+      { title: "Purchases", url: "/admin/setup/settings?tab=fin-purchases" },
       { title: "Tax Rates", url: "/admin/setup/finance/tax-rates" },
       { title: "Currencies", url: "/admin/setup/finance/currencies" },
       { title: "Payment Modes", url: "/admin/setup/finance/payment-modes" },
@@ -361,6 +363,7 @@ export function AppSidebar() {
   // HRMS-only self-service staff (added via HRMS Staff Directory) never get Setup access,
   // regardless of any permission they might otherwise carry.
   const isPilot = canAccessBankDetails(user?.email);
+  const isKiranProcurement = isProcurementTypesEnabled(user);
   const hasSetupAccess = !isHrmsOnly && (isAdmin || canView("Settings"));
 
   // The expired popup/lock starts after the grace period (lib/tenantExpiry.ts).
