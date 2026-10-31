@@ -4,6 +4,7 @@ import { Badge } from "@/hrms/components/ui/badge";
 import { Button } from "@/hrms/components/ui/button";
 import { Input } from "@/hrms/components/ui/input";
 import { Label } from "@/hrms/components/ui/label";
+import { Textarea } from "@/hrms/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -925,7 +926,7 @@ const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
             {/* Reason */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-600">Reason *</Label>
-              <textarea
+              <Textarea
                 placeholder={
                   form.type === "Loan"
                     ? "Reason for loan (e.g. medical emergency, home repair...)"
@@ -934,7 +935,7 @@ const AdvanceSalaryPage = ({ only }: { only?: RequestType } = {}) => {
                 value={form.reason}
                 onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
                 rows={3}
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-indigo-300 pb-12"
               />
             </div>
 

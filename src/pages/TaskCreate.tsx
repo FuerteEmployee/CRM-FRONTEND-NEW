@@ -173,7 +173,7 @@ const TaskCreate = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.startdate || !formData.rel_id) {
+    if (!formData.name?.trim() || !formData.startdate || !formData.rel_id) {
       toast({ title: "Error", description: "Please fill all required fields.", variant: "destructive" });
       return;
     }

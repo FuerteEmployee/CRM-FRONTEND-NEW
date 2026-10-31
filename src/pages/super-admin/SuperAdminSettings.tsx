@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ImagePlus, Loader2, Save, Trash2, Type } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { apiClient as api } from "@/api/client";
 import { mediaService } from "@/api/services/media.service";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
@@ -130,12 +131,12 @@ export default function SuperAdminSettings() {
             Panel name <span className="text-red-500">*</span>
           </label>
           <div className="relative">
-            <Type className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
+            <Type className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
+            <Input
               value={form.panelName}
               maxLength={MAX_NAME}
               onChange={(e) => setForm({ ...form, panelName: e.target.value })}
-              className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 pr-8"
               placeholder="e.g. Fuerte CRM"
             />
           </div>

@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Search, Calendar, Clock, Users, Trash2, Edit, Video, Copy, Sparkles, Mic, StopCircle } from "lucide-react";
 import { useSpeechRecognition } from "react-speech-recognition";
 import { startListening, stopListening } from "@/lib/speechControl";
+import { onDictationBusyChange } from "@/lib/dictation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { meetingService } from "@/api/services/meeting.service";
 import { staffService } from "@/api/services/staff.service";
@@ -93,6 +94,25 @@ export default function Meetings() {
   // reacting to half-spoken sentences, which the backend RULE 2/4 both assume
   // never happens (it expects to see completed sentences only).
   const { finalTranscript, listening: speechListening, resetTranscript: resetSpeechTranscript } = useSpeechRecognition();
+
+  const isScribingRef = useRef(false);
+  isScribingRef.current = isScribing;
+  const scribeLanguageRef = useRef(scribeLanguage);
+  scribeLanguageRef.current = scribeLanguage;
+
+  // Stop the scribe mic when leaving this page, and resume it (in the scribe's
+  // language) after voice typing in a form field borrowed the speech engine.
+  useEffect(() => {
+    const unsubscribe = onDictationBusyChange((busy) => {
+      if (!isScribingRef.current) return;
+      if (busy) return stopListening();
+      startListening({ continuous: true, language: scribeLanguageRef.current });
+    });
+    return () => {
+      unsubscribe();
+      if (isScribingRef.current) stopListening();
+    };
+  }, []);
 
   const SCRIBE_LANGUAGES = [
     { value: "hi-IN", label: "Hindi" },

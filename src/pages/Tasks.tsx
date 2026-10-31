@@ -501,10 +501,10 @@ const Tasks = () => {
           return isTodoId(id) ? utilityService.deleteTodo(id) : taskService.delete(id);
         }));
         toast({ title: "Success", description: `Deleted ${selectedTasks.length} tasks.` });
-      } else {
         const updates: any = {};
         if (bulkState.status) updates.status = parseInt(bulkState.status);
         if (bulkState.priority) updates.priority = parseInt(bulkState.priority);
+        if (bulkState.assignee) updates.assignees = [bulkState.assignee];
         if (bulkState.tags) updates.tags = bulkState.tags.split(",").map(s => s.trim());
         if (bulkState.billable) updates.billable = bulkState.billable === "yes";
 
@@ -520,6 +520,9 @@ const Tasks = () => {
             }
           }));
           toast({ title: "Success", description: `Updated ${selectedTasks.length} tasks.` });
+        } else {
+          toast({ title: "Warning", description: "Please select an action or field to update.", variant: "destructive" });
+          return;
         }
       }
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
@@ -622,7 +625,7 @@ const Tasks = () => {
       toast({ title: "Error", description: "Please select a branch", variant: "destructive" });
       return;
     }
-    if (!formData.name || !formData.startdate) {
+    if (!formData.name?.trim() || !formData.startdate) {
       toast({ title: "Error", description: "Subject and Start Date are required fields", variant: "destructive" });
       return;
     }

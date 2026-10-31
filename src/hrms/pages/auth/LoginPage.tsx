@@ -253,6 +253,7 @@ const LoginPage = () => {
                       onChange={(e) => { setEmail(e.target.value); setError(""); }}
                       className={cn("h-11 pl-10 rounded-xl border-slate-200 bg-white text-sm font-medium placeholder:text-slate-400", isEmailError && "border-red-300 bg-red-50")}
                       required
+                      disableVoice
                     />
                   </div>
                 </div>
@@ -269,6 +270,7 @@ const LoginPage = () => {
                       onChange={(e) => { setPassword(e.target.value); setError(""); }}
                       className={cn("h-11 pl-10 pr-12 rounded-xl border-slate-200 bg-white text-sm font-medium placeholder:text-slate-400", isPasswordError && "border-red-300 bg-red-50")}
                       required
+                      disableVoice
                     />
                     <button type="button" onClick={() => setShowPwd(!showPwd)}
                       className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-700 transition-colors" tabIndex={-1}>

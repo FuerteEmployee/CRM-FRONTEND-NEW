@@ -8,6 +8,7 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -1006,10 +1007,10 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
               <label className="text-[13px] font-bold text-slate-700 flex items-center gap-1">
                 <span className="text-destructive">*</span> Description
               </label>
-              <textarea 
+              <Textarea
                 value={reminderForm.description}
                 onChange={(e) => setReminderForm({ ...reminderForm, description: e.target.value })}
-                className="w-full min-h-[100px] rounded-xl border-slate-200 shadow-sm border p-3 text-sm focus:outline-none focus:ring-1 focus:ring-slate-400"
+                className="w-full min-h-[100px] rounded-xl border-slate-200 shadow-sm border p-3 text-sm focus:outline-none focus:ring-1 focus:ring-slate-400 pb-12"
                 placeholder="Reminder details..."
               />
             </div>

@@ -28,6 +28,7 @@ import {
 import { Button } from "@/hrms/components/ui/button";
 import { Input } from "@/hrms/components/ui/input";
 import { Label } from "@/hrms/components/ui/label";
+import { Textarea } from "@/hrms/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -1893,10 +1894,10 @@ export default function StaffFormPage() {
                         <FormItem className="col-span-2">
                           <FormLabel className={labelClass}>Additional Remarks / Other Information</FormLabel>
                           <FormControl>
-                            <textarea
+                            <Textarea
                               placeholder="Enter any other operational details, incentive remarks or notes..."
                               rows={4}
-                              className="w-full rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm p-3 border"
+                              className="w-full rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm p-3 border pb-12"
                               {...field}
                             />
                           </FormControl>
@@ -1957,8 +1958,8 @@ export default function StaffFormPage() {
                           <FormItem className="md:col-span-2">
                             <FormLabel className={cn(labelClass, "flex items-center gap-2")}><Mail className="h-4 w-4 text-slate-400" /> Email Signature</FormLabel>
                             <FormControl>
-                              <textarea
-                                className="w-full min-h-[80px] p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                              <Textarea
+                                className="w-full min-h-[80px] p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm pb-12"
                                 {...field}
                               />
                             </FormControl>

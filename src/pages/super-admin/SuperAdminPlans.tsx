@@ -6,6 +6,8 @@ import {
   BookOpen, BarChart3, Clock, Goal, Megaphone, CalendarDays, Bookmark, UserCog,
   Zap, CircleDot, FormInput, MessageCircle,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { apiClient as api } from "@/api/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -391,21 +393,21 @@ Cancel = keep their current end dates; only new companies and renewals get the n
 
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-gray-600">Plan Name<span className="text-red-500 ml-0.5">*</span></label>
-                    <input
+                    <Input
                       type="text" required value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder="e.g. Starter, Pro, Enterprise"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 pr-8"
                     />
                   </div>
 
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-gray-600">Description</label>
-                    <textarea
+                    <Textarea
                       rows={2} value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       placeholder="Short description..."
-                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none pb-12"
                     />
                   </div>
 

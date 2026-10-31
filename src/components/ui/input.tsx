@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Mic, MicOff } from "lucide-react";
 import { Button } from "./button";
-import { toast } from "sonner";
+import { appendToField, useDictation } from "@/lib/dictation";
 
 export interface InputProps extends React.ComponentProps<"input"> {
   disableVoice?: boolean;
@@ -10,87 +10,25 @@ export interface InputProps extends React.ComponentProps<"input"> {
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type, disableVoice, ...props }, ref) => {
-    const [isRecording, setIsRecording] = React.useState(false);
-    const [recognitionInstance, setRecognitionInstance] = React.useState<any>(null);
     const internalRef = React.useRef<HTMLInputElement>(null);
 
     React.useImperativeHandle(ref, () => internalRef.current as HTMLInputElement);
 
-    const isTextType = !type || type === "text" || type === "search" || type === "url" || type === "email";
+    // Spoken text is appended to whatever is already typed; the field does not need focus.
+    // The mic stays on until the user clicks it off.
+    const dictation = useDictation((text) => {
+      if (internalRef.current) appendToField(internalRef.current, text);
+    });
 
     const toggleVoiceRecord = (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-
-      if (isRecording && recognitionInstance) {
-        recognitionInstance.stop();
-        setIsRecording(false);
-        return;
-      }
-
-      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-        toast("Voice recording is not supported in this browser.");
-        return;
-      }
-
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onstart = () => setIsRecording(true);
-      recognition.onend = () => setIsRecording(false);
-      recognition.onerror = (event: any) => {
-        setIsRecording(false);
-        if (event.error === 'no-speech' || event.error === 'aborted') return;
-        if (event.error === 'not-allowed') {
-          toast.error("Microphone access denied.");
-          return;
-        }
-        // Fallback for other errors
-        console.error(event.error);
-      };
-
-      recognition.onresult = (event: any) => {
-        let transcript = "";
-        for (let i = 0; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-        
-        if (transcript && internalRef.current) {
-          const inputNode = internalRef.current;
-          
-          const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-            window.HTMLInputElement.prototype,
-            "value"
-          )?.set;
-          
-          if (nativeInputValueSetter) {
-            nativeInputValueSetter.call(inputNode, transcript);
-            inputNode.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        }
-      };
-
-      try {
-        recognition.start();
-        setRecognitionInstance(recognition);
-      } catch (err) {
-        console.error(err);
-        setIsRecording(false);
-      }
+      dictation.toggle();
     };
 
-    React.useEffect(() => {
-      return () => {
-        if (recognitionInstance) {
-          recognitionInstance.stop();
-        }
-      };
-    }, [recognitionInstance]);
+    const isTextType = !type || type === "text" || type === "search" || type === "url" || type === "email";
 
-    if (disableVoice || !isTextType) {
+    if (disableVoice || !isTextType || props.disabled || props.readOnly) {
       return (
         <input
           type={type}
@@ -119,10 +57,12 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           size="icon"
           variant="ghost"
           className="absolute right-1 h-6 w-6 rounded-md hover:bg-transparent"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={toggleVoiceRecord}
           type="button"
+          title={dictation.isRecording ? "Stop voice typing" : "Voice typing"}
         >
-          {isRecording ? (
+          {dictation.isRecording ? (
             <MicOff className="h-3.5 w-3.5 text-destructive animate-pulse" />
           ) : (
             <Mic className="h-3.5 w-3.5 text-muted-foreground hover:text-primary transition-colors" />

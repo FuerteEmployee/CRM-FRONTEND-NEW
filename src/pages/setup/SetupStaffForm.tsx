@@ -5,6 +5,7 @@ import { LANGUAGES_WITH_SYSTEM_DEFAULT } from "@/lib/languages";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -1142,18 +1143,18 @@ export default function SetupStaffForm() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Current Address</label>
-                  <textarea
+                  <Textarea
                     value={formData.address.current}
                     onChange={(e) => setFormData({ ...formData, address: { ...formData.address, current: e.target.value } })}
-                    className="w-full min-h-[70px] p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                    className="w-full min-h-[70px] p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm pb-12"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Permanent Address</label>
-                  <textarea
+                  <Textarea
                     value={formData.address.permanent}
                     onChange={(e) => setFormData({ ...formData, address: { ...formData.address, permanent: e.target.value } })}
-                    className="w-full min-h-[70px] p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                    className="w-full min-h-[70px] p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm pb-12"
                   />
                 </div>
               </div>
@@ -1246,7 +1247,7 @@ export default function SetupStaffForm() {
                   <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1 flex items-center gap-2">
                     <Mail className="h-4 w-4 text-slate-400" /> Email Signature
                   </label>
-                  <textarea
+                  <Textarea
                     value={formData.email_signature}
                     onChange={(e) =>
                       setFormData({
@@ -1254,7 +1255,7 @@ export default function SetupStaffForm() {
                         email_signature: e.target.value,
                       })
                     }
-                    className="w-full min-h-[80px] p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm"
+                    className="w-full min-h-[80px] p-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-primary shadow-sm pb-12"
                   />
                 </div>
               </div>
@@ -2084,12 +2085,12 @@ export default function SetupStaffForm() {
               </div>
               <div className="space-y-2 md:col-span-2">
                 <label className="text-[13px] font-semibold text-[#333333] tracking-wider mb-1.5 block ml-1">Additional Remarks / Other Information</label>
-                <textarea
+                <Textarea
                   placeholder="Enter any other operational details, incentive remarks or notes..."
                   rows={4}
                   value={formData.salespersonRemarks}
                   onChange={(e) => setFormData({ ...formData, salespersonRemarks: e.target.value })}
-                  className="w-full rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm p-3 border"
+                  className="w-full rounded-md border-slate-300 bg-white text-[#333333] focus:ring-0 placeholder:text-slate-400 text-sm p-3 border pb-12"
                   disabled={fieldsDisabled}
                 />
               </div>
