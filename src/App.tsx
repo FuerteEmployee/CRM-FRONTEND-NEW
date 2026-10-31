@@ -5,12 +5,20 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect as useAreaEffect } from "react";
-import { setCssArea, cssAreaForPath } from "@/lib/themeUtils";
+import { setCssArea, cssAreaForPath, clearThemeFromDom } from "@/lib/themeUtils";
 
 // Theme Style > Custom CSS: switch between the "Admin Area" and "Customers Area" CSS.
 function CssAreaSync() {
   const { pathname } = useLocation();
-  useAreaEffect(() => setCssArea(cssAreaForPath(pathname)), [pathname]);
+  useAreaEffect(() => {
+    setCssArea(cssAreaForPath(pathname));
+    if (pathname === "/welcome" || pathname === "/" || pathname === "/admin/login") {
+      const hasSession = localStorage.getItem("crm_user") || localStorage.getItem("crm_client");
+      if (!hasSession) {
+        clearThemeFromDom();
+      }
+    }
+  }, [pathname]);
   return null;
 }
 import { PermissionProvider, usePermissionContext } from "@/context/PermissionContext";

@@ -23,7 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Layers, Edit, Zap } from "lucide-react";
+import { Plus, Search, Layers,
+  Package, Edit, Zap } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportDialog, type ImportColumn } from "@/components/ui/import-dialog";
 import { TableActions } from "@/components/TableActions";
@@ -1085,7 +1086,9 @@ const Items = () => {
                             }}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{item.name || item.description}</TableCell>
+                        <TableCell className="font-medium">
+                          {item.name || item.description}
+                        </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1 items-start">
                             {item.procurementType && (
@@ -1164,84 +1167,140 @@ const Items = () => {
         </TableContainer>
       </div>
 
-      {/* View Item Details */}
+            {/* View Item Details Modal */}
       <Dialog open={!!viewItem} onOpenChange={() => setViewItem(null)}>
-        <DialogContent className="max-w-md rounded-3xl p-6 border-none shadow-2xl bg-white max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="border-b border-border/50 pb-4 mb-4">
-            <DialogTitle className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <Layers className="h-5 w-5 shrink-0 text-primary" />
-              Item Information
-            </DialogTitle>
-          </DialogHeader>
-          {viewItem && (
-            <div className="space-y-4">
+        <DialogContent className="max-w-2xl rounded-3xl p-0 border border-border/50 shadow-2xl bg-card overflow-hidden">
+          {/* Header */}
+          <div className="p-6 bg-muted/30 border-b border-border/50 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+                <Package className="h-5 w-5" />
+              </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Item Name</p>
-                <p className="text-sm font-bold text-slate-800">{viewItem.name || viewItem.description}</p>
+                <DialogTitle className="text-lg font-bold tracking-tight">Item Details</DialogTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Specifications, pricing structure & inventory data</p>
               </div>
-              {viewItem.long_description && (
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Description</p>
-                  <p className="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-xl p-3 leading-relaxed">{viewItem.long_description}</p>
+            </div>
+          </div>
+
+          {viewItem && (
+            <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+              {/* Product Hero Banner */}
+              <div className="p-4 rounded-2xl bg-muted/40 border border-border/50">
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Item Name</span>
+                  {viewItem.procurementType && (
+                    <Badge className={
+                      viewItem.procurementType === "READY"
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-bold text-[10px]"
+                        : viewItem.procurementType === "JOBWORK"
+                        ? "bg-amber-50 text-amber-700 border-amber-200 font-bold text-[10px]"
+                        : "bg-blue-50 text-blue-700 border-blue-200 font-bold text-[10px]"
+                    }>
+                      {viewItem.procurementType === "READY" ? "Ready to Use" : viewItem.procurementType === "JOBWORK" ? "Job Work" : "Manufacturing"}
+                    </Badge>
+                  )}
                 </div>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Quantity</p>
-                  <p className="text-sm font-extrabold text-slate-900">{viewItem.quantity ?? 1}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Rate</p>
-                  <p className="text-sm font-extrabold text-slate-900">{symbol}{(viewItem.rate || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Amount</p>
-                  <p className="text-sm font-extrabold text-slate-900">{symbol}{(viewItem.amount ?? ((viewItem.quantity ?? 1) * (viewItem.rate ?? 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-                </div>
+                <h3 className="text-base sm:text-lg font-bold text-foreground tracking-tight leading-snug">
+                  {viewItem.name || viewItem.description}
+                </h3>
               </div>
+
+              {/* Financial Metrics 3-Card Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Unit</p>
-                  <p className="text-sm font-bold text-slate-700">{viewItem.unit || "item"}</p>
+                <div className="p-3.5 rounded-2xl border border-border/50 bg-background/50 shadow-xs">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Quantity</p>
+                  <p className="text-base font-black text-foreground">
+                    {viewItem.quantity ?? 1} <span className="text-xs font-semibold text-muted-foreground">{viewItem.unit || "Nos"}</span>
+                  </p>
                 </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Group / Category</p>
-                  <p className="text-xs font-bold text-slate-700">{viewItem.group || "N/A"}</p>
+                <div className="p-3.5 rounded-2xl border border-border/50 bg-background/50 shadow-xs">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Unit Rate</p>
+                  <p className="text-base font-black text-foreground">
+                    {symbol}{(viewItem.rate || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </p>
                 </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Tax rate</p>
-                  <p className="text-xs font-bold text-emerald-700">
-                    {viewItem.tax ? `${typeof viewItem.tax === "object" ? viewItem.tax.name : "Active Tax"} (${typeof viewItem.tax === "object" ? viewItem.tax.taxrate : 0}%)` : "No Tax"}
+                <div className="p-3.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 shadow-xs">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-1">Total Amount</p>
+                  <p className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                    {symbol}{(viewItem.amount ?? ((viewItem.quantity ?? 1) * (viewItem.rate ?? 0))).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">HSN/SAC</p>
-                  <p className="text-sm font-bold text-slate-700">{viewItem.hsn_sac_code || "-"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Cess Rate</p>
-                  <p className="text-sm font-bold text-slate-700">{viewItem.cess_rate || 0}%</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Pricing</p>
-                  <p className="text-sm font-bold text-slate-700">{viewItem.tax_inclusive ? "Tax-inclusive" : "Tax-exclusive"}</p>
+              {/* Key Attributes & Tax Grid */}
+              <div className="p-4 rounded-2xl border border-border/50 bg-muted/20 space-y-3">
+                <h4 className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">Specifications & Tax Information</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-3.5 gap-x-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Group / Category</p>
+                    <p className="text-xs font-semibold text-foreground mt-0.5">{viewItem.categoryId?.name || viewItem.group || "General"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Unit</p>
+                    <p className="text-xs font-semibold text-foreground mt-0.5">{viewItem.unit || "item"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Tax Class</p>
+                    <div className="mt-0.5">
+                      {viewItem.tax ? (
+                        <Badge className="bg-emerald-500/10 text-emerald-700 border-none font-bold text-[10px]">
+                          {typeof viewItem.tax === "object" ? viewItem.tax.name : "Active Tax"} ({typeof viewItem.tax === "object" ? viewItem.tax.taxrate : 0}%)
+                        </Badge>
+                      ) : (
+                        <span className="text-xs font-medium text-muted-foreground">No Tax (0%)</span>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">HSN / SAC Code</p>
+                    <p className="text-xs font-semibold text-foreground mt-0.5">{viewItem.hsn_sac_code || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Cess Rate</p>
+                    <p className="text-xs font-semibold text-foreground mt-0.5">{viewItem.cess_rate || 0}%</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Pricing Mode</p>
+                    <div className="mt-0.5">
+                      <Badge variant="outline" className="text-[10px] font-semibold">
+                        {viewItem.tax_inclusive ? "Tax-inclusive" : "Tax-exclusive"}
+                      </Badge>
+                    </div>
+                  </div>
+                  {viewItem.branch && (
+                    <div className="col-span-2 sm:col-span-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Assigned Branch</p>
+                      <p className="text-xs font-semibold text-foreground mt-0.5">
+                        {typeof viewItem.branch === "object" ? (viewItem.branch?.name || "-") : viewItem.branch}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
+              {/* Description */}
+              {viewItem.long_description && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Detailed Description</p>
+                  <p className="text-xs text-foreground/80 bg-muted/30 border border-border/50 rounded-xl p-3.5 leading-relaxed whitespace-pre-line">
+                    {viewItem.long_description}
+                  </p>
+                </div>
+              )}
+
+              {/* Custom Fields */}
               {customFieldDefs.length > 0 && viewItem.custom_fields && (
                 <div className="border-t border-border/50 pt-3 space-y-2">
-                  <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Custom Fields</p>
+                  <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Custom Fields</p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {customFieldDefs.map((cf: any) => {
                       const val = viewItem.custom_fields?.[cf.slug] ?? viewItem.custom_fields?.[cf._id];
                       if (val === undefined || val === null || val === "") return null;
                       return (
-                        <div key={cf._id}>
-                          <p className="text-[10px] font-bold text-slate-500">{cf.name}</p>
-                          <p className="text-xs font-semibold text-slate-800">
+                        <div key={cf._id} className="p-2.5 rounded-xl bg-muted/20 border border-border/40">
+                          <p className="text-[10px] font-bold text-muted-foreground">{cf.name}</p>
+                          <p className="text-xs font-semibold text-foreground mt-0.5">
                             {typeof val === "boolean" ? (val ? "Yes" : "No") : String(val)}
                           </p>
                         </div>
@@ -1252,6 +1311,8 @@ const Items = () => {
               )}
             </div>
           )}
+
+          
         </DialogContent>
       </Dialog>
 

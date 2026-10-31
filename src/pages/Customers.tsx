@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -710,53 +711,89 @@ const Customers = () => {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Customers</h1>
-          <Link to="/admin/contacts" className="text-sm text-primary hover:underline">
-            Contacts →
-          </Link>        </div>
+        </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <Card className="border-t-2 border-t-border">
+          <Card 
+            className={cn(
+              "border-t-2 border-t-border cursor-pointer transition-all duration-200 hover:shadow-sm select-none",
+              statusFilter === "all" ? "bg-muted/40" : ""
+            )}
+            onClick={() => setStatusFilter("all")}
+            title="Total Customers"
+          >
             <CardContent className="p-3 text-center">
               <p className="text-lg font-bold">{totalCustomers}</p>
-              <p className="text-xs text-muted-foreground">Total Customers</p>
+              <p className="text-xs text-muted-foreground font-medium">Total Customers</p>
             </CardContent>
           </Card>
-          <Card className="border-t-2 border-t-primary">
+
+          <Card 
+            className={cn(
+              "border-t-2 border-t-primary cursor-pointer transition-all duration-200 hover:shadow-sm select-none",
+              statusFilter === "Active" ? "bg-primary/10" : ""
+            )}
+            onClick={() => setStatusFilter(statusFilter === "Active" ? "all" : "Active")}
+            title="Active Customers"
+          >
             <CardContent className="p-3 text-center">
               <p className="text-lg font-bold text-primary">
                 {activeCustomers}
               </p>
-              <p className="text-xs text-primary">Active Customers</p>
+              <p className="text-xs text-primary font-medium">Active Customers</p>
             </CardContent>
           </Card>
-          <Card className="border-t-2 border-t-destructive">
+
+          <Card 
+            className={cn(
+              "border-t-2 border-t-destructive cursor-pointer transition-all duration-200 hover:shadow-sm select-none",
+              statusFilter === "Inactive" ? "bg-destructive/10" : ""
+            )}
+            onClick={() => setStatusFilter(statusFilter === "Inactive" ? "all" : "Inactive")}
+            title="Inactive Customers"
+          >
             <CardContent className="p-3 text-center">
               <p className="text-lg font-bold text-destructive">
                 {inactiveCustomers}
               </p>
-              <p className="text-xs text-destructive">Inactive Customers</p>
+              <p className="text-xs text-destructive font-medium">Inactive Customers</p>
             </CardContent>
           </Card>
-          <Card className="border-t-2 border-t-green-500">
+
+          <Card 
+            className="border-t-2 border-t-green-500 cursor-pointer transition-all duration-200 hover:shadow-sm select-none"
+            onClick={() => navigate("/admin/contacts?status=active")}
+            title="Active Contacts"
+          >
             <CardContent className="p-3 text-center">
               <p className="text-lg font-bold text-green-600">
                 {activeContacts}
               </p>
-              <p className="text-xs text-green-600">Active Contacts</p>
+              <p className="text-xs text-green-600 font-medium">Active Contacts</p>
             </CardContent>
           </Card>
-          <Card className="border-t-2 border-t-destructive">
+
+          <Card 
+            className="border-t-2 border-t-destructive cursor-pointer transition-all duration-200 hover:shadow-sm select-none"
+            onClick={() => navigate("/admin/contacts?status=inactive")}
+            title="Inactive Contacts"
+          >
             <CardContent className="p-3 text-center">
               <p className="text-lg font-bold text-destructive">
                 {inactiveContacts}
               </p>
-              <p className="text-xs text-destructive">Inactive Contacts</p>
+              <p className="text-xs text-destructive font-medium">Inactive Contacts</p>
             </CardContent>
           </Card>
-          <Card className="border-t-2 border-t-muted-foreground">
+
+          <Card 
+            className="border-t-2 border-t-muted-foreground cursor-pointer transition-all duration-200 hover:shadow-sm select-none"
+            onClick={() => navigate("/admin/contacts?filter=logged_in")}
+            title="Contacts Logged In"
+          >
             <CardContent className="p-3 text-center">
               <p className="text-lg font-bold">{loggedInContacts}</p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground font-medium">
                 Contacts Logged In
               </p>
             </CardContent>
@@ -1568,9 +1605,12 @@ const Customers = () => {
                           {(currentPage - 1) * itemsPerPageNum + i + 1}
                         </TableCell>
                         <TableCell>
-                          <span className="text-sm font-medium">
+                          <Link
+                            to={`/admin/customers/${c._id}`}
+                            className="text-sm font-medium text-foreground hover:text-primary hover:underline transition-colors"
+                          >
                             {c.company}
-                          </span>
+                          </Link>
                         </TableCell>
                         <TableCell className="text-muted-foreground">
                           {c.primaryContact ? (

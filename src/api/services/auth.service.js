@@ -1,3 +1,4 @@
+import { clearThemeFromDom } from "@/lib/themeUtils";
 import { apiClient } from "../client";
 import { setTokens } from "@/lib/session";
 
@@ -25,6 +26,8 @@ export const authService = {
       console.error("Logout error:", error);
     }
     localStorage.clear();
+    sessionStorage.clear();
+    clearThemeFromDom();
   },
 
   isAuthenticated: () => {

@@ -1,3 +1,4 @@
+import { clearThemeFromDom } from "@/lib/themeUtils";
 import React, {
   createContext,
   useContext,
@@ -186,6 +187,7 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
       localStorage.removeItem("crm_permissions");
       localStorage.removeItem("crm_plan_modules");
       queryClient.clear();
+      clearThemeFromDom();
     }
   };
 

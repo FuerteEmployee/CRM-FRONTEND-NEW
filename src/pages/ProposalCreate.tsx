@@ -416,6 +416,10 @@ export default function ProposalCreate() {
       toast({ title: "Required Fields", description: "Subject and Related entity are mandatory.", variant: "destructive" });
       return;
     }
+    if (formData.date && formData.open_till && new Date(formData.open_till) < new Date(formData.date)) {
+      toast({ title: "Invalid Dates", description: "Open Till (Due Date) cannot be earlier than Proposal Date.", variant: "destructive" });
+      return;
+    }
 
     const payload = {
       ...formData,

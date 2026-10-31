@@ -432,6 +432,10 @@ export default function EstimateCreate() {
       toast({ title: "Required Fields", description: "Customer is mandatory.", variant: "destructive" });
       return;
     }
+    if (formData.date && formData.expirydate && new Date(formData.expirydate) < new Date(formData.date)) {
+      toast({ title: "Invalid Dates", description: "Expiry Date cannot be earlier than Estimate Date.", variant: "destructive" });
+      return;
+    }
 
     const payload: any = {
       ...formData,

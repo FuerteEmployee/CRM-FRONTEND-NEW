@@ -37,6 +37,11 @@ export const ThemeStyleProvider = ({ children }: { children: React.ReactNode }) 
 
   // Apply cache immediately on mount before first paint — no preference gate
   useLayoutEffect(() => {
+    const hasSession = localStorage.getItem("crm_user") || localStorage.getItem("crm_client");
+    if (!hasSession) {
+      clearThemeFromDom();
+      return;
+    }
     const cached = localStorage.getItem(themeCacheKey());
     if (cached && !hasAppliedInitial) {
       try {

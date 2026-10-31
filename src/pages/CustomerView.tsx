@@ -145,6 +145,7 @@ import {
   Plus,
   Calendar,
   CheckCircle2,
+  AlertTriangle,
   XCircle,
   Clock,
   FileDown,
@@ -423,6 +424,13 @@ export default function CustomerView() {
   const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "profile");
 
   useEffect(() => {
+    const tabFromUrl = searchParams.get("tab");
+    if (tabFromUrl && tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (activeTab !== params.get("tab")) {
       params.set("tab", activeTab);
@@ -499,6 +507,7 @@ export default function CustomerView() {
   const [statementPeriod, setStatementPeriod] = useState("all");
   const [customRange, setCustomRange] = useState({ from: "", to: "" });
   const [isMailModalOpen, setIsMailModalOpen] = useState(false);
+  const [isSendingMail, setIsSendingMail] = useState(false);
   const [mailForm, setMailForm] = useState({
     email: "",
     cc: "",
@@ -622,6 +631,8 @@ export default function CustomerView() {
     queryKey: ["customer", id],
     queryFn: () => customerService.getById(id!),
   });
+
+  const isCustomerInactive = customer?.active === false;
 
   const { data: groups = [] } = useQuery({
     queryKey: ["customerGroups"],
@@ -1369,216 +1380,203 @@ export default function CustomerView() {
     }
   };
 
-  const handlePrintStatement = async (isDownload = false) => {
-    if (!finalStatementData) return;
+  const companyAddress = getSetting("companyAddress", "") || "";
+  const companyCity = getSetting("companyCity", "") || "";
+  const companyState = getSetting("companyState", "") || "";
+  const companyZip = getSetting("companyZipCode", "") || "";
+  const companyCountry = getSetting("companyCountry", "") || "";
+  const companyPhone = getSetting("companyPhone", "") || "";
+  const companyVat = getSetting("companyVatNumber", "") || "";
 
-    if (!isDownload) {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        toast({
-          title: "Error",
-          description: "Please allow pop-ups to print the statement.",
-          variant: "destructive"
-        });
-        return;
-      }
-      const fromDate = formatDate(finalStatementData.from);
-      const toDate = formatDate(finalStatementData.to);
-      const doc = printWindow.document;
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Account Summary - ${customer?.company}</title>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
-            body { font-family: 'Outfit', -apple-system, sans-serif; color: #333; padding: 40px; line-height: 1.6; font-size: 14px; background: white; }
-            .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; }
-            .header { display: flex; justify-content: space-between; margin-bottom: 40px; align-items: flex-start; }
-            .to-section { flex: 1; }
-            .to-label { font-weight: 700; font-size: 16px; margin-bottom: 5px; color: #000; }
-            .customer-name { font-weight: 600; font-size: 15px; margin-bottom: 15px; }
-            .vat-number { color: #666; font-size: 13px; margin-top: 20px; }
-            .company-info { text-align: right; line-height: 1.4; color: #000; font-weight: 500; }
-            .company-name { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
-            .summary-header-section { text-align: right; margin-top: 40px; margin-bottom: 20px; }
-            .summary-title { font-size: 22px; font-weight: 700; color: #000; margin-bottom: 5px; }
-            .summary-period { font-size: 14px; color: #666; }
-            .summary-table-container { display: flex; justify-content: flex-end; margin-bottom: 40px; }
-            .summary-table { width: 320px; border-top: 1px solid #ccc; border-bottom: 1px solid #ccc; padding: 10px 0; }
-            .summary-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
-            .summary-row.total { font-weight: 700; color: #000; margin-top: 5px; }
-            .showing-text { text-align: center; margin-bottom: 20px; font-weight: 600; color: #000; font-size: 13px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-            th { text-align: left; background: #eee; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; }
-            td { padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; color: #444; }
-            .text-right { text-align: right; }
-            .font-bold { font-weight: 700; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <div class="to-section">
-                <div class="to-label">To</div>
-                <div class="customer-name">${customer?.company}</div>
-                <div class="vat-number">VAT Number: ${customer?.vat || ''}</div>
-              </div>
-              <div class="company-info">
-                <div class="company-name">
-                <div>405, The Spireee</div>
-                <div>Rajkot Rajkot</div>
-                <div>India 360007</div>
-              </div>
-            </div>
-
-            <div class="summary-header-section">
-              <div class="summary-title">Account Summary</div>
-              <div class="summary-period">${fromDate} To ${toDate}</div>
-            </div>
-
-            <div class="summary-table-container">
-              <div class="summary-table">
-                <div class="summary-row"><span>Beginning Balance:</span> <span>${formatAmount(finalStatementData.beginningBalance || 0)}</span></div>
-                <div class="summary-row"><span>Invoiced Amount:</span> <span>${formatAmount(finalStatementData.totalInvoiced || 0)}</span></div>
-                <div class="summary-row"><span>Amount Paid:</span> <span>${formatAmount(finalStatementData.totalPaid || 0)}</span></div>
-                <div class="summary-row total"><span>Balance Due:</span> <span>${formatAmount(finalStatementData.balanceDue || 0)}</span></div>
-              </div>
-            </div>
-
-            <div class="showing-text">
-              Showing all invoices and payments between ${fromDate} and ${toDate}
-            </div>
-
-            <table>
-              <thead>
-                <tr>
-                  <th style="width: 15%;">Date</th>
-                  <th style="width: 45%;">Details</th>
-                  <th class="text-right">Amount</th>
-                  <th class="text-right">Payments</th>
-                  <th class="text-right">Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>${fromDate}</td>
-                  <td class="font-bold">Beginning Balance</td>
-                  <td class="text-right">0.00</td>
-                  <td class="text-right">0.00</td>
-                  <td class="text-right">${formatAmount(finalStatementData.beginningBalance || 0)}</td>
-                </tr>
-                ${finalStatementData.entries.map((entry: any) => `
-                  <tr>
-                    <td>${formatDate(entry.date)}</td>
-                    <td>${entry.details}</td>
-                    <td class="text-right">${entry.amount > 0 ? formatAmount(entry.amount) : '0.00'}</td>
-                    <td class="text-right">${entry.payments > 0 ? formatAmount(entry.payments) : '0.00'}</td>
-                    <td class="text-right">${formatAmount(entry.balance)}</td>
-                  </tr>
-                `).join('')}
-                <tr>
-                  <td colspan="4" class="text-right font-bold" style="padding-top: 20px; border-bottom: none;">Balance Due</td>
-                  <td class="text-right font-bold" style="padding-top: 20px; border-bottom: none;">${formatAmount(finalStatementData.balanceDue || 0)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <script>window.onload = () => window.print();</script>
-        </body>
-        </html>
-      `;
-      doc.write(html);
-      doc.close();
-      return;
-    }
-
-    // Silent Download Logic
-
-    if (!(window as any).html2canvas) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
-    if (!(window as any).jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
-
+  const generateStatementHtml = () => {
+    if (!finalStatementData) return "";
     const fromDate = formatDate(finalStatementData.from);
     const toDate = formatDate(finalStatementData.to);
 
-    // Create a hidden container on the main page
+    const compParts = [
+      companyAddress,
+      [companyCity, companyState].filter(Boolean).join(", "),
+      [companyCountry, companyZip].filter(Boolean).join(" - "),
+      companyPhone ? `Phone: ${companyPhone}` : "",
+      companyVat ? `VAT/GSTIN: ${companyVat}` : "",
+    ].filter(Boolean);
+
+    const custParts = [
+      customer?.address,
+      [customer?.city, customer?.state].filter(Boolean).join(", "),
+      [customer?.country, customer?.zip].filter(Boolean).join(" - "),
+      customer?.phonenumber ? `Phone: ${customer?.phonenumber}` : "",
+      customer?.vat ? `VAT: ${customer?.vat}` : "",
+    ].filter(Boolean);
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Account Statement - ${customer?.company || "Customer"}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+          * { box-sizing: border-box; }
+          body { font-family: 'Outfit', -apple-system, sans-serif; color: #1e293b; margin: 0; padding: 32px; background: #ffffff; font-size: 13px; line-height: 1.5; }
+          .container { max-width: 820px; margin: 0 auto; background: #ffffff; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 20px; border-bottom: 2px solid #e2e8f0; margin-bottom: 24px; }
+          .title-area h1 { font-size: 24px; font-weight: 800; margin: 0 0 4px; color: #0f172a; text-transform: uppercase; letter-spacing: -0.5px; }
+          .period-sub { font-size: 13px; font-weight: 600; color: #64748b; }
+          .comp-area { text-align: right; font-size: 12px; color: #475569; }
+          .comp-title { font-size: 16px; font-weight: 800; color: #0f172a; margin-bottom: 3px; }
+          .parties-grid { display: flex; justify-content: space-between; margin-bottom: 24px; gap: 20px; }
+          .party-col { flex: 1; }
+          .party-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.8px; margin-bottom: 4px; }
+          .party-name { font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 3px; }
+          .party-info { font-size: 12px; color: #475569; line-height: 1.5; }
+          .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 28px; }
+          .kpi-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; }
+          .kpi-box.due { background: #fef2f2; border-color: #fecaca; }
+          .kpi-lbl { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
+          .kpi-box.due .kpi-lbl { color: #dc2626; }
+          .kpi-val { font-size: 16px; font-weight: 800; color: #0f172a; }
+          .kpi-box.due .kpi-val { color: #dc2626; }
+          table.statement-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+          table.statement-table th { background: #f1f5f9; color: #334155; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 12px; border: 1px solid #cbd5e1; }
+          table.statement-table td { padding: 10px 12px; font-size: 12px; border: 1px solid #e2e8f0; color: #334155; }
+          table.statement-table tbody tr:nth-child(even) { background: #f8fafc; }
+          .text-right { text-align: right; }
+          .font-bold { font-weight: 700; }
+          .total-row td { background: #f1f5f9; font-weight: 800; font-size: 13px; color: #0f172a; border-top: 2px solid #cbd5e1; }
+          @media print {
+            @page { size: A4; margin: 12mm; }
+            body { padding: 0; background: #fff !important; }
+            .container { max-width: 100%; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            thead { display: table-header-group; }
+            tfoot { display: table-footer-group; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="title-area">
+              <h1>Statement of Account</h1>
+              <div class="period-sub">${fromDate} To ${toDate}</div>
+            </div>
+            <div class="comp-area">
+              <div class="comp-title">${companyName}</div>
+              ${compParts.map(p => `<div>${p}</div>`).join('')}
+            </div>
+          </div>
+
+          <div class="parties-grid">
+            <div class="party-col">
+              <div class="party-label">Statement For</div>
+              <div class="party-name">${customer?.company || "Customer"}</div>
+              <div class="party-info">
+                ${custParts.map(p => `<div>${p}</div>`).join('')}
+              </div>
+            </div>
+          </div>
+
+          <div class="summary-grid">
+            <div class="kpi-box">
+              <div class="kpi-lbl">Beginning Balance</div>
+              <div class="kpi-val">${formatAmount(finalStatementData?.beginningBalance || 0)}</div>
+            </div>
+            <div class="kpi-box">
+              <div class="kpi-lbl">Invoiced Amount</div>
+              <div class="kpi-val">${formatAmount(finalStatementData?.totalInvoiced || 0)}</div>
+            </div>
+            <div class="kpi-box">
+              <div class="kpi-lbl">Amount Paid</div>
+              <div class="kpi-val">${formatAmount(finalStatementData?.totalPaid || 0)}</div>
+            </div>
+            <div class="kpi-box due">
+              <div class="kpi-lbl">Balance Due</div>
+              <div class="kpi-val">${formatAmount(finalStatementData?.balanceDue || 0)}</div>
+            </div>
+          </div>
+
+          <table class="statement-table">
+            <thead>
+              <tr>
+                <th style="width: 14%;">Date</th>
+                <th style="width: 44%;">Details / Transaction</th>
+                <th class="text-right" style="width: 14%;">Amount</th>
+                <th class="text-right" style="width: 14%;">Payments</th>
+                <th class="text-right" style="width: 14%;">Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>${fromDate}</td>
+                <td class="font-bold">Beginning Balance</td>
+                <td class="text-right">0.00</td>
+                <td class="text-right">0.00</td>
+                <td class="text-right">${formatAmount(finalStatementData?.beginningBalance || 0)}</td>
+              </tr>
+              ${(finalStatementData?.entries || []).map((entry: any) => `
+                <tr>
+                  <td>${formatDate(entry.date)}</td>
+                  <td>${entry.details || "-"}</td>
+                  <td class="text-right">${entry.amount > 0 ? formatAmount(entry.amount) : "0.00"}</td>
+                  <td class="text-right">${entry.payments > 0 ? formatAmount(entry.payments) : "0.00"}</td>
+                  <td class="text-right font-bold">${formatAmount(entry.balance)}</td>
+                </tr>
+              `).join('')}
+              <tr class="total-row">
+                <td colspan="4" class="text-right font-bold">Balance Due</td>
+                <td class="text-right font-bold">${formatAmount(finalStatementData?.balanceDue || 0)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  const handlePrintStatement = async (isDownload = false) => {
+    if (!finalStatementData) return;
+    const html = generateStatementHtml();
+
+    if (!isDownload) {
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        const doc = printWindow.document;
+        doc.write(html);
+        doc.close();
+        printWindow.onload = () => printWindow.print();
+        return;
+      }
+      // Fallback for pop-up blocked: hidden iframe
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+      iframe.contentDocument?.write(html);
+      iframe.contentDocument?.close();
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 2000);
+      return;
+    }
+
+    // PDF Download
+    if (!(window as any).html2canvas) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+    if (!(window as any).jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+
     const hiddenContainer = document.createElement('div');
     hiddenContainer.style.position = 'fixed';
     hiddenContainer.style.left = '-9999px';
     hiddenContainer.style.top = '0';
-    hiddenContainer.style.width = '800px';
-    hiddenContainer.style.background = 'white';
-    hiddenContainer.style.padding = '40px';
-    hiddenContainer.style.fontFamily = "'Outfit', sans-serif";
-
-    hiddenContainer.innerHTML = `
-      <div style="display: flex; justify-content: space-between; margin-bottom: 40px; align-items: flex-start;">
-        <div style="flex: 1;">
-          <div style="font-weight: 700; font-size: 16px; margin-bottom: 5px; color: #000;">To</div>
-          <div style="font-weight: 600; font-size: 15px; margin-bottom: 15px;">${customer?.company}</div>
-          <div style="color: #666; font-size: 13px; margin-top: 20px;">VAT Number: ${customer?.vat || ''}</div>
-        </div>
-        <div style="text-align: right; line-height: 1.4; color: #000; font-weight: 500;">
-          <div style="font-weight: 700; font-size: 15px; margin-bottom: 2px;">${companyName}</div>
-          <div>405, The Spireee</div>
-          <div>Rajkot Rajkot</div>
-          <div>India 360007</div>
-        </div>
-      </div>
-
-      <div style="text-align: right; margin-top: 40px; margin-bottom: 20px;">
-        <div style="font-size: 22px; font-weight: 700; color: #000; margin-bottom: 5px;">Account Summary</div>
-        <div style="font-size: 14px; color: #666;">${fromDate} To ${toDate}</div>
-      </div>
-
-      <div style="display: flex; justify-content: flex-end; margin-bottom: 40px;">
-        <div style="width: 320px; border-top: 1px solid #ccc; border-bottom: 1px solid #ccc; padding: 10px 0;">
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;"><span>Beginning Balance:</span> <span>${formatAmount(finalStatementData.beginningBalance || 0)}</span></div>
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;"><span>Invoiced Amount:</span> <span>${formatAmount(finalStatementData.totalInvoiced || 0)}</span></div>
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px;"><span>Amount Paid:</span> <span>${formatAmount(finalStatementData.totalPaid || 0)}</span></div>
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; font-weight: 700; color: #000; margin-top: 5px;"><span>Balance Due:</span> <span>${formatAmount(finalStatementData.balanceDue || 0)}</span></div>
-        </div>
-      </div>
-
-      <div style="text-align: center; margin-bottom: 20px; font-weight: 600; color: #000; font-size: 13px;">
-        Showing all invoices and payments between ${fromDate} and ${toDate}
-      </div>
-
-      <table style="width: 100%; border-collapse: collapse;">
-        <thead>
-          <tr>
-            <th style="text-align: left; background: #eee; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 15%;">Date</th>
-            <th style="text-align: left; background: #eee; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 45%;">Details</th>
-            <th style="text-align: right; background: #eee; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 13%;">Amount</th>
-            <th style="text-align: right; background: #eee; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 13%;">Payments</th>
-            <th style="text-align: right; background: #eee; padding: 10px 12px; font-size: 13px; font-weight: 700; color: #333; border-bottom: 1px solid #ddd; width: 14%;">Balance</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee;">${fromDate}</td>
-            <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; font-weight: 700;">Beginning Balance</td>
-            <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">0.00</td>
-            <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">0.00</td>
-            <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">${formatAmount(finalStatementData.beginningBalance || 0)}</td>
-          </tr>
-          ${finalStatementData.entries.map((entry: any) => `
-            <tr>
-              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee;">${formatDate(entry.date)}</td>
-              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee;">${entry.details}</td>
-              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">${entry.amount > 0 ? formatAmount(entry.amount) : '0.00'}</td>
-              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">${entry.payments > 0 ? formatAmount(entry.payments) : '0.00'}</td>
-              <td style="padding: 12px; font-size: 13px; border-bottom: 1px solid #eee; text-align: right;">${formatAmount(entry.balance)}</td>
-            </tr>
-          `).join('')}
-          <tr>
-            <td colspan="4" style="text-align: right; font-weight: 700; padding: 20px 12px 10px;">Balance Due</td>
-            <td style="text-align: right; font-weight: 700; padding: 20px 12px 10px;">${formatAmount(finalStatementData.balanceDue || 0)}</td>
-          </tr>
-        </tbody>
-      </table>
-    `;
-
+    hiddenContainer.style.width = '820px';
+    hiddenContainer.style.background = '#ffffff';
+    hiddenContainer.innerHTML = html;
     document.body.appendChild(hiddenContainer);
 
     try {
@@ -1593,15 +1591,56 @@ export default function CustomerView() {
       const { jsPDF } = (window as any).jspdf;
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
 
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-      pdf.save(`Statement_${customer?.company.replace(/\s+/g, '_')}.pdf`);
+      pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, pdfWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      pdf.save(`Statement_${(customer?.company || "Customer").replace(/\s+/g, '_')}.pdf`);
+      toast({ title: "Success", description: "Statement PDF downloaded successfully." });
     } catch (err) {
       console.error('PDF generation failed:', err);
       toast({ title: "Error", description: "Direct download failed. Please use the Print option.", variant: "destructive" });
     } finally {
       document.body.removeChild(hiddenContainer);
+    }
+  };
+
+  const handleSendStatementEmail = async () => {
+    if (!mailForm.email) {
+      toast({ title: "Required Field", description: "Please enter or select a recipient email.", variant: "destructive" });
+      return;
+    }
+    setIsSendingMail(true);
+    try {
+      const htmlContent = generateStatementHtml();
+      await customerService.sendStatementEmail(id!, {
+        to: mailForm.email,
+        cc: mailForm.cc,
+        subject: mailForm.subject,
+        body: mailForm.body,
+        html: htmlContent
+      });
+      toast({ title: "Statement Sent", description: `Statement emailed successfully to ${mailForm.email}` });
+      setIsMailModalOpen(false);
+    } catch (err: any) {
+      toast({
+        title: "Error Sending Email",
+        description: err.response?.data?.message || err.message || "Failed to send email. Please check SMTP settings.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSendingMail(false);
     }
   };
 
@@ -1889,6 +1928,32 @@ export default function CustomerView() {
 
           {/* Main Content Area */}
           <main className="flex-1 min-w-0">
+            {isCustomerInactive && (
+              <div className="bg-amber-500/10 border-2 border-amber-500/40 text-amber-900 dark:text-amber-200 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm mb-4 animate-in fade-in duration-300">
+                <div className="flex items-center gap-3.5">
+                  <div className="p-2.5 bg-amber-500/20 rounded-xl shrink-0">
+                    <AlertTriangle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold flex items-center gap-2">
+                      Customer Inactive
+                      <Badge variant="destructive" className="text-[10px] uppercase font-bold py-0">Inactive</Badge>
+                    </h4>
+                    <p className="text-xs text-amber-800/90 dark:text-amber-300/90 mt-0.5">
+                      This customer is currently inactive. Adding new contacts, invoices, proposals, estimates, contracts, projects, or tasks is restricted.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-md shrink-0 self-start sm:self-center"
+                  onClick={() => updateMutation.mutate({ active: true })}
+                  disabled={updateMutation.isPending}
+                >
+                  {updateMutation.isPending ? "Reactivating..." : "Reactivate Customer"}
+                </Button>
+              </div>
+            )}
             <Card className="border-none shadow-xl bg-card/80 backdrop-blur-md min-h-[600px] overflow-hidden">
               <CardContent className="p-0">
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -2240,207 +2305,34 @@ export default function CustomerView() {
                     <div className="p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-2">
-                          <Dialog open={isContactModalOpen} onOpenChange={(open) => (open ? setIsContactModalOpen(true) : handleCloseModal())}>
-                            <DialogTrigger asChild>
-                              <Button size="sm" className="gap-2 bg-primary hover:bg-primary/90 shadow-md">
-                                <Plus className="h-4 w-4" />
-                                New Contact
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0 gap-0 border-none shadow-2xl bg-white outline-none">
-                              <DialogHeader className="p-6 bg-muted/30 border-b border-border/50 sticky top-0 z-10">
-                                <DialogTitle className="text-xl font-bold tracking-tight">
-                                  {isEditingContact ? "Edit Contact" : "Add New Contact"}
-                                </DialogTitle>
-                              </DialogHeader>
-
-                              <div className="p-8 space-y-8">
-                                {/* Profile Image Section */}
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs font-bold uppercase text-muted-foreground">Profile Image</Label>
-                                  <div className="flex flex-col gap-3">
-                                    <Input
-                                      type="file"
-                                      accept="image/*"
-                                      className="cursor-pointer file:bg-primary file:text-primary-foreground file:border-none file:rounded-md file:px-3 file:py-1 file:mr-4 file:hover:bg-primary/90 file:transition-colors"
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
-                                          const reader = new FileReader();
-                                          reader.onloadend = () => {
-                                            setContactForm((p: any) => ({ ...p, profile_image: reader.result }));
-                                          };
-                                          reader.readAsDataURL(file);
-                                        }
-                                      }}
-                                    />
-                                    {contactForm.profile_image && (
-                                      <div className="relative h-20 w-20 rounded-lg overflow-hidden border border-border shadow-sm">
-                                        <img src={contactForm.profile_image} className="h-full w-full object-cover" alt="Preview" />
-                                        <button
-                                          className="absolute top-0 right-0 bg-destructive text-white p-1 rounded-bl-lg opacity-0 hover:opacity-100 transition-opacity"
-                                          onClick={() => setContactForm((p: any) => ({ ...p, profile_image: null }))}
-                                        >
-                                          <Trash2 className="h-3 w-3" />
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-                                  {/* Left Column: Personal Info */}
-                                  <div className="space-y-6">
-                                    <div className="space-y-1.5">
-                                      <Label className="text-xs font-bold uppercase text-muted-foreground">First Name <span className="text-destructive">*</span></Label>
-                                      <Input name="firstname" value={contactForm.firstname} onChange={handleContactFormChange} placeholder="First Name" />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <Label className="text-xs font-bold uppercase text-muted-foreground">Last Name <span className="text-destructive">*</span></Label>
-                                      <Input name="lastname" value={contactForm.lastname} onChange={handleContactFormChange} placeholder="Last Name" />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <Label className="text-xs font-bold uppercase text-muted-foreground">Position</Label>
-                                      <Input name="title" value={contactForm.title} onChange={handleContactFormChange} placeholder="Position" />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <Label className="text-xs font-bold uppercase text-muted-foreground">Email <span className="text-destructive">*</span></Label>
-                                      <Input name="email" value={contactForm.email} onChange={handleContactFormChange} type="email" placeholder="Email Address" />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <Label className="text-xs font-bold uppercase text-muted-foreground">Phone</Label>
-                                      <Input name="phonenumber" value={contactForm.phonenumber} onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10); handleContactFormChange(e); }} maxLength={10} inputMode="numeric" placeholder="Phone Number" />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <Label className="text-xs font-bold uppercase text-muted-foreground">Direction</Label>
-                                      <Select value={contactForm.direction} onValueChange={(v) => setContactForm((p: any) => ({ ...p, direction: v }))}>
-                                        <SelectTrigger><SelectValue /></SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="ltr">LTR</SelectItem>
-                                          <SelectItem value="rtl">RTL</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                      <Label className="text-xs font-bold uppercase text-muted-foreground">Password <span className="text-destructive">*</span></Label>
-                                      <div className="relative">
-                                        <Input
-                                          name="password"
-                                          value={contactForm.password}
-                                          onChange={handleContactFormChange}
-                                          type={showPassword ? "text" : "password"}
-                                          disableVoice
-                                          placeholder="Password"
-                                        />
-                                        <button
-                                          type="button"
-                                          onClick={() => setShowPassword(!showPassword)}
-                                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
-                                        >
-                                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                        </button>
-                                      </div>
-                                    </div>
-                                    <div className="space-y-4 pt-2">
-                                      <div className="flex items-center gap-3">
-                                        <Checkbox id="is_primary" name="is_primary" checked={contactForm.is_primary} onCheckedChange={(v) => setContactForm((p: any) => ({ ...p, is_primary: v }))} />
-                                        <Label htmlFor="is_primary" className="text-sm cursor-pointer">Primary Contact</Label>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        <Checkbox id="donotsendwelcomeemail" name="donotsendwelcomeemail" checked={contactForm.donotsendwelcomeemail} onCheckedChange={(v) => setContactForm((p: any) => ({ ...p, donotsendwelcomeemail: v }))} />
-                                        <Label htmlFor="donotsendwelcomeemail" className="text-sm cursor-pointer">Do not send welcome email</Label>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        <Checkbox id="send_set_password_email" name="send_set_password_email" checked={contactForm.send_set_password_email} onCheckedChange={(v) => setContactForm((p: any) => ({ ...p, send_set_password_email: v }))} />
-                                        <Label htmlFor="send_set_password_email" className="text-sm cursor-pointer">Send SET password email</Label>
-                                      </div>
-                                      <div className="flex items-center gap-3 pt-2 border-t border-border/50">
-                                        <Switch
-                                          id="contact-active"
-                                          checked={contactForm.active}
-                                          onCheckedChange={(v) => setContactForm((p: any) => ({ ...p, active: v }))}
-                                        />
-                                        <Label htmlFor="contact-active" className="text-sm font-bold cursor-pointer">Status</Label>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Right Column: Permissions & Notifications */}
-                                  <div className="space-y-8">
-                                    <section>
-                                      <div className="flex items-center gap-2 mb-4">
-                                        <Label className="text-[11px] font-bold uppercase text-primary tracking-wider">Permissions</Label>
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                              <p className="text-xs">Appropriate permissions for this contact</p>
-                                            </TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      </div>
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
-                                        {["Invoices", "Estimates", "Contracts", "Proposals", "Support", "Projects"].map((p) => (
-                                          <div key={p} className="flex items-center gap-3">
-                                            <Checkbox
-                                              id={`perm-${p}`}
-                                              checked={(contactForm.permissions || []).includes(p)}
-                                              onCheckedChange={() => handlePermissionChange(p, "permissions")}
-                                            />
-                                            <Label htmlFor={`perm-${p}`} className="text-xs cursor-pointer">{p}</Label>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </section>
-
-                                    <section>
-                                      <div className="flex items-center gap-2 mb-4">
-                                        <Label className="text-[11px] font-bold uppercase text-primary tracking-wider">Email Notifications</Label>
-                                      </div>
-                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-muted/20 p-4 rounded-xl border border-border/50">
-                                        {["Invoice", "Estimate", "Credit Note", "Project", "Tickets", "Task", "Contract"].map((n) => (
-                                          <div key={n} className="flex items-center gap-3">
-                                            <Checkbox
-                                              id={`notif-${n}`}
-                                              checked={(contactForm.email_notifications || []).includes(n)}
-                                              onCheckedChange={() => handlePermissionChange(n, "email_notifications")}
-                                            />
-                                            <Label htmlFor={`notif-${n}`} className="text-xs cursor-pointer flex items-center gap-1.5">
-                                              {n}
-                                              {n === "Task" && (
-                                                <TooltipProvider>
-                                                  <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                      <Info className="h-3 w-3 text-primary/60 cursor-help" />
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                      <p className="text-[10px]">Only project related tasks</p>
-                                                    </TooltipContent>
-                                                  </Tooltip>
-                                                </TooltipProvider>
-                                              )}
-                                            </Label>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    </section>
-                                  </div>
-                                </div>
-                              </div>
-
-                              <DialogFooter className="p-6 bg-muted/30 border-t border-border/50">
-                                <Button variant="outline" onClick={handleCloseModal}>Cancel</Button>
-                                <Button
-                                  onClick={() => isEditingContact ? updateContactMutation.mutate(contactForm) : createContactMutation.mutate(contactForm)}
-                                  disabled={createContactMutation.isPending || updateContactMutation.isPending}
-                                >
-                                  {createContactMutation.isPending || updateContactMutation.isPending ? "Saving..." : isEditingContact ? "Save Changes" : "Create Contact"}
-                                </Button>
-                              </DialogFooter>
-                            </DialogContent>
-                          </Dialog>
+                          <Button
+                            size="sm"
+                            className="gap-2 bg-primary hover:bg-primary/90 shadow-md"
+                            disabled={isCustomerInactive}
+                            onClick={() => {
+                              if (isCustomerInactive) {
+                                toast({
+                                  title: "Customer Inactive",
+                                  description: "Cannot add contacts to an inactive customer. Please reactivate the customer first.",
+                                  variant: "destructive"
+                                });
+                                return;
+                              }
+                              setIsEditingContact(false);
+                              setEditingContactId(null);
+                              setContactForm({
+                                firstname: "", lastname: "", title: "", email: "", phonenumber: "", direction: "ltr", password: "",
+                                is_primary: false, donotsendwelcomeemail: false, send_set_password_email: false,
+                                permissions: [], email_notifications: [],
+                                active: true
+                              });
+                              setIsContactModalOpen(true);
+                            }}
+                            title={isCustomerInactive ? "Cannot add contact: customer is inactive" : "Add New Contact"}
+                          >
+                            <Plus className="h-4 w-4" />
+                            New Contact
+                          </Button>
                         </div>
 
                         <div className="flex items-center gap-3">
@@ -2853,9 +2745,11 @@ export default function CustomerView() {
                           <div className="space-y-8">
                             <div className="md:text-right space-y-1">
                               <p className="text-sm font-black text-foreground uppercase tracking-tight">{companyName}</p>
-                              <p className="text-xs text-muted-foreground">405, The Spireee</p>
-                              <p className="text-xs text-muted-foreground">Rajkot Rajkot</p>
-                              <p className="text-xs text-muted-foreground">India 360007</p>
+                              {companyAddress && <p className="text-xs text-muted-foreground">{companyAddress}</p>}
+                              {(companyCity || companyState) && <p className="text-xs text-muted-foreground">{[companyCity, companyState].filter(Boolean).join(", ")}</p>}
+                              {(companyCountry || companyZip) && <p className="text-xs text-muted-foreground">{[companyCountry, companyZip].filter(Boolean).join(" - ")}</p>}
+                              {companyPhone && <p className="text-xs text-muted-foreground">Phone: {companyPhone}</p>}
+                              {companyVat && <p className="text-xs text-muted-foreground">VAT/GSTIN: {companyVat}</p>}
                             </div>
 
                             <div className="space-y-1 pt-6 border-t border-border/30">
@@ -2962,7 +2856,8 @@ export default function CustomerView() {
                         <div className="flex items-center gap-3">
                           <Button
                             className="rounded-xl font-bold gap-2 shadow-lg shadow-primary/20"
-                            onClick={() => navigate(`/admin/invoices/create/${id}`)}
+                            disabled={isCustomerInactive}
+                            onClick={() => isCustomerInactive ? null : navigate(`/admin/invoices/create/${id}`)}
                           >
                             <Plus className="h-4 w-4" />
                             Create New Invoice
@@ -3379,7 +3274,8 @@ export default function CustomerView() {
                         <div className="flex items-center gap-3">
                           <Button
                             className="rounded-xl font-bold gap-2 shadow-lg shadow-primary/20"
-                            onClick={() => navigate(`/admin/proposals/create/${id}`)}
+                            disabled={isCustomerInactive}
+                            onClick={() => isCustomerInactive ? null : navigate(`/admin/proposals/create/${id}`)}
                           >
                             <FilePlus className="h-4 w-4" />
                             New Proposal
@@ -3507,7 +3403,8 @@ export default function CustomerView() {
                         </div>
                         <Button
                           className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
-                          onClick={() => navigate(`/admin/estimates/create/${id}`)}
+                          disabled={isCustomerInactive}
+                          onClick={() => isCustomerInactive ? null : navigate(`/admin/estimates/create/${id}`)}
                         >
                           <Plus className="h-4 w-4" />
                           New Estimate
@@ -3942,7 +3839,7 @@ export default function CustomerView() {
                         </div>
                         <Dialog open={isContractModalOpen} onOpenChange={(open) => { setIsContractModalOpen(open); if (!open) setContractFormData({ subject: "", contract_value: "", contract_type: "", datestart: "", dateend: "", description: "" }); }}>
                           <DialogTrigger asChild>
-                            <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
+                            <Button disabled={isCustomerInactive} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest" title={isCustomerInactive ? "Customer is inactive" : "New Contract"}>
                               <Plus className="h-4 w-4" />
                               New Contract
                             </Button>
@@ -4259,7 +4156,7 @@ export default function CustomerView() {
                         </div>
                         <Dialog open={isTaskModalOpen} onOpenChange={(open) => (open ? setIsTaskModalOpen(true) : closeTaskModal())}>
                           <DialogTrigger asChild>
-                            <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
+                            <Button disabled={isCustomerInactive} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest" title={isCustomerInactive ? "Customer is inactive" : "New Task"}>
                               <Plus className="h-4 w-4" />
                               New Task
                             </Button>
@@ -5282,7 +5179,9 @@ export default function CustomerView() {
             {/* Footer */}
             <div className="p-4 bg-background border-t border-border/50 flex items-center justify-end gap-3">
               <Button variant="outline" onClick={() => { setIsMailModalOpen(false); setMailForm({ email: "", cc: "", subject: "Statement", body: "Please find your account statement attached." }); }} className="rounded-lg h-9 w-24">Close</Button>
-              <Button className="rounded-lg h-9 w-24 bg-[#1E293B] hover:bg-[#0F172A] text-white">Send</Button>
+              <Button disabled={isSendingMail || !mailForm.email} onClick={handleSendStatementEmail} className="rounded-lg h-9 min-w-24 bg-[#1E293B] hover:bg-[#0F172A] text-white flex items-center justify-center gap-1.5">
+                {isSendingMail ? <Loader2 className="h-4 w-4 animate-spin" /> : "Send"}
+              </Button>
             </div>
           </div>
         </DialogContent>
@@ -5820,8 +5719,8 @@ function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPen
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl bg-white">
-        <div className="bg-white px-10 py-8 flex items-center justify-between border-b border-slate-100">
+      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0 overflow-hidden rounded-[2rem] border-none shadow-2xl bg-white outline-none">
+        <div className="bg-white px-8 py-6 flex items-center justify-between border-b border-slate-100 shrink-0">
           <DialogTitle className="text-2xl font-black text-slate-900 flex items-center gap-4 leading-normal">
             <div className="p-3 bg-blue-50 rounded-2xl shrink-0">
               <Users className="h-6 w-6 text-blue-600" />
@@ -5833,77 +5732,77 @@ function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPen
           </DialogTitle>
         </div>
 
-        <div className="max-h-[70vh] overflow-y-auto px-10 py-8 no-scrollbar space-y-12">
+        <div className="flex-1 overflow-y-auto px-8 py-6 space-y-8">
           {/* General Information Section */}
-          <div className="space-y-8">
+          <div className="space-y-6">
             <div className="flex items-center gap-3">
-              <div className="h-8 w-1.5 bg-blue-600 rounded-full" />
+              <div className="h-6 w-1.5 bg-blue-600 rounded-full" />
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">General Information</h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-2.5">
-                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
-                  First Name <span className="text-rose-500">*</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-slate-600">
+                  First Name <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   placeholder="e.g. John"
                   value={formData.firstname || ""}
                   onChange={(e) => setFormData((p: any) => ({ ...p, firstname: e.target.value }))}
-                  className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
+                  className="h-11 rounded-xl"
                 />
               </div>
-              <div className="space-y-2.5">
-                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
-                  Last Name <span className="text-rose-500">*</span>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-slate-600">
+                  Last Name <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   placeholder="e.g. Doe"
                   value={formData.lastname || ""}
                   onChange={(e) => setFormData((p: any) => ({ ...p, lastname: e.target.value }))}
-                  className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
+                  className="h-11 rounded-xl"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-2.5">
-                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
-                  Email Address <span className="text-rose-500">*</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-slate-600">
+                  Email Address <span className="text-destructive">*</span>
                 </Label>
                 <Input
                   type="email"
                   placeholder="john.doe@example.com"
                   value={formData.email || ""}
                   onChange={(e) => setFormData((p: any) => ({ ...p, email: e.target.value }))}
-                  className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
+                  className="h-11 rounded-xl"
                 />
               </div>
-              <div className="space-y-2.5">
-                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Phone Number</Label>
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-slate-600">Phone Number</Label>
                 <Input
-                  placeholder="+1 (555) 000-0000"
+                  placeholder="+91 9876543210"
                   value={formData.phonenumber || ""}
                   onChange={(e) => setFormData((p: any) => ({ ...p, phonenumber: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
                   maxLength={10}
                   inputMode="numeric"
-                  className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
+                  className="h-11 rounded-xl"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-2.5">
-                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Position / Title</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-slate-600">Position / Title</Label>
                 <Input
                   placeholder="e.g. Project Manager"
                   value={formData.title || ""}
                   onChange={(e) => setFormData((p: any) => ({ ...p, title: e.target.value }))}
-                  className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
+                  className="h-11 rounded-xl"
                 />
               </div>
-              <div className="space-y-2.5 relative">
-                <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-slate-600">
                   Account Password {isEditing && <span className="text-slate-400 lowercase font-medium italic ml-1">(Leave blank to keep current)</span>}
                 </Label>
                 <div className="relative">
@@ -5913,14 +5812,14 @@ function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPen
                     placeholder="••••••••"
                     value={formData.password || ""}
                     onChange={(e) => setFormData((p: any) => ({ ...p, password: e.target.value }))}
-                    className="h-12 rounded-2xl border-slate-200 bg-slate-50/30 px-5 pr-12 font-bold focus:bg-white focus:ring-4 ring-blue-500/5 transition-all"
+                    className="h-11 rounded-xl pr-10"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
                     onClick={() => setFormData((p: any) => ({ ...p, showPassword: !p.showPassword }))}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 text-slate-400 hover:text-blue-600 rounded-xl"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 text-slate-400 hover:text-blue-600"
                   >
                     {formData.showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
@@ -5928,49 +5827,43 @@ function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPen
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
               <div
                 className={cn(
-                  "flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer",
-                  formData.is_primary ? "bg-blue-50/50 border-blue-600 shadow-sm" : "bg-white border-slate-100 hover:border-slate-200"
+                  "flex items-center justify-between p-4 rounded-xl border-2 transition-all cursor-pointer",
+                  formData.is_primary ? "bg-blue-50/50 border-blue-600 shadow-sm" : "bg-white border-slate-200 hover:border-slate-300"
                 )}
                 onClick={() => setFormData((p: any) => ({ ...p, is_primary: !p.is_primary }))}
               >
-                <div className="flex items-center gap-4">
-                  <div className={cn("p-2 rounded-xl", formData.is_primary ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-400")}>
+                <div className="flex items-center gap-3">
+                  <div className={cn("p-1.5 rounded-lg", formData.is_primary ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-400")}>
                     <CheckCircle2 className="h-4 w-4" />
                   </div>
-                  <div className="flex flex-col">
-                    <Label className="text-xs font-black text-slate-900 cursor-pointer">Primary Contact</Label>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Main point of contact</span>
+                  <div>
+                    <Label className="text-xs font-bold text-slate-900 cursor-pointer">Primary Contact</Label>
+                    <p className="text-[10px] text-slate-500">Main point of contact</p>
                   </div>
                 </div>
-                <Checkbox
-                  checked={formData.is_primary}
-                  className="rounded-full border-2"
-                />
+                <Checkbox checked={formData.is_primary} className="rounded-full" />
               </div>
 
               <div
                 className={cn(
-                  "flex items-center justify-between p-5 rounded-2xl border-2 transition-all cursor-pointer",
-                  formData.active !== false ? "bg-emerald-50/50 border-emerald-600 shadow-sm" : "bg-white border-slate-100 hover:border-slate-200"
+                  "flex items-center justify-between p-4 rounded-xl border-2 transition-all cursor-pointer",
+                  formData.active !== false ? "bg-emerald-50/50 border-emerald-600 shadow-sm" : "bg-white border-slate-200 hover:border-slate-300"
                 )}
                 onClick={() => setFormData((p: any) => ({ ...p, active: !p.active }))}
               >
-                <div className="flex items-center gap-4">
-                  <div className={cn("p-2 rounded-xl", formData.active !== false ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-400")}>
+                <div className="flex items-center gap-3">
+                  <div className={cn("p-1.5 rounded-lg", formData.active !== false ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-400")}>
                     <CheckCircle2 className="h-4 w-4" />
                   </div>
-                  <div className="flex flex-col">
-                    <Label className="text-xs font-black text-slate-900 cursor-pointer">Active Status</Label>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Login access enabled</span>
+                  <div>
+                    <Label className="text-xs font-bold text-slate-900 cursor-pointer">Active Status</Label>
+                    <p className="text-[10px] text-slate-500">Login access enabled</p>
                   </div>
                 </div>
-                <Checkbox
-                  checked={formData.active !== false}
-                  className="rounded-full border-2"
-                />
+                <Checkbox checked={formData.active !== false} className="rounded-full" />
               </div>
             </div>
           </div>
@@ -5978,86 +5871,89 @@ function ContactModal({ open, onOpenChange, formData, setFormData, onSave, isPen
           <hr className="border-slate-100" />
 
           {/* Permissions Section */}
-          <div className="space-y-8">
+          <div className="space-y-6">
             <div className="flex items-center gap-3">
-              <div className="h-8 w-1.5 bg-indigo-600 rounded-full" />
-              <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">Permissions & Notifications</h3>
+              <div className="h-6 w-1.5 bg-indigo-600 rounded-full" />
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">Module Permissions</h3>
             </div>
 
-            <div className="space-y-6">
-              <h4 className="text-[10px] font-black uppercase text-indigo-600 tracking-[0.2em] flex items-center gap-2">
-                <ShieldCheck className="h-3 w-3" />
-                Module Access
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {permissions.map((perm) => (
-                  <div
-                    key={perm.id}
-                    className={cn(
-                      "flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer group",
-                      formData.permissions?.includes(perm.id)
-                        ? "bg-indigo-50/50 border-indigo-600"
-                        : "bg-white border-slate-100 hover:border-slate-200"
-                    )}
-                    onClick={() => handlePermissionChange(perm.id, "permissions")}
-                  >
-                    <Checkbox
-                      id={`perm-${perm.id}`}
-                      checked={formData.permissions?.includes(perm.id)}
-                      onCheckedChange={() => handlePermissionChange(perm.id, "permissions")}
-                      className="rounded-md border-2 border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
-                    />
-                    <Label htmlFor={`perm-${perm.id}`} className="text-[11px] font-black text-slate-600 cursor-pointer group-hover:text-slate-900 uppercase tracking-tight">{perm.label}</Label>
-                  </div>
-                ))}
-              </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {permissions.map((perm: any) => (
+                <div
+                  key={perm.id}
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer",
+                    formData.permissions?.includes(perm.id)
+                      ? "bg-indigo-50/50 border-indigo-500 text-indigo-900 font-bold"
+                      : "bg-white border-slate-200 hover:border-slate-300"
+                  )}
+                  onClick={() => handlePermissionChange(perm.id, "permissions")}
+                >
+                  <Checkbox
+                    id={`perm-${perm.id}`}
+                    checked={formData.permissions?.includes(perm.id)}
+                    onCheckedChange={() => handlePermissionChange(perm.id, "permissions")}
+                  />
+                  <Label htmlFor={`perm-${perm.id}`} className="text-xs cursor-pointer">{perm.label}</Label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <hr className="border-slate-100" />
+
+          {/* Email Notifications */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="h-6 w-1.5 bg-rose-600 rounded-full" />
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-900">Email Notifications</h3>
             </div>
 
-            <div className="space-y-6">
-              <h4 className="text-[10px] font-black uppercase text-rose-600 tracking-[0.2em] flex items-center gap-2">
-                <Mail className="h-3 w-3" />
-                Email Notifications
-              </h4>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {emailNotifications.map((notif) => (
-                  <div
-                    key={notif.id}
-                    className={cn(
-                      "flex items-center gap-3 p-4 rounded-2xl border-2 transition-all cursor-pointer group",
-                      formData.email_notifications?.includes(notif.id)
-                        ? "bg-rose-50/50 border-rose-600"
-                        : "bg-white border-slate-100 hover:border-slate-200"
-                    )}
-                    onClick={() => handlePermissionChange(notif.id, "email_notifications")}
-                  >
-                    <Checkbox
-                      id={`notif-${notif.id}`}
-                      checked={formData.email_notifications?.includes(notif.id)}
-                      onCheckedChange={() => handlePermissionChange(notif.id, "email_notifications")}
-                      className="rounded-md border-2 border-slate-300 data-[state=checked]:bg-rose-600 data-[state=checked]:border-rose-600"
-                    />
-                    <Label htmlFor={`notif-${notif.id}`} className="text-[11px] font-black text-slate-600 cursor-pointer group-hover:text-slate-900 uppercase tracking-tight">{notif.label}</Label>
-                  </div>
-                ))}
-              </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {emailNotifications.map((notif: any) => (
+                <div
+                  key={notif.id}
+                  className={cn(
+                    "flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer",
+                    formData.email_notifications?.includes(notif.id)
+                      ? "bg-rose-50/50 border-rose-500 text-rose-900 font-bold"
+                      : "bg-white border-slate-200 hover:border-slate-300"
+                  )}
+                  onClick={() => handlePermissionChange(notif.id, "email_notifications")}
+                >
+                  <Checkbox
+                    id={`notif-${notif.id}`}
+                    checked={formData.email_notifications?.includes(notif.id)}
+                    onCheckedChange={() => handlePermissionChange(notif.id, "email_notifications")}
+                  />
+                  <Label htmlFor={`notif-${notif.id}`} className="text-xs cursor-pointer">{notif.label}</Label>
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
-        <div className="p-8 bg-slate-50/50 border-t border-slate-100 flex items-center justify-end gap-4">
+        {/* Sticky Footer: Always Visible without scrolling */}
+        <div className="p-6 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3 shrink-0 sticky bottom-0 z-20">
           <Button
-            variant="ghost"
+            variant="outline"
             onClick={() => onOpenChange(false)}
-            className="rounded-2xl font-black h-12 px-8 hover:bg-white transition-all text-slate-400 uppercase text-[10px] tracking-widest"
+            className="rounded-xl px-6"
           >
             Cancel
           </Button>
           <Button
-            className="rounded-2xl px-12 h-12 shadow-2xl shadow-blue-600/20 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] tracking-widest transition-all active:scale-95"
-            onClick={onSave}
-            disabled={isPending || !formData.firstname || !formData.lastname || !formData.email}
+            className="rounded-xl px-8 shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground font-bold tracking-wide"
+            onClick={() => {
+              if (!formData.firstname || !formData.lastname || !formData.email) {
+                alert("Please fill in First Name, Last Name, and Email Address.");
+                return;
+              }
+              onSave();
+            }}
+            disabled={isPending}
           >
-            {isPending ? "Processing..." : isEditing ? "Save Changes" : "Create Contact"}
+            {isPending ? "Saving..." : isEditing ? "Save Changes" : "Add Contact"}
           </Button>
         </div>
       </DialogContent>
