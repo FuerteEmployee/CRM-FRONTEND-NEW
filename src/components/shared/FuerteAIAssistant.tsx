@@ -6,6 +6,7 @@ import { Sparkles, Mic, MicOff, X, Volume2, VolumeX, Trash2 } from "lucide-react
 import { usePermissionContext } from "@/context/PermissionContext";
 import SpeechRecognition, { useSpeechRecognition } from "react-speech-recognition";
 import { startListening, stopListening } from "@/lib/speechControl";
+import { onDictationBusyChange } from "@/lib/dictation";
 import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
 import { assistantService } from "@/api/services/assistant.service";
 import { logVoiceEvent, voiceLogMeta } from "@/lib/voiceLog";
@@ -161,6 +162,21 @@ export function FuerteAIAssistant() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const wasListeningRef = useRef(false);
 
+  // Voice typing in a form field (lib/dictation) needs the speech engine to
+  // itself, so the wake word is paused while it runs; the watchdog resumes it.
+  const [fieldMicBusy, setFieldMicBusy] = useState(false);
+  const fieldMicBusyRef = useRef(false);
+  useEffect(
+    () =>
+      onDictationBusyChange((busy) => {
+        fieldMicBusyRef.current = busy;
+        setFieldMicBusy(busy);
+        if (busy && aiStateRef.current !== "sleeping") return stopListening();
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
   const toggleVoiceReplies = () => {
     const next = !voiceReplies;
     setVoiceReplies(next);
@@ -179,7 +195,7 @@ export function FuerteAIAssistant() {
       },
       onEnd: () => {
         setIsSpeaking(false);
-        if (wasListeningRef.current && aiStateRef.current !== "sleeping") {
+        if (wasListeningRef.current && aiStateRef.current !== "sleeping" && !fieldMicBusyRef.current) {
           resetTranscript();
           consumedRef.current = 0;
           startListening({ continuous: true, language: "en-US" });
@@ -337,7 +353,7 @@ useEffect(() => {
 // network hiccup. If we're supposed to be listening but the mic went quiet
 // (and we're not deliberately paused for TTS), restart it.
 useEffect(() => {
-  if (listening || isSpeaking) return;
+  if (listening || isSpeaking || fieldMicBusy) return;
   if (aiState === "sleeping") return;
   if (isMicrophoneAvailable === false) return;
   // A blocked/missing mic won't recover by itself — don't spin restarting it.
@@ -351,7 +367,7 @@ useEffect(() => {
   }, delay);
   return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [listening, aiState, isSpeaking, isMicrophoneAvailable, speechError]);
+}, [listening, aiState, isSpeaking, isMicrophoneAvailable, speechError, fieldMicBusy]);
 
 if (!browserSupportsSpeechRecognition) return null;
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   Bell,
   Moon,
@@ -32,9 +32,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { ShareMenuContent } from "@/components/layout/ShareMenu";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +62,12 @@ import { APP_LANGUAGES, applyAppLanguage } from "@/lib/appLanguage";
 
 export function TopNavbar() {
   const [search, setSearch] = useState("");
+<<<<<<< HEAD
+  const [shareOpen, setShareOpen] = useState(false);
+  const [mobileShareOpen, setMobileShareOpen] = useState(false);
+  // Set when "Share" is picked in the mobile ⋮ menu, so the menu doesn't hand
+  // focus back to its trigger on close — that focus would dismiss the share popover.
+  const openingMobileShare = useRef(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
@@ -262,14 +270,19 @@ export function TopNavbar() {
         {/* Desktop Only Actions */}
         <div className="hidden md:flex items-center gap-0.5 md:gap-1">
           {/* Share */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 text-foreground"
-            title="Share"
-          >
-            <Share2 className="h-4 w-4" />
-          </Button>
+          <Popover open={shareOpen} onOpenChange={setShareOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-foreground"
+                title="Share"
+              >
+                <Share2 className="h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <ShareMenuContent open={shareOpen} />
+          </Popover>
 
           {/* Tasks */}
           <NavLink to={`${base}/tasks`} className="inline-flex">
@@ -297,37 +310,57 @@ export function TopNavbar() {
         </div>
 
         {/* More Actions Dropdown (Mobile/Tablet) */}
-        <div className="md:hidden">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 text-foreground"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => navigate(`${base}/setup`)}>
-                <Settings className="mr-2 h-4 w-4 text-foreground" />
-                <span>Settings</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => { }}>
-                <Share2 className="mr-2 h-4 w-4 text-foreground" />
-                <span>Share</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate(`${base}/tasks`)}>
-                <CheckSquare className="mr-2 h-4 w-4 text-foreground" />
-                <span>Tasks</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate(`${base}/time-tracking`)}>
-                <Clock className="mr-2 h-4 w-4 text-foreground" />
-                <span>Time Tracking</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+<<<<<<< HEAD
+        <Popover open={mobileShareOpen} onOpenChange={setMobileShareOpen}>
+          <PopoverAnchor asChild>
+            <div className="md:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 text-foreground"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  className="w-48"
+                  onCloseAutoFocus={(e) => {
+                    if (openingMobileShare.current) {
+                      e.preventDefault();
+                      openingMobileShare.current = false;
+                    }
+                  }}
+                >
+                  <DropdownMenuItem onClick={() => navigate(`${base}/setup`)}>
+                    <Settings className="mr-2 h-4 w-4 text-foreground" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      openingMobileShare.current = true;
+                      setMobileShareOpen(true);
+                    }}
+                  >
+                    <Share2 className="mr-2 h-4 w-4 text-foreground" />
+                    <span>Share</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate(`${base}/tasks`)}>
+                    <CheckSquare className="mr-2 h-4 w-4 text-foreground" />
+                    <span>Tasks</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate(`${base}/time-tracking`)}>
+                    <Clock className="mr-2 h-4 w-4 text-foreground" />
+                    <span>Time Tracking</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </PopoverAnchor>
+          <ShareMenuContent open={mobileShareOpen} />
+        </Popover>
 
         {/* Notifications */}
         <Popover>

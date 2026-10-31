@@ -149,8 +149,6 @@ import {
   XCircle,
   Clock,
   FileDown,
-  Mic,
-  MicOff,
   X
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -214,196 +212,6 @@ import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, Tab
 import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import { defaultPageSize } from "@/lib/tablePageSize";
 
-export function VoiceTextarea({ value, onChange, className, placeholder, name }: any) {
-  const [isRecording, setIsRecording] = useState(false);
-  const [recognitionInstance, setRecognitionInstance] = useState<any>(null);
-
-  const toggleVoiceRecord = () => {
-    if (isRecording && recognitionInstance) {
-      recognitionInstance.stop();
-      setIsRecording(false);
-      return;
-    }
-
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert("Voice recording is not supported in this browser.");
-      return;
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-
-    recognition.onstart = () => {
-      setIsRecording(true);
-    };
-
-    recognition.onresult = (event: any) => {
-      let finalTranscript = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript + " ";
-        }
-      }
-      if (finalTranscript) {
-        onChange({ target: { value: (value ? value + " " + finalTranscript : finalTranscript).trim(), name } });
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error(event.error);
-      setIsRecording(false);
-    };
-
-    recognition.onend = () => {
-      setIsRecording(false);
-    };
-
-    try {
-      recognition.start();
-      setRecognitionInstance(recognition);
-    } catch (err) {
-      console.error(err);
-      setIsRecording(false);
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (recognitionInstance) {
-        recognitionInstance.stop();
-      }
-    };
-  }, [recognitionInstance]);
-
-  return (
-    <div className="relative">
-      <Textarea
-        name={name}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        className={cn(className, "pb-12")}
-        disableVoice
-      />
-      <Button
-        size="sm"
-        variant={isRecording ? "destructive" : "outline"}
-        className="absolute bottom-2 left-2 h-8 rounded-lg gap-2 shadow-sm"
-        onClick={toggleVoiceRecord}
-        type="button"
-      >
-        {isRecording ? (
-          <>
-            <MicOff className="h-4 w-4 animate-pulse" />
-            <span className="text-[10px] font-bold uppercase tracking-widest">Stop Voice</span>
-          </>
-        ) : (
-          <>
-            <Mic className="h-4 w-4 text-primary" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Voice Input</span>
-          </>
-        )}
-      </Button>
-    </div>
-  );
-}
-
-export function VoiceInput({ value, onChange, className, placeholder, name, type = "text", ...props }: any) {
-  const [isRecording, setIsRecording] = useState(false);
-  const [recognitionInstance, setRecognitionInstance] = useState<any>(null);
-
-  const toggleVoiceRecord = () => {
-    if (isRecording && recognitionInstance) {
-      recognitionInstance.stop();
-      setIsRecording(false);
-      return;
-    }
-
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert("Voice recording is not supported in this browser.");
-      return;
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-
-    recognition.onstart = () => {
-      setIsRecording(true);
-    };
-
-    recognition.onresult = (event: any) => {
-      let finalTranscript = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript + " ";
-        }
-      }
-      if (finalTranscript) {
-        onChange({ target: { value: (value ? value + " " + finalTranscript : finalTranscript).trim(), name } });
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error(event.error);
-      setIsRecording(false);
-    };
-
-    recognition.onend = () => {
-      setIsRecording(false);
-    };
-
-    try {
-      recognition.start();
-      setRecognitionInstance(recognition);
-    } catch (err) {
-      console.error(err);
-      setIsRecording(false);
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (recognitionInstance) {
-        recognitionInstance.stop();
-      }
-    };
-  }, [recognitionInstance]);
-
-  return (
-    <div className="relative w-full flex items-center">
-      <Input
-        type={type}
-        name={name}
-        placeholder={placeholder}
-        value={value}
-        onChange={onChange}
-        className={cn(className, "pr-8")}
-        {...props}
-        disableVoice
-      />
-      <Button
-        size="icon"
-        variant="ghost"
-        className="absolute right-1 h-6 w-6 rounded-md hover:bg-transparent"
-        onClick={toggleVoiceRecord}
-        type="button"
-      >
-        {isRecording ? (
-          <MicOff className="h-3.5 w-3.5 text-destructive animate-pulse" />
-        ) : (
-          <Mic className="h-3.5 w-3.5 text-muted-foreground hover:text-primary transition-colors" />
-        )}
-      </Button>
-    </div>
-  );
-}
-
 export default function CustomerView() {
   const { getSetting } = useSettings();
   // Mirrors SettingsContext.tsx's own host-based default — only Trinetra
@@ -449,61 +257,6 @@ export default function CustomerView() {
   const [noteSearch, setNoteSearch] = useState("");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteItemsPerPage, setNoteItemsPerPage] = useState("25");
-  const [isRecording, setIsRecording] = useState(false);
-  const [recognitionInstance, setRecognitionInstance] = useState<any>(null);
-
-  const toggleVoiceRecord = () => {
-    if (isRecording && recognitionInstance) {
-      recognitionInstance.stop();
-      setIsRecording(false);
-      return;
-    }
-
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      toast({ title: "Not Supported", description: "Your browser does not support Speech Recognition.", variant: "destructive" });
-      return;
-    }
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-
-    recognition.onstart = () => {
-      setIsRecording(true);
-      toast({ title: "Recording Started", description: "Speak now to add to your note..." });
-    };
-
-    recognition.onresult = (event: any) => {
-      let finalTranscript = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript + " ";
-        }
-      }
-      if (finalTranscript) {
-        setNoteDescription((prev) => (prev ? prev + " " + finalTranscript : finalTranscript).trim());
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error("Speech recognition error", event.error);
-      setIsRecording(false);
-    };
-
-    recognition.onend = () => {
-      setIsRecording(false);
-    };
-
-    try {
-      recognition.start();
-      setRecognitionInstance(recognition);
-    } catch (err) {
-      console.error(err);
-      setIsRecording(false);
-    }
-  };
   const [statementPeriod, setStatementPeriod] = useState("all");
   const [customRange, setCustomRange] = useState({ from: "", to: "" });
   const [isMailModalOpen, setIsMailModalOpen] = useState(false);
@@ -2043,7 +1796,7 @@ export default function CustomerView() {
                                 </div>
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground uppercase">Address</Label>
-                                  <VoiceTextarea name="address" value={formData.address || ""} onChange={handleFormChange} placeholder="Address" className="h-20" />
+                                  <Textarea name="address" value={formData.address || ""} onChange={handleFormChange} placeholder="Address" className="h-20" />
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div className="space-y-1.5">
@@ -2104,7 +1857,7 @@ export default function CustomerView() {
                               <div className="space-y-4">
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground uppercase">Street</Label>
-                                  <VoiceTextarea name="billing_street" value={formData.billing_street || ""} onChange={handleFormChange} placeholder="Street" className="h-20" />
+                                  <Textarea name="billing_street" value={formData.billing_street || ""} onChange={handleFormChange} placeholder="Street" className="h-20" />
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div className="space-y-1.5">
@@ -2138,7 +1891,7 @@ export default function CustomerView() {
                               <div className="space-y-4">
                                 <div className="space-y-1.5">
                                   <Label className="text-xs text-muted-foreground uppercase">Street</Label>
-                                  <VoiceTextarea name="shipping_street" value={formData.shipping_street || ""} onChange={handleFormChange} placeholder="Street" className="h-20" />
+                                  <Textarea name="shipping_street" value={formData.shipping_street || ""} onChange={handleFormChange} placeholder="Street" className="h-20" />
                                 </div>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                   <div className="space-y-1.5">
@@ -2392,7 +2145,7 @@ export default function CustomerView() {
 
                           <div className="relative">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                            <VoiceInput
+                            <Input
                               placeholder="Search contacts..."
                               className="h-8 pl-8 w-[200px] text-xs transition-all focus:w-[250px]"
                             />
@@ -2491,43 +2244,17 @@ export default function CustomerView() {
 
                         {showNewNote && (
                           <div className="space-y-3 p-4 bg-muted/20 rounded-xl border border-border/50 animate-in slide-in-from-top-2 duration-300">
-                            <div className="relative">
-                              <Textarea
-                                placeholder="Note description..."
-                                value={noteDescription}
-                                onChange={(e: any) => setNoteDescription(e.target.value)}
-                                className="min-h-[100px] bg-background focus:ring-1 ring-primary/20 pb-12"
-                                disableVoice
-                              />
-                              <Button
-                                size="sm"
-                                variant={isRecording ? "destructive" : "outline"}
-                                className="absolute bottom-2 left-2 h-8 rounded-lg gap-2 shadow-sm"
-                                onClick={toggleVoiceRecord}
-                                type="button"
-                              >
-                                {isRecording ? (
-                                  <>
-                                    <MicOff className="h-4 w-4 animate-pulse" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest">Stop Voice</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Mic className="h-4 w-4 text-primary" />
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Voice Note</span>
-                                  </>
-                                )}
-                              </Button>
-                            </div>
+                            <Textarea
+                              placeholder="Note description..."
+                              value={noteDescription}
+                              onChange={(e: any) => setNoteDescription(e.target.value)}
+                              className="min-h-[100px] bg-background focus:ring-1 ring-primary/20 pb-12"
+                            />
                             <div className="flex justify-end gap-2">
                               <Button variant="outline" size="sm" onClick={() => {
                                 setShowNewNote(false);
                                 setEditingNoteId(null);
                                 setNoteDescription("");
-                                if (isRecording && recognitionInstance) {
-                                  recognitionInstance.stop();
-                                  setIsRecording(false);
-                                }
                               }}>Cancel</Button>
                               <Button
                                 size="sm"
@@ -2594,7 +2321,7 @@ export default function CustomerView() {
 
                           <div className="relative">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                            <VoiceInput
+                            <Input
                               placeholder="Search notes..."
                               value={noteSearch}
                               onChange={(e: any) => setNoteSearch(e.target.value)}
@@ -2950,7 +2677,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search invoices..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={invoiceSearch}
@@ -3111,7 +2838,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search credit notes..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={creditNoteSearch}
@@ -3220,7 +2947,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search payments..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={paymentSearch}
@@ -3315,7 +3042,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search proposals..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={proposalSearch}
@@ -3484,7 +3211,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search estimates..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={estimateSearch}
@@ -3609,7 +3336,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search subscriptions..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={subscriptionSearch}
@@ -3752,7 +3479,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search expenses..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={expenseSearch}
@@ -3931,7 +3658,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search contracts..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={contractSearch}
@@ -4064,7 +3791,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search projects..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={projectSearch}
@@ -4336,7 +4063,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search tasks..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={taskSearch}
@@ -4488,7 +4215,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search tickets..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={ticketSearch}
@@ -4648,7 +4375,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search files..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={fileSearch}
@@ -4771,7 +4498,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search vault..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={vaultSearch}
@@ -4910,7 +4637,7 @@ export default function CustomerView() {
                         </div>
                         <div className="relative w-full md:w-64">
                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                          <VoiceInput
+                          <Input
                             placeholder="Search reminders..."
                             className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
                             value={reminderSearch}
@@ -5508,7 +5235,7 @@ function ReminderModal({ open, onOpenChange, formData, setFormData, staff, onSav
             <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
               Description <span className="text-rose-500">*</span>
             </Label>
-            <VoiceTextarea
+            <Textarea
               placeholder="Enter reminder details..."
               value={formData.description}
               onChange={(e: any) => setFormData((p: any) => ({ ...p, description: e.target.value }))}
@@ -5628,7 +5355,7 @@ function VaultEntryModal({ open, onOpenChange, formData, setFormData, onSave, is
 
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">Short Description</Label>
-            <VoiceTextarea
+            <Textarea
               placeholder="Enter additional details..."
               value={formData.description}
               onChange={(e: any) => setFormData((p: any) => ({ ...p, description: e.target.value }))}

@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { staffService } from "@/api/services/staff.service";
 import { toast } from "sonner";
 import { Mail, Phone, Shield, Save, Loader2, Eye, EyeOff, Lock, User } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { phone10Error } from "@/lib/validation";
 
 export default function SuperAdminProfile() {
@@ -105,14 +106,14 @@ export default function SuperAdminProfile() {
                 First Name <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                <input
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+                <Input
                   type="text"
                   required
                   value={firstname}
                   onChange={(e) => setFirstname(e.target.value)}
                   placeholder="First name"
-                  className="w-full h-9 pl-9 pr-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  className="w-full h-9 pl-9 pr-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-8"
                 />
               </div>
             </div>
@@ -120,12 +121,12 @@ export default function SuperAdminProfile() {
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                 Last Name
               </label>
-              <input
+              <Input
                 type="text"
                 value={lastname}
                 onChange={(e) => setLastname(e.target.value)}
                 placeholder="Last name"
-                className="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                className="w-full h-9 px-3 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-8"
               />
             </div>
           </div>

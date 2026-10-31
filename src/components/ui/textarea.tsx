@@ -2,7 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Mic, MicOff } from "lucide-react";
 import { Button } from "./button";
-import { toast } from "sonner";
+import { appendToField, useDictation } from "@/lib/dictation";
 
 export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   disableVoice?: boolean;
@@ -10,83 +10,22 @@ export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextArea
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, disableVoice, ...props }, ref) => {
-    const [isRecording, setIsRecording] = React.useState(false);
-    const [recognitionInstance, setRecognitionInstance] = React.useState<any>(null);
     const internalRef = React.useRef<HTMLTextAreaElement>(null);
 
     React.useImperativeHandle(ref, () => internalRef.current as HTMLTextAreaElement);
 
+    // Spoken text is appended to whatever is already typed; the field does not need focus.
+    const dictation = useDictation((text) => {
+      if (internalRef.current) appendToField(internalRef.current, text);
+    });
+
     const toggleVoiceRecord = (e: React.MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-
-      if (isRecording && recognitionInstance) {
-        recognitionInstance.stop();
-        setIsRecording(false);
-        return;
-      }
-
-      if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-        toast("Voice recording is not supported in this browser.");
-        return;
-      }
-
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
-
-      recognition.onstart = () => setIsRecording(true);
-      recognition.onend = () => setIsRecording(false);
-      recognition.onerror = (event: any) => {
-        console.error(event.error);
-        setIsRecording(false);
-      };
-
-      recognition.onresult = (event: any) => {
-        let finalTranscript = "";
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript + " ";
-          }
-        }
-        
-        if (finalTranscript && internalRef.current) {
-          const textareaNode = internalRef.current;
-          const currentValue = textareaNode.value;
-          const newValue = (currentValue ? currentValue + " " + finalTranscript : finalTranscript).trim();
-          
-          const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-            window.HTMLTextAreaElement.prototype,
-            "value"
-          )?.set;
-          
-          if (nativeInputValueSetter) {
-            nativeInputValueSetter.call(textareaNode, newValue);
-            textareaNode.dispatchEvent(new Event('input', { bubbles: true }));
-          }
-        }
-      };
-
-      try {
-        recognition.start();
-        setRecognitionInstance(recognition);
-      } catch (err) {
-        console.error(err);
-        setIsRecording(false);
-      }
+      dictation.toggle();
     };
 
-    React.useEffect(() => {
-      return () => {
-        if (recognitionInstance) {
-          recognitionInstance.stop();
-        }
-      };
-    }, [recognitionInstance]);
-
-    if (disableVoice) {
+    if (disableVoice || props.disabled || props.readOnly) {
       return (
         <textarea
           className={cn(
@@ -111,12 +50,13 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         />
         <Button
           size="sm"
-          variant={isRecording ? "destructive" : "outline"}
+          variant={dictation.isRecording ? "destructive" : "outline"}
           className="absolute bottom-2 left-2 h-8 rounded-lg gap-2 shadow-sm"
+          onMouseDown={(e) => e.preventDefault()}
           onClick={toggleVoiceRecord}
           type="button"
         >
-          {isRecording ? (
+          {dictation.isRecording ? (
             <>
               <MicOff className="h-4 w-4 animate-pulse" />
               <span className="text-[10px] font-bold uppercase tracking-widest">Stop</span>

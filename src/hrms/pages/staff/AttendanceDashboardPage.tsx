@@ -42,6 +42,7 @@ import {
   SelectValue,
 } from "@/hrms/components/ui/select";
 import { Input } from "@/hrms/components/ui/input";
+import { Textarea } from "@/hrms/components/ui/textarea";
 import { employeeApi, storeApi } from "@/hrms/services/api";
 import { hrmsbranchService } from "@/hrms/services/hrmsbranchService";
 import { apiClient } from "@/hrms/services/apiClient";
@@ -1093,8 +1094,8 @@ const AttendanceDashboardPage: React.FC = () => {
             {/* Reason */}
             <div>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Reason <span className="text-slate-300 normal-case font-normal">(optional)</span></p>
-              <textarea
-                className="w-full rounded-xl border border-slate-200 text-sm px-3 py-2 resize-none h-20 focus:outline-none focus:ring-2 focus:ring-violet-300 bg-slate-50"
+              <Textarea
+                className="w-full rounded-xl border border-slate-200 text-sm px-3 py-2 resize-none h-20 focus:outline-none focus:ring-2 focus:ring-violet-300 bg-slate-50 pb-12"
                 placeholder="e.g. Employee had prior permission to leave early..."
                 value={overrideNote}
                 onChange={e => setOverrideNote(e.target.value)}

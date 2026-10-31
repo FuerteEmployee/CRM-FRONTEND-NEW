@@ -35,8 +35,6 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
-  Mic,
-  MicOff,
   CheckSquare,
   Zap,
   FileSpreadsheet,
@@ -96,7 +94,6 @@ export function DataTable<T extends Record<string, any>>({
   exportFilename,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
-  const [isListening, setIsListening] = useState(false);
   const [selectedItems, setSelectedItems] = useState<T[]>([]);
   const [pageSize, setPageSize] = useState("25");
   const [currentPage, setCurrentPage] = useState(1);
@@ -341,46 +338,6 @@ export function DataTable<T extends Record<string, any>>({
     } catch (err: any) {
       toast({ title: "Print Failed", description: err.message || "Could not prepare print data.", variant: "destructive" });
     }
-  };
-
-  const handleVoiceSearch = () => {
-    // @ts-ignore
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      toast({ title: "Error", description: "Voice search not supported in this browser", variant: "destructive" });
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-
-    recognition.onstart = () => setIsListening(true);
-
-    recognition.onresult = (event: any) => {
-      let transcript = '';
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
-      }
-      setSearch(transcript);
-      setCurrentPage(1);
-    };
-
-    recognition.onend = () => setIsListening(false);
-
-    recognition.onerror = (event: any) => {
-      setIsListening(false);
-      // Ignore common non-critical errors
-      if (event.error === 'no-speech' || event.error === 'aborted' || event.error === 'not-allowed') {
-        if (event.error === 'not-allowed') {
-          toast({ title: "Microphone Access Denied", description: "Please allow microphone access in your browser to use voice search.", variant: "destructive" });
-        }
-        return;
-      }
-      toast({ title: "Error", description: `Voice recognition failed (${event.error}).`, variant: "destructive" });
-    };
-
-    recognition.start();
   };
 
   const toggleAll = () => {

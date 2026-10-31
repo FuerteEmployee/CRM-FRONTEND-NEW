@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Loader2, Zap } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -288,10 +289,10 @@ export default function SetupLeadsSources() {
               <label className="text-sm font-medium text-foreground">
                 <span className="text-red-500 mr-1">*</span>Item Names (comma or newline separated)
               </label>
-              <textarea
+              <Textarea
                 value={bulkNames}
                 onChange={(e) => setBulkNames(e.target.value)}
-                className="w-full min-h-[120px] p-3 border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:outline-none text-gray-800"
+                className="w-full min-h-[120px] p-3 border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:outline-none text-gray-800 pb-12"
                 placeholder="Item A, Item B\nItem C"
                 disabled={!can("Leads", "Create")}
               />

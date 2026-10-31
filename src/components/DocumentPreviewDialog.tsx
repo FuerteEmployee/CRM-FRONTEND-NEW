@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Download, Send, Printer } from "lucide-react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -645,13 +646,13 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
               ))}
             </div>
             <div className="flex gap-2 pt-2 border-t border-border/30">
-              <input
+              <Input
                 type="text"
                 placeholder="Type a comment..."
                 value={commentText}
                 onChange={e => setCommentText(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && handleAddComment()}
-                className="flex-1 text-xs border border-border/50 bg-background focus:border-primary outline-none px-3 py-2 rounded-xl"
+                className="flex-1 text-xs border border-border/50 bg-background focus:border-primary outline-none px-3 py-2 rounded-xl h-9 pr-8"
               />
               <Button onClick={handleAddComment} size="icon" className="h-9 w-9 rounded-xl shrink-0">
                 <Send className="h-3.5 w-3.5" />

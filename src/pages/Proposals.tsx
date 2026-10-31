@@ -1,6 +1,7 @@
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -413,11 +414,11 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
           {/* Comments tab */}
           {activeTab === "Comments" && (
             <div className="space-y-3 pt-2">
-              <textarea
+              <Textarea
                 value={commentText}
                 onChange={e => setCommentText(e.target.value)}
                 rows={5}
-                className="w-full rounded-xl border border-border/50 p-3 text-sm resize-y focus:outline-none focus:ring-1 focus:ring-primary bg-background"
+                className="w-full rounded-xl border border-border/50 p-3 text-sm resize-y focus:outline-none focus:ring-1 focus:ring-primary bg-background pb-12"
               />
               <div className="flex justify-end">
                 <Button
@@ -490,9 +491,9 @@ const ProposalDetailPanel = ({ proposal, onClose, onEdit, onView, isFullscreen, 
                   <span className="border border-border/40 rounded px-2 py-0.5">System Font</span>
                   <span className="border border-border/40 rounded px-2 py-0.5">12pt</span>
                 </div>
-                <textarea
+                <Textarea
                   rows={8}
-                  className="w-full p-4 text-sm resize-none focus:outline-none bg-background"
+                  className="w-full p-4 text-sm resize-none focus:outline-none bg-background border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 pb-12"
                   defaultValue={`Dear {proposal_proposal_to}\n\nPlease find our attached proposal.\n\nThis proposal is valid until: {proposal_open_till}\nYou can view the proposal on the following link: {proposal_number}\n\nPlease don't hesitate to comment online if you have any questions.\n\nWe look forward to your communication.\n\nKind Regards,\n{email_signature}`}
                 />
               </div>

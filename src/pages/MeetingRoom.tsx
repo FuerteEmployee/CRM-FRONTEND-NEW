@@ -9,13 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { meetingService } from "@/api/services/meeting.service";
-
-declare global {
-  interface Window {
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
-  }
-}
+import { useDictation } from "@/lib/dictation";
 
 export default function MeetingRoom() {
   const { roomId } = useParams();
@@ -25,10 +19,7 @@ export default function MeetingRoom() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [summary, setSummary] = useState("");
   const summaryRef = useRef("");
-  const [isListening, setIsListening] = useState(false);
-  const isListeningRef = useRef(false);
   const { toast } = useToast();
-  const recognitionRef = useRef<any>(null);
 
   const { data: meeting } = useQuery({
     queryKey: ["meeting", roomId],
@@ -66,72 +57,19 @@ export default function MeetingRoom() {
     toast({ title: "Copied!", description: "Meeting link copied to clipboard." });
   };
 
+  // The hook restarts the mic whenever Chrome ends the session on its own, and
+  // stops it when this page unmounts (back arrow, sidebar link), not only on Leave.
+  const transcription = useDictation((text) => updateSummary((prev) => prev + (prev ? '\n' : '') + text));
+  const isListening = transcription.isRecording;
+
   const toggleListening = () => {
     if (isListening) {
-      isListeningRef.current = false;
-      recognitionRef.current?.stop();
-      setIsListening(false);
+      transcription.stop();
       toast({ title: "Auto-Transcribe Stopped", description: "Background transcription has been stopped." });
       return;
     }
-
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      toast({ title: "Not Supported", description: "Your browser does not support voice typing.", variant: "destructive" });
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-
-    recognition.onresult = (event: any) => {
-      let finalTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript + ' ';
-        }
-      }
-      if (finalTranscript) {
-        updateSummary((prev) => prev + (prev ? '\n' : '') + finalTranscript.trim());
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error(event.error);
-      if (event.error !== 'no-speech') {
-        setIsListening(false);
-        isListeningRef.current = false;
-        toast({ title: "Voice Error", description: "An error occurred with transcription.", variant: "destructive" });
-      }
-    };
-
-    recognition.onend = () => {
-      // Restart automatically if we are still supposed to be listening (Background mode)
-      if (isListeningRef.current) {
-        try {
-          recognition.start();
-        } catch (e) {
-          console.error("Failed to restart recognition in background", e);
-          setIsListening(false);
-          isListeningRef.current = false;
-        }
-      } else {
-        setIsListening(false);
-      }
-    };
-
-    try {
-      recognition.start();
-      recognitionRef.current = recognition;
-      setIsListening(true);
-      isListeningRef.current = true;
-      toast({ title: "Auto-Transcribe Started", description: "Running in background. It will auto-save when you leave." });
-    } catch(e) {
-      console.error(e);
-      toast({ title: "Error", description: "Could not start transcription.", variant: "destructive" });
-    }
+    transcription.start();
+    toast({ title: "Auto-Transcribe Started", description: "Running in background. It will auto-save when you leave." });
   };
 
   const handleSaveSummary = () => {
@@ -139,10 +77,7 @@ export default function MeetingRoom() {
   };
 
   const handleLeaveMeeting = () => {
-    if (isListeningRef.current) {
-      isListeningRef.current = false;
-      recognitionRef.current?.stop();
-    }
+    transcription.stop();
     // Auto-save the transcription text when leaving using ref to avoid stale closures
     if (summaryRef.current.trim()) {
       updateMutation.mutate(summaryRef.current);
@@ -255,6 +190,7 @@ export default function MeetingRoom() {
                 placeholder="Type or dictate notes here...&#10;&#10;Key points, action items, and decisions will be saved to the meeting record."
                 value={summary}
                 onChange={(e) => updateSummary(e.target.value)}
+                disableVoice
               />
               
               <Button 

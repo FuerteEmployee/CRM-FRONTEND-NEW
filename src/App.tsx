@@ -164,23 +164,32 @@ const SessionCheck = () => (
   </div>
 );
 
+// /admin and /staff mount the same pages (renderCommonRoutes), so a link
+// shared from one area (navbar Share) opens the same page in the other.
+const switchArea = (location: { pathname: string; search: string; hash: string }, to: "/admin" | "/staff") =>
+  `${location.pathname.replace(/^\/(admin|staff)/, to)}${location.search}${location.hash}`;
+
 // Admin Route Protection
 const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, isAdmin, isStaff, permissions, loading } = usePermissionContext();
+  const location = useLocation();
   if (loading) return <SessionCheck />;
   if (!user) return <Navigate to="/admin/login" replace />;
   // A super admin has no company of their own — the company CRM would only
   // show empty "Fuerte CRM" data. Keep them in the Super Admin panel.
   if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
+  if (isStaff) return <Navigate to={switchArea(location, "/staff")} replace />;
   if (!isAdmin) return <Navigate to={getLandingPath(user, permissions, isStaff)} replace />;
   return <ModuleGuard>{children}</ModuleGuard>;
 };
 
 // Staff Route Protection
 const StaffProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, isStaff, permissions, loading } = usePermissionContext();
+  const { user, isAdmin, isStaff, permissions, loading } = usePermissionContext();
+  const location = useLocation();
   if (loading) return <SessionCheck />;
   if (!user) return <Navigate to="/staff/login" replace />;
+  if (isAdmin) return <Navigate to={switchArea(location, "/admin")} replace />;
   if (!isStaff) return <Navigate to={getLandingPath(user, permissions, false)} replace />;
   return <ModuleGuard>{children}</ModuleGuard>;
 };

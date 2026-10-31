@@ -2,6 +2,7 @@ import { useState } from "react";
 import { DataTablePage } from "@/components/shared/DataTablePage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -272,10 +273,10 @@ export default function SetupCustomerGroups() {
               <label className="text-sm font-medium text-foreground">
                 <span className="text-red-500 mr-1">*</span>Group Names (comma or newline separated)
               </label>
-              <textarea
+              <Textarea
                 value={bulkGroupNames}
                 onChange={(e) => setBulkGroupNames(e.target.value)}
-                className="w-full min-h-[120px] p-3 border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:outline-none text-gray-800"
+                className="w-full min-h-[120px] p-3 border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:outline-none text-gray-800 pb-12"
                 placeholder="Group A, Group B&#10;Group C"
                 disabled={!can("Customers", "Create")}
               />

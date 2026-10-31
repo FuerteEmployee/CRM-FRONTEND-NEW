@@ -45,6 +45,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { useDictation } from "@/lib/dictation";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -263,8 +264,8 @@ export const RichTextEditor = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showBlocks, setShowBlocks] = useState(false);
   const [spellcheck, setSpellcheck] = useState(true);
-  const [isRecording, setIsRecording] = useState(false);
-  const recognitionRef = useRef<any>(null);
+  // exec() puts the caret back in the editor (end of text if it never had one), so dictation works without focus.
+  const dictation = useDictation((text) => exec("insertText", `${text} `));
 
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkForm, setLinkForm] = useState({ url: "", text: "", newTab: true });
@@ -403,7 +404,6 @@ export const RichTextEditor = ({
     return () => {
       document.removeEventListener("selectionchange", onSelectionChange);
       document.removeEventListener("fullscreenchange", onFullscreenChange);
-      recognitionRef.current?.stop?.();
     };
   }, [saveSelection, refreshActive]);
 
@@ -805,41 +805,6 @@ export const RichTextEditor = ({
   const newDocument = () => {
     exec("selectAll");
     exec("delete");
-  };
-
-  /* ------------------------------- voice ------------------------------ */
-
-  const toggleVoice = () => {
-    if (isRecording) {
-      recognitionRef.current?.stop();
-      setIsRecording(false);
-      return;
-    }
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      toast({ title: "Voice typing is not supported in this browser." });
-      return;
-    }
-    const recognition = new SpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = "en-US";
-    recognition.onstart = () => setIsRecording(true);
-    recognition.onend = () => setIsRecording(false);
-    recognition.onerror = () => setIsRecording(false);
-    recognition.onresult = (event: any) => {
-      let finalText = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        if (event.results[i].isFinal) finalText += event.results[i][0].transcript;
-      }
-      if (finalText.trim()) exec("insertText", `${finalText.trim()} `);
-    };
-    try {
-      recognition.start();
-      recognitionRef.current = recognition;
-    } catch {
-      setIsRecording(false);
-    }
   };
 
   /* ------------------------------ events ------------------------------ */
@@ -1351,15 +1316,15 @@ export const RichTextEditor = ({
           <Button
             type="button"
             size="sm"
-            variant={isRecording ? "destructive" : "outline"}
+            variant={dictation.isRecording ? "destructive" : "outline"}
             className="absolute bottom-2 left-2 h-8 rounded-lg gap-2 shadow-sm"
             onMouseDown={(e) => {
               e.preventDefault();
               saveSelection();
             }}
-            onClick={toggleVoice}
+            onClick={dictation.toggle}
           >
-            {isRecording ? (
+            {dictation.isRecording ? (
               <>
                 <MicOff className="h-4 w-4 animate-pulse" />
                 <span className="text-[10px] font-bold uppercase tracking-widest">Stop</span>

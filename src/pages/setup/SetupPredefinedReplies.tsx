@@ -227,10 +227,10 @@ export default function SetupPredefinedReplies() {
               <label className="text-sm font-medium text-foreground">
                 <span className="text-red-500 mr-1">*</span>Item Names (comma or newline separated)
               </label>
-              <textarea
+              <Textarea
                 value={bulkNames}
                 onChange={(e) => setBulkNames(e.target.value)}
-                className="w-full min-h-[120px] p-3 border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:outline-none text-gray-800"
+                className="w-full min-h-[120px] p-3 border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:outline-none text-gray-800 pb-12"
                 placeholder="Name|Message\nName2|Message2"
                 disabled={!can("Support", "Create")}
               />

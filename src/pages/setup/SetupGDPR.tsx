@@ -697,7 +697,7 @@ export default function SetupGDPR() {
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-2 border rounded-md px-3 bg-background focus-within:ring-1 focus-within:ring-primary w-full sm:w-[300px]">
                           <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <input type="text" placeholder="Search..." className="flex-1 bg-transparent border-none text-sm py-2 px-1 focus:outline-none" />
+                          <Input type="text" placeholder="Search..." className="flex-1 bg-transparent border-none text-sm py-2 px-1 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 pr-8" />
                         </div>
                         <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                           <span className="whitespace-nowrap">Show</span>
@@ -998,10 +998,10 @@ export default function SetupGDPR() {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div className="flex items-center gap-2 border rounded-md px-3 bg-background focus-within:ring-1 focus-within:ring-primary w-full sm:w-[300px]">
                         <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <input
+                        <Input
                           type="text"
                           placeholder="Search..."
-                          className="flex-1 bg-transparent border-none text-sm py-2 px-1 focus:outline-none"
+                          className="flex-1 bg-transparent border-none text-sm py-2 px-1 focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 pr-8"
                           value={purposeSearch}
                           onChange={(e) => setPurposeSearch(e.target.value)}
                         />
