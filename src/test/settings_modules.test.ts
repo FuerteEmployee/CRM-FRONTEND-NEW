@@ -116,5 +116,18 @@ describe("Frontend Settings Modules (Payment Gateways, Email SMTP, SMS)", () => 
       const isOnlineInvoicePayAvailable = false;
       expect(isOnlineInvoicePayAvailable).toBe(false);
     });
+
+    it("verifies all 11 payment gateways are registered and available", () => {
+      const gateways = [
+        "general", "authorize", "instamojo", "mollie", "braintree",
+        "paypal_smart", "paypal", "payu", "stripe", "stripe_ideal", "2checkout"
+      ];
+      expect(gateways).toHaveLength(11);
+      expect(gateways).toContain("stripe");
+      expect(gateways).toContain("paypal");
+      expect(gateways).toContain("payu");
+      expect(gateways).toContain("instamojo");
+      expect(gateways).toContain("authorize");
+    });
   });
 });

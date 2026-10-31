@@ -21,6 +21,18 @@ vi.mock("@/api/services/finance.service", () => ({ financeService: fin }));
 import { AddCatalogDialog } from "./AddCatalogDialog";
 import { CurrencyProvider } from "@/context/CurrencyContext";
 
+if (typeof globalThis.localStorage === "undefined" || !globalThis.localStorage.setItem) {
+  const store = new Map<string, string>();
+  (globalThis as any).localStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    setItem: (k: string, v: string) => { store.set(k, String(v)); },
+    removeItem: (k: string) => { store.delete(k); },
+    clear: () => { store.clear(); },
+    key: (i: number) => Array.from(store.keys())[i] ?? null,
+    length: 0,
+  };
+}
+
 afterEach(() => cleanup());
 
 describe("S6 helpers", () => {
