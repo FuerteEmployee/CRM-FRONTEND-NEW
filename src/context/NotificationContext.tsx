@@ -305,6 +305,18 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       }
     });
 
+    // Goals (Backend services/goalProgressService.js): sent once when a goal is
+    // achieved, or once when its end date passes without reaching the target.
+    socket.on("goalUpdate", (payload: any) => {
+      const subject = payload?.subject || "A goal";
+      const link = `${isStaff ? "/staff" : "/admin"}/goals`;
+      if (payload?.event === "achieved") {
+        addNotification("Goal achieved", `${subject} reached its target.`, link);
+      } else if (payload?.event === "failed") {
+        addNotification("Goal not achieved", `${subject} ended without reaching its target.`, link);
+      }
+    });
+
     return () => {
       socket.disconnect();
       setSocket(null);

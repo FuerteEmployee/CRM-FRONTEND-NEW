@@ -1,0 +1,1457 @@
+{
+ "hosts": [
+  "127.0.0.1:5174",
+  "fonts.googleapis.com",
+  "127.0.0.1:5102",
+  "translate.google.com",
+  "fonts.gstatic.com",
+  "www.gstatic.com",
+  "translate.googleapis.com",
+  "translate-pa.googleapis.com"
+ ],
+ "results": [
+  {
+   "tenant": "BeOnTime",
+   "area": "List",
+   "name": "page /admin/invoices loads",
+   "passed": true,
+   "details": "heading=\"Invoices\"",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Sidebar",
+   "name": "sidebar link to /admin/invoices labelled \"Invoices\"",
+   "passed": true,
+   "details": "links=[\"Invoices\"]",
+   "severity": "Low"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "List",
+   "name": "5 status cards shown",
+   "passed": true,
+   "details": "cards=6",
+   "severity": "Low"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Create",
+   "name": "Save -> 201",
+   "passed": true,
+   "details": "status=201",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Money",
+   "name": "UI total = 1191.80",
+   "passed": true,
+   "details": "UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Money",
+   "name": "API total = UI total",
+   "passed": true,
+   "details": "API=1191.8 UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Money",
+   "name": "DB total = UI total",
+   "passed": true,
+   "details": "DB=1191.8 UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Money",
+   "name": "DB total_tax = 181.80",
+   "passed": true,
+   "details": "DB total_tax=181.8",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Money",
+   "name": "UI CGST/SGST-vs-IGST label = saved tax_type",
+   "passed": true,
+   "details": "UI=GST DB=GST",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Create",
+   "name": "Save (main button) saves status 'unpaid'",
+   "passed": true,
+   "details": "status=unpaid",
+   "severity": "Low"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Preview",
+   "name": "GRAND TOTAL = DB total",
+   "passed": true,
+   "details": "preview=GRAND TOTAL 1191.8 DB=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Preview",
+   "name": "API-created invoice: preview total = DB total",
+   "passed": true,
+   "details": "preview=1191.8 DB=1191.8 (DB total_tax=181.8)",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Preview",
+   "name": "API-created invoice: preview shows the tax line",
+   "passed": true,
+   "details": "tax line shown",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=generic renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=false totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=classic_invoice renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=true totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=ekagra_tax_invoice renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=false totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Detail panel",
+   "name": "Record Payment amount prefilled with balance due 1191.80",
+   "passed": true,
+   "details": "prefill=1191.80",
+   "severity": "Low"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Status flow",
+   "name": "payment 100 -> partially_paid",
+   "passed": true,
+   "details": "status=partially_paid paid=100",
+   "severity": "High"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "List",
+   "name": "page /admin/invoices loads",
+   "passed": true,
+   "details": "heading=\"Invoices\"",
+   "severity": "High"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "Sidebar",
+   "name": "sidebar link to /admin/invoices labelled \"Invoices\"",
+   "passed": true,
+   "details": "links=[\"Invoices\"]",
+   "severity": "Low"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "List",
+   "name": "5 status cards shown",
+   "passed": true,
+   "details": "cards=6",
+   "severity": "Low"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "Create",
+   "name": "Save -> 201",
+   "passed": true,
+   "details": "status=201",
+   "severity": "High"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "Money",
+   "name": "UI total = 1191.80",
+   "passed": true,
+   "details": "UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "Money",
+   "name": "API total = UI total",
+   "passed": true,
+   "details": "API=1191.8 UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "Money",
+   "name": "DB total = UI total",
+   "passed": true,
+   "details": "DB=1191.8 UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "Money",
+   "name": "DB total_tax = 181.80",
+   "passed": true,
+   "details": "DB total_tax=181.8",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "Money",
+   "name": "UI CGST/SGST-vs-IGST label = saved tax_type",
+   "passed": true,
+   "details": "UI=GST DB=GST",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "Create",
+   "name": "Save (main button) saves status 'unpaid'",
+   "passed": true,
+   "details": "status=unpaid",
+   "severity": "Low"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "Preview",
+   "name": "GRAND TOTAL = DB total",
+   "passed": true,
+   "details": "preview=GRAND TOTAL 1191.8 DB=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "Preview",
+   "name": "API-created invoice: preview total = DB total",
+   "passed": true,
+   "details": "preview=1191.8 DB=1191.8 (DB total_tax=181.8)",
+   "severity": "High"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "Preview",
+   "name": "API-created invoice: preview shows the tax line",
+   "passed": true,
+   "details": "tax line shown",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=generic renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=false totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=classic_invoice renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=true totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=ekagra_tax_invoice renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=false totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "Detail panel",
+   "name": "Record Payment amount prefilled with balance due 1191.80",
+   "passed": true,
+   "details": "prefill=1191.80",
+   "severity": "Low"
+  },
+  {
+   "tenant": "CitySmile",
+   "area": "Status flow",
+   "name": "payment 100 -> partially_paid",
+   "passed": true,
+   "details": "status=partially_paid paid=100",
+   "severity": "High"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "List",
+   "name": "page /admin/invoices loads",
+   "passed": true,
+   "details": "heading=\"Invoices\"",
+   "severity": "High"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "Sidebar",
+   "name": "sidebar link to /admin/invoices labelled \"Invoices\"",
+   "passed": true,
+   "details": "links=[\"Invoices\"]",
+   "severity": "Low"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "List",
+   "name": "5 status cards shown",
+   "passed": true,
+   "details": "cards=6",
+   "severity": "Low"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "Create",
+   "name": "Save -> 201",
+   "passed": true,
+   "details": "status=201",
+   "severity": "High"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "Money",
+   "name": "UI total = 1191.80",
+   "passed": true,
+   "details": "UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "Money",
+   "name": "API total = UI total",
+   "passed": true,
+   "details": "API=1191.8 UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "Money",
+   "name": "DB total = UI total",
+   "passed": true,
+   "details": "DB=1191.8 UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "Money",
+   "name": "DB total_tax = 181.80",
+   "passed": true,
+   "details": "DB total_tax=181.8",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "Money",
+   "name": "UI CGST/SGST-vs-IGST label = saved tax_type",
+   "passed": true,
+   "details": "UI=GST DB=GST",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "Create",
+   "name": "Save (main button) saves status 'unpaid'",
+   "passed": true,
+   "details": "status=unpaid",
+   "severity": "Low"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "Preview",
+   "name": "GRAND TOTAL = DB total",
+   "passed": true,
+   "details": "preview=GRAND TOTAL 1191.8 DB=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "Preview",
+   "name": "API-created invoice: preview total = DB total",
+   "passed": true,
+   "details": "preview=1191.8 DB=1191.8 (DB total_tax=181.8)",
+   "severity": "High"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "Preview",
+   "name": "API-created invoice: preview shows the tax line",
+   "passed": true,
+   "details": "tax line shown",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=generic renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=false totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=classic_invoice renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=true totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=ekagra_tax_invoice renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=false totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "Detail panel",
+   "name": "Record Payment amount prefilled with balance due 1191.80",
+   "passed": true,
+   "details": "prefill=1191.80",
+   "severity": "Low"
+  },
+  {
+   "tenant": "Kiran",
+   "area": "Status flow",
+   "name": "payment 100 -> partially_paid",
+   "passed": true,
+   "details": "status=partially_paid paid=100",
+   "severity": "High"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "List",
+   "name": "page /admin/invoices loads",
+   "passed": true,
+   "details": "heading=\"Invoices\"",
+   "severity": "High"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "Sidebar",
+   "name": "sidebar link to /admin/invoices labelled \"Invoices\"",
+   "passed": true,
+   "details": "links=[\"Invoices\"]",
+   "severity": "Low"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "List",
+   "name": "5 status cards shown",
+   "passed": true,
+   "details": "cards=6",
+   "severity": "Low"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "Create",
+   "name": "Save -> 201",
+   "passed": true,
+   "details": "status=201",
+   "severity": "High"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "Money",
+   "name": "UI total = 1191.80",
+   "passed": true,
+   "details": "UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "Money",
+   "name": "API total = UI total",
+   "passed": true,
+   "details": "API=1191.8 UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "Money",
+   "name": "DB total = UI total",
+   "passed": true,
+   "details": "DB=1191.8 UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "Money",
+   "name": "DB total_tax = 181.80",
+   "passed": true,
+   "details": "DB total_tax=181.8",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "Money",
+   "name": "UI CGST/SGST-vs-IGST label = saved tax_type",
+   "passed": true,
+   "details": "UI=GST DB=GST",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "Create",
+   "name": "Save (main button) saves status 'unpaid'",
+   "passed": true,
+   "details": "status=unpaid",
+   "severity": "Low"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "Preview",
+   "name": "GRAND TOTAL = DB total",
+   "passed": true,
+   "details": "preview=GRAND TOTAL 1191.8 DB=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "Preview",
+   "name": "API-created invoice: preview total = DB total",
+   "passed": true,
+   "details": "preview=1191.8 DB=1191.8 (DB total_tax=181.8)",
+   "severity": "High"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "Preview",
+   "name": "API-created invoice: preview shows the tax line",
+   "passed": true,
+   "details": "tax line shown",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=generic renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=false totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=classic_invoice renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=true totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=ekagra_tax_invoice renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=false totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "Detail panel",
+   "name": "Record Payment amount prefilled with balance due 1191.80",
+   "passed": true,
+   "details": "prefill=1191.80",
+   "severity": "Low"
+  },
+  {
+   "tenant": "OffixNest",
+   "area": "Status flow",
+   "name": "payment 100 -> partially_paid",
+   "passed": true,
+   "details": "status=partially_paid paid=100",
+   "severity": "High"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "List",
+   "name": "page /admin/invoices loads",
+   "passed": true,
+   "details": "heading=\"Invoices\"",
+   "severity": "High"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Sidebar",
+   "name": "sidebar link to /admin/invoices labelled \"Sales\"",
+   "passed": true,
+   "details": "links=[\"Sales\"]",
+   "severity": "Low"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "List",
+   "name": "5 status cards shown",
+   "passed": true,
+   "details": "cards=6",
+   "severity": "Low"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Create",
+   "name": "Save -> 201",
+   "passed": true,
+   "details": "status=201",
+   "severity": "High"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Money",
+   "name": "UI total = 1191.80",
+   "passed": true,
+   "details": "UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Money",
+   "name": "API total = UI total",
+   "passed": true,
+   "details": "API=1191.8 UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Money",
+   "name": "DB total = UI total",
+   "passed": true,
+   "details": "DB=1191.8 UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Money",
+   "name": "DB total_tax = 181.80",
+   "passed": true,
+   "details": "DB total_tax=181.8",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Money",
+   "name": "UI CGST/SGST-vs-IGST label = saved tax_type",
+   "passed": true,
+   "details": "UI=GST DB=GST",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Pilot fields",
+   "name": "branch saved from Branch select",
+   "passed": true,
+   "details": "branch=Ahmedabad Branch Rudraverse",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Create",
+   "name": "Save (main button) saves status 'unpaid'",
+   "passed": true,
+   "details": "status=unpaid",
+   "severity": "Low"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Preview",
+   "name": "Rudraverse rounded TOTAL = DB total rounded",
+   "passed": true,
+   "details": "preview=TOTAL 1192 DB=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Preview",
+   "name": "Rudraverse shows GST breakdown + Rounding",
+   "passed": true,
+   "details": "rows present",
+   "severity": "Low"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Preview",
+   "name": "API-created invoice: preview total = DB total",
+   "passed": true,
+   "details": "preview=1192 DB=1191.8 (DB total_tax=181.8)",
+   "severity": "High"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Preview",
+   "name": "API-created invoice: preview shows the tax line",
+   "passed": true,
+   "details": "tax line shown",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=generic renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=false totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=classic_invoice renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=true totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=ekagra_tax_invoice renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=false totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Detail panel",
+   "name": "Record Payment amount prefilled with balance due 1191.80",
+   "passed": true,
+   "details": "prefill=1191.80",
+   "severity": "Low"
+  },
+  {
+   "tenant": "Rudraverse",
+   "area": "Status flow",
+   "name": "payment 100 -> partially_paid",
+   "passed": true,
+   "details": "status=partially_paid paid=100",
+   "severity": "High"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "List",
+   "name": "page /admin/invoices loads",
+   "passed": true,
+   "details": "heading=\"Invoices\"",
+   "severity": "High"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "Sidebar",
+   "name": "sidebar link to /admin/invoices labelled \"Invoices\"",
+   "passed": true,
+   "details": "links=[\"Invoices\"]",
+   "severity": "Low"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "List",
+   "name": "5 status cards shown",
+   "passed": true,
+   "details": "cards=6",
+   "severity": "Low"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "Create",
+   "name": "Save -> 201",
+   "passed": true,
+   "details": "status=201",
+   "severity": "High"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "Money",
+   "name": "UI total = 1191.80",
+   "passed": true,
+   "details": "UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "Money",
+   "name": "API total = UI total",
+   "passed": true,
+   "details": "API=1191.8 UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "Money",
+   "name": "DB total = UI total",
+   "passed": true,
+   "details": "DB=1191.8 UI=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "Money",
+   "name": "DB total_tax = 181.80",
+   "passed": true,
+   "details": "DB total_tax=181.8",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "Money",
+   "name": "UI CGST/SGST-vs-IGST label = saved tax_type",
+   "passed": true,
+   "details": "UI=GST DB=GST",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "Create",
+   "name": "Save (main button) saves status 'unpaid'",
+   "passed": true,
+   "details": "status=unpaid",
+   "severity": "Low"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "Preview",
+   "name": "GRAND TOTAL = DB total",
+   "passed": true,
+   "details": "preview=GRAND TOTAL 1191.8 DB=1191.8",
+   "severity": "High"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "Preview",
+   "name": "API-created invoice: preview total = DB total",
+   "passed": true,
+   "details": "preview=1191.8 DB=1191.8 (DB total_tax=181.8)",
+   "severity": "High"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "Preview",
+   "name": "API-created invoice: preview shows the tax line",
+   "passed": true,
+   "details": "tax line shown",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=generic renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=false totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=classic_invoice renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=true totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "PDF formats",
+   "name": "preview with invPdfFormat=ekagra_tax_invoice renders with the right total",
+   "passed": true,
+   "details": "ekagraLayout=true totalSeen=true",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "Detail panel",
+   "name": "Record Payment amount prefilled with balance due 1191.80",
+   "passed": true,
+   "details": "prefill=1191.80",
+   "severity": "Low"
+  },
+  {
+   "tenant": "Ekagra",
+   "area": "Status flow",
+   "name": "payment 100 -> partially_paid",
+   "passed": true,
+   "details": "status=partially_paid paid=100",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Money",
+   "name": "no-GSTIN/no-state customer: UI split = saved split",
+   "passed": true,
+   "details": "UI=IGST DB=IGST",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Money",
+   "name": "qty 0: UI total = saved total",
+   "passed": true,
+   "details": "UI=0 DB=0",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Money",
+   "name": "Tax 'Zero' + GST% 18: UI total = saved total",
+   "passed": true,
+   "details": "UI=100 DB=100",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Money",
+   "name": "Fixed Rate discount 50: UI total = saved total",
+   "passed": true,
+   "details": "UI=950 DB=950 sent discount_percent=0",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Money",
+   "name": "Discount Type 'No discount' + value 10: UI total = saved total",
+   "passed": true,
+   "details": "UI=900 DB=900 sent discount_percent=10",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Money",
+   "name": "no separate Before/After Tax discount type (they calculated the same)",
+   "passed": true,
+   "details": "Discount Type selects on the form: 0",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Create",
+   "name": "Save & Send opens 'Send Invoice to Email' with the template filled in",
+   "passed": true,
+   "details": "dialog=true, subject=\"Invoice X-SEND from BeOnTime Test Co\"",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Email",
+   "name": "Send attaches a real PDF; no SMTP → clear 'SMTP not configured' message, status stays unpaid",
+   "passed": true,
+   "details": "pdf=true (115760 b64 chars), status=400, msg=\"SMTP not configured. Please go to Settings > Email and fill in your SMTP details first.\"",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "PDF",
+   "name": "Download gives a real PDF (Invoice_<no>.pdf)",
+   "passed": true,
+   "details": "file=Invoice_X-SEND.pdf, starts with \"%PDF-\"",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Create",
+   "name": "Save & Record Payment (Amount Paid empty) creates a payment = total",
+   "passed": true,
+   "details": "status=paid payments=1 total_paid=100",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Create",
+   "name": "double-click Save creates only one invoice",
+   "passed": true,
+   "details": "POSTs=1",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Create",
+   "name": "payload carries tags",
+   "passed": true,
+   "details": "payload keys: client,number,auto_number,terms,date,duedate,currency,notes,adminnote,status,document_type,voucherType,partyAddress,partyGroup,termsOfPayment,gstin,vat,salesPerson,branch,items,tags,discount_type,discount_percent,discount_fixed,adjustment",
+   "severity": "Low"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Security",
+   "name": "invoice number HTML is escaped in View PDF (no script runs)",
+   "passed": true,
+   "details": "popup={\"num\":false,\"item\":false,\"origin\":\"blob:http://127.0.0.1:5174/b25\",\"token\":true} id=6ae44a92f3a4be5b9f3cf556",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Security",
+   "name": "item description HTML is escaped in View PDF",
+   "passed": true,
+   "details": "popup={\"num\":false,\"item\":false,\"origin\":\"blob:http://127.0.0.1:5174/b25\",\"token\":true}",
+   "severity": "High"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Detail panel",
+   "name": "Copy link opens the invoice (not a 404 page)",
+   "passed": true,
+   "details": "link=/admin/invoices?view=6ae44a97f3a4be5b9f3cf5a5 page=CRM Agent — voice not working Microphone is blocked for this",
+   "severity": "Low"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Detail panel",
+   "name": "More > Delete asks for confirmation",
+   "passed": true,
+   "details": "confirm=0 stillExists=1",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "List",
+   "name": "status card totals do not mix USD into a ₹ sum",
+   "passed": true,
+   "details": "card=\"UNPAID 14 ₹3,367.00 + $1,190.00\"",
+   "severity": "Low"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "List",
+   "name": "Unpaid card shows 'sent' invoices in both paginated and All modes",
+   "passed": true,
+   "details": "paginated=1 all=1",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Bulk",
+   "name": "Bulk Actions with nothing selected shows 'Please select at least one item first.'",
+   "passed": true,
+   "details": "shown: Error Please select at least one item first.",
+   "severity": "Low"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "UI",
+   "name": "edit of a deleted id -> back to the list",
+   "passed": true,
+   "details": "url=/admin/invoices",
+   "severity": "Low"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Permissions UI",
+   "name": "view-only: no 'New Invoice'",
+   "passed": true,
+   "details": "",
+   "severity": "Low"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Permissions UI",
+   "name": "view-only: no 'Bulk Actions'",
+   "passed": true,
+   "details": "shown=false",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Permissions UI",
+   "name": "view-only: no 'Import'",
+   "passed": true,
+   "details": "shown=false",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Permissions UI",
+   "name": "view-only: no row Edit / Delete",
+   "passed": true,
+   "details": "",
+   "severity": "Low"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Permissions UI",
+   "name": "view-only: detail panel hides Record Payment / Mark as / Delete / Convert",
+   "passed": true,
+   "details": "RecordPayment=false More write items=0 Convert=false",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Responsive",
+   "name": "375px list: no page-level horizontal scroll (table scrolls inside)",
+   "passed": true,
+   "details": "docScrollWidth>viewport=false",
+   "severity": "Low"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Responsive",
+   "name": "375px create: Save button reachable on screen",
+   "passed": true,
+   "details": "box={\"x\":250.828125,\"y\":666.5,\"width\":54.171875,\"height\":32}",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Responsive",
+   "name": "768px list: no page-level horizontal scroll (table scrolls inside)",
+   "passed": true,
+   "details": "docScrollWidth>viewport=false",
+   "severity": "Low"
+  },
+  {
+   "tenant": "BeOnTime",
+   "area": "Responsive",
+   "name": "768px create: Save button reachable on screen",
+   "passed": true,
+   "details": "box={\"x\":627.828125,\"y\":862.5,\"width\":54.171875,\"height\":32}",
+   "severity": "Medium"
+  },
+  {
+   "tenant": "ALL",
+   "area": "Guard",
+   "name": "every /api call went to 127.0.0.1:5102 (and nothing to :5001 / :5183)",
+   "passed": true,
+   "details": "api hosts=[\"127.0.0.1:5102\"]; all hosts=[\"127.0.0.1:5174\",\"fonts.googleapis.com\",\"127.0.0.1:5102\",\"translate.google.com\",\"fonts.gstatic.com\",\"www.gstatic.com\",\"translate.googleapis.com\",\"translate-pa.googleapis.com\"]",
+   "severity": "High"
+  },
+  {
+   "tenant": "ALL",
+   "area": "Console",
+   "name": "zero red console errors",
+   "passed": false,
+   "details": "282 errors; first: [admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found) || [admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found) || [admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+   "severity": "Low"
+  },
+  {
+   "tenant": "ALL",
+   "area": "Network",
+   "name": "zero unexpected 4xx/5xx",
+   "passed": false,
+   "details": "9; [admin@beontime.inv-test.local] 404 GET /api/invoices/:id || [viewer@beontime.inv-test.local] 403 GET /api/currencies || [viewer@beontime.inv-test.local] 403 GET /api/payments/invoice/:id || [viewer@beontime.inv-test.local] 403 GET /api/payment-modes",
+   "severity": "Low"
+  },
+  {
+   "tenant": "ALL",
+   "area": "Network",
+   "name": "no missing static files (images/icons)",
+   "passed": false,
+   "details": "258 hits: 404 http://127.0.0.1:5102/socket.io/",
+   "severity": "Low"
+  }
+ ],
+ "net4xx": [
+  "[admin@beontime.inv-test.local] 400 POST /api/invoices/6ae44a77f3a4be5b9f3cf377/send-email",
+  "[admin@beontime.inv-test.local] 404 GET /api/invoices/0123456789abcdef01234567",
+  "[viewer@beontime.inv-test.local] 403 GET /api/currencies",
+  "[viewer@beontime.inv-test.local] 403 GET /api/currencies",
+  "[viewer@beontime.inv-test.local] 403 GET /api/payments/invoice/6ae44ab1f3a4be5b9f3cf7cd",
+  "[viewer@beontime.inv-test.local] 403 GET /api/payment-modes",
+  "[viewer@beontime.inv-test.local] 403 GET /api/currencies",
+  "[viewer@beontime.inv-test.local] 403 GET /api/payments/invoice/6ae44ab1f3a4be5b9f3cf7cd",
+  "[viewer@beontime.inv-test.local] 403 GET /api/payment-modes",
+  "[viewer@beontime.inv-test.local] 403 GET /api/currencies"
+ ],
+ "static4xx": [
+  "404 http://127.0.0.1:5102/socket.io/"
+ ],
+ "consoleErrors": [
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@citysmile.inv-test.local] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[admin@citysmile.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@kiran.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@offixnest.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[info@trinetratechnoworld.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[ekagraengineering@gmail.com] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[ekagraengineering@gmail.com] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[admin@beontime.inv-test.local] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 400 (Bad Request)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[viewer@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[viewer@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[viewer@beontime.inv-test.local] Failed to load resource: the server responded with a status of 403 (Forbidden)",
+  "[viewer@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[viewer@beontime.inv-test.local] Failed to load resource: the server responded with a status of 403 (Forbidden)",
+  "[viewer@beontime.inv-test.local] `DialogContent` requires a `DialogTitle` for the component to be accessible for screen reader users.\n\nIf you want to hide the `DialogTitle`, you can wrap it with our VisuallyHidden component.\n\nFor mor",
+  "[viewer@beontime.inv-test.local] Failed to load resource: the server responded with a status of 403 (Forbidden)",
+  "[viewer@beontime.inv-test.local] Failed to load resource: the server responded with a status of 403 (Forbidden)",
+  "[viewer@beontime.inv-test.local] Failed to load resource: the server responded with a status of 403 (Forbidden)",
+  "[viewer@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[viewer@beontime.inv-test.local] Failed to load resource: the server responded with a status of 403 (Forbidden)",
+  "[viewer@beontime.inv-test.local] Failed to load resource: the server responded with a status of 403 (Forbidden)",
+  "[viewer@beontime.inv-test.local] Failed to load resource: the server responded with a status of 403 (Forbidden)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)",
+  "[admin@beontime.inv-test.local] Failed to load resource: the server responded with a status of 404 (Not Found)"
+ ]
+}

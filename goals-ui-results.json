@@ -1,0 +1,598 @@
+{
+  "results": [
+    {
+      "tenant": "BeOnTime",
+      "area": "List",
+      "name": "UI row count = API count (page size 25)",
+      "passed": true,
+      "details": "UI 25, API 32",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "List",
+      "name": "no other tenant's goals shown",
+      "passed": true,
+      "details": "rows: UI Goal 02, UI Goal 03, UI Goal 04…",
+      "severity": "High"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Create",
+      "name": "toast 'Goal created successfully' and back to /admin/goals",
+      "passed": true,
+      "details": "toast \"Goal created successfully\", url http://127.0.0.1:5173/admin/goals",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Create",
+      "name": "DB record matches form (type, staff, achievement, dates, tenant)",
+      "passed": true,
+      "details": "type=total_income staff=PickB ach=5000 start=2026-11-01T00:00:00.000Z",
+      "severity": "High"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "View",
+      "name": "popup shows subject, progress, target, staff, type, dates, description, notify flags",
+      "passed": true,
+      "details": "UI created BeOnTime 1793341709689Achieve Total IncomeCurrent Progress0%Target Achievement0 / 5000Staff MemberPickB BeOnTimeGoal TypeAchieve Total IncomeStart Da",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "CitySmile",
+      "area": "List",
+      "name": "UI row count = API count (page size 25)",
+      "passed": true,
+      "details": "UI 5, API 5",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "CitySmile",
+      "area": "List",
+      "name": "no other tenant's goals shown",
+      "passed": true,
+      "details": "rows: CitySmile Goal 2, CitySmile Goal 4, CitySmile Goal 3…",
+      "severity": "High"
+    },
+    {
+      "tenant": "CitySmile",
+      "area": "Create",
+      "name": "toast 'Goal created successfully' and back to /admin/goals",
+      "passed": true,
+      "details": "toast \"Goal created successfully\", url http://127.0.0.1:5173/admin/goals",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "CitySmile",
+      "area": "Create",
+      "name": "DB record matches form (type, staff, achievement, dates, tenant)",
+      "passed": true,
+      "details": "type=total_income staff=PickB ach=5000 start=2026-11-01T00:00:00.000Z",
+      "severity": "High"
+    },
+    {
+      "tenant": "CitySmile",
+      "area": "View",
+      "name": "popup shows subject, progress, target, staff, type, dates, description, notify flags",
+      "passed": true,
+      "details": "UI created CitySmile 1793341719820Achieve Total IncomeCurrent Progress0%Target Achievement0 / 5000Staff MemberPickB CitySmileGoal TypeAchieve Total IncomeStart ",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "Kiran",
+      "area": "List",
+      "name": "UI row count = API count (page size 25)",
+      "passed": true,
+      "details": "UI 5, API 5",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "Kiran",
+      "area": "List",
+      "name": "no other tenant's goals shown",
+      "passed": true,
+      "details": "rows: Kiran Goal 1, Kiran Goal 3, Kiran Goal 5…",
+      "severity": "High"
+    },
+    {
+      "tenant": "Kiran",
+      "area": "Create",
+      "name": "toast 'Goal created successfully' and back to /admin/goals",
+      "passed": true,
+      "details": "toast \"Goal created successfully\", url http://127.0.0.1:5173/admin/goals",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "Kiran",
+      "area": "Create",
+      "name": "DB record matches form (type, staff, achievement, dates, tenant)",
+      "passed": true,
+      "details": "type=total_income staff=PickB ach=5000 start=2026-11-01T00:00:00.000Z",
+      "severity": "High"
+    },
+    {
+      "tenant": "Kiran",
+      "area": "View",
+      "name": "popup shows subject, progress, target, staff, type, dates, description, notify flags",
+      "passed": true,
+      "details": "UI created Kiran 1793341730655Achieve Total IncomeCurrent Progress0%Target Achievement0 / 5000Staff MemberPickB KiranGoal TypeAchieve Total IncomeStart DateNove",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "OffixNest",
+      "area": "List",
+      "name": "UI row count = API count (page size 25)",
+      "passed": true,
+      "details": "UI 5, API 5",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "OffixNest",
+      "area": "List",
+      "name": "no other tenant's goals shown",
+      "passed": true,
+      "details": "rows: OffixNest Goal 2, OffixNest Goal 3, OffixNest Goal 4…",
+      "severity": "High"
+    },
+    {
+      "tenant": "OffixNest",
+      "area": "Create",
+      "name": "toast 'Goal created successfully' and back to /admin/goals",
+      "passed": true,
+      "details": "toast \"Goal created successfully\", url http://127.0.0.1:5173/admin/goals",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "OffixNest",
+      "area": "Create",
+      "name": "DB record matches form (type, staff, achievement, dates, tenant)",
+      "passed": true,
+      "details": "type=total_income staff=PickB ach=5000 start=2026-11-01T00:00:00.000Z",
+      "severity": "High"
+    },
+    {
+      "tenant": "OffixNest",
+      "area": "View",
+      "name": "popup shows subject, progress, target, staff, type, dates, description, notify flags",
+      "passed": true,
+      "details": "UI created OffixNest 1793341741157Achieve Total IncomeCurrent Progress0%Target Achievement0 / 5000Staff MemberPickB OffixNestGoal TypeAchieve Total IncomeStart ",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "Rudraverse",
+      "area": "List",
+      "name": "UI row count = API count (page size 25)",
+      "passed": true,
+      "details": "UI 5, API 5",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "Rudraverse",
+      "area": "List",
+      "name": "no other tenant's goals shown",
+      "passed": true,
+      "details": "rows: Rudraverse Goal 5, Rudraverse Goal 4, Rudraverse Goal 2…",
+      "severity": "High"
+    },
+    {
+      "tenant": "Rudraverse",
+      "area": "Create",
+      "name": "toast 'Goal created successfully' and back to /admin/goals",
+      "passed": true,
+      "details": "toast \"Goal created successfully\", url http://127.0.0.1:5173/admin/goals",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "Rudraverse",
+      "area": "Create",
+      "name": "DB record matches form (type, staff, achievement, dates, tenant)",
+      "passed": true,
+      "details": "type=total_income staff=PickB ach=5000 start=2026-11-01T00:00:00.000Z",
+      "severity": "High"
+    },
+    {
+      "tenant": "Rudraverse",
+      "area": "View",
+      "name": "popup shows subject, progress, target, staff, type, dates, description, notify flags",
+      "passed": true,
+      "details": "UI created Rudraverse 1793341751606Achieve Total IncomeCurrent Progress0%Target Achievement0 / 5000Staff MemberPickB RudraverseGoal TypeAchieve Total IncomeStar",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "Ekagra",
+      "area": "List",
+      "name": "UI row count = API count (page size 25)",
+      "passed": true,
+      "details": "UI 5, API 5",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "Ekagra",
+      "area": "List",
+      "name": "no other tenant's goals shown",
+      "passed": true,
+      "details": "rows: Ekagra Goal 3, Ekagra Goal 4, Ekagra Goal 2…",
+      "severity": "High"
+    },
+    {
+      "tenant": "Ekagra",
+      "area": "Create",
+      "name": "toast 'Goal created successfully' and back to /admin/goals",
+      "passed": true,
+      "details": "toast \"Goal created successfully\", url http://127.0.0.1:5173/admin/goals",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "Ekagra",
+      "area": "Create",
+      "name": "DB record matches form (type, staff, achievement, dates, tenant)",
+      "passed": true,
+      "details": "type=total_income staff=PickB ach=5000 start=2026-11-01T00:00:00.000Z",
+      "severity": "High"
+    },
+    {
+      "tenant": "Ekagra",
+      "area": "View",
+      "name": "popup shows subject, progress, target, staff, type, dates, description, notify flags",
+      "passed": true,
+      "details": "UI created Ekagra 1793341762291Achieve Total IncomeCurrent Progress0%Target Achievement0 / 5000Staff MemberPickB EkagraGoal TypeAchieve Total IncomeStart DateNo",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "List",
+      "name": "page sizes 10/25/50/100/All show min(size, total) rows",
+      "passed": true,
+      "details": "{\"10\":10,\"25\":25,\"50\":33,\"100\":33,\"All\":33} total 33",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "List",
+      "name": "rows after the page size can be reached (pagination control exists)",
+      "passed": true,
+      "details": "pagination buttons found: 3; goals 11-33 only visible with a bigger page size",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Search",
+      "name": "subject search, case-insensitive",
+      "passed": true,
+      "details": "[\"UI Goal 07\"]",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Search",
+      "name": "search by the goal-type label shown in the form",
+      "passed": true,
+      "details": "rows 10 (search only matches raw value \"total_income\")",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "List",
+      "name": "Goal Type column shows a readable label",
+      "passed": true,
+      "details": "cells: Achieve Total Income, Convert X Leads, Invoiced Amount",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "List",
+      "name": "progress shown is clamped to 0-100%",
+      "passed": true,
+      "details": "shows \"0%\" for DB progress 150",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Layout",
+      "name": "long subject does not break the table (stays in its scroll container)",
+      "passed": true,
+      "details": "table width 1219px in container 942px",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "XSS",
+      "name": "description <img onerror>/<script> is shown as text, not executed",
+      "passed": true,
+      "details": "window.__xss=undefined",
+      "severity": "High"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "View",
+      "name": "close → open another goal shows the new goal",
+      "passed": true,
+      "details": "UI Goal 02Convert X LeadsCurrent Progress0%Target Achievement0 / 200Staff Member",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Export",
+      "name": "CSV columns match the table (Subject…Progress with %)",
+      "passed": true,
+      "details": "header: ﻿Subject,Staff Member,Achievement,Start Date,End Date,Goal Type,Progress",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Bulk",
+      "name": "nothing selected → 'Please select at least one goal first.'",
+      "passed": true,
+      "details": "Please select at least one goal first. | Exported 9 records as CSV",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Bulk",
+      "name": "Confirm disabled until Mass Delete ticked; 'Deleted 2 goals.'",
+      "passed": true,
+      "details": "disabled before=true, toast \"Deleted 2 goals. | Please select at least one goal first. | Exported 9 records as CSV\", rows now 4",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Bulk",
+      "name": "select-all selects only the rows shown (10)",
+      "passed": true,
+      "details": "checked 10",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Edit",
+      "name": "every field saved, toast 'Goal updated successfully'",
+      "passed": true,
+      "details": "toast \"Goal updated successfully\" db {\"s\":\"UI Goal 03 edited\",\"t\":\"convert_leads\",\"a\":42,\"n\":false}",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Edit",
+      "name": "back arrow returns to the list",
+      "passed": true,
+      "details": "http://127.0.0.1:5173/admin/goals",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Create",
+      "name": "New Goal after editing another goal shows an empty form",
+      "passed": true,
+      "details": "subject=\"\"",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Validation",
+      "name": "empty Save → 'Please fill in all required fields'",
+      "passed": true,
+      "details": "Please fill in all required fields",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Validation",
+      "name": "Subject of only spaces is blocked in the UI",
+      "passed": true,
+      "details": "goals before 31, after 31",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Validation",
+      "name": "End Date before Start Date / negative Achievement blocked in the UI",
+      "passed": true,
+      "details": "goals before 31, after 31",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Create",
+      "name": "double-click Save Goal creates only one goal",
+      "passed": true,
+      "details": "created 1",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Delete",
+      "name": "confirm → 'Goal deleted successfully'",
+      "passed": true,
+      "details": "toast \"Goal deleted successfully\" (rows before 1)",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Isolation",
+      "name": "edit URL with another tenant's goal id shows 'not found', not data",
+      "passed": true,
+      "details": "subject field \"\", not-found message shown: true (form just opens empty as \"Edit Goal\")",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Isolation",
+      "name": "another tenant's goal id → back to the list (no empty form to save)",
+      "passed": true,
+      "details": "http://127.0.0.1:5173/admin/goals",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Responsive",
+      "name": "375px: no page-level horizontal scroll, table scrolls inside its box",
+      "passed": true,
+      "details": "document width 375px, table scrolls: true",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Responsive",
+      "name": "375px: Save Goal reachable",
+      "passed": true,
+      "details": "visible after scroll",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Responsive",
+      "name": "768px: no page-level horizontal scroll, table scrolls inside its box",
+      "passed": false,
+      "details": "document width 772px, table scrolls: true, overflowing: BUTTON.flex items-center gap-2.5 pl-2 border-l , DIV.hidden md:block text-left",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Responsive",
+      "name": "768px: Save Goal reachable",
+      "passed": true,
+      "details": "visible after scroll",
+      "severity": "Low"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Permissions UI",
+      "name": "view-only staff sees no New Goal / Bulk / Edit / Delete",
+      "passed": true,
+      "details": "New Goal 0, Bulk 0, row buttons 1 (eye+edit+delete=3)",
+      "severity": "High"
+    },
+    {
+      "tenant": "BeOnTime",
+      "area": "Permissions API",
+      "name": "view-only staff POST /api/goals → 403",
+      "passed": true,
+      "details": "got 403",
+      "severity": "High"
+    },
+    {
+      "tenant": "NoGoalsPlan",
+      "area": "Plan gate",
+      "name": "/admin/goals shows 'Not included in your plan'",
+      "passed": true,
+      "details": "message count 1",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "NoGoalsPlan",
+      "area": "Plan gate",
+      "name": "/api/goals → 403 MODULE_DISABLED",
+      "passed": true,
+      "details": "403 MODULE_DISABLED",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "NoGoalsPlan",
+      "area": "Plan gate",
+      "name": "sidebar Goals link hidden",
+      "passed": true,
+      "details": "links 0",
+      "severity": "Low"
+    },
+    {
+      "tenant": "NoGoalsPlan",
+      "area": "Plan gate",
+      "name": "top navbar quick-create 'Goal' hidden (no /goals/new link in DOM)",
+      "passed": true,
+      "details": "links 0 (quick-create menu closed)",
+      "severity": "Low"
+    },
+    {
+      "tenant": "CrashCheck",
+      "area": "List",
+      "name": "a goal with no start_date in the DB does not crash the page",
+      "passed": false,
+      "details": "h1 present true, page errors: Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' fl",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "ALL",
+      "area": "Guard",
+      "name": "all /api calls go to 127.0.0.1:5101 (direct or via the :5173 vite proxy), none to :5001/:5183",
+      "passed": true,
+      "details": "api hosts [\"127.0.0.1:5173\",\"127.0.0.1:5101\"]; all hosts [\"127.0.0.1:5173\",\"fonts.googleapis.com\",\"127.0.0.1:5101\",\"translate.google.com\",\"fonts.gstatic.com\",\"www.gstatic.com\",\"translate.googleapis.com\",\"translate-pa.googleapis.com\"]; requests 11697",
+      "severity": "High"
+    },
+    {
+      "tenant": "ALL",
+      "area": "Network",
+      "name": "no unexpected 4xx/5xx on goals/staff/auth APIs",
+      "passed": true,
+      "details": "[{\"tag\":\"BeOnTime\",\"status\":404,\"url\":\"/api/goals/6ae439242a1f5a5b343fc5c7\"}]",
+      "severity": "Medium"
+    },
+    {
+      "tenant": "ALL",
+      "area": "Console",
+      "name": "zero red console errors (excluding 404s from APIs not mounted in this stack)",
+      "passed": false,
+      "details": "354 total, 19 real; e.g. BeOnTime PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag. || CitySmile PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag. || Kiran PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag. || OffixNest PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag. || Rudraverse PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag. || Ekagra PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+      "severity": "Low"
+    }
+  ],
+  "consoleErrors": [
+    "BeOnTime Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "BeOnTime PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+    "CitySmile Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "CitySmile PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+    "Kiran Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Kiran PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+    "OffixNest Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "OffixNest PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+    "Rudraverse Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Rudraverse PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+    "Ekagra Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Ekagra PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+    "BeOnTime@375 Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "BeOnTime@375 PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+    "BeOnTime@768 Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "BeOnTime@768 PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+    "viewer Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "viewer PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+    "NoGoalsPlan Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "NoGoalsPlan PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+    "CrashCheck Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "CrashCheck PAGEERROR Failed to read the 'localStorage' property from 'Window': The document is sandboxed and lacks the 'allow-same-origin' flag."
+  ],
+  "badResponses": {
+    "goalsBad": [
+      {
+        "tag": "BeOnTime",
+        "status": 404,
+        "url": "/api/goals/6ae439242a1f5a5b343fc5c7"
+      }
+    ],
+    "stackBadCount": 168,
+    "stackBadSample": [
+      "/api/currencies",
+      "/api/settings",
+      "/api/chat/staff",
+      "/api/meetings",
+      "/api/mainsidebar",
+      "/api/quotation-types",
+      "/api/assistant/voice-logs",
+      "/api/hrms-branches/my-scope"
+    ]
+  },
+  "apiHosts": [
+    "127.0.0.1:5173",
+    "127.0.0.1:5101"
+  ],
+  "hosts": [
+    "127.0.0.1:5173",
+    "fonts.googleapis.com",
+    "127.0.0.1:5101",
+    "translate.google.com",
+    "fonts.gstatic.com",
+    "www.gstatic.com",
+    "translate.googleapis.com",
+    "translate-pa.googleapis.com"
+  ]
+}

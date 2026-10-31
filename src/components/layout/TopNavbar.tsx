@@ -22,6 +22,9 @@ import {
   FileText,
   Receipt,
   ShieldCheck,
+  Search,
+  ArrowLeft,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,11 +62,13 @@ import { APP_LANGUAGES, applyAppLanguage } from "@/lib/appLanguage";
 
 export function TopNavbar() {
   const [search, setSearch] = useState("");
+<<<<<<< HEAD
   const [shareOpen, setShareOpen] = useState(false);
   const [mobileShareOpen, setMobileShareOpen] = useState(false);
   // Set when "Share" is picked in the mobile ⋮ menu, so the menu doesn't hand
   // focus back to its trigger on close — that focus would dismiss the share popover.
   const openingMobileShare = useRef(false);
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
   const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -143,23 +148,79 @@ export function TopNavbar() {
     (typeof user?.role === "string" ? user.role : "Staff");
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/95 backdrop-blur-md px-4 shadow-sm" id="tour-topnav">
-      <SidebarTrigger className="shrink-0" />
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/95 backdrop-blur-md px-3 sm:px-4 shadow-sm" id="tour-topnav">
+      {isMobileSearchOpen ? (
+        <div className="flex-1 flex items-center gap-2 animate-fade-in w-full">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 shrink-0 text-foreground"
+            onClick={() => setIsMobileSearchOpen(false)}
+            title="Close search"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
 
-      {/* Search and Quick Create */}
-      <div className="flex-1 max-w-sm md:max-w-md flex items-center gap-2">
-        <div className="relative animate-fade-in group flex-1">
-          <Input
-            placeholder="Search or say a page… (press Enter)"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={handleSearchKeyDown}
-            className="pl-4 pr-4 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl transition-all w-full"
-          />
+          <div className="flex-1 relative">
+            <Input
+              autoFocus
+              placeholder="Search or say a page… (press Enter)"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleSearchKeyDown(e);
+                  setIsMobileSearchOpen(false);
+                } else if (e.key === "Escape") {
+                  setIsMobileSearchOpen(false);
+                }
+              }}
+              className="pl-3 pr-3 h-9 bg-muted/60 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl w-full"
+            />
+          </div>
+
+          {search ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={() => setSearch("")}
+              title="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          ) : null}
         </div>
+      ) : (
+        <>
+          <SidebarTrigger className="shrink-0" />
 
-        {/* Quick Create Dropdown */}
-        <DropdownMenu>
+          {/* Desktop Search (visible on md and up) */}
+          <div className="hidden md:flex flex-1 max-w-sm lg:max-w-md items-center gap-2">
+            <div className="relative animate-fade-in group flex-1">
+              <Input
+                placeholder="Search or say a page… (press Enter)"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                className="pl-4 pr-4 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl transition-all w-full"
+              />
+            </div>
+          </div>
+
+          {/* Mobile Search Button (visible only on mobile) */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden h-9 w-9 shrink-0 text-foreground hover:bg-muted"
+            onClick={() => setIsMobileSearchOpen(true)}
+            title="Search"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+
+          {/* Quick Create Dropdown */}
+          <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="icon" className="h-9 w-9 shrink-0 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
               <Plus className="h-5 w-5" />
@@ -188,12 +249,11 @@ export function TopNavbar() {
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
-      </div>
 
       {/* Quick Action Icons */}
       <div className="flex items-center gap-0.5 md:gap-1 ml-auto">
         {/* Settings - visible on md and up with text, always icon */}
-        <NavLink to={`${base}/setup`} className="inline-flex">
+        <NavLink to={`${base}/setup`} className="hidden sm:inline-flex">
           <Button
             variant="ghost"
             size="sm"
@@ -250,6 +310,7 @@ export function TopNavbar() {
         </div>
 
         {/* More Actions Dropdown (Mobile/Tablet) */}
+<<<<<<< HEAD
         <Popover open={mobileShareOpen} onOpenChange={setMobileShareOpen}>
           <PopoverAnchor asChild>
             <div className="md:hidden">
@@ -273,6 +334,10 @@ export function TopNavbar() {
                     }
                   }}
                 >
+                  <DropdownMenuItem onClick={() => navigate(`${base}/setup`)}>
+                    <Settings className="mr-2 h-4 w-4 text-foreground" />
+                    <span>Settings</span>
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() => {
                       openingMobileShare.current = true;
@@ -360,6 +425,7 @@ export function TopNavbar() {
         </Popover>
 
         {/* Theme Select */}
+        <div className="hidden sm:inline-flex">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -392,20 +458,22 @@ export function TopNavbar() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
 
       {/* Profile Dropdown — always last */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex items-center gap-2.5 pl-2 border-l border-border ml-1 outline-none group">
-            <Avatar className="h-8 w-8 ring-2 ring-transparent group-hover:ring-primary/30 transition-all">
+          <button className="flex min-w-0 shrink-0 items-center gap-2.5 pl-2 border-l border-border ml-1 outline-none group">
+            <Avatar className="h-8 w-8 shrink-0 ring-2 ring-transparent group-hover:ring-primary/30 transition-all">
               <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
                 {initials}
               </AvatarFallback>
             </Avatar>
-            <div className="hidden md:block text-left">
-              <p className="text-sm font-medium leading-none">{fullName}</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
+            {/* Name only from lg up: at tablet width (768px) it pushed the page 4px sideways. */}
+            <div className="hidden lg:block min-w-0 max-w-[160px] text-left">
+              <p className="text-sm font-medium leading-none truncate">{fullName}</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
                 {userRole}
               </p>
             </div>
@@ -497,6 +565,8 @@ export function TopNavbar() {
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
+        </>
+      )}
     </header>
   );
 }

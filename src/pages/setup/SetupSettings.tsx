@@ -19,10 +19,12 @@ import { DataTable } from "@/components/shared/DataTable";
 import { DEFAULT_WHATSAPP_QC_TEMPLATES, type WhatsappQcTemplateEntry } from "@/lib/whatsappQuickChat";
 import { WhatsappQuickChatSettingsTab } from "./WhatsappQuickChatSettingsTab";
 import { ClaudeConnectorSettingsTab } from "./ClaudeConnectorSettingsTab";
+import { PurchaseSettingsTab } from "./PurchaseSettingsTab";
 import { usePermissions } from "@/hooks/usePermissions";
+import { isProcurementTypesEnabled } from "@/lib/procurement";
 import { getAvailableInvoicePdfFormats, DEFAULT_INVOICE_PDF_FORMAT } from "@/lib/invoicePdfFormats";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { financeService } from "@/api/services/finance.service";
 import { staffService } from "@/api/services/staff.service";
 import { leadService } from "@/api/services/lead.service";
@@ -53,6 +55,7 @@ import {
   RefreshCw,
   Server,
   FileText,
+  ShoppingCart,
   CreditCard,
   Target,
   Users,
@@ -85,6 +88,8 @@ import {
   Image,
   X,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Table as TableIcon,
   PlusCircle,
   EyeOff,
@@ -114,6 +119,20 @@ interface SettingCategory {
   items: SettingItem[];
 }
 
+const PAYMENT_GATEWAYS = [
+  { id: "general", label: "General" },
+  { id: "authorize", label: "Authorize.net Accept.js" },
+  { id: "instamojo", label: "Instamojo" },
+  { id: "mollie", label: "Mollie" },
+  { id: "braintree", label: "Braintree" },
+  { id: "paypal_smart", label: "Paypal Smart Checkout" },
+  { id: "paypal", label: "Paypal" },
+  { id: "payu", label: "PayU Money" },
+  { id: "stripe", label: "Stripe Checkout" },
+  { id: "stripe_ideal", label: "Stripe iDEAL" },
+  { id: "2checkout", label: "2Checkout" },
+];
+
 const settingsNavigation: SettingCategory[] = [
   {
     title: "General",
@@ -137,7 +156,8 @@ const settingsNavigation: SettingCategory[] = [
       { id: "fin-estimates", label: "Estimates", icon: Target },
       { id: "fin-credit-notes", label: "Credit Notes", icon: CreditCard },
       { id: "fin-subscriptions", label: "Subscriptions", icon: RefreshCw },
-      { id: "fin-gateways", label: "Payment Gateways", icon: CreditCard },
+            { id: "fin-gateways", label: "Payment Gateways", icon: CreditCard },
+      { id: "fin-purchases", label: "Purchases", icon: ShoppingCart },
     ]
   },
   {
@@ -185,9 +205,18 @@ const settingsNavigation: SettingCategory[] = [
 
 
 export default function SetupSettings() {
-  const [activeTab, setActiveTab] = useState("gen-general");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(() => searchParams.get("tab") || "gen-general");
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
   const { settings: globalSettings, refreshSettings: refreshGlobalSettings } = useSettings();
   const { user: currentUser } = usePermissions();
+  const isKiranProcurement = isProcurementTypesEnabled(currentUser);
 
   const { data: estimateForms = [] } = useQuery({
     queryKey: ["estimate-request-forms"],
@@ -389,6 +418,15 @@ export default function SetupSettings() {
 
   // Finance Payment Gateways State
   const [gatewaySubTab, setGatewaySubTab] = useState("general");
+  const gatewayTabsRef = useRef<HTMLDivElement>(null);
+  const scrollGatewayTabs = (direction: "left" | "right") => {
+    if (gatewayTabsRef.current) {
+      gatewayTabsRef.current.scrollBy({
+        left: direction === "left" ? -240 : 240,
+        behavior: "smooth",
+      });
+    }
+  };
   const [gateNotifyOnPayment, setGateNotifyOnPayment] = useState(() => getInit("gateNotifyOnPayment", false));
   const [gateAllowModifyAmount, setGateAllowModifyAmount] = useState(() => getInit("gateAllowModifyAmount", false));
 
@@ -1454,7 +1492,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-[1400px] mx-auto pb-10">
+      <div className="space-y-6 max-w-[1400px] w-full mx-auto pb-10 min-w-0">
         <div className="flex justify-between items-end">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">System Settings</h1>
@@ -1471,10 +1509,10 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
           </Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-8 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-8 items-start min-w-0">
           {/* Sidebar Navigation */}
-          <Card className="h-fit sticky top-24 border shadow-sm overflow-hidden">
-            <CardContent className="p-0">
+          <Card className="sticky top-20 border shadow-sm overflow-hidden max-h-[calc(100vh-100px)] flex flex-col">
+            <CardContent className="p-0 overflow-y-auto flex-1 custom-scrollbar">
               <Accordion type="multiple" defaultValue={["General", "Finance", "Configure Features", "Integrations", "AI Integration", "Other", "Misc"]} className="w-full">
                 {settingsNavigation.map((category) => (
                   <AccordionItem key={category.title} value={category.title} className="border-b last:border-b-0">
@@ -1520,7 +1558,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
           </Card>
 
           {/* Settings Content Area */}
-          <div className="space-y-6">
+          <div className="space-y-6 min-w-0">
             {/* General -> General Tab Content (Placeholder for now) */}
             {activeTab === "gen-general" && (
               <Card className="border shadow-sm">
@@ -2257,6 +2295,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
               </Card>
             )}
 
+            {activeTab === "fin-purchases" && <PurchaseSettingsTab />}
+
             {activeTab === "fin-general" && (
               <Card className="border shadow-sm">
                 <CardHeader className="border-b bg-muted/30">
@@ -2958,32 +2998,65 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     <CardTitle className="text-lg">Payment Gateways</CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent className="p-0 overflow-hidden sm:overflow-visible overflow-x-auto sm:overflow-x-visible">
-                  <Tabs value={gatewaySubTab} onValueChange={setGatewaySubTab} className="flex flex-col min-h-[500px] w-full max-w-full">
-                    <div className="w-full max-w-full overflow-x-auto bg-muted/20 border-b p-1.5 px-2 custom-scrollbar-h">
-                      <TabsList className="w-max min-w-full flex justify-start gap-1 h-auto bg-transparent p-0 flex-nowrap pb-1">
-                        {[
-                          { id: "general", label: "General" },
-                          { id: "authorize", label: "Authorize.net Accept.js" },
-                          { id: "instamojo", label: "Instamojo" },
-                          { id: "mollie", label: "Mollie" },
-                          { id: "braintree", label: "Braintree" },
-                          { id: "paypal_smart", label: "Paypal Smart Checkout" },
-                          { id: "paypal", label: "Paypal" },
-                          { id: "payu", label: "PayU Money" },
-                          { id: "stripe", label: "Stripe Checkout" },
-                          { id: "stripe_ideal", label: "Stripe iDEAL" },
-                          { id: "2checkout", label: "2Checkout" },
-                        ].map((sub) => (
-                          <TabsTrigger
-                            key={sub.id}
-                            value={sub.id}
-                            className="whitespace-nowrap px-3 py-1.5 rounded-md text-sm font-semibold transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md hover:bg-muted shrink-0"
-                          >
-                            {sub.label}
-                          </TabsTrigger>
-                        ))}
-                      </TabsList>
+                <CardContent className="p-0 overflow-hidden w-full max-w-full min-w-0">
+                  <Tabs value={gatewaySubTab} onValueChange={setGatewaySubTab} className="flex flex-col min-h-[500px] w-full max-w-full min-w-0">
+                    {/* Mobile/Tablet: Quick Dropdown Selector */}
+                    <div className="md:hidden p-3 bg-muted/20 border-b">
+                      <Label className="text-xs text-muted-foreground font-semibold mb-1.5 block">Select Payment Gateway</Label>
+                      <Select value={gatewaySubTab} onValueChange={setGatewaySubTab}>
+                        <SelectTrigger className="w-full h-9 bg-background">
+                          <SelectValue placeholder="Select gateway" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAYMENT_GATEWAYS.map((sub) => (
+                            <SelectItem key={sub.id} value={sub.id} className="text-sm">
+                              {sub.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Desktop: Contained Tabs Bar with Left/Right Scroll Arrows */}
+                    <div className="hidden md:flex items-center gap-1.5 w-full max-w-full bg-muted/20 border-b p-1.5 px-2 min-w-0">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 rounded-md hover:bg-muted text-muted-foreground"
+                        onClick={() => scrollGatewayTabs("left")}
+                        title="Scroll tabs left"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+
+                      <div
+                        ref={gatewayTabsRef}
+                        className="flex-1 overflow-x-auto no-scrollbar scroll-smooth min-w-0 py-0.5"
+                      >
+                        <TabsList className="w-max flex justify-start gap-1 h-auto bg-transparent p-0 flex-nowrap">
+                          {PAYMENT_GATEWAYS.map((sub) => (
+                            <TabsTrigger
+                              key={sub.id}
+                              value={sub.id}
+                              className="whitespace-nowrap px-3 py-1.5 rounded-md text-xs font-semibold transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm hover:bg-muted shrink-0"
+                            >
+                              {sub.label}
+                            </TabsTrigger>
+                          ))}
+                        </TabsList>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 rounded-md hover:bg-muted text-muted-foreground"
+                        onClick={() => scrollGatewayTabs("right")}
+                        title="Scroll tabs right"
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
                     </div>
 
                     <div className="flex-1 p-6">
@@ -6762,7 +6835,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
             )}
 
             {/* Placeholder for other tabs */}
-            {!["gen-general", "gen-company", "gen-localization", "gen-email", "gen-update", "gen-server", "fin-general", "fin-invoices", "fin-proposals", "fin-estimates", "fin-credit-notes", "fin-subscriptions", "fin-gateways", "feat-customers", "feat-tasks", "feat-support", "feat-leads", "int-google", "int-pusher", "int-external-api", "int-whatsapp-qc", "oth-calendar", "oth-pdf", "oth-esign", "oth-tags", "oth-sms", "misc-misc", "misc-tables", "misc-inline", "misc-cron"].includes(activeTab) && (
+            {!["gen-general", "gen-company", "gen-localization", "gen-email", "gen-update", "gen-server", "fin-general", "fin-invoices", "fin-proposals", "fin-estimates", "fin-credit-notes", "fin-subscriptions", "fin-gateways", "fin-purchases", "feat-customers", "feat-tasks", "feat-support", "feat-leads", "int-google", "int-pusher", "int-external-api", "int-whatsapp-qc", "oth-calendar", "oth-pdf", "oth-esign", "oth-tags", "oth-sms", "misc-misc", "misc-tables", "misc-inline", "misc-cron"].includes(activeTab) && (
               <Card className="border shadow-sm min-h-[400px] flex items-center justify-center bg-muted/10">
                 <div className="text-center space-y-3">
                   <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
