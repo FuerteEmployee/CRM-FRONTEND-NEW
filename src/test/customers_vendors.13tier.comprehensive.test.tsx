@@ -340,5 +340,18 @@ describe("13-Tier Master QA Audit: Customers & Vendors Modules", () => {
       expect(customerViewSource).toContain('title="Delete Reminder"');
       expect(customerViewSource).toContain('title="Delete File"');
     });
+
+    it("verifies CustomerView synchronizes with Customer Table by invalidating ['customers'] cache and exposing all core table fields", () => {
+      const customerViewSource = fs.readFileSync(path.join(__dirname, '..', 'pages', 'CustomerView.tsx'), 'utf8');
+      
+      // Verify query cache invalidation for customers list
+      expect(customerViewSource).toContain('queryClient.invalidateQueries({ queryKey: ["customers"] });');
+      
+      // Verify core customer table fields are editable in Profile tab
+      expect(customerViewSource).toContain('name="pan_number"');
+      expect(customerViewSource).toContain('name="gst_number"');
+      expect(customerViewSource).toContain('name="contact_person"');
+      expect(customerViewSource).toContain('name="email"');
+    });
   });
 });

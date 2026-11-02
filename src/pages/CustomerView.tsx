@@ -432,6 +432,8 @@ export default function CustomerView() {
     mutationFn: (contactId: string) => customerService.deleteContact(contactId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contacts", id] });
+      queryClient.invalidateQueries({ queryKey: ["customer", id] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
       toast({ title: "Success", description: "Contact deleted successfully." });
     },
   });
@@ -440,6 +442,8 @@ export default function CustomerView() {
     mutationFn: (data: any) => customerService.createContact(id!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contacts", id] });
+      queryClient.invalidateQueries({ queryKey: ["customer", id] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
       handleCloseModal();
       toast({ title: "Success", description: "Contact created successfully." });
     },
@@ -452,6 +456,8 @@ export default function CustomerView() {
     mutationFn: (data: any) => customerService.updateContact(editingContactId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["contacts", id] });
+      queryClient.invalidateQueries({ queryKey: ["customer", id] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
       handleCloseModal();
       toast({ title: "Success", description: "Contact updated successfully." });
     },
@@ -1508,6 +1514,7 @@ export default function CustomerView() {
     mutationFn: (data: any) => customerService.update(id!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customer", id] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
       toast({ title: "Success", description: "Customer updated successfully." });
     },
     onError: (error: any) => {
@@ -1531,6 +1538,7 @@ export default function CustomerView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customer", id] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
       toast({ title: "Success", description: "Admin assigned successfully." });
     },
     onError: (error: any) => {
@@ -1550,6 +1558,7 @@ export default function CustomerView() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customer", id] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
       toast({ title: "Success", description: "Admin removed successfully." });
     }
   });
@@ -1742,30 +1751,56 @@ export default function CustomerView() {
                               <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-primary mb-4 p-1 bg-primary/5 rounded inline-block">Company Identity</h3>
                               <div className="space-y-4">
                                 <div className="space-y-1.5">
-                                  <Label className="text-xs text-muted-foreground uppercase">Company Name</Label>
+                                  <Label className="text-xs text-muted-foreground uppercase">
+                                    Company Name <span className="text-red-500 font-bold ml-0.5">*</span>
+                                  </Label>
                                   <Input name="company" value={formData.company || ""} onChange={handleFormChange} placeholder="Company Name" className="h-9" />
                                 </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs text-muted-foreground uppercase">VAT Number</Label>
-                                  <Input name="vat" value={formData.vat || ""} onChange={handleFormChange} placeholder="VAT Number" className="h-9" />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs text-muted-foreground uppercase">Contact Person</Label>
+                                    <Input name="contact_person" value={formData.contact_person || ""} onChange={handleFormChange} placeholder="Contact Person" className="h-9" />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs text-muted-foreground uppercase">Primary Email</Label>
+                                    <Input name="email" type="email" value={formData.email || ""} onChange={handleFormChange} placeholder="email@example.com" className="h-9" />
+                                  </div>
                                 </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs text-muted-foreground uppercase">Phone</Label>
-                                  <Input name="phonenumber" value={formData.phonenumber || ""} onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10); handleFormChange(e); }} maxLength={10} inputMode="numeric" placeholder="Phone Number" className="h-9" />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs text-muted-foreground uppercase">Phone</Label>
+                                    <Input name="phonenumber" value={formData.phonenumber || ""} onChange={(e) => { e.target.value = e.target.value.replace(/\D/g, "").slice(0, 10); handleFormChange(e); }} maxLength={10} inputMode="numeric" placeholder="Phone Number" className="h-9" />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs text-muted-foreground uppercase">Website</Label>
+                                    <Input name="website" value={formData.website || ""} onChange={handleFormChange} placeholder="Website URL" className="h-9" />
+                                  </div>
                                 </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs text-muted-foreground uppercase">Website</Label>
-                                  <Input name="website" value={formData.website || ""} onChange={handleFormChange} placeholder="Website URL" className="h-9" />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs text-muted-foreground uppercase">PAN Number</Label>
+                                    <Input name="pan_number" value={formData.pan_number || ""} onChange={(e) => { e.target.value = e.target.value.toUpperCase(); handleFormChange(e); }} maxLength={10} placeholder="ABCDE1234F" className="h-9 uppercase" />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs text-muted-foreground uppercase">GST Number</Label>
+                                    <Input name="gst_number" value={formData.gst_number || ""} onChange={(e) => { e.target.value = e.target.value.toUpperCase(); handleFormChange(e); }} maxLength={15} placeholder="24ABCDE1234F1Z5" className="h-9 uppercase" />
+                                  </div>
                                 </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-xs text-muted-foreground uppercase">Groups</Label>
-                                  <SearchableSelect
-                                    placeholder="Select groups"
-                                    options={groups.map((g: any) => ({ value: g._id, label: g.name }))}
-                                    value={formData.groups || []}
-                                    onChange={(val) => handleSelectChange("groups", val)}
-                                    multiple
-                                  />
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs text-muted-foreground uppercase">VAT Number</Label>
+                                    <Input name="vat" value={formData.vat || ""} onChange={handleFormChange} placeholder="VAT Number" className="h-9" />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs text-muted-foreground uppercase">Groups</Label>
+                                    <SearchableSelect
+                                      placeholder="Select groups"
+                                      options={groups.map((g: any) => ({ value: g._id, label: g.name }))}
+                                      value={formData.groups || []}
+                                      onChange={(val) => handleSelectChange("groups", val)}
+                                      multiple
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             </section>
