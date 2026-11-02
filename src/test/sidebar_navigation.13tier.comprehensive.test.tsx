@@ -168,6 +168,26 @@ describe("13-Tier Master QA Suite: AppSidebar & Sub-Sidebar Navigation Audit", (
     expect(salarySettlements).toBeNull();
   });
 
+  test("Tier 2.1 (Multi-Page Verification): When on /admin/items, 'Items' is active and HRMS is collapsed", async () => {
+    renderWithRoute("/admin/items");
+
+    // HRMS must be collapsed
+    expect(await screen.findByText("HRMS")).toBeInTheDocument();
+    expect(screen.queryByText("Staff Directory")).toBeNull();
+    expect(screen.queryByText("Salary Settlements")).toBeNull();
+  });
+
+  test("Tier 2.2 (Multi-Page Verification): When on /admin/customers, 'Customers' is active and HRMS is collapsed", async () => {
+    renderWithRoute("/admin/customers");
+
+    const customersLink = await screen.findByText("Customers");
+    expect(customersLink.closest("a")).toHaveClass("sidebar-active-item");
+
+    // HRMS must be collapsed
+    expect(screen.getByText("HRMS")).toBeInTheDocument();
+    expect(screen.queryByText("Staff Directory")).toBeNull();
+  });
+
   /* ─────────────────────────────────────────────────────────────
    * TIER 3: Auto-Expansion on Active Sub-Route
    * ───────────────────────────────────────────────────────────── */
@@ -282,6 +302,37 @@ describe("13-Tier Master QA Suite: AppSidebar & Sub-Sidebar Navigation Audit", (
     fireEvent.click(screen.getByText("Back to Main"));
     await waitFor(() => {
       expect(screen.queryByText("Setup Menu")).toBeNull();
+    });
+  });
+
+  test("Tier 6.2 (Multiple Submenus Inside Setup): Support and Customers submenus expand and collapse cleanly", async () => {
+    renderWithRoute("/admin/items");
+
+    const setupBtn = (await screen.findAllByText("Setup"))[0];
+    fireEvent.click(setupBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Setup Menu")).toBeInTheDocument();
+    });
+
+    // Test Support submenu
+    const supportTrigger = screen.getByText("Support");
+    expect(screen.queryByText("Departments")).toBeNull();
+    fireEvent.click(supportTrigger);
+
+    await waitFor(() => {
+      expect(screen.getByText("Departments")).toBeInTheDocument();
+      expect(screen.getByText("Predefined Replies")).toBeInTheDocument();
+      expect(screen.getByText("Ticket Statuses")).toBeInTheDocument();
+    });
+
+    // Test Customers submenu (in Setup mode, this is Setup > Customers > Groups)
+    const customersSetupTrigger = screen.getByText("Customers");
+    expect(screen.queryByText("Groups")).toBeNull();
+    fireEvent.click(customersSetupTrigger);
+
+    await waitFor(() => {
+      expect(screen.getByText("Groups")).toBeInTheDocument();
     });
   });
 

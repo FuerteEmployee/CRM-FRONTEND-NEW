@@ -861,7 +861,6 @@ export function AppSidebar() {
               onClick={() => {
                 setMenuMode("setup");
                 setOpenSections({});
-                if (isMobile) setOpenMobile(false);
               }}
               className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative cursor-pointer"
             >
@@ -1258,7 +1257,6 @@ export function AppSidebar() {
                           onClick={() => {
                             setMenuMode("setup");
                             setOpenSections({});
-                            if (isMobile) setOpenMobile(false);
                           }}
                           className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative cursor-pointer"
                         >
