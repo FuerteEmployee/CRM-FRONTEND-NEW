@@ -62,7 +62,6 @@ import { APP_LANGUAGES, applyAppLanguage } from "@/lib/appLanguage";
 
 export function TopNavbar() {
   const [search, setSearch] = useState("");
-<<<<<<< HEAD
   const [shareOpen, setShareOpen] = useState(false);
   const [mobileShareOpen, setMobileShareOpen] = useState(false);
   // Set when "Share" is picked in the mobile ⋮ menu, so the menu doesn't hand
@@ -310,7 +309,6 @@ export function TopNavbar() {
         </div>
 
         {/* More Actions Dropdown (Mobile/Tablet) */}
-<<<<<<< HEAD
         <Popover open={mobileShareOpen} onOpenChange={setMobileShareOpen}>
           <PopoverAnchor asChild>
             <div className="md:hidden">
