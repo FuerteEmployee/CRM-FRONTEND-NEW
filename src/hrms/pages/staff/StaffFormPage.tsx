@@ -256,16 +256,18 @@ const staffBaseSchema = z.object({
   // Bank
   bankInfo: z.object({
     accountName: z.string().optional(),
-    accountNumber: z.string().optional(),
-    ifscCode: z.string().optional().or(z.literal("")),
+    accountNumber: z.string().regex(/^\d{9,18}$/, "Account number must be 9 to 18 digits").or(z.literal("")).optional(),
+    ifscCode: z.string().regex(/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/, "IFSC code must look like HDFC0001234").or(z.literal("")).optional(),
     bankName: z.string().optional(),
     branchCity: z.string().optional(),
   }).optional(),
 
   legalDocuments: z.object({
-    panNumber: z.string().optional().or(z.literal("")),
+    panNumber: z.string().regex(/^[A-Za-z]{5}[0-9]{4}[A-Za-z]$/, "PAN number must look like ABCDE1234F").or(z.literal("")).optional(),
     panUrl: z.string().optional(),
-    aadhaarNumber: z.string().optional().or(z.literal("")),
+    aadhaarNumber: z.string().refine((v) => !v || /^[2-9][0-9]{11}$/.test(v.replace(/[\s-]/g, "")), {
+      message: "Aadhaar number must be 12 digits",
+    }).or(z.literal("")).optional(),
     aadhaarUrl: z.string().optional(),
     passportPhotoUrl: z.string().optional(),
   }).optional(),
