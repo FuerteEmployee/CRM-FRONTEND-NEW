@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useLayoutEffect, useState 
 import { utilityService } from '@/api/services/utility.service';
 import { useSettings } from '@/context/SettingsContext';
 import { queryClient as globalQueryClient } from '@/lib/queryClient';
-import { applyThemeToDom, themeCacheKey } from '@/lib/themeUtils';
+import { applyThemeToDom, themeCacheKey, clearThemeFromDom } from '@/lib/themeUtils';
 
 
 const ThemeStyleContext = createContext({
@@ -39,7 +39,7 @@ export const ThemeStyleProvider = ({ children }: { children: React.ReactNode }) 
   useLayoutEffect(() => {
     const hasSession = localStorage.getItem("crm_user") || localStorage.getItem("crm_client");
     if (!hasSession) {
-      clearThemeFromDom();
+      clearThemeFromDom({ resetToLightMode: true });
       return;
     }
     const cached = localStorage.getItem(themeCacheKey());
