@@ -353,5 +353,17 @@ describe("13-Tier Master QA Audit: Customers & Vendors Modules", () => {
       expect(customerViewSource).toContain('name="contact_person"');
       expect(customerViewSource).toContain('name="email"');
     });
+
+    it("verifies all 19 sub-menu sidebar items are defined and mapped to activeTab panels", () => {
+      const customerViewSource = fs.readFileSync(path.join(__dirname, '..', 'pages', 'CustomerView.tsx'), 'utf8');
+      const expectedTabs = [
+        "profile", "contacts", "notes", "statement", "invoices", "payments",
+        "proposals", "credit-notes", "estimates", "subscriptions", "expenses",
+        "contracts", "projects", "tasks", "tickets", "files", "vault", "reminders", "map"
+      ];
+      expectedTabs.forEach(tab => {
+        expect(customerViewSource).toContain(`activeTab === "${tab}"`);
+      });
+    });
   });
 });
