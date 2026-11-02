@@ -370,8 +370,7 @@ export function AppSidebar() {
   const isExpired = !user?.is_superadmin && isPastGrace(user?.tenant as any);
 
   const [menuMode, setMenuMode] = useState<"main" | "setup">(
-    () =>
-      (localStorage.getItem("sidebar:menuMode") as "main" | "setup") || "main",
+    () => (location.pathname.includes("/setup") ? "setup" : "main")
   );
 
   const { data: dbMenuItems = [] as any[], isLoading: menusLoading } = useQuery<any[]>({
@@ -724,17 +723,24 @@ export function AppSidebar() {
     return () => clearTimeout(timer);
   }, [location.pathname, location.search, openSections]);
 
-  // Synchronize menuMode with the current URL path:
-  // If user navigates directly to /admin/setup/*, switch to "setup" mode.
-  // If user navigates to any main CRM page (e.g. /admin/payments), ensure "main" mode.
+  // Only sync menuMode when location.pathname actually changes across route transitions:
+  // If navigating into a /setup/* page from outside, switch to setup mode.
+  // If navigating out of a /setup/* page to a main CRM page, return to main mode.
+  // Never override user's manual click of "Setup" or "Back to Main" while on the same page!
+  const prevPathRef = React.useRef(location.pathname);
   useEffect(() => {
-    const isSetupRoute = location.pathname.includes("/setup");
-    if (isSetupRoute && menuMode !== "setup") {
-      setMenuMode("setup");
-    } else if (!isSetupRoute && menuMode === "setup") {
-      setMenuMode("main");
+    const prev = prevPathRef.current;
+    const curr = location.pathname;
+    prevPathRef.current = curr;
+
+    if (curr !== prev) {
+      if (curr.includes("/setup")) {
+        setMenuMode("setup");
+      } else if (prev.includes("/setup") && !curr.includes("/setup")) {
+        setMenuMode("main");
+      }
     }
-  }, [location.pathname, menuMode]);
+  }, [location.pathname]);
 
   // Synchronize collapsible sections with the active route:
   // 1. If the current route belongs to a collapsible section (e.g. HRMS, Quotation Maker, Setup groups),

@@ -120,8 +120,11 @@ describe("13-Tier Master QA Suite: AppSidebar & Sub-Sidebar Navigation Audit", (
   });
 
   const renderWithRoute = (initialPath: string) => {
+    const testClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    });
     return render(
-      <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={testClient}>
         <MemoryRouter initialEntries={[initialPath]}>
           <SidebarProvider>
             <AppSidebar />
@@ -243,6 +246,45 @@ describe("13-Tier Master QA Suite: AppSidebar & Sub-Sidebar Navigation Audit", (
     expect(screen.getByText("Back to Main")).toBeInTheDocument();
   });
 
+  test("Tier 6.1 (Setup Submenu Click): Clicking Setup from main page opens setup menu, and clicking Finance expands submenus", async () => {
+    renderWithRoute("/admin/items");
+
+    // Initially in main mode on /admin/items
+    expect(await screen.findByText("Trinetra CRM")).toBeInTheDocument();
+    const setupBtn = (await screen.findAllByText("Setup"))[0];
+    expect(setupBtn).toBeInTheDocument();
+
+    // User clicks Setup button while on /admin/items
+    fireEvent.click(setupBtn);
+
+    // Setup menu must open and NOT immediately revert to main!
+    await waitFor(() => {
+      expect(screen.getByText("Setup Menu")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Back to Main")).toBeInTheDocument();
+    expect(screen.getByText("Roles")).toBeInTheDocument();
+
+    // Now verify collapsible submenus inside Setup (e.g. Finance)
+    const financeTrigger = screen.getByText("Finance");
+    expect(financeTrigger).toBeInTheDocument();
+    expect(screen.queryByText("Tax Rates")).toBeNull();
+
+    // User clicks Finance submenu
+    fireEvent.click(financeTrigger);
+
+    // Finance sub-items must expand and be visible!
+    await waitFor(() => {
+      expect(screen.getByText("Tax Rates")).toBeInTheDocument();
+      expect(screen.getByText("Currencies")).toBeInTheDocument();
+    });
+
+    // Clicking "Back to Main" restores the main menu
+    fireEvent.click(screen.getByText("Back to Main"));
+    await waitFor(() => {
+      expect(screen.queryByText("Setup Menu")).toBeNull();
+    });
+  });
+
   /* ─────────────────────────────────────────────────────────────
    * TIER 7: Smooth Auto-Scroll (scrollIntoView)
    * ───────────────────────────────────────────────────────────── */
@@ -347,3 +389,4 @@ describe("13-Tier Master QA Suite: AppSidebar & Sub-Sidebar Navigation Audit", (
     });
   });
 });
+
