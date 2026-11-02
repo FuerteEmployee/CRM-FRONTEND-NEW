@@ -271,10 +271,10 @@ const SalarySettlementLedgerPage = () => {
           <p className="text-sm text-muted-foreground">Track employee↔Company salary settlements</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => setIsAddOpen(true)} className="gap-2">
+          <Button onClick={() => setIsAddOpen(true)} className="rounded-md gradient-primary text-white border-0 shadow-sm hover:opacity-95 font-medium text-xs h-9 px-4 flex items-center gap-2">
             <Plus className="h-4 w-4" /> Add to Settlement
           </Button>
-          <Button onClick={handleExportExcel} className="gap-2" variant="outline">
+          <Button onClick={handleExportExcel} variant="outline" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all flex items-center gap-2">
             <FileSpreadsheet className="h-4 w-4" /> Export Excel
           </Button>
         </div>
@@ -608,7 +608,7 @@ const SalarySettlementLedgerPage = () => {
           <div className="space-y-4 pt-2">
             <div>
               <label className="text-xs font-bold text-muted-foreground uppercase mb-2 block">
-                Employee (branch-managed only)
+                Employee (branch-managed only) <span className="text-red-500 font-bold ml-1">*</span>
               </label>
               <Select value={addEmployeeId} onValueChange={setAddEmployeeId}>
                 <SelectTrigger className="h-10 rounded-lg">

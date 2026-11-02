@@ -228,7 +228,7 @@ export default function DepartmentPage() {
                                         name="name"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-xs font-bold text-foreground/70">Dept Name</FormLabel>
+                                                <FormLabel className="text-xs font-bold text-foreground/70">Dept Name <span className="text-red-500 font-bold ml-0.5">*</span></FormLabel>
                                                 <FormControl>
                                                     <Input placeholder="e.g. Sales" {...field} className="h-12 rounded-xl" />
                                                 </FormControl>
@@ -241,7 +241,7 @@ export default function DepartmentPage() {
                                         name="code"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-xs font-bold text-foreground/70">Dept Code</FormLabel>
+                                                <FormLabel className="text-xs font-bold text-foreground/70">Dept Code <span className="text-red-500 font-bold ml-0.5">*</span></FormLabel>
                                                 <FormControl>
                                                     <Input placeholder="e.g. SLS" {...field} className="h-12 rounded-xl" />
                                                 </FormControl>
