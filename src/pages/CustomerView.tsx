@@ -347,7 +347,7 @@ export default function CustomerView() {
   const [isZipModalOpen, setIsZipModalOpen] = useState(false);
   const [zipForm, setZipForm] = useState({ status: "all", fromDate: "", toDate: "" });
   const [isZipCreditNotesModalOpen, setIsZipCreditNotesModalOpen] = useState(false);
-  const [zipCreditNotesForm, setZipCreditNotesForm] = useState({ status: "all", fromDate: "", toDate: "" });
+  const [zipCreditNotesForm, setZipCreditNotesForm] = useState({ from_date: "", to_date: "" });
   const [mapForm, setMapForm] = useState({ latitude: "", longitude: "" });
   const [isContractModalOpen, setIsContractModalOpen] = useState(false);
   const [contractFormData, setContractFormData] = useState({
@@ -2047,7 +2047,7 @@ export default function CustomerView() {
                                 )}
                               </TableBody>
                             </Table>
-                            <TablePagination page={1} pageSize={Math.max((customer?.admins || []).length, 1)} total={(customer?.admins || []).length} onPageChange={() => {}} />
+                            <TablePagination page={1} pageSize={Math.max((customer?.admins || []).length, 1)} total={(customer?.admins || []).length} onPageChange={() => { }} />
                           </TableContainer>
                         </TabsContent>
                       </div>
@@ -2225,7 +2225,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max((contacts || []).length, 1)} total={(contacts || []).length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max((contacts || []).length, 1)} total={(contacts || []).length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -2395,7 +2395,7 @@ export default function CustomerView() {
                               )}
                             </TableBody>
                           </Table>
-                          <TablePagination page={1} pageSize={Math.max(notes.filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase())).length, 1)} total={notes.filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase())).length} onPageChange={() => {}} />
+                          <TablePagination page={1} pageSize={Math.max(notes.filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase())).length, 1)} total={notes.filter((n: any) => n.description?.toLowerCase().includes(noteSearch.toLowerCase())).length} onPageChange={() => { }} />
                         </TableContainer>
                       </div>
                     </div>
@@ -2749,7 +2749,7 @@ export default function CustomerView() {
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 rounded-lg text-muted-foreground hover:bg-muted transition-colors"
+                                        className="h-8 w-8 rounded-lg text-primary hover:bg-primary/10 transition-colors"
                                         title="View PDF"
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -2765,7 +2765,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(invoices.length, 1)} total={invoices.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(invoices.length, 1)} total={invoices.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -2889,7 +2889,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(creditNotes.length, 1)} total={creditNotes.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(creditNotes.length, 1)} total={creditNotes.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -2987,7 +2987,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(payments.length, 1)} total={payments.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(payments.length, 1)} total={payments.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -3110,7 +3110,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(proposals.length, 1)} total={proposals.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(proposals.length, 1)} total={proposals.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -3277,7 +3277,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(estimates.length, 1)} total={estimates.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(estimates.length, 1)} total={estimates.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -3384,7 +3384,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(subscriptions.length, 1)} total={subscriptions.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(subscriptions.length, 1)} total={subscriptions.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -3546,7 +3546,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredExpenses.length, 1)} total={filteredExpenses.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(filteredExpenses.length, 1)} total={filteredExpenses.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -3714,7 +3714,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredContracts.length, 1)} total={filteredContracts.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(filteredContracts.length, 1)} total={filteredContracts.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -3863,7 +3863,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredProjects.length, 1)} total={filteredProjects.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(filteredProjects.length, 1)} total={filteredProjects.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -4149,7 +4149,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredTasks.length, 1)} total={filteredTasks.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(filteredTasks.length, 1)} total={filteredTasks.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -4285,7 +4285,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredTickets.length, 1)} total={filteredTickets.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(filteredTickets.length, 1)} total={filteredTickets.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -4427,9 +4427,10 @@ export default function CustomerView() {
                                       variant="ghost"
                                       size="icon"
                                       onClick={() => deleteFileMutation.mutate(f._id)}
-                                      className="h-8 w-8 rounded-full text-rose-500 hover:bg-rose-50 transition-colors"
+                                      className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
+                                      title="Delete File"
                                     >
-                                      <X className="h-4 w-4" />
+                                      <Trash2 className="h-4 w-4" />
                                     </Button>
                                   </TableCell>
                                 </TableRow>
@@ -4437,7 +4438,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredFiles.length, 1)} total={filteredFiles.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(filteredFiles.length, 1)} total={filteredFiles.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -4557,7 +4558,7 @@ export default function CustomerView() {
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 rounded-full text-blue-500 hover:bg-blue-50"
+                                        className="h-8 w-8 rounded-lg text-primary hover:bg-primary/10 transition-colors"
                                       >
                                         <Edit2 className="h-4 w-4" />
                                       </Button>
@@ -4565,9 +4566,10 @@ export default function CustomerView() {
                                         variant="ghost"
                                         size="icon"
                                         onClick={() => deleteVaultMutation.mutate(v._id)}
-                                        className="h-8 w-8 rounded-full text-rose-500 hover:bg-rose-50"
+                                        className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
+                                        title="Delete Vault Entry"
                                       >
-                                        <X className="h-4 w-4" />
+                                        <Trash2 className="h-4 w-4" />
                                       </Button>
                                     </div>
                                   </TableCell>
@@ -4576,7 +4578,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredVault.length, 1)} total={filteredVault.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(filteredVault.length, 1)} total={filteredVault.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -4681,9 +4683,10 @@ export default function CustomerView() {
                                         variant="ghost"
                                         size="icon"
                                         onClick={() => deleteReminderMutation.mutate(r._id)}
-                                        className="h-8 w-8 rounded-full text-rose-500 hover:bg-rose-50"
+                                        className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
+                                        title="Delete Reminder"
                                       >
-                                        <X className="h-4 w-4" />
+                                        <Trash2 className="h-4 w-4" />
                                       </Button>
                                     </div>
                                   </TableCell>
@@ -4692,7 +4695,7 @@ export default function CustomerView() {
                             )}
                           </TableBody>
                         </Table>
-                        <TablePagination page={1} pageSize={Math.max(filteredReminders.length, 1)} total={filteredReminders.length} onPageChange={() => {}} />
+                        <TablePagination page={1} pageSize={Math.max(filteredReminders.length, 1)} total={filteredReminders.length} onPageChange={() => { }} />
                       </TableContainer>
                     </div>
                   )}
@@ -4917,7 +4920,14 @@ export default function CustomerView() {
       <Dialog open={isZipModalOpen} onOpenChange={setIsZipModalOpen}>
         <DialogContent className="max-w-[600px] h-[500px] p-0 overflow-hidden rounded-xl shadow-2xl border-none flex flex-col bg-white">
           <div className="px-6 py-4 border-b border-border/50 flex items-center justify-between bg-white shrink-0">
-            <h2 className="text-xl font-bold text-foreground">ZIP Invoices</h2>
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-3">
+                <div className="p-2 shrink-0 bg-primary/10 rounded-xl">
+                  <FileSpreadsheet className="h-5 w-5 shrink-0 text-primary" />
+                </div>
+                ZIP Invoices
+              </DialogTitle>
+            </DialogHeader>
           </div>
 
           <div className="p-8 space-y-8 bg-white flex-1 overflow-y-auto no-scrollbar">
@@ -4981,13 +4991,52 @@ export default function CustomerView() {
               Close
             </Button>
             <Button
-              className="rounded-lg h-9 px-6 bg-[#1E293B] hover:bg-[#0F172A] text-white font-bold text-xs shadow-lg"
+              className="rounded-lg h-9 px-6 gradient-primary text-white font-bold text-xs shadow-lg flex items-center gap-2 hover:opacity-95"
               onClick={() => {
-                console.log("Saving ZIP Request:", zipForm);
+                let filtered = invoices || [];
+                if (zipForm.status && zipForm.status.toLowerCase() !== "all") {
+                  filtered = filtered.filter((inv: any) =>
+                    (inv.status || "").toLowerCase() === zipForm.status.toLowerCase()
+                  );
+                }
+                if (zipForm.fromDate) {
+                  filtered = filtered.filter((inv: any) => new Date(inv.date) >= new Date(zipForm.fromDate));
+                }
+                if (zipForm.toDate) {
+                  filtered = filtered.filter((inv: any) => new Date(inv.date) <= new Date(zipForm.toDate + "T23:59:59"));
+                }
+                if (filtered.length === 0) {
+                  toast({
+                    title: "No Invoices Found",
+                    description: "No invoices match the selected status and date range.",
+                    variant: "destructive"
+                  });
+                  return;
+                }
+                const headers = ["Invoice #", "Amount", "Total Tax", "Date", "Project", "Due Date", "Status"];
+                const rows = filtered.map((inv: any) => [
+                  inv.number || "",
+                  inv.total || 0,
+                  inv.total_tax || 0,
+                  inv.date ? formatDate(inv.date) : "",
+                  inv.project?.name || "",
+                  inv.duedate ? formatDate(inv.duedate) : "",
+                  inv.status || ""
+                ]);
+                const csvContent = [headers.join(","), ...rows.map(r => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n");
+                const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.setAttribute("download", `invoices_${(customer?.company || "export").replace(/\s+/g, "_")}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                toast({ title: "Export Successful", description: `${filtered.length} invoices downloaded.` });
                 setIsZipModalOpen(false);
               }}
             >
-              Save
+              <Download className="h-3.5 w-3.5" />
+              Download ZIP / Export
             </Button>
           </div>
         </DialogContent>
@@ -4997,12 +5046,16 @@ export default function CustomerView() {
         onOpenChange={setIsZipPaymentsModalOpen}
         formData={zipPaymentsForm}
         setFormData={setZipPaymentsForm}
+        payments={payments}
+        customer={customer}
       />
       <ZipCreditNotesModal
         open={isZipCreditNotesModalOpen}
         onOpenChange={setIsZipCreditNotesModalOpen}
         formData={zipCreditNotesForm}
         setFormData={setZipCreditNotesForm}
+        creditNotes={creditNotes}
+        customer={customer}
       />
       <VaultEntryModal
         open={isVaultModalOpen}
@@ -5041,13 +5094,63 @@ export default function CustomerView() {
   );
 }
 
-function ZipCreditNotesModal({ open, onOpenChange, formData, setFormData }: any) {
+function ZipCreditNotesModal({ open, onOpenChange, formData, setFormData, creditNotes = [], customer }: any) {
+  const { toast } = useToast();
+
+  const handleDownload = () => {
+    const fromDate = formData.from_date || formData.fromDate;
+    const toDate = formData.to_date || formData.toDate;
+
+    let filtered = creditNotes || [];
+    if (fromDate) {
+      filtered = filtered.filter((n: any) => new Date(n.date) >= new Date(fromDate));
+    }
+    if (toDate) {
+      filtered = filtered.filter((n: any) => new Date(n.date) <= new Date(toDate + "T23:59:59"));
+    }
+
+    if (filtered.length === 0) {
+      toast({
+        title: "No records found",
+        description: "No credit notes found for the selected date range.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const headers = ["Credit Note #", "Date", "Status", "Project", "Reference", "Amount", "Remaining Amount"];
+    const rows = filtered.map((n: any) => [
+      n.number || (n._id ? n._id.slice(-6).toUpperCase() : ""),
+      n.date ? formatDate(n.date) : "",
+      n.status === 1 ? "Open" : n.status === 2 ? "Closed" : n.status === 3 ? "Void" : "Unknown",
+      n.project?.name || "",
+      n.reference || "",
+      n.total || 0,
+      n.remaining_amount ?? n.total ?? 0
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map((r: any) => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `credit_notes_${(customer?.company || "export").replace(/\s+/g, "_")}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Export Successful",
+      description: `${filtered.length} credit notes downloaded.`
+    });
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden rounded-[2rem] border-none shadow-2xl bg-white">
-        <div className="bg-zinc-950 px-6 py-5 flex items-center justify-between border-b border-white/5">
+      <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden rounded-2xl border border-slate-200 shadow-2xl bg-white">
+        <div className="px-6 py-5 border-b border-border/50 flex items-center justify-between bg-white shrink-0">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-white flex items-center gap-3">
+            <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-3">
               <div className="p-2 shrink-0 bg-primary/10 rounded-xl">
                 <Receipt className="h-5 w-5 shrink-0 text-primary" />
               </div>
@@ -5062,18 +5165,18 @@ function ZipCreditNotesModal({ open, onOpenChange, formData, setFormData }: any)
               <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">From Date</Label>
               <Input
                 type="date"
-                value={formData.from_date}
-                onChange={(e) => setFormData((p: any) => ({ ...p, from_date: e.target.value }))}
-                className="h-11 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold"
+                value={formData.from_date || formData.fromDate || ""}
+                onChange={(e) => setFormData((p: any) => ({ ...p, from_date: e.target.value, fromDate: e.target.value }))}
+                className="h-11 bg-muted/40 border border-slate-200 shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold"
               />
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-muted-foreground tracking-[0.2em]">To Date</Label>
               <Input
                 type="date"
-                value={formData.to_date}
-                onChange={(e) => setFormData((p: any) => ({ ...p, to_date: e.target.value }))}
-                className="h-11 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold"
+                value={formData.to_date || formData.toDate || ""}
+                onChange={(e) => setFormData((p: any) => ({ ...p, to_date: e.target.value, toDate: e.target.value }))}
+                className="h-11 bg-muted/40 border border-slate-200 shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold"
               />
             </div>
           </div>
@@ -5088,13 +5191,11 @@ function ZipCreditNotesModal({ open, onOpenChange, formData, setFormData }: any)
             Cancel
           </Button>
           <Button
-            className="rounded-xl px-8 h-10 shadow-lg shadow-primary/20 font-bold uppercase text-[11px] tracking-wider"
-            onClick={() => {
-              console.log("Saving Zip Credit Notes:", formData);
-              onOpenChange(false);
-            }}
+            className="rounded-xl px-6 h-10 gradient-primary text-white shadow-lg shadow-primary/20 font-bold uppercase text-[11px] tracking-wider flex items-center gap-2 hover:opacity-95"
+            onClick={handleDownload}
           >
-            Save
+            <Download className="h-4 w-4" />
+            Download ZIP / Export
           </Button>
         </div>
       </DialogContent>
@@ -5102,13 +5203,64 @@ function ZipCreditNotesModal({ open, onOpenChange, formData, setFormData }: any)
   );
 }
 
-function ZipPaymentsModal({ open, onOpenChange, formData, setFormData }: any) {
+function ZipPaymentsModal({ open, onOpenChange, formData, setFormData, payments = [], customer }: any) {
+  const { toast } = useToast();
+
+  const handleDownload = () => {
+    let filtered = payments || [];
+    if (formData.payment_made_by && formData.payment_made_by !== "all") {
+      filtered = filtered.filter((p: any) =>
+        (p.paymentmode || "").toLowerCase().includes(formData.payment_made_by.toLowerCase())
+      );
+    }
+    if (formData.from_date) {
+      filtered = filtered.filter((p: any) => new Date(p.date) >= new Date(formData.from_date));
+    }
+    if (formData.to_date) {
+      filtered = filtered.filter((p: any) => new Date(p.date) <= new Date(formData.to_date + "T23:59:59"));
+    }
+
+    if (filtered.length === 0) {
+      toast({
+        title: "No records found",
+        description: "No payments match the selected criteria.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const headers = ["Payment #", "Invoice #", "Payment Mode", "Transaction ID", "Amount", "Date"];
+    const rows = filtered.map((p: any) => [
+      p._id ? p._id.slice(-6).toUpperCase() : "",
+      p.invoice?.number || "",
+      p.paymentmode || "",
+      p.transactionid || "",
+      p.amount || 0,
+      p.date ? formatDate(p.date) : ""
+    ]);
+
+    const csvContent = [headers.join(","), ...rows.map((r: any) => r.map((c: any) => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `payments_${(customer?.company || "export").replace(/\s+/g, "_")}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast({
+      title: "Export Successful",
+      description: `${filtered.length} payment records downloaded.`
+    });
+    onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden rounded-[2rem] border-none shadow-2xl bg-white">
-        <div className="bg-zinc-950 px-6 py-5 flex items-center justify-between border-b border-white/5">
+      <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden rounded-2xl border border-slate-200 shadow-2xl bg-white">
+        <div className="px-6 py-5 border-b border-border/50 flex items-center justify-between bg-white shrink-0">
           <DialogHeader>
-            <DialogTitle className="text-xl font-bold text-white flex items-center gap-3">
+            <DialogTitle className="text-xl font-bold text-foreground flex items-center gap-3">
               <div className="p-2 shrink-0 bg-primary/10 rounded-xl">
                 <CreditCard className="h-5 w-5 shrink-0 text-primary" />
               </div>
@@ -5124,7 +5276,7 @@ function ZipPaymentsModal({ open, onOpenChange, formData, setFormData }: any) {
               value={formData.payment_made_by}
               onValueChange={(v) => setFormData((p: any) => ({ ...p, payment_made_by: v }))}
             >
-              <SelectTrigger className="h-11 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold">
+              <SelectTrigger className="h-11 bg-muted/40 border border-slate-200 shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold">
                 <SelectValue placeholder="Select payment mode" />
               </SelectTrigger>
               <SelectContent className="rounded-xl border-border/50 shadow-2xl">
@@ -5144,7 +5296,7 @@ function ZipPaymentsModal({ open, onOpenChange, formData, setFormData }: any) {
                 type="date"
                 value={formData.from_date}
                 onChange={(e) => setFormData((p: any) => ({ ...p, from_date: e.target.value }))}
-                className="h-11 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold"
+                className="h-11 bg-muted/40 border border-slate-200 shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold"
               />
             </div>
             <div className="space-y-2">
@@ -5153,7 +5305,7 @@ function ZipPaymentsModal({ open, onOpenChange, formData, setFormData }: any) {
                 type="date"
                 value={formData.to_date}
                 onChange={(e) => setFormData((p: any) => ({ ...p, to_date: e.target.value }))}
-                className="h-11 bg-muted/40 border-none shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold"
+                className="h-11 bg-muted/40 border border-slate-200 shadow-none focus:ring-2 ring-primary/20 rounded-xl font-semibold"
               />
             </div>
           </div>
@@ -5168,13 +5320,11 @@ function ZipPaymentsModal({ open, onOpenChange, formData, setFormData }: any) {
             Cancel
           </Button>
           <Button
-            className="rounded-xl px-8 h-10 shadow-lg shadow-primary/20 font-bold uppercase text-[11px] tracking-wider"
-            onClick={() => {
-              console.log("Saving Zip Payments:", formData);
-              onOpenChange(false);
-            }}
+            className="rounded-xl px-6 h-10 gradient-primary text-white shadow-lg shadow-primary/20 font-bold uppercase text-[11px] tracking-wider flex items-center gap-2 hover:opacity-95"
+            onClick={handleDownload}
           >
-            Save
+            <Download className="h-4 w-4" />
+            Download ZIP / Export
           </Button>
         </div>
       </DialogContent>

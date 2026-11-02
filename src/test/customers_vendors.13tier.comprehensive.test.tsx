@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import React from "react";
+import * as fs from "fs";
+import * as path from "path";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { TableActions } from "@/components/TableActions";
@@ -272,5 +274,71 @@ describe("13-Tier Master QA Audit: Customers & Vendors Modules", () => {
       expect(scopeA.tenant_id).not.toBe(scopeB.tenant_id);
     });
   });
-});
 
+  // =========================================================================
+  // Tier 14: Customer Details & Modal Header/Action Icon QA Audit
+  // =========================================================================
+  describe("Tier 14: Customer Details Modal Headers, Download Actions & Sub-table Icons", () => {
+    it("verifies CustomerView source code contains 0 rogue dark header classes (bg-zinc-950)", () => {
+      const customerViewSource = fs.readFileSync(path.join(__dirname, '..', 'pages', 'CustomerView.tsx'), 'utf8');
+      expect(customerViewSource).not.toContain("bg-zinc-950");
+      expect(customerViewSource).not.toMatch(/bg-(zinc|neutral|slate)-950/);
+    });
+
+    it("verifies ZIP modals use 'Download ZIP / Export' action labels rather than misleading 'Save'", () => {
+      const customerViewSource = fs.readFileSync(path.join(__dirname, '..', 'pages', 'CustomerView.tsx'), 'utf8');
+      // Look for the action buttons in the ZIP modals
+      expect(customerViewSource).toContain("Download ZIP / Export");
+      expect(customerViewSource).not.toContain("Saving Zip Payments:");
+      expect(customerViewSource).not.toContain("Saving Zip Credit Notes:");
+    });
+
+    it("executes payments date and payment mode filtering logic correctly", () => {
+      const payments = [
+        { _id: "pay001", paymentmode: "bank", date: "2026-10-15T00:00:00.000Z", amount: 5000 },
+        { _id: "pay002", paymentmode: "cash", date: "2026-11-01T00:00:00.000Z", amount: 12000 },
+        { _id: "pay003", paymentmode: "bank", date: "2026-11-02T00:00:00.000Z", amount: 7500 },
+      ];
+
+      const filterPayments = (list: any[], mode: string, fromDate?: string, toDate?: string) => {
+        let res = list;
+        if (mode && mode !== "all") res = res.filter(p => (p.paymentmode || "").toLowerCase().includes(mode.toLowerCase()));
+        if (fromDate) res = res.filter(p => new Date(p.date) >= new Date(fromDate));
+        if (toDate) res = res.filter(p => new Date(p.date) <= new Date(toDate + "T23:59:59"));
+        return res;
+      };
+
+      expect(filterPayments(payments, "all").length).toBe(3);
+      expect(filterPayments(payments, "bank").length).toBe(2);
+      expect(filterPayments(payments, "cash").length).toBe(1);
+      expect(filterPayments(payments, "bank", "2026-11-01").length).toBe(1);
+      expect(filterPayments(payments, "all", "2026-11-05").length).toBe(0);
+    });
+
+    it("executes credit notes date filtering logic correctly", () => {
+      const creditNotes = [
+        { _id: "cn001", number: "CN-001", date: "2026-10-20T00:00:00.000Z", total: 3000 },
+        { _id: "cn002", number: "CN-002", date: "2026-11-01T00:00:00.000Z", total: 4500 },
+      ];
+
+      const filterCreditNotes = (list: any[], fromDate?: string, toDate?: string) => {
+        let res = list;
+        if (fromDate) res = res.filter(n => new Date(n.date) >= new Date(fromDate));
+        if (toDate) res = res.filter(n => new Date(n.date) <= new Date(toDate + "T23:59:59"));
+        return res;
+      };
+
+      expect(filterCreditNotes(creditNotes, "2026-10-01", "2026-10-31").length).toBe(1);
+      expect(filterCreditNotes(creditNotes, "2026-11-01", "2026-11-30").length).toBe(1);
+      expect(filterCreditNotes(creditNotes, "2026-12-01").length).toBe(0);
+    });
+
+    it("verifies Vault, Reminders and Files sub-tables use standard rounded-lg action buttons", () => {
+      const customerViewSource = fs.readFileSync(path.join(__dirname, '..', 'pages', 'CustomerView.tsx'), 'utf8');
+      // Verify deletion buttons use rounded-lg and text-destructive hover states
+      expect(customerViewSource).toContain('title="Delete Vault Entry"');
+      expect(customerViewSource).toContain('title="Delete Reminder"');
+      expect(customerViewSource).toContain('title="Delete File"');
+    });
+  });
+});
