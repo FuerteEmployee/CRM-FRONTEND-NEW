@@ -68,7 +68,6 @@ import { useSettings } from "@/context/SettingsContext";
 import { getCompanyInfo, companyInfoHtml } from "@/lib/companyInfo";
 import { getDocDisplayOptions, trimZeroDecimals, stripCurrencySymbol, itemTaxLabel, amountInWords, saleAgentName, projectName } from "@/lib/invoiceDisplay";
 import { htmlToPdf, htmlToPdfBase64 } from "@/lib/htmlToPdf";
-import { Textarea } from "@/components/ui/textarea";
 import { escapeHtml } from "@/lib/richText";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { isEkagraUser } from "@/lib/ekagraTenant";
@@ -601,398 +600,398 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
     <>
       {/* Save & Send shows only the email window, not the whole invoice panel behind it. */}
       {!emailOnly && <>
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        style={{ display: "none" }}
-      />
-      <div className="flex flex-col">
-        {/* ── Tab header row ── */}
-        <div className="border-b border-border/50 px-4 pt-3 bg-background">
-          <div className="flex items-end justify-between">
-            <div className="flex items-end gap-0 overflow-x-auto">
-              {DETAIL_TABS.map(tab => (
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          style={{ display: "none" }}
+        />
+        <div className="flex flex-col">
+          {/* ── Tab header row ── */}
+          <div className="border-b border-border/50 px-4 pt-3 bg-background">
+            <div className="flex items-end justify-between">
+              <div className="flex items-end gap-0 overflow-x-auto">
+                {DETAIL_TABS.map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={cn(
+                      "px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors",
+                      activeTab === tab
+                        ? "border-foreground text-foreground"
+                        : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                    )}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+              {/* Icon tabs — right side */}
+              <div className="flex items-center gap-0.5 pb-1 ml-2 shrink-0">
                 <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
+                  title="Emails Tracking"
+                  onClick={() => setActiveTab("Emails Tracking")}
                   className={cn(
-                    "px-3 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition-colors",
-                    activeTab === tab
-                      ? "border-foreground text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                    "p-1.5 rounded-md transition-colors",
+                    activeTab === "Emails Tracking"
+                      ? "text-foreground bg-muted"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                   )}
                 >
-                  {tab}
+                  <Mail className="h-4 w-4" />
                 </button>
-              ))}
-            </div>
-            {/* Icon tabs — right side */}
-            <div className="flex items-center gap-0.5 pb-1 ml-2 shrink-0">
-              <button
-                title="Emails Tracking"
-                onClick={() => setActiveTab("Emails Tracking")}
-                className={cn(
-                  "p-1.5 rounded-md transition-colors",
-                  activeTab === "Emails Tracking"
-                    ? "text-foreground bg-muted"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                )}
-              >
-                <Mail className="h-4 w-4" />
-              </button>
-              <button
-                title="View Tracking"
-                onClick={() => setActiveTab("View Tracking")}
-                className={cn(
-                  "p-1.5 rounded-md transition-colors",
-                  activeTab === "View Tracking"
-                    ? "text-foreground bg-muted"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                )}
-              >
-                <Eye className="h-4 w-4" />
-              </button>
-              <button
-                title="Toggle full view"
-                onClick={() => setIsFullscreen(!isFullscreen)}
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              >
-                <Maximize2 className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Action bar ── */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50 bg-background">
-          <Badge variant="outline" className={cn("text-xs font-semibold px-2.5 py-0.5 bg-transparent", status.color)}>
-            {status.label}
-          </Badge>
-          <div className="flex flex-wrap items-center justify-end gap-1.5">
-            {/* Edit */}
-            {can("Invoices", "Edit") && (
-              <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg" title="Edit" onClick={onEdit}>
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-            )}
-
-            {/* Record Payment */}
-            {can("Payments", "Create") && d.status !== "cancelled" && balanceDue > 0 && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 px-3 rounded-lg gap-1.5 text-xs font-bold border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                title="Record Payment"
-                // start from a clean form so values from a cancelled attempt don't carry over
-                onClick={() => openPaymentDialog(balanceDue)}
-              >
-                <Wallet className="h-3.5 w-3.5" />
-                Record Payment
-              </Button>
-            )}
-
-            {/* PDF dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" className="h-8 px-2 rounded-lg gap-0.5 text-xs">
-                  <FileText className="h-3.5 w-3.5" />
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => handlePdfAction('view')}>View PDF</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePdfAction('new_tab')}>View PDF in New Tab</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePdfAction('download')}>Download</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handlePdfAction('print')}>Print</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Email — opens Send dialog */}
-            {can("Invoices", "Edit") && (
-              <Button
-                size="icon"
-                variant="outline"
-                className="h-8 w-8 rounded-lg"
-                title="Send Email"
-                onClick={openEmailDialog}
-              >
-                <Mail className="h-3.5 w-3.5" />
-              </Button>
-            )}
-
-            {/* More dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline" className="h-8 px-2.5 rounded-lg gap-1 text-xs font-medium">
-                  More <ChevronDown className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={onView}>View Invoice</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>Attach File</DropdownMenuItem>
-                <DropdownMenuItem onClick={handleCopy}>Copy link</DropdownMenuItem>
-                {can("Invoices", "Edit") && totalPaid === 0 && <DropdownMenuItem onClick={() => updateStatusMutation.mutate("unpaid")}>Mark as Unpaid</DropdownMenuItem>}
-                {can("Payments", "Create") && d.status !== "cancelled" && balanceDue > 0 && (
-                  <>
-                    <DropdownMenuItem onClick={() => openPaymentDialog(balanceDue)}>Mark as Paid (record payment)</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openPaymentDialog("")}>Mark as Partially Paid (record payment)</DropdownMenuItem>
-                  </>
-                )}
-                {can("Invoices", "Edit") && <DropdownMenuItem onClick={() => updateStatusMutation.mutate("cancelled")}>Mark as Cancelled</DropdownMenuItem>}
-                {can("Invoices", "Delete") && <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleDelete}>Delete</DropdownMenuItem>}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Convert dropdown */}
-            {can("Invoices", "Create") && <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" className="h-8 px-3 rounded-lg gap-1 text-xs font-bold bg-green-600 hover:bg-green-700 text-white">
-                  Convert <ChevronDown className="h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem
-                  onClick={() =>
-                    navigate(`/admin/credit-notes/create/${d.client?._id || ""}`, {
-                      state: {
-                        prepopulate: {
-                          invoice_id: d._id || d.id,
-                          invoice_number: d.number,
-                          client: d.client,
-                          currency: d.currency,
-                          balance_due: balanceDue,
-                        },
-                      },
-                    })
-                  }
+                <button
+                  title="View Tracking"
+                  onClick={() => setActiveTab("View Tracking")}
+                  className={cn(
+                    "p-1.5 rounded-md transition-colors",
+                    activeTab === "View Tracking"
+                      ? "text-foreground bg-muted"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  )}
                 >
-                  Convert to Credit Note
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>}
-          </div>
-        </div>
-
-        {/* ── Tab content ── */}
-        <div className="px-6 py-5 overflow-y-auto max-h-[60vh]">
-          {/* Invoice tab */}
-          {activeTab === "Invoice" && (
-            isLoading ? (
-              <div className="space-y-3">
-                {Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-5 w-full" />)}
+                  <Eye className="h-4 w-4" />
+                </button>
+                <button
+                  title="Toggle full view"
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </button>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Header card */}
-                <div className="border border-border/40 rounded-xl p-5">
-                  <div className="flex justify-between items-start gap-4">
-                    <div>
-                      <p className="text-base font-bold text-primary">{invoiceNumber}</p>
-                      {d.client?.company && <p className="text-sm font-bold text-foreground mt-3">{d.client?.company}</p>}
-                      {d.client?.address && <p className="text-xs text-muted-foreground">{d.client?.address}</p>}
-                      {(d.client?.city || d.client?.state) && (
-                        <p className="text-xs text-muted-foreground">{[d.client?.city, d.client?.state, d.client?.zip].filter(Boolean).join(" ")}</p>
-                      )}
-                      {d.client?.country && <p className="text-xs text-muted-foreground">{d.client?.country}</p>}
-                      {d.gstin && (
-                        <p className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5 mt-2 inline-block">
-                          GSTIN: {d.gstin}
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs text-muted-foreground mb-0.5">To:</p>
-                      <p className="text-sm font-semibold text-primary">{d.client?.company || "—"}</p>
+            </div>
+          </div>
+
+          {/* ── Action bar ── */}
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border/50 bg-background">
+            <Badge variant="outline" className={cn("text-xs font-semibold px-2.5 py-0.5 bg-transparent", status.color)}>
+              {status.label}
+            </Badge>
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              {/* Edit */}
+              {can("Invoices", "Edit") && (
+                <Button size="icon" variant="outline" className="h-8 w-8 rounded-lg" title="Edit" onClick={onEdit}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              )}
+
+              {/* Record Payment */}
+              {can("Payments", "Create") && d.status !== "cancelled" && balanceDue > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 px-3 rounded-lg gap-1.5 text-xs font-bold border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                  title="Record Payment"
+                  // start from a clean form so values from a cancelled attempt don't carry over
+                  onClick={() => openPaymentDialog(balanceDue)}
+                >
+                  <Wallet className="h-3.5 w-3.5" />
+                  Record Payment
+                </Button>
+              )}
+
+              {/* PDF dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-8 px-2 rounded-lg gap-0.5 text-xs">
+                    <FileText className="h-3.5 w-3.5" />
+                    <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => handlePdfAction('view')}>View PDF</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handlePdfAction('new_tab')}>View PDF in New Tab</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handlePdfAction('download')}>Download</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handlePdfAction('print')}>Print</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Email — opens Send dialog */}
+              {can("Invoices", "Edit") && (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="h-8 w-8 rounded-lg"
+                  title="Send Email"
+                  onClick={openEmailDialog}
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                </Button>
+              )}
+
+              {/* More dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" variant="outline" className="h-8 px-2.5 rounded-lg gap-1 text-xs font-medium">
+                    More <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={onView}>View Invoice</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>Attach File</DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleCopy}>Copy link</DropdownMenuItem>
+                  {can("Invoices", "Edit") && totalPaid === 0 && <DropdownMenuItem onClick={() => updateStatusMutation.mutate("unpaid")}>Mark as Unpaid</DropdownMenuItem>}
+                  {can("Payments", "Create") && d.status !== "cancelled" && balanceDue > 0 && (
+                    <>
+                      <DropdownMenuItem onClick={() => openPaymentDialog(balanceDue)}>Mark as Paid (record payment)</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openPaymentDialog("")}>Mark as Partially Paid (record payment)</DropdownMenuItem>
+                    </>
+                  )}
+                  {can("Invoices", "Edit") && <DropdownMenuItem onClick={() => updateStatusMutation.mutate("cancelled")}>Mark as Cancelled</DropdownMenuItem>}
+                  {can("Invoices", "Delete") && <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={handleDelete}>Delete</DropdownMenuItem>}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Convert dropdown */}
+              {can("Invoices", "Create") && <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button size="sm" className="h-8 px-3 rounded-lg gap-1 text-xs font-bold bg-green-600 hover:bg-green-700 text-white">
+                    Convert <ChevronDown className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() =>
+                      navigate(`/admin/credit-notes/create/${d.client?._id || ""}`, {
+                        state: {
+                          prepopulate: {
+                            invoice_id: d._id || d.id,
+                            invoice_number: d.number,
+                            client: d.client,
+                            currency: d.currency,
+                            balance_due: balanceDue,
+                          },
+                        },
+                      })
+                    }
+                  >
+                    Convert to Credit Note
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>}
+            </div>
+          </div>
+
+          {/* ── Tab content ── */}
+          <div className="px-6 py-5 overflow-y-auto max-h-[60vh]">
+            {/* Invoice tab */}
+            {activeTab === "Invoice" && (
+              isLoading ? (
+                <div className="space-y-3">
+                  {Array(4).fill(0).map((_, i) => <Skeleton key={i} className="h-5 w-full" />)}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Header card */}
+                  <div className="border border-border/40 rounded-xl p-5">
+                    <div className="flex justify-between items-start gap-4">
+                      <div>
+                        <p className="text-base font-bold text-primary">{invoiceNumber}</p>
+                        {d.client?.company && <p className="text-sm font-bold text-foreground mt-3">{d.client?.company}</p>}
+                        {d.client?.address && <p className="text-xs text-muted-foreground">{d.client?.address}</p>}
+                        {(d.client?.city || d.client?.state) && (
+                          <p className="text-xs text-muted-foreground">{[d.client?.city, d.client?.state, d.client?.zip].filter(Boolean).join(" ")}</p>
+                        )}
+                        {d.client?.country && <p className="text-xs text-muted-foreground">{d.client?.country}</p>}
+                        {d.gstin && (
+                          <p className="text-xs font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-0.5 mt-2 inline-block">
+                            GSTIN: {d.gstin}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-xs text-muted-foreground mb-0.5">To:</p>
+                        <p className="text-sm font-semibold text-primary">{d.client?.company || "—"}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Invoice meta details grid */}
-                <div className="border border-border/40 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-                  {[
-                    { label: "GSTIN / UIN",        value: d.gstin || "—" },
-                    { label: "Voucher Type",        value: d.voucherType || "—" },
-                    { label: "Bill Date",           value: d.date ? new Date(d.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
-                    { label: "Due Date",            value: d.duedate ? new Date(d.duedate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
-                    { label: "Terms of Payment",   value: d.termsOfPayment || "—" },
-                    { label: "Party Group",         value: d.partyGroup || "—" },
-                    { label: "Party Address",       value: d.partyAddress || "—" },
-                    { label: "Currency",            value: d.currency || "—" },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="flex flex-col gap-0.5">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{label}</span>
-                      <span className={`text-xs font-semibold text-foreground break-all ${label === "GSTIN / UIN" && value !== "—" ? "font-mono text-emerald-700" : ""}`}>
-                        {value}
-                      </span>
+                  {/* Invoice meta details grid */}
+                  <div className="border border-border/40 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+                    {[
+                      { label: "GSTIN / UIN", value: d.gstin || "—" },
+                      { label: "Voucher Type", value: d.voucherType || "—" },
+                      { label: "Bill Date", value: d.date ? new Date(d.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
+                      { label: "Due Date", value: d.duedate ? new Date(d.duedate).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—" },
+                      { label: "Terms of Payment", value: d.termsOfPayment || "—" },
+                      { label: "Party Group", value: d.partyGroup || "—" },
+                      { label: "Party Address", value: d.partyAddress || "—" },
+                      { label: "Currency", value: d.currency || "—" },
+                    ].map(({ label, value }) => (
+                      <div key={label} className="flex flex-col gap-0.5">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground">{label}</span>
+                        <span className={`text-xs font-semibold text-foreground break-all ${label === "GSTIN / UIN" && value !== "—" ? "font-mono text-emerald-700" : ""}`}>
+                          {value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+
+                  {/* Items breakdown */}
+                  <div className="border border-border/40 rounded-xl p-5 min-h-[100px]">
+                    {d.items?.length > 0 ? (
+                      <>
+                        <Table className="mb-4">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-left w-12">#</TableHead>
+                              <TableHead className="text-left">Item</TableHead>
+                              <TableHead className="text-left w-16">Qty</TableHead>
+                              <TableHead className="text-left w-24">Rate</TableHead>
+                              <TableHead className="text-left w-16">Tax</TableHead>
+                              <TableHead className="text-left w-28">Amount</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {d.items.map((item: any, i: number) => (
+                              <TableRow key={i}>
+                                <TableCell className="text-foreground font-medium">{i + 1}</TableCell>
+                                <TableCell className="text-foreground align-top">
+                                  <div className="font-bold">{item.description || item.name || "—"}</div>
+                                  {item.long_description && <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.long_description}</div>}
+                                </TableCell>
+                                <TableCell className="text-muted-foreground align-top">{item.qty || item.quantity || 1}</TableCell>
+                                <TableCell className="text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</TableCell>
+                                <TableCell className="text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</TableCell>
+                                <TableCell className="font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                        <div className="flex flex-col items-end gap-1.5 pt-2 border-t border-border/30">
+                          {d.subtotal !== undefined && (
+                            <div className="flex gap-4 text-xs">
+                              <span className="text-muted-foreground font-medium">Sub Total:</span>
+                              <span className="font-bold">{formatRowAmount(d, Number(d.subtotal))}</span>
+                            </div>
+                          )}
+                          {d.discount_percent > 0 && (
+                            <div className="flex gap-4 text-xs text-destructive">
+                              <span className="font-medium">Discount ({d.discount_percent}%):</span>
+                              <span className="font-bold">-{formatRowAmount(d, Number(d.subtotal * (d.discount_percent / 100)))}</span>
+                            </div>
+                          )}
+                          {d.total_tax > 0 && (
+                            <div className="flex gap-4 text-xs">
+                              <span className="text-muted-foreground font-medium">Total Tax:</span>
+                              <span className="font-bold">{formatRowAmount(d, Number(d.total_tax))}</span>
+                            </div>
+                          )}
+                          {d.adjustment !== 0 && d.adjustment !== undefined && (
+                            <div className="flex gap-4 text-xs">
+                              <span className="text-muted-foreground font-medium">Adjustment:</span>
+                              <span className="font-bold">{formatRowAmount(d, Number(d.adjustment))}</span>
+                            </div>
+                          )}
+                          <div className="text-right mt-1 pt-1 border-t border-border/20 w-40">
+                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total</p>
+                            <p className="text-lg font-black text-foreground">
+                              {formatRowAmount(d, d.total || 0)}
+                            </p>
+                          </div>
+                          {totalPaid > 0 && (
+                            <>
+                              <div className="flex gap-4 text-xs text-emerald-600">
+                                <span className="font-medium">Amount Paid:</span>
+                                <span className="font-bold">{formatRowAmount(d, totalPaid)}</span>
+                              </div>
+                              <div className="text-right w-40">
+                                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Balance Due</p>
+                                <p className={cn("text-sm font-black", balanceDue > 0 ? "text-rose-600" : "text-emerald-600")}>
+                                  {formatRowAmount(d, balanceDue)}
+                                </p>
+                              </div>
+                            </>
+                          )}
+                          {appliedCreditNotes.length > 0 && (
+                            <div className="text-right w-56 mt-2 pt-2 border-t border-border/20 space-y-1">
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Credit Notes Applied</p>
+                              {appliedCreditNotes.map((cn: any) => (
+                                <div key={cn._id} className="flex justify-between gap-4 text-xs">
+                                  <span className="text-muted-foreground font-medium">{cn.number || `CN-${cn._id?.substring(0, 6)}`}</span>
+                                  <span className="font-bold text-emerald-600">{formatRowAmount(d, cn.applied_amount || 0)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-muted-foreground font-mono">{"{invoice_items}"}</p>
+                    )}
+                  </div>
+
+                  {/* Tags */}
+                  {d.tags?.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {d.tags.map((tag: string, i: number) => (
+                        <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            )}
+
+            {/* Comments tab */}
+            {activeTab === "Comments" && (
+              <div className="space-y-3 pt-2">
+                <Textarea
+                  value={commentText}
+                  onChange={e => setCommentText(e.target.value)}
+                  rows={5}
+                  className="w-full rounded-xl border border-border/50 p-3 text-sm resize-y focus:outline-none focus:ring-1 focus:ring-primary bg-background pb-12"
+                />
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    className="bg-slate-800 hover:bg-slate-900 text-white font-semibold px-4 h-9 rounded-lg text-xs"
+                    onClick={() => setCommentText("")}
+                  >
+                    Add Comment
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "Reminders" && (
+              <p className="text-sm text-muted-foreground italic text-center py-10">No reminders set.</p>
+            )}
+            {activeTab === "Tasks" && (
+              <p className="text-sm text-muted-foreground italic text-center py-10">No tasks linked.</p>
+            )}
+            {activeTab === "Notes" && (
+              <p className="text-sm text-muted-foreground italic text-center py-10">No notes added.</p>
+            )}
+            {activeTab === "Templates" && (
+              <p className="text-sm text-muted-foreground italic text-center py-10">No templates available.</p>
+            )}
+            {activeTab === "Emails Tracking" && (
+              (d.email_log || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground italic text-center py-10">No emails sent yet.</p>
+              ) : (
+                <div className="divide-y rounded-lg border text-sm">
+                  {[...(d.email_log || [])].reverse().map((e: any, i: number) => (
+                    <div key={i} className="p-3 space-y-0.5">
+                      <div className="font-medium break-words">{e.subject}</div>
+                      <div className="text-muted-foreground break-words">To: {(e.to || []).join(", ")}{(e.cc || []).length ? ` · CC: ${e.cc.join(", ")}` : ""}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {e.sent_at ? new Date(e.sent_at).toLocaleString() : ""}{e.pdf_attached ? " · PDF attached" : ""}
+                      </div>
                     </div>
                   ))}
                 </div>
-
-
-                {/* Items breakdown */}
-                <div className="border border-border/40 rounded-xl p-5 min-h-[100px]">
-                  {d.items?.length > 0 ? (
-                    <>
-                      <Table className="mb-4">
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="text-left w-12">#</TableHead>
-                            <TableHead className="text-left">Item</TableHead>
-                            <TableHead className="text-left w-16">Qty</TableHead>
-                            <TableHead className="text-left w-24">Rate</TableHead>
-                            <TableHead className="text-left w-16">Tax</TableHead>
-                            <TableHead className="text-left w-28">Amount</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {d.items.map((item: any, i: number) => (
-                            <TableRow key={i}>
-                              <TableCell className="text-foreground font-medium">{i + 1}</TableCell>
-                              <TableCell className="text-foreground align-top">
-                                <div className="font-bold">{item.description || item.name || "—"}</div>
-                                {item.long_description && <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-pre-wrap">{item.long_description}</div>}
-                              </TableCell>
-                              <TableCell className="text-muted-foreground align-top">{item.qty || item.quantity || 1}</TableCell>
-                              <TableCell className="text-muted-foreground align-top">{formatRowAmount(d, Number(item.rate || item.price || 0))}</TableCell>
-                              <TableCell className="text-muted-foreground align-top">{item.tax ? `${item.tax}%` : "0%"}</TableCell>
-                              <TableCell className="font-bold text-foreground align-top">{formatRowAmount(d, Number((item.qty || 1) * (item.rate || item.price || 0)))}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                      <div className="flex flex-col items-end gap-1.5 pt-2 border-t border-border/30">
-                        {d.subtotal !== undefined && (
-                          <div className="flex gap-4 text-xs">
-                            <span className="text-muted-foreground font-medium">Sub Total:</span>
-                            <span className="font-bold">{formatRowAmount(d, Number(d.subtotal))}</span>
-                          </div>
-                        )}
-                        {d.discount_percent > 0 && (
-                          <div className="flex gap-4 text-xs text-destructive">
-                            <span className="font-medium">Discount ({d.discount_percent}%):</span>
-                            <span className="font-bold">-{formatRowAmount(d, Number(d.subtotal * (d.discount_percent / 100)))}</span>
-                          </div>
-                        )}
-                        {d.total_tax > 0 && (
-                          <div className="flex gap-4 text-xs">
-                            <span className="text-muted-foreground font-medium">Total Tax:</span>
-                            <span className="font-bold">{formatRowAmount(d, Number(d.total_tax))}</span>
-                          </div>
-                        )}
-                        {d.adjustment !== 0 && d.adjustment !== undefined && (
-                          <div className="flex gap-4 text-xs">
-                            <span className="text-muted-foreground font-medium">Adjustment:</span>
-                            <span className="font-bold">{formatRowAmount(d, Number(d.adjustment))}</span>
-                          </div>
-                        )}
-                        <div className="text-right mt-1 pt-1 border-t border-border/20 w-40">
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Total</p>
-                          <p className="text-lg font-black text-foreground">
-                            {formatRowAmount(d, d.total || 0)}
-                          </p>
-                        </div>
-                        {totalPaid > 0 && (
-                          <>
-                            <div className="flex gap-4 text-xs text-emerald-600">
-                              <span className="font-medium">Amount Paid:</span>
-                              <span className="font-bold">{formatRowAmount(d, totalPaid)}</span>
-                            </div>
-                            <div className="text-right w-40">
-                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Balance Due</p>
-                              <p className={cn("text-sm font-black", balanceDue > 0 ? "text-rose-600" : "text-emerald-600")}>
-                                {formatRowAmount(d, balanceDue)}
-                              </p>
-                            </div>
-                          </>
-                        )}
-                        {appliedCreditNotes.length > 0 && (
-                          <div className="text-right w-56 mt-2 pt-2 border-t border-border/20 space-y-1">
-                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Credit Notes Applied</p>
-                            {appliedCreditNotes.map((cn: any) => (
-                              <div key={cn._id} className="flex justify-between gap-4 text-xs">
-                                <span className="text-muted-foreground font-medium">{cn.number || `CN-${cn._id?.substring(0, 6)}`}</span>
-                                <span className="font-bold text-emerald-600">{formatRowAmount(d, cn.applied_amount || 0)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground font-mono">{"{invoice_items}"}</p>
-                  )}
-                </div>
-
-                {/* Tags */}
-                {d.tags?.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {d.tags.map((tag: string, i: number) => (
-                      <Badge key={i} variant="secondary" className="text-[9px] font-bold uppercase tracking-widest bg-primary/5 text-primary border-none">
-                        {tag}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )
-          )}
-
-          {/* Comments tab */}
-          {activeTab === "Comments" && (
-            <div className="space-y-3 pt-2">
-              <Textarea
-                value={commentText}
-                onChange={e => setCommentText(e.target.value)}
-                rows={5}
-                className="w-full rounded-xl border border-border/50 p-3 text-sm resize-y focus:outline-none focus:ring-1 focus:ring-primary bg-background pb-12"
-              />
-              <div className="flex justify-end">
-                <Button
-                  size="sm"
-                  className="bg-slate-800 hover:bg-slate-900 text-white font-semibold px-4 h-9 rounded-lg text-xs"
-                  onClick={() => setCommentText("")}
-                >
-                  Add Comment
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "Reminders" && (
-            <p className="text-sm text-muted-foreground italic text-center py-10">No reminders set.</p>
-          )}
-          {activeTab === "Tasks" && (
-            <p className="text-sm text-muted-foreground italic text-center py-10">No tasks linked.</p>
-          )}
-          {activeTab === "Notes" && (
-            <p className="text-sm text-muted-foreground italic text-center py-10">No notes added.</p>
-          )}
-          {activeTab === "Templates" && (
-            <p className="text-sm text-muted-foreground italic text-center py-10">No templates available.</p>
-          )}
-          {activeTab === "Emails Tracking" && (
-            (d.email_log || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground italic text-center py-10">No emails sent yet.</p>
-            ) : (
-              <div className="divide-y rounded-lg border text-sm">
-                {[...(d.email_log || [])].reverse().map((e: any, i: number) => (
-                  <div key={i} className="p-3 space-y-0.5">
-                    <div className="font-medium break-words">{e.subject}</div>
-                    <div className="text-muted-foreground break-words">To: {(e.to || []).join(", ")}{(e.cc || []).length ? ` · CC: ${e.cc.join(", ")}` : ""}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {e.sent_at ? new Date(e.sent_at).toLocaleString() : ""}{e.pdf_attached ? " · PDF attached" : ""}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          )}
-          {activeTab === "View Tracking" && (
-            <p className="text-sm text-muted-foreground italic text-center py-10">No views tracked yet.</p>
-          )}
+              )
+            )}
+            {activeTab === "View Tracking" && (
+              <p className="text-sm text-muted-foreground italic text-center py-10">No views tracked yet.</p>
+            )}
+          </div>
         </div>
-      </div>
       </>}
 
       {/* ── Send Invoice Email Dialog ── */}
@@ -1306,7 +1305,7 @@ const Invoices = () => {
 
   const handleBulkAction = async () => {
     if (selectedIds.length === 0) {
-      toast({ title: "Error", description: "No items selected."});
+      toast({ title: "Error", description: "No items selected." });
       return;
     }
     setIsBulkLoading(true);
@@ -1623,7 +1622,7 @@ const Invoices = () => {
             </Select>
             {(can("Invoices", "Delete") || can("Invoices", "Edit")) && <Dialog open={bulkActionOpen} onOpenChange={(open) => {
               if (open && selectedIds.length === 0) {
-                toast({ title: "Error", description: "Please select at least one item first."});
+                toast({ title: "Error", description: "Please select at least one item first." });
                 return;
               }
               setBulkState({ massDelete: false, status: "" }); // clear unsaved bulk choices on open/close
@@ -1645,13 +1644,13 @@ const Invoices = () => {
                       id="mass_delete"
                       className="border-red-200 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500"
                       checked={bulkState.massDelete}
-                      onCheckedChange={(checked) => setBulkState({...bulkState, massDelete: checked as boolean})}
+                      onCheckedChange={(checked) => setBulkState({ ...bulkState, massDelete: checked as boolean })}
                     />
                     <Label htmlFor="mass_delete" className="text-sm font-semibold text-red-600">Mass Delete</Label>
                   </div>}
                   {can("Invoices", "Edit") && <div className="space-y-1.5 pt-2">
                     <Label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Change Status</Label>
-                    <Select value={bulkState.status} onValueChange={(val) => setBulkState({...bulkState, status: val})} disabled={bulkState.massDelete}>
+                    <Select value={bulkState.status} onValueChange={(val) => setBulkState({ ...bulkState, status: val })} disabled={bulkState.massDelete}>
                       <SelectTrigger className="h-10 bg-slate-50/50 border-slate-200 rounded-lg">
                         <SelectValue placeholder="Select Status" />
                       </SelectTrigger>
@@ -1810,10 +1809,10 @@ const Invoices = () => {
           emailOnly
           autoOpenEmail
           onClose={() => { setSelectedInvoice(null); setAutoEmailId(null); }}
-          onView={() => {}}
-          onEdit={() => {}}
+          onView={() => { }}
+          onEdit={() => { }}
           isFullscreen={false}
-          setIsFullscreen={() => {}}
+          setIsFullscreen={() => { }}
         />
       )}
 
