@@ -12,10 +12,17 @@ function CssAreaSync() {
   const { pathname } = useLocation();
   useAreaEffect(() => {
     setCssArea(cssAreaForPath(pathname));
-    if (pathname === "/welcome" || pathname === "/" || pathname === "/admin/login") {
+    const isPublic =
+      pathname === "/" ||
+      pathname === "/welcome" ||
+      pathname.includes("/login") ||
+      pathname.includes("/forgot-password") ||
+      pathname.startsWith("/register");
+
+    if (isPublic) {
       const hasSession = localStorage.getItem("crm_user") || localStorage.getItem("crm_client");
       if (!hasSession) {
-        clearThemeFromDom();
+        clearThemeFromDom({ resetToLightMode: true });
       }
     }
   }, [pathname]);

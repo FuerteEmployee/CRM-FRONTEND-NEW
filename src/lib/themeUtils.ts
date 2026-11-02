@@ -146,8 +146,11 @@ export const mapping: Record<string, string[]> = {
   ],
 };
 
-export const clearThemeFromDom = () => {
+export const clearThemeFromDom = (options?: { resetToLightMode?: boolean }) => {
   const root = document.documentElement;
+  if (options?.resetToLightMode !== false) {
+    root.classList.remove('dark', 'color');
+  }
   Object.values(mapping).forEach(pairs => {
     for (let i = 0; i < pairs.length; i += 2) {
       const variable = pairs[i + 1];
@@ -166,6 +169,8 @@ export const clearThemeFromDom = () => {
   removeStyle('custom-css-both');
   removeStyle('custom-css-admin');
   removeStyle('custom-css-customers');
+  removeStyle('fuerte-theme-styles');
+  removeStyle('fuerte-active-theme');
 };
 
 export const applyThemeToDom = (theme: any) => {

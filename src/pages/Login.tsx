@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { clearThemeFromDom } from "@/lib/themeUtils";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,10 @@ const Login = () => {
   const [logoLightError, setLogoLightError] = useState(false);
   const [logoDarkError, setLogoDarkError] = useState(false);
   const [stage, setStage] = useState<"credentials" | "otp">("credentials");
+
+  useEffect(() => {
+    clearThemeFromDom({ resetToLightMode: true });
+  }, []);
   // The Super Admin login shows the panel's own branding, never a company's.
   const isSuperAdminLogin = window.location.pathname.startsWith("/super-admin");
   // On the shared server the company is unknown until login, so the admin
