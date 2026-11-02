@@ -41,7 +41,7 @@ import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import {
   Plus, Search, HelpCircle,
   List, Paperclip,
-  KanbanSquare, Mic, X
+  KanbanSquare, Mic, X, Zap
 } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
