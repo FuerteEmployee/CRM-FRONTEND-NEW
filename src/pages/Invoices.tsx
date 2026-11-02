@@ -68,7 +68,6 @@ import { useSettings } from "@/context/SettingsContext";
 import { getCompanyInfo, companyInfoHtml } from "@/lib/companyInfo";
 import { getDocDisplayOptions, trimZeroDecimals, stripCurrencySymbol, itemTaxLabel, amountInWords, saleAgentName, projectName } from "@/lib/invoiceDisplay";
 import { htmlToPdf, htmlToPdfBase64 } from "@/lib/htmlToPdf";
-import { Textarea } from "@/components/ui/textarea";
 import { escapeHtml } from "@/lib/richText";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { isEkagraUser } from "@/lib/ekagraTenant";
