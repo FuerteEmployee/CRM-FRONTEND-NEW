@@ -941,7 +941,7 @@ const Items = () => {
         <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/10 p-4 rounded-2xl border border-border/50">
           <div className="flex flex-wrap items-center gap-3">
             <Select value={itemsPerPage} onValueChange={(v) => { setItemsPerPage(v); setCurrentPage(1); }}>
-              <SelectTrigger className="h-9 w-[80px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+              <SelectTrigger className="h-9 sm:h-11 w-[80px] bg-background border border-border/60 shadow-sm rounded-xl text-xs font-bold">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -962,9 +962,9 @@ const Items = () => {
               setBulkActionOpen(open);
             }}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700">
+                <Button variant="outline" size="sm" className="h-9 px-3 sm:h-11 sm:px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-card border-border/60 hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all">
                   <Zap className="h-3.5 w-3.5 text-primary" />
-                  Bulk Actions
+                  <span className="hidden sm:inline">Bulk Actions</span>
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-md bg-white">
@@ -1010,7 +1010,7 @@ const Items = () => {
             )}
             {canUseBranch && (
               <Select value={branchFilter} onValueChange={(v) => { setBranchFilter(v); setCurrentPage(1); }}>
-                <SelectTrigger className="h-9 w-[180px] bg-background border-none shadow-sm rounded-lg text-xs font-bold">
+                <SelectTrigger className="h-9 sm:h-11 w-[180px] bg-background border border-border/60 shadow-sm rounded-xl text-xs font-bold">
                   <SelectValue placeholder="All Branches" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1021,12 +1021,22 @@ const Items = () => {
                 </SelectContent>
               </Select>
             )}
+            {(search.trim() || branchFilter !== "all") && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setSearch(""); setBranchFilter("all"); setCurrentPage(1); }}
+                className="h-9 sm:h-11 text-xs text-muted-foreground hover:text-foreground font-semibold"
+              >
+                Clear Filters
+              </Button>
+            )}
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               placeholder="Search items or branch..."
-              className="pl-9 h-9 bg-background border-none shadow-sm rounded-lg text-xs"
+              className="pl-9 h-9 sm:h-11 bg-background border border-border/60 shadow-sm rounded-xl text-xs"
               value={search}
               onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             />
@@ -1061,7 +1071,7 @@ const Items = () => {
                         {cf.name}
                       </TableHead>
                     ))}
-                    <TableHead>Actions</TableHead>
+                    <TableHead className="sticky right-0 bg-muted/90 backdrop-blur-sm z-10 text-right shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] border-l border-border/40">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1145,7 +1155,7 @@ const Items = () => {
                             </TableCell>
                           );
                         })}
-                        <TableCell>
+                        <TableCell className="sticky right-0 bg-card/95 backdrop-blur-sm z-10 text-right shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] border-l border-border/40">
                           <TableActions
                             onView={() => setViewItem(item)}
                             onEdit={can("Items", "Edit") ? () => openEdit(item) : undefined}
