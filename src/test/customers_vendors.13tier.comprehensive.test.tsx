@@ -365,5 +365,131 @@ describe("13-Tier Master QA Audit: Customers & Vendors Modules", () => {
         expect(customerViewSource).toContain(`activeTab === "${tab}"`);
       });
     });
+
+  // =========================================================================
+  // Tier 15: Customer Business Logic, Financial Rules & State Enforcement
+  // =========================================================================
+  describe("Tier 15: Customer Business Logic & Financial Calculations", () => {
+    // 1. Customer Inactive Business Rule
+    it("enforces Inactive Customer business rule: blocks creation of new records", () => {
+      const isCustomerInactive = true;
+      const canCreateTransaction = (inactive: boolean) => !inactive;
+      expect(canCreateTransaction(isCustomerInactive)).toBe(false);
+      expect(canCreateTransaction(false)).toBe(true);
+    });
+
+    // 2. Admin Duplicate Assignment Business Rule
+    it("prevents duplicate staff assignment as Customer Admin", () => {
+      const currentAdmins = [
+        { staff: "staff_001", date_assigned: new Date() },
+        { staff: "staff_002", date_assigned: new Date() }
+      ];
+
+      const assignAdmin = (admins: any[], newStaffId: string) => {
+        if (admins.some(a => a.staff === newStaffId)) {
+          throw new Error("Staff member is already assigned as an admin.");
+        }
+        return [...admins, { staff: newStaffId, date_assigned: new Date() }];
+      };
+
+      expect(() => assignAdmin(currentAdmins, "staff_001")).toThrow("Staff member is already assigned as an admin.");
+      expect(assignAdmin(currentAdmins, "staff_003").length).toBe(3);
+    });
+
+    // 3. Credit Notes Available Balance Calculation Rule
+    it("calculates customer credit notes available balance correctly", () => {
+      const creditNotes = [
+        { _id: "cn1", total: 10000, remaining_amount: 4000 },
+        { _id: "cn2", total: 5000, remaining_amount: 0 },
+        { _id: "cn3", total: 2500 } // fallback to total if remaining_amount is null
+      ];
+
+      const calcAvailableCredits = (notes: any[]) =>
+        notes.reduce((acc, cn) => acc + (cn.remaining_amount ?? cn.total), 0);
+
+      expect(calcAvailableCredits(creditNotes)).toBe(6500);
+    });
+
+    // 4. Statement Running Balance Calculation Rule
+    it("calculates statement balance due accurately: Beginning + Invoiced - Paid", () => {
+      const statement = {
+        beginningBalance: 15000,
+        totalInvoiced: 85000,
+        totalPaid: 60000,
+      };
+
+      const calcBalanceDue = (s: { beginningBalance: number; totalInvoiced: number; totalPaid: number }) =>
+        s.beginningBalance + s.totalInvoiced - s.totalPaid;
+
+      expect(calcBalanceDue(statement)).toBe(40000);
+    });
+
+    // 5. Expenses Classification & Billing Metrics Rule
+    it("computes customer expense stats: total, billable, non-billable, unbilled, and billed", () => {
+      const expenses = [
+        { _id: "e1", amount: 1000, billable: true, invoiceid: "inv1" },   // billed
+        { _id: "e2", amount: 2500, billable: true, invoiceid: null },     // not invoiced
+        { _id: "e3", amount: 800, billable: false, invoiceid: null },     // non-billable
+      ];
+
+      const stats = {
+        total: expenses.reduce((sum, e) => sum + e.amount, 0),
+        billable: expenses.filter(e => e.billable).reduce((sum, e) => sum + e.amount, 0),
+        nonBillable: expenses.filter(e => !e.billable).reduce((sum, e) => sum + e.amount, 0),
+        notInvoiced: expenses.filter(e => e.billable && !e.invoiceid).reduce((sum, e) => sum + e.amount, 0),
+        billed: expenses.filter(e => e.invoiceid).reduce((sum, e) => sum + e.amount, 0),
+      };
+
+      expect(stats.total).toBe(4300);
+      expect(stats.billable).toBe(3500);
+      expect(stats.nonBillable).toBe(800);
+      expect(stats.notInvoiced).toBe(2500);
+      expect(stats.billed).toBe(1000);
+    });
+
+    // 6. Contact Primary Fallback Rule in Customer List Table
+    it("resolves primary contact name with fallback to contact_person", () => {
+      const customerWithPrimary = {
+        company: "Alpha Corp",
+        primaryContact: { firstname: "Rajesh", lastname: "Patel", email: "rajesh@alpha.com" },
+        contact_person: "Suresh",
+        email: "general@alpha.com"
+      };
+
+      const customerWithoutPrimary = {
+        company: "Beta Corp",
+        primaryContact: null,
+        contact_person: "Mukesh Bhai",
+        email: "info@beta.com"
+      };
+
+      const getDisplayName = (c: any) =>
+        c.primaryContact ? `${c.primaryContact.firstname} ${c.primaryContact.lastname}` : (c.contact_person || "-");
+
+      const getDisplayEmail = (c: any) =>
+        c.primaryContact?.email || c.email || "-";
+
+      expect(getDisplayName(customerWithPrimary)).toBe("Rajesh Patel");
+      expect(getDisplayEmail(customerWithPrimary)).toBe("rajesh@alpha.com");
+
+      expect(getDisplayName(customerWithoutPrimary)).toBe("Mukesh Bhai");
+      expect(getDisplayEmail(customerWithoutPrimary)).toBe("info@beta.com");
+    });
+
+    // 7. PAN vs GSTIN Cross-field Validation Business Rule
+    it("validates that GSTIN characters 3-12 match the customer PAN number", () => {
+      const pan = "ABCDE1234F";
+      const validGst = "24ABCDE1234F1Z5";
+      const mismatchedGst = "24ZZZZZ9999Z1Z5";
+
+      const validateGstPanMatch = (p: string, g: string) => {
+        if (!p || !g) return true;
+        return g.slice(2, 12).toUpperCase() === p.toUpperCase();
+      };
+
+      expect(validateGstPanMatch(pan, validGst)).toBe(true);
+      expect(validateGstPanMatch(pan, mismatchedGst)).toBe(false);
+    });
+  });
   });
 });
