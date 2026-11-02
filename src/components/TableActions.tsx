@@ -22,19 +22,19 @@ export function TableActions({ onView, onEdit, onDelete }: TableActionsProps) {
   return (
     <div className="flex items-center gap-1">
       {onView && (
-        <Button variant="ghost" size="sm" onClick={onView} title="View">
+        <Button variant="ghost" size="icon" onClick={onView} title="View" className="h-8 w-8 rounded-lg hover:bg-primary/10 transition-colors">
           <Eye className="h-4 w-4 text-primary" />
         </Button>
       )}
       {onEdit && (
-        <Button variant="ghost" size="sm" onClick={onEdit} title="Edit">
-          <Pencil className="h-4 w-4 text-muted-foreground" />
+        <Button variant="ghost" size="icon" onClick={onEdit} title="Edit" className="h-8 w-8 rounded-lg hover:bg-primary/10 hover:text-primary transition-colors">
+          <Pencil className="h-4 w-4 text-muted-foreground hover:text-primary" />
         </Button>
       )}
       {onDelete && (
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button variant="ghost" size="sm" title="Delete">
+            <Button variant="ghost" size="icon" title="Delete" className="h-8 w-8 rounded-lg hover:bg-destructive/10 transition-colors">
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
           </AlertDialogTrigger>

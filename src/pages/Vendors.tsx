@@ -442,7 +442,7 @@ const Vendors = () => {
             {can("Vendors", "Create") && (
               <Button
                 onClick={() => { setEditingVendor(null); setFormData(emptyForm); setIsModalOpen(true); }}
-                className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
+                className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest gradient-primary text-white hover:opacity-95"
               >
                 <Plus className="h-4 w-4" />
                 New Vendor
@@ -484,7 +484,7 @@ const Vendors = () => {
                     setBulkActionOpen(open);
                   }}>
                     <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-9 px-4 rounded-lg gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700">
+                      <Button variant="outline" size="sm" className="h-9 px-4 rounded-lg gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700 hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all">
                         Bulk Actions{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""}
                       </Button>
                     </DialogTrigger>
@@ -654,7 +654,7 @@ const Vendors = () => {
             <div className="space-y-6 py-2">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label className={labelCls}>* Company Name</Label>
+                  <Label className={labelCls}>Company Name <span className="text-red-500 font-bold ml-0.5">*</span></Label>
                   <Input value={formData.company_name} onChange={(e) => setField("company_name", e.target.value)} placeholder="Vendor / company name" className={inputCls} />
                 </div>
                 <div className="space-y-1.5">
