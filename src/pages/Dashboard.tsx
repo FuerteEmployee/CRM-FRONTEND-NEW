@@ -56,8 +56,8 @@ import { projectService } from "@/api/services/project.service";
 import { supportService } from "@/api/services/support.service";
 import { utilityService } from "@/api/services/utility.service";
 import { leadService } from "@/api/services/lead.service";
-import { customerService } from "@/api/services/customer.service";
 import { quotationService } from "@/api/services/quotation.service";
+import { reminderService } from "@/api/services/reminder.service";
 import { formatDate } from "@/lib/dateFormat";
 import { useCurrency } from "@/context/CurrencyContext";
 import { isPastGrace } from "@/lib/tenantExpiry";
@@ -74,7 +74,7 @@ const OverviewSection = ({ title, icon: Icon, items }: { title: string; icon: Re
         <span className={item.color || "text-foreground"}>{item.value} {item.label}</span>
         <div className="flex items-center gap-2">
           {parseFloat(item.percentage) > 0 && (
-            <Progress value={parseFloat(item.percentage)} className="w-16 h-1.5" />
+            <Progress value={Math.min(100, Math.max(0, parseFloat(item.percentage) || 0))} className="w-16 h-1.5" />
           )}
           <span className="text-muted-foreground text-xs w-12 text-right">{item.percentage}%</span>
         </div>
@@ -278,25 +278,14 @@ const Dashboard = () => {
     enabled: !isExpired && canView("Activity Log")
   });
 
-  const { data: clientsRes = [] } = useQuery({
-    queryKey: ["dashboard-clients-reminders"],
-    queryFn: async () => {
-      const res = await customerService.getAll();
-      return Array.isArray(res) ? res : res?.data || [];
-    },
-    enabled: !isExpired && canView("Customers")
-  });
-
-  // Fetch reminders for the first client if available
-  const firstClientId = clientsRes[0]?._id || clientsRes[0]?.id;
+  // Fetch pending reminders across tenant
   const { data: remindersRes = [] } = useQuery({
-    queryKey: ["dashboard-reminders", firstClientId],
+    queryKey: ["dashboard-reminders"],
     queryFn: async () => {
-      if (!firstClientId) return [];
-      const res = await customerService.getReminders(firstClientId);
+      const res = await reminderService.getAll("pending");
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && !!firstClientId && canView("Customers")
+    enabled: !isExpired
   });
 
   // mutations for Todo
@@ -945,7 +934,31 @@ const Dashboard = () => {
             (isModuleEnabled("sales") && canView("Quotations"))) && (
               <Card className="lg:col-span-3" id="tour-overview">
                 <CardContent className="p-5">
-                  <div className={`grid grid-cols-1 ${[isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("sales") && canView("Quotations")].filter(Boolean).length > 1 ? 'md:grid-cols-' + Math.min(4, [isModuleEnabled("finance") && canView("Invoices"), isModuleEnabled("estimates") && canView("Estimates"), isModuleEnabled("proposals") && canView("Proposals"), isModuleEnabled("sales") && canView("Quotations")].filter(Boolean).length) : ''} gap-6 divide-y md:divide-y-0 md:divide-x divide-border`}>
+                  <div className={cn(
+                    "grid grid-cols-1 gap-6 divide-y md:divide-y-0 md:divide-x divide-border",
+                    [
+                      isModuleEnabled("finance") && canView("Invoices"),
+                      isModuleEnabled("estimates") && canView("Estimates"),
+                      isModuleEnabled("proposals") && canView("Proposals"),
+                      isModuleEnabled("sales") && canView("Quotations")
+                    ].filter(Boolean).length >= 4
+                      ? "md:grid-cols-4"
+                      : [
+                          isModuleEnabled("finance") && canView("Invoices"),
+                          isModuleEnabled("estimates") && canView("Estimates"),
+                          isModuleEnabled("proposals") && canView("Proposals"),
+                          isModuleEnabled("sales") && canView("Quotations")
+                        ].filter(Boolean).length === 3
+                      ? "md:grid-cols-3"
+                      : [
+                          isModuleEnabled("finance") && canView("Invoices"),
+                          isModuleEnabled("estimates") && canView("Estimates"),
+                          isModuleEnabled("proposals") && canView("Proposals"),
+                          isModuleEnabled("sales") && canView("Quotations")
+                        ].filter(Boolean).length === 2
+                      ? "md:grid-cols-2"
+                      : ""
+                  )}>
                     {isModuleEnabled("finance") && canView("Invoices") && (
                       <OverviewSection
                         title="Invoice overview"
@@ -1384,6 +1397,7 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-72">
+                  {dynamicRevenueData.some((d: any) => d.revenue > 0 || d.expenses > 0) ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={dynamicRevenueData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -1401,6 +1415,13 @@ const Dashboard = () => {
                       <Area type="monotone" dataKey="expenses" stroke="hsl(215, 16%, 47%)" fill="hsl(215, 16%, 47%)" fillOpacity={0.08} strokeWidth={2} />
                     </AreaChart>
                   </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                      <FileBarChart className="h-10 w-10 text-muted-foreground/40 mb-2" />
+                      <p className="text-sm font-medium text-muted-foreground">No financial activity recorded yet</p>
+                      <p className="text-xs text-muted-foreground/75 mt-0.5">Recorded paid invoices and expenses will appear here monthly.</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

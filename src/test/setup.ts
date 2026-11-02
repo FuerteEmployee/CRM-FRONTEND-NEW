@@ -1,5 +1,23 @@
 import "@testing-library/jest-dom";
 
+// Polyfill PointerEvent and pointer capture for Radix UI (DropdownMenu, Select, Popover)
+
+if (typeof window !== 'undefined') {
+  (window as any).ResizeObserver = (window as any).ResizeObserver || class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+if (typeof window !== 'undefined') {
+  (window as any).PointerEvent = (window as any).PointerEvent || class PointerEvent extends MouseEvent {};
+  window.HTMLElement.prototype.scrollIntoView = window.HTMLElement.prototype.scrollIntoView || (() => {});
+  window.HTMLElement.prototype.hasPointerCapture = window.HTMLElement.prototype.hasPointerCapture || (() => false);
+  window.HTMLElement.prototype.setPointerCapture = window.HTMLElement.prototype.setPointerCapture || (() => {});
+  window.HTMLElement.prototype.releasePointerCapture = window.HTMLElement.prototype.releasePointerCapture || (() => {});
+}
+
+
 // Polyfill window.matchMedia for responsive tests
 Object.defineProperty(window, "matchMedia", {
   writable: true,

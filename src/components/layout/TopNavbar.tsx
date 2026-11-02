@@ -58,6 +58,7 @@ import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n/config";
 import { APP_LANGUAGES, applyAppLanguage } from "@/lib/appLanguage";
+import { clearThemeFromDom } from "@/lib/themeUtils";
 
 
 export function TopNavbar() {
@@ -73,7 +74,7 @@ export function TopNavbar() {
   const { t } = useTranslation();
 
 
-  const { user, logout, isStaff, canView, isModuleEnabled } = usePermissionContext();
+  const { user, logout, isStaff, canView, can, isModuleEnabled } = usePermissionContext();
   const { refreshSettings, getSetting } = useSettings();
   // Setup > Settings > Localization > Disable Languages: hide the menu (everyone uses the Default Language).
   const disableLanguages = [true, 1, "1", "true"].includes(getSetting("locDisableLanguages", false));
@@ -92,7 +93,7 @@ export function TopNavbar() {
     { label: "Goal", icon: Target, path: `${base}/goals/new`, color: "text-indigo-500 bg-indigo-50 dark:bg-indigo-500/10", permission: "Goals", moduleKey: "goals" },
     { label: "Ticket", icon: Headphones, path: `${base}/support/create`, color: "text-pink-500 bg-pink-50 dark:bg-pink-500/10", permission: "Support", moduleKey: "support" },
     { label: "Event", icon: CalendarPlus, path: `${base}/calendar`, color: "text-teal-500 bg-teal-50 dark:bg-teal-500/10", permission: "Calendar", moduleKey: "calendar" },
-  ].filter((item) => canView(item.permission) && (!item.moduleKey || isModuleEnabled(item.moduleKey)));
+  ].filter((item) => ((typeof can === "function" ? can(item.permission, "Create") : true) || canView(item.permission)) && (!item.moduleKey || isModuleEnabled(item.moduleKey)));
   const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotificationContext();
   const { toast } = useToast();
 
@@ -118,14 +119,19 @@ export function TopNavbar() {
     if (e.key === "Enter") {
       e.preventDefault();
       runSearch(search);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setSearch("");
     }
   };
 
   const handleLogout = async () => {
+    clearThemeFromDom();
     await logout();
     // Drop this tenant's branding and fall back to the public/global settings
     refreshSettings();
-    navigate("/admin/login");
+    const loginTarget = isStaff ? "/staff/login" : user?.is_superadmin ? "/super-admin/login" : "/admin/login";
+    navigate(loginTarget);
   };
 
   // i18next: instant switch — no page reload, no Google Translate cookie.
@@ -399,7 +405,15 @@ export function TopNavbar() {
                     key={n.id}
                     onClick={() => {
                       markAsRead(n.id);
-                      if (n.link) navigate(n.link);
+                      if (n.link) {
+                        let targetLink = n.link;
+                        if (isStaff && targetLink.startsWith("/admin")) {
+                          targetLink = targetLink.replace(/^\/admin/, "/staff");
+                        } else if (!isStaff && targetLink.startsWith("/staff")) {
+                          targetLink = targetLink.replace(/^\/staff/, "/admin");
+                        }
+                        navigate(targetLink);
+                      }
                     }}
                     className={`flex gap-3 p-3 border-b last:border-0 transition-colors cursor-pointer hover:bg-muted/50 ${!n.read ? "bg-primary/5" : ""}`}
                   >

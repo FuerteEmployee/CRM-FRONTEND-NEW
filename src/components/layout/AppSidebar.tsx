@@ -831,7 +831,7 @@ export function AppSidebar() {
                 activeClassName={isActive ? "sidebar-active-item font-semibold" : ""}
               >
                 {isActive && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-sidebar-primary-foreground transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
                 )}
                 <IconComponent
                   className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isActive ? "text-primary" : ""}`}
@@ -912,7 +912,7 @@ export function AppSidebar() {
               <CollapsibleTrigger asChild>
                 <SidebarMenuButton className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative">
                   {isAnyChildActive && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-sidebar-primary-foreground transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
                   )}
                   <Icon
                     className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isAnyChildActive ? "text-primary" : ""}`}
@@ -1240,7 +1240,7 @@ export function AppSidebar() {
                             <CollapsibleTrigger asChild>
                               <SidebarMenuButton className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative">
                                 {isAnyChildActive && (
-                                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300" />
+                                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-sidebar-primary-foreground transition-all duration-300" />
                                 )}
                                 <Icon
                                   className={cn(
@@ -1283,7 +1283,7 @@ export function AppSidebar() {
                                             activeClassName={isSubActive ? "sidebar-active-item font-semibold" : ""}
                                           >
                                             {isSubActive && (
-                                              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary" />
+                                              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-sidebar-primary-foreground" />
                                             )}
                                             <span className="text-[12.5px] font-medium pl-1">
                                               {sub.title}
@@ -1334,7 +1334,7 @@ export function AppSidebar() {
                               activeClassName={isActive ? "sidebar-active-item font-semibold" : ""}
                             >
                               {isActive && (
-                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary" />
+                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-sidebar-primary-foreground" />
                               )}
                               <Icon className="mr-2.5 h-4 w-4 shrink-0" />
                               {!collapsed && (

@@ -60,12 +60,24 @@ export function normalizeToHex(color: string): string {
   return `#${r}${g}${b}`;
 }
 
+/**
+ * Hover shade for a sidebar background (HSL for Tailwind): a touch darker on
+ * light sidebars, a touch lighter on dark ones.
+ */
+export function autoSidebarHover(background: string): string {
+  const [h, s, l] = anyToHsl(background).split(' ').map((v) => parseFloat(v));
+  const shifted = l > 50 ? Math.max(l - 5, 0) : Math.min(l + 8, 100);
+  return `${h} ${s}% ${shifted}%`;
+}
+
 export const mapping: Record<string, string[]> = {
   'adminArea': [
     'sidebarBackground', '--sidebar-background',
     'sidebarForeground', '--sidebar-foreground',
     'activeItemBackground', '--sidebar-primary',
     'activeItemForeground', '--sidebar-primary-foreground',
+    'sidebarHoverBackground', '--sidebar-accent',
+    'sidebarHoverForeground', '--sidebar-accent-foreground',
     'headerBackground', '--header-background',
     'headerLinks', '--header-links',
     'mainContentBackground', '--main-content-bg'
@@ -178,6 +190,24 @@ export const applyThemeToDom = (theme: any) => {
       }
     }
   });
+
+  // Sidebar hover left empty ("Auto") → derive it from the sidebar colours,
+  // so a dark sidebar never gets the stock near-white hover.
+  const admin = theme.adminArea || {};
+  if (!admin.sidebarHoverBackground) {
+    if (admin.sidebarBackground) {
+      root.style.setProperty('--sidebar-accent', autoSidebarHover(admin.sidebarBackground));
+    } else {
+      root.style.removeProperty('--sidebar-accent');
+    }
+  }
+  if (!admin.sidebarHoverForeground) {
+    if (admin.sidebarForeground) {
+      root.style.setProperty('--sidebar-accent-foreground', anyToHsl(admin.sidebarForeground));
+    } else {
+      root.style.removeProperty('--sidebar-accent-foreground');
+    }
+  }
 
   // Inject Custom CSS overrides
   if (theme.customCss) {

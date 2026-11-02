@@ -575,6 +575,18 @@
     color: hsl(var(--sidebar-foreground)) !important;
   }
 
+  /* Sidebar Hover (Theme Style > Sidebar hover background / text) */
+  [data-sidebar="menu-button"]:not([data-active="true"]):hover,
+  [data-sidebar="menu-sub-button"]:not([data-active="true"]):hover {
+    background-color: hsl(var(--sidebar-accent)) !important;
+    color: hsl(var(--sidebar-accent-foreground)) !important;
+  }
+
+  [data-sidebar="menu-button"]:not([data-active="true"]):hover svg,
+  [data-sidebar="menu-sub-button"]:not([data-active="true"]):hover svg {
+    color: hsl(var(--sidebar-accent-foreground)) !important;
+  }
+
   /* Sidebar Active State Overrides */
   .sidebar-active-item,
   [data-sidebar="menu-button"][data-active="true"],
