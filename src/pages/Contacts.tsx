@@ -32,7 +32,8 @@ import {
   RefreshCcw,
   Eye,
   EyeOff,
-  Info
+  Info,
+  X
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -56,13 +57,16 @@ import { apiClient } from "@/api/client";
 import { customerService } from "@/api/services/customer.service";
 import { formatDate } from "@/lib/dateFormat";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { TableActions } from "@/components/TableActions";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { defaultPageSize } from "@/lib/tablePageSize";
 
 
 const Contacts = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const statusParam = searchParams.get("status");
+  const filterParam = searchParams.get("filter");
   const [search, setSearch] = useState("");
   const [editContact, setEditContact] = useState<any>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -80,13 +84,17 @@ const Contacts = () => {
       .filter((contact: any) => {
         const fullName = `${contact.firstname || ""} ${contact.lastname || ""}`.toLowerCase();
         const companyName = (contact.userid?.company || "").toLowerCase();
-        return (
-          fullName.includes(q) ||
-          (contact.email || "").toLowerCase().includes(q) ||
-          companyName.includes(q) ||
-          (contact.title || "").toLowerCase().includes(q) ||
-          (contact.phonenumber || "").toLowerCase().includes(q)
-        );
+        const matchSearch =
+        fullName.includes(q) ||
+        (contact.email || "").toLowerCase().includes(q) ||
+        companyName.includes(q) ||
+        (contact.title || "").toLowerCase().includes(q) ||
+        (contact.phonenumber || "").toLowerCase().includes(q);
+      if (!matchSearch) return false;
+      if (statusParam === "active" && contact.active === false) return false;
+      if (statusParam === "inactive" && contact.active !== false) return false;
+      if (filterParam === "logged_in" && !contact.last_login) return false;
+      return true;
       })
       .sort((a: any, b: any) => {
         const companyA = (a.userid?.company || "").toLowerCase();
@@ -108,7 +116,7 @@ const Contacts = () => {
   // the legacy full fetch, filtered/sorted client-side exactly as this
   // page always has.
   const { data: contactsResult, isLoading, refetch } = useQuery<ContactsPage>({
-    queryKey: ["contacts", itemsPerPage, currentPage, search],
+    queryKey: ["contacts", itemsPerPage, currentPage, search, statusParam, filterParam],
     queryFn: async () => {
       if (itemsPerPage === "All") {
         const response = await customerService.getContactsPaginated().catch(() => []);
@@ -117,8 +125,13 @@ const Contacts = () => {
         return { rows: rowsFiltered, total: rowsFiltered.length, pages: 1 };
       }
 
-      const res: any = await customerService
-        .getContactsPaginated({ page: currentPage, limit: itemsPerPage, search: search || undefined })
+      const res: any = await customerService.getContactsPaginated({
+        page: currentPage,
+        limit: itemsPerPage,
+        search: search || undefined,
+        status: statusParam || undefined,
+        filter: filterParam || undefined,
+      })
         .catch(() => null);
       if (!res || Array.isArray(res)) return { rows: [], total: 0, pages: 1 };
       return { rows: res?.data ?? [], total: res?.total ?? 0, pages: res?.pages ?? 1 };
@@ -354,11 +367,28 @@ const Contacts = () => {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
+          <h1 className="text-2xl font-bold">Contacts</h1>
+          <p className="text-sm text-muted-foreground">Manage customer contacts and portal access</p>
         </div>
+        {(statusParam || filterParam) && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-primary/10 text-primary flex items-center gap-1.5 border border-primary/20">
+              Filter: {statusParam === "active" ? "Active Contacts" : statusParam === "inactive" ? "Inactive Contacts" : "Logged In Contacts"}
+              <button
+                onClick={() => setSearchParams({})}
+                className="hover:bg-primary/20 rounded-full p-0.5 ml-1 transition-colors"
+                title="Clear filter"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          </div>
+        )}
+      </div>
 
-        
-        <Card className="overflow-hidden">
+      <Card className="overflow-hidden">
           <CardContent className="p-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 border-b">
               <div className="flex flex-wrap items-center gap-2">

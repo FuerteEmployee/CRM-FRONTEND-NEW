@@ -141,8 +141,12 @@ const TableHead = React.forwardRef<
 >(({ className, children, resizable = true, autoWidth = true, style, ...props }, ref) => {
   const label = textOf(children);
   const selectColumn = isSelectHeader(children, label);
-  if (selectColumn) {
+  const isActionColumn = /^(actions?|options?|manage|operations?)$/i.test(label.trim());
+
+  if (selectColumn || isActionColumn) {
     resizable = false;
+  }
+  if (selectColumn) {
     autoWidth = false;
   }
   const preset = React.useMemo(
@@ -209,7 +213,7 @@ const TableHead = React.forwardRef<
     <th
       ref={setRefs}
       className={cn(
-        "relative h-11 py-2.5 px-4 text-left align-middle text-[11px] font-semibold uppercase tracking-wider text-foreground whitespace-nowrap overflow-hidden text-ellipsis border-r last:border-r-0",
+        "relative h-11 py-2.5 px-4 text-left align-middle text-[11px] font-semibold uppercase tracking-wider text-foreground whitespace-nowrap overflow-hidden text-ellipsis border-r border-border/40 last:border-r-0",
         className,
         SELECT_CELL,
       )}
@@ -239,7 +243,7 @@ const TableCell = React.forwardRef<HTMLTableCellElement, React.TdHTMLAttributes<
     <td
       ref={ref}
       className={cn(
-        "py-2.5 px-4 align-middle text-[12.5px] border-r last:border-r-0 [&_.text-sm]:text-[12.5px] [&_.text-base]:text-[13.5px]",
+        "py-2.5 px-4 align-middle text-[12.5px] border-r border-border/40 last:border-r-0 [&_.text-sm]:text-[12.5px] [&_.text-base]:text-[13.5px]",
         className,
         SELECT_CELL,
       )}

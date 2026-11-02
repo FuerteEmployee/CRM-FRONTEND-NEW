@@ -61,10 +61,14 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const formatAmount = useCallback(
     (value: number, fractionDigits = 2): string => {
-      const parts = Math.abs(value).toFixed(fractionDigits).split(".");
+      const num = Number(value);
+      if (!Number.isFinite(num)) {
+        return placement === "before" ? `${symbol}0.00` : `0.00${symbol}`;
+      }
+      const parts = Math.abs(num).toFixed(fractionDigits).split(".");
       parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, thousandSeparator);
       const formatted = parts.join(decimalSeparator);
-      const signed = value < 0 ? `-${formatted}` : formatted;
+      const signed = num < 0 ? `-${formatted}` : formatted;
       return placement === "before" ? `${symbol}${signed}` : `${signed}${symbol}`;
     },
     [symbol, placement, decimalSeparator, thousandSeparator]

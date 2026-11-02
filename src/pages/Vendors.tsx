@@ -24,7 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Search, Pencil, Trash2, Truck, Eye } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { TableActions } from "@/components/TableActions";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { vendorService } from "@/api/services/vendor.service";
 import { useToast } from "@/hooks/use-toast";
@@ -356,7 +357,7 @@ const Vendors = () => {
 
   const handleBulkAction = async () => {
     if (selectedIds.length === 0) {
-      toast({ title: "Error", description: "No vendors selected."});
+      toast({ title: "Error", description: "No vendors selected." });
       return;
     }
     setIsBulkLoading(true);
@@ -375,7 +376,7 @@ const Vendors = () => {
         const salesPerson = bulkState.sales_person.trim();
         if (!can("Vendors", "Edit")) throw new Error("You do not have permission to edit vendors.");
         if (!salesPerson) {
-          toast({ title: "Error", description: "Choose Mass Delete or enter a Sales Person to update."});
+          toast({ title: "Error", description: "Choose Mass Delete or enter a Sales Person to update." });
           setIsBulkLoading(false);
           return;
         }
@@ -476,7 +477,7 @@ const Vendors = () => {
                 {(can("Vendors", "Edit") || can("Vendors", "Delete")) && (
                   <Dialog open={bulkActionOpen} onOpenChange={(open) => {
                     if (open && selectedIds.length === 0) {
-                      toast({ title: "Error", description: "Please select at least one vendor first."});
+                      toast({ title: "Error", description: "Please select at least one vendor first." });
                       return;
                     }
                     setBulkState({ massDelete: false, sales_person: "" }); // clear unsaved bulk choices on open/close
@@ -504,18 +505,18 @@ const Vendors = () => {
                           </div>
                         )}
                         {can("Vendors", "Edit") && (
-                        <div className="grid grid-cols-1 gap-5 pt-5 border-t">
-                          <div className="space-y-2">
-                            <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Sales Person</Label>
-                            <Input
-                              placeholder="Assign sales person"
-                              className="h-10"
-                              value={bulkState.sales_person}
-                              onChange={(e) => setBulkState({ ...bulkState, sales_person: e.target.value })}
-                              disabled={bulkState.massDelete}
-                            />
+                          <div className="grid grid-cols-1 gap-5 pt-5 border-t">
+                            <div className="space-y-2">
+                              <Label className="text-xs font-bold uppercase tracking-wider text-slate-500">Sales Person</Label>
+                              <Input
+                                placeholder="Assign sales person"
+                                className="h-10"
+                                value={bulkState.sales_person}
+                                onChange={(e) => setBulkState({ ...bulkState, sales_person: e.target.value })}
+                                disabled={bulkState.massDelete}
+                              />
+                            </div>
                           </div>
-                        </div>
                         )}
                       </div>
                       <DialogFooter className="mt-6 border-t pt-4">
@@ -579,7 +580,7 @@ const Vendors = () => {
                     <TableHead>Account Details</TableHead>
                     <TableHead>Sales Person</TableHead>
                     {canUseBranch && <TableHead>Branch</TableHead>}
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -597,7 +598,9 @@ const Vendors = () => {
                             onCheckedChange={() => toggleSelect(v._id)}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{v.company_name}</TableCell>
+                        <TableCell className="font-medium">
+                          {v.company_name}
+                        </TableCell>
                         <TableCell>{v.vendor_reference || "-"}</TableCell>
                         <TableCell>{v.connect_person || "-"}</TableCell>
                         <TableCell>
@@ -613,26 +616,11 @@ const Vendors = () => {
                         <TableCell>{v.sales_person || "-"}</TableCell>
                         {canUseBranch && <TableCell>{v.branch || "-"}</TableCell>}
                         <TableCell>
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => navigate(`/admin/vendors/${v._id}`)}>
-                              <Eye className="h-3.5 w-3.5 text-slate-500" />
-                            </Button>
-                            {can("Vendors", "Edit") && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => handleEdit(v)}>
-                                <Pencil className="h-3.5 w-3.5 text-slate-500" />
-                              </Button>
-                            )}
-                            {can("Vendors", "Delete") && (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-500"
-                                onClick={() => { if (window.confirm(`Delete vendor ${v.company_name}?`)) deleteMutation.mutate(v._id); }}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                          </div>
+                          <TableActions
+                            onView={() => navigate(`/admin/vendors/${v._id}`)}
+                            onEdit={can("Vendors", "Edit") ? () => handleEdit(v) : undefined}
+                            onDelete={can("Vendors", "Delete") ? () => deleteMutation.mutate(v._id) : undefined}
+                          />
                         </TableCell>
                       </TableRow>
                     ))

@@ -2171,7 +2171,7 @@ const Leads = () => {
                     {visibleLeadColumns.map((col) => (
                       <TableHead key={col.id} className={col.thClassName}>{col.label}</TableHead>
                     ))}
-                    <TableHead className="text-center">Actions</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

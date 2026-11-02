@@ -8,7 +8,7 @@ export function anyToHsl(color: string): string {
   const temp = document.createElement('div');
   temp.style.color = color;
   document.body.appendChild(temp);
-  const resolved = getComputedStyle(temp).color; 
+  const resolved = getComputedStyle(temp).color;
   document.body.removeChild(temp);
 
   const rgb = resolved.match(/\d+/g);
@@ -22,7 +22,7 @@ export function anyToHsl(color: string): string {
   let h = 0, s, l = (max + min) / 2;
 
   if (max === min) {
-    h = s = 0; 
+    h = s = 0;
   } else {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
@@ -61,77 +61,77 @@ export function normalizeToHex(color: string): string {
 }
 
 export const mapping: Record<string, string[]> = {
-    'adminArea': [
-      'sidebarBackground', '--sidebar-background', 
-      'sidebarForeground', '--sidebar-foreground', 
-      'activeItemBackground', '--sidebar-primary',
-      'activeItemForeground', '--sidebar-primary-foreground',
-      'headerBackground', '--header-background',
-      'headerLinks', '--header-links',
-      'mainContentBackground', '--main-content-bg'
-    ],
-    'customersArea': [
-      'navigationBackground', '--customer-nav-bg',
-      'navigationLinks', '--customer-nav-links',
-      'footerBackground', '--customer-footer-bg',
-      'footerText', '--customer-footer-text'
-    ],
-    'buttons': [
-      'default', '--secondary', 
-      'primary', '--primary', 
-      'info', '--info', 
-      'success', '--success', 
-      'danger', '--destructive'
-    ],
-    'modals': [
-      'headingBackground', '--modal-heading-bg', 
-      'headingColor', '--modal-heading-color', 
-      'closeButtonColor', '--modal-close-color', 
-      'headerTextColor', '--modal-header-text'
-    ],
-    'tables': [
-      'linksColor', '--table-links-color',
-      'linksHoverColor', '--table-links-hover-color',
-      'headingsColor', '--table-headings-color',
-      'itemsHeadingBg', '--items-table-heading-bg',
-      'itemsHeadingText', '--items-table-heading-text'
-    ],
-    'general': [
-      'links', '--links-color',
-      'linksHover', '--links-hover-color',
-      'adminLoginBg', '--admin-login-bg',
-      'textMuted', '--text-muted',
-      'textDanger', '--text-danger',
-      'textWarning', '--text-warning',
-      'textInfo', '--text-info',
-      'textSuccess', '--text-success'
-    ],
-    'tags': [
-      'adsLeads', '--tag-adsleads',
-      'brijTag', '--tag-brijtag',
-      'ceramic', '--tag-ceramic',
-      'closedToday', '--tag-closedtoday',
-      'education', '--tag-education',
-      'furniture', '--tag-furniture',
-      'god', '--tag-god',
-      'homeopathy', '--tag-homeopathy',
-      'hospital', '--tag-hospital',
-      'jaimin', '--tag-jaimin',
-      'jaiminfollowups', '--tag-jaiminfollowups',
-      'jewellery', '--tag-jewellery',
-      'meetingDoneWithAdil', '--tag-meetingdonewithadil',
-      'meetingDoneWithYagnesh', '--tag-meetingdonewithyagnesh',
-      'metaAds', '--tag-metaads',
-      'morbi', '--tag-morbi',
-      'naturopathy', '--tag-naturopathy',
-      'podcast', '--tag-podcast',
-      'solidSurface', '--tag-solidsurface',
-      'studyRoomReferral', '--tag-studyroomreferral',
-      'supermarket', '--tag-supermarket',
-      'tiles', '--tag-tiles',
-      'warm', '--tag-warm',
-      'yagnesh', '--tag-yagnesh'
-    ],
+  'adminArea': [
+    'sidebarBackground', '--sidebar-background',
+    'sidebarForeground', '--sidebar-foreground',
+    'activeItemBackground', '--sidebar-primary',
+    'activeItemForeground', '--sidebar-primary-foreground',
+    'headerBackground', '--header-background',
+    'headerLinks', '--header-links',
+    'mainContentBackground', '--main-content-bg'
+  ],
+  'customersArea': [
+    'navigationBackground', '--customer-nav-bg',
+    'navigationLinks', '--customer-nav-links',
+    'footerBackground', '--customer-footer-bg',
+    'footerText', '--customer-footer-text'
+  ],
+  'buttons': [
+    'default', '--secondary',
+    'primary', '--primary',
+    'info', '--info',
+    'success', '--success',
+    'danger', '--destructive'
+  ],
+  'modals': [
+    'headingBackground', '--modal-heading-bg',
+    'headingColor', '--modal-heading-color',
+    'closeButtonColor', '--modal-close-color',
+    'headerTextColor', '--modal-header-text'
+  ],
+  'tables': [
+    'linksColor', '--table-links-color',
+    'linksHoverColor', '--table-links-hover-color',
+    'headingsColor', '--table-headings-color',
+    'itemsHeadingBg', '--items-table-heading-bg',
+    'itemsHeadingText', '--items-table-heading-text'
+  ],
+  'general': [
+    'links', '--links-color',
+    'linksHover', '--links-hover-color',
+    'adminLoginBg', '--admin-login-bg',
+    'textMuted', '--text-muted',
+    'textDanger', '--text-danger',
+    'textWarning', '--text-warning',
+    'textInfo', '--text-info',
+    'textSuccess', '--text-success'
+  ],
+  'tags': [
+    'adsLeads', '--tag-adsleads',
+    'brijTag', '--tag-brijtag',
+    'ceramic', '--tag-ceramic',
+    'closedToday', '--tag-closedtoday',
+    'education', '--tag-education',
+    'furniture', '--tag-furniture',
+    'god', '--tag-god',
+    'homeopathy', '--tag-homeopathy',
+    'hospital', '--tag-hospital',
+    'jaimin', '--tag-jaimin',
+    'jaiminfollowups', '--tag-jaiminfollowups',
+    'jewellery', '--tag-jewellery',
+    'meetingDoneWithAdil', '--tag-meetingdonewithadil',
+    'meetingDoneWithYagnesh', '--tag-meetingdonewithyagnesh',
+    'metaAds', '--tag-metaads',
+    'morbi', '--tag-morbi',
+    'naturopathy', '--tag-naturopathy',
+    'podcast', '--tag-podcast',
+    'solidSurface', '--tag-solidsurface',
+    'studyRoomReferral', '--tag-studyroomreferral',
+    'supermarket', '--tag-supermarket',
+    'tiles', '--tag-tiles',
+    'warm', '--tag-warm',
+    'yagnesh', '--tag-yagnesh'
+  ],
 };
 
 export const clearThemeFromDom = () => {
@@ -158,7 +158,7 @@ export const clearThemeFromDom = () => {
 
 export const applyThemeToDom = (theme: any) => {
   const root = document.documentElement;
-  
+
   if (!theme) return;
 
 
@@ -188,7 +188,7 @@ export const applyThemeToDom = (theme: any) => {
         styleTag.id = id;
         document.head.appendChild(styleTag);
       }
-      
+
       if (!css) {
         styleTag.innerHTML = '';
         return;
@@ -209,7 +209,7 @@ export const applyThemeToDom = (theme: any) => {
     };
 
     injectCustomCss('custom-css-both', theme.customCss.both);
-    
+
     // For admin-only or customer-only areas, it's safer if the user scopes it themselves, 
     // but if we want to ensure it, we can wrap it in generic layout classes.
     // Assuming ".admin-layout" and ".customer-layout" don't strictly exist globally on the body yet,

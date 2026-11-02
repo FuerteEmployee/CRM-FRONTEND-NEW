@@ -24,6 +24,7 @@ export const customerService = {
 
   importContacts: (data) => apiClient.post("/clients/contacts/import", data),
   getStatement: (id, params) => apiClient.get(`/clients/${id}/statement`, { params }),
+  sendStatementEmail: (id, data) => apiClient.post(`/clients/${id}/statement/send`, data),
 
   // Contacts
   getContacts: (clientId) => apiClient.get(`/clients/${clientId}/contacts`),
