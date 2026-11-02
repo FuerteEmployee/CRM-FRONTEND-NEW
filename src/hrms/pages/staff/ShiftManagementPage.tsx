@@ -287,7 +287,7 @@ export default function ShiftManagementPage() {
                                         name="name"
                                         render={({ field }) => (
                                             <FormItem>
-                                                <FormLabel className="text-xs font-bold text-foreground/70">Shift Name</FormLabel>
+                                                <FormLabel className="text-xs font-bold text-foreground/70">Shift Name <span className="text-red-500 font-bold ml-0.5">*</span></FormLabel>
                                                 <FormControl>
                                                     <Input placeholder="e.g. Morning Shift" {...field} className="h-12 rounded-xl" />
                                                 </FormControl>
@@ -303,7 +303,7 @@ export default function ShiftManagementPage() {
                                             name="startTime"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel className="text-xs font-bold text-foreground/70">Start Time</FormLabel>
+                                                    <FormLabel className="text-xs font-bold text-foreground/70">Start Time <span className="text-red-500 font-bold ml-0.5">*</span></FormLabel>
                                                     <FormControl>
                                                         <Input type="time" {...field} className="h-12 rounded-xl" />
                                                     </FormControl>
@@ -316,7 +316,7 @@ export default function ShiftManagementPage() {
                                             name="endTime"
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel className="text-xs font-bold text-foreground/70">End Time</FormLabel>
+                                                    <FormLabel className="text-xs font-bold text-foreground/70">End Time <span className="text-red-500 font-bold ml-0.5">*</span></FormLabel>
                                                     <FormControl>
                                                         <Input type="time" {...field} className="h-12 rounded-xl" />
                                                     </FormControl>
@@ -334,7 +334,7 @@ export default function ShiftManagementPage() {
                                             <FormItem>
                                                 <FormLabel className="text-xs font-bold text-foreground/70 flex items-center gap-1.5">
                                                     <CalendarDays className="h-3.5 w-3.5" />
-                                                    Working Days
+                                                    Working Days <span className="text-red-500 font-bold ml-0.5">*</span>
                                                 </FormLabel>
                                                 <div className="flex gap-2 mt-1 flex-wrap">
                                                     {WEEK_DAYS.map((day) => {
@@ -396,7 +396,7 @@ export default function ShiftManagementPage() {
                                             render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel className="text-xs font-bold text-foreground/70">
-                                                        Grace Period (minutes after start time)
+                                                        Grace Period (minutes after start time) <span className="text-red-500 font-bold ml-0.5">*</span>
                                                     </FormLabel>
                                                     <FormControl>
                                                         <Input type="number" min={0} max={120} {...field} className="h-12 rounded-xl bg-white" />
@@ -418,7 +418,7 @@ export default function ShiftManagementPage() {
                                             render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel className="text-xs font-bold text-foreground/70">
-                                                        Allowed Late Count Per Month
+                                                        Allowed Late Count Per Month <span className="text-red-500 font-bold ml-0.5">*</span>
                                                     </FormLabel>
                                                     <FormControl>
                                                         <Input type="number" min={0} max={31} {...field} className="h-12 rounded-xl bg-white" />

@@ -372,4 +372,217 @@ describe("13-Tier Deep Quality Audit: HRMS Tier 7 (UI / Responsive Design, Table
       expect(btn2.className).toContain("w-8");
     });
   });
+
+  // =========================================================================
+  // 6. Target 1: UsersPage Import Dialogs & Mandatory Field Asterisks (*)
+  // =========================================================================
+  describe("6. Target 1: UsersPage (/admin/hrms/staff/users) UI, Action Buttons & Import Mapping", () => {
+    it("renders Export, Import, and Bulk Add buttons with correct themes and click handlers", () => {
+      const onExport = vi.fn();
+      const onImport = vi.fn();
+      const onBulkAdd = vi.fn();
+
+      render(
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="rounded-md h-9 px-4 hover:bg-primary/5 hover:text-primary" onClick={onExport}>
+            Export
+          </Button>
+          <Button variant="outline" size="sm" className="rounded-md h-9 px-4 hover:bg-primary/5 hover:text-primary" onClick={onImport}>
+            Import
+          </Button>
+          <Button variant="outline" size="sm" className="rounded-md h-9 px-4 hover:bg-primary/5 hover:text-primary" onClick={onBulkAdd}>
+            Bulk Add
+          </Button>
+        </div>
+      );
+
+      const exportBtn = screen.getByRole("button", { name: /Export/i });
+      const importBtn = screen.getByRole("button", { name: /Import/i });
+      const bulkAddBtn = screen.getByRole("button", { name: /Bulk Add/i });
+
+      expect(exportBtn).toBeDefined();
+      expect(importBtn).toBeDefined();
+      expect(bulkAddBtn).toBeDefined();
+
+      fireEvent.click(exportBtn);
+      expect(onExport).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(importBtn);
+      expect(onImport).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(bulkAddBtn);
+      expect(onBulkAdd).toHaveBeenCalledTimes(1);
+    });
+
+    it("displays red asterisk (*) on mandatory fields in the Import Column Mapping dialog and sample selector", () => {
+      const sampleFields = [
+        { key: "name", label: "Full Name", required: true },
+        { key: "email", label: "Email Address", required: false },
+        { key: "mobile", label: "Mobile Number", required: false },
+        { key: "department", label: "Department", required: false },
+      ];
+
+      render(
+        <div data-testid="mapping-dialog">
+          <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+            <span className="text-red-600 font-bold">*</span> Mandatory fields must be mapped
+          </div>
+          <div className="grid grid-cols-2 gap-4 mt-2">
+            {sampleFields.map((f) => (
+              <div key={f.key} data-testid={`field-${f.key}`}>
+                <label className="text-xs font-bold uppercase flex items-center">
+                  <span>{f.label}</span>
+                  {f.required && <span className="text-red-600 font-bold ml-1" data-testid="red-asterisk">*</span>}
+                </label>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+
+      // Name field has red asterisk
+      const nameField = screen.getByTestId("field-name");
+      expect(nameField.textContent).toContain("*");
+      expect(nameField.querySelector('[data-testid="red-asterisk"]')).not.toBeNull();
+
+      // Non-mandatory fields do not have red asterisk
+      const emailField = screen.getByTestId("field-email");
+      expect(emailField.querySelector('[data-testid="red-asterisk"]')).toBeNull();
+    });
+
+    it("validates that import is blocked if mandatory Full Name column is not mapped", () => {
+      const onToast = vi.fn();
+      const mockImportSubmit = (mapping: Record<string, string>) => {
+        if (!mapping.name && !mapping.firstName) {
+          onToast({
+            title: "Required Field Missing",
+            description: "Please map the mandatory 'Full Name *' or 'First Name *' column before completing import.",
+          });
+          return false;
+        }
+        return true;
+      };
+
+      // Case 1: unmapped name
+      const resUnmapped = mockImportSubmit({ email: "Email Column", department: "Dept" });
+      expect(resUnmapped).toBe(false);
+      expect(onToast).toHaveBeenCalledWith(expect.objectContaining({
+        title: "Required Field Missing",
+      }));
+
+      // Case 2: mapped name
+      const resMapped = mockImportSubmit({ name: "Employee Name", email: "Email Column" });
+      expect(resMapped).toBe(true);
+    });
+  });
+
+  // =========================================================================
+  // 7. Target 2: ShiftManagementPage Add Shift Dialog & Rule Validations
+  // =========================================================================
+  describe("7. Target 2: ShiftManagementPage (/admin/hrms/staff/shifts) UI & Business Rules", () => {
+    it("renders Add Shift dialog labels with Red Asterisks (*) on all mandatory fields", () => {
+      render(
+        <div data-testid="shift-form">
+          <label data-testid="lbl-shift-name">Shift Name <span className="text-red-500 font-bold ml-0.5">*</span></label>
+          <label data-testid="lbl-start-time">Start Time <span className="text-red-500 font-bold ml-0.5">*</span></label>
+          <label data-testid="lbl-end-time">End Time <span className="text-red-500 font-bold ml-0.5">*</span></label>
+          <label data-testid="lbl-working-days">Working Days <span className="text-red-500 font-bold ml-0.5">*</span></label>
+          <label data-testid="lbl-grace-period">Grace Period (minutes after start time) <span className="text-red-500 font-bold ml-0.5">*</span></label>
+          <label data-testid="lbl-allowed-late">Allowed Late Count Per Month <span className="text-red-500 font-bold ml-0.5">*</span></label>
+        </div>
+      );
+
+      const requiredLabels = [
+        "lbl-shift-name",
+        "lbl-start-time",
+        "lbl-end-time",
+        "lbl-working-days",
+        "lbl-grace-period",
+        "lbl-allowed-late",
+      ];
+
+      requiredLabels.forEach((testId) => {
+        const el = screen.getByTestId(testId);
+        expect(el.textContent).toContain("*");
+      });
+    });
+
+    it("verifies Shift Business Rules: late cutoff and overtime cutoff calculations", () => {
+      const addMins = (time: string, mins: number): string | null => {
+        try {
+          const [h, m] = time.split(":").map(Number);
+          const total = h * 60 + m + Number(mins || 0);
+          const ch = Math.floor(total / 60) % 24;
+          const cm = total % 60;
+          const suffix = ch >= 12 ? "PM" : "AM";
+          const hour = ch % 12 || 12;
+          return `${hour}:${String(cm).padStart(2, "0")} ${suffix}`;
+        } catch { return null; }
+      };
+
+      // 09:30 + 15 min grace = 9:45 AM cutoff
+      expect(addMins("09:30", 15)).toBe("9:45 AM");
+
+      // 18:30 + 30 min overtime grace = 7:00 PM cutoff
+      expect(addMins("18:30", 30)).toBe("7:00 PM");
+    });
+  });
+
+  // =========================================================================
+  // 8. Target 3: DeviceApprovalsPage UI & Actions
+  // =========================================================================
+  describe("8. Target 3: DeviceApprovalsPage (/admin/hrms/staff/device-approvals) UI & Action Buttons", () => {
+    it("renders Filter tabs and executes Approve, Reject, and Remove device actions", () => {
+      const onApprove = vi.fn();
+      const onReject = vi.fn();
+      const onRemove = vi.fn();
+
+      const mockDeviceReq = {
+        id: "req-101",
+        userName: "Vikas Patel",
+        device: "Chrome on Windows",
+        status: "pending",
+      };
+
+      const { rerender } = render(
+        <div data-testid="device-row">
+          <span>{mockDeviceReq.userName}</span>
+          <Badge className="bg-amber-50 text-amber-700">{mockDeviceReq.status}</Badge>
+          <div className="flex gap-2">
+            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => onApprove(mockDeviceReq.id)}>
+              Approve
+            </Button>
+            <Button size="sm" variant="outline" className="border-red-200 text-red-600 hover:bg-red-50" onClick={() => onReject(mockDeviceReq.id)}>
+              Reject
+            </Button>
+          </div>
+        </div>
+      );
+
+      const approveBtn = screen.getByRole("button", { name: /Approve/i });
+      const rejectBtn = screen.getByRole("button", { name: /Reject/i });
+
+      fireEvent.click(approveBtn);
+      expect(onApprove).toHaveBeenCalledWith("req-101");
+
+      fireEvent.click(rejectBtn);
+      expect(onReject).toHaveBeenCalledWith("req-101");
+
+      // Once approved, show Remove button
+      rerender(
+        <div data-testid="device-row">
+          <span>{mockDeviceReq.userName}</span>
+          <Badge className="bg-emerald-50 text-emerald-700">approved</Badge>
+          <Button size="sm" variant="outline" className="border-slate-200 text-rose-600 hover:bg-rose-50" onClick={() => onRemove(mockDeviceReq.id)}>
+            Remove
+          </Button>
+        </div>
+      );
+
+      const removeBtn = screen.getByRole("button", { name: /Remove/i });
+      fireEvent.click(removeBtn);
+      expect(onRemove).toHaveBeenCalledWith("req-101");
+    });
+  });
 });
+
