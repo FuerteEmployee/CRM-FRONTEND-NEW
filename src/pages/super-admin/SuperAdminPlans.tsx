@@ -202,6 +202,14 @@ Cancel = keep their current end dates; only new companies and renewals get the n
       if (editingPlan) {
         const saved: any = await api.put(`/super-admin/plans/${editingPlan._id}`, { ...formData, recalculate_existing });
         toast.success(saved?.recalculated ? `Plan updated. End dates recalculated for ${saved.recalculated} compan${saved.recalculated === 1 ? "y" : "ies"}.` : "Plan updated successfully");
+        // Companies on their own server get the plan's changes too (remoteControl.pushPlanTenants).
+        const rs = saved?.remote_sync;
+        if (rs?.failed) {
+          toast.warning(`Not sent to ${rs.failed} of ${rs.total} separate server compan${rs.total === 1 ? "y" : "ies"}`, {
+            description: "Their servers did not answer. Open Customers → Edit → Separate server → Sync now for each.",
+            duration: 12000,
+          });
+        }
       } else {
         await api.post("/super-admin/plans", formData);
         toast.success("Plan created successfully");
