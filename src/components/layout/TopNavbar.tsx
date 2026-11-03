@@ -130,7 +130,7 @@ export function TopNavbar() {
     await logout();
     // Drop this tenant's branding and fall back to the public/global settings
     refreshSettings();
-    const loginTarget = isStaff ? "/staff/login" : user?.is_superadmin ? "/super-admin/login" : "/admin/login";
+    const loginTarget = isStaff ? "/staff/login" : (user?.is_superadmin && isSuperAdminEnabled()) ? "/super-admin/login" : "/admin/login";
     navigate(loginTarget);
   };
 
@@ -509,7 +509,7 @@ export function TopNavbar() {
 
           {/* Menu Items */}
           <div className="py-1">
-            {user?.is_superadmin && (
+            {user?.is_superadmin && isSuperAdminEnabled() && (
               <DropdownMenuItem
                 className="gap-3 px-4 py-2.5 cursor-pointer text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-900/20 mb-1"
                 onClick={() => navigate("/super-admin/dashboard")}
