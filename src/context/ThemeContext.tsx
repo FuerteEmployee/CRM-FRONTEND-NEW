@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useLayoutEffect, useState 
 import { utilityService } from '@/api/services/utility.service';
 import { useSettings } from '@/context/SettingsContext';
 import { queryClient as globalQueryClient } from '@/lib/queryClient';
-import { applyThemeToDom, themeCacheKey } from '@/lib/themeUtils';
+import { applyThemeToDom, clearThemeFromDom, themeCacheKey } from '@/lib/themeUtils';
 
 
 const ThemeStyleContext = createContext({

@@ -19,6 +19,7 @@ import { DataTable } from "@/components/shared/DataTable";
 import { DEFAULT_WHATSAPP_QC_TEMPLATES, type WhatsappQcTemplateEntry } from "@/lib/whatsappQuickChat";
 import { WhatsappQuickChatSettingsTab } from "./WhatsappQuickChatSettingsTab";
 import { ClaudeConnectorSettingsTab } from "./ClaudeConnectorSettingsTab";
+import { VoiceAgentSettingsTab } from "./VoiceAgentSettingsTab";
 import { PurchaseSettingsTab } from "./PurchaseSettingsTab";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isProcurementTypesEnabled } from "@/lib/procurement";
@@ -179,6 +180,7 @@ const settingsNavigation: SettingCategory[] = [
       { id: "int-external-api", label: "External APIs", icon: Plug },
       { id: "int-whatsapp-qc", label: "WhatsApp Quick Chat", icon: MessageCircle },
       { id: "int-claude", label: "Claude Connector", icon: Bot },
+      { id: "int-voice-agent", label: "AI Voice Agent", icon: Calendar },
     ]
   },
   {
@@ -217,6 +219,8 @@ export default function SetupSettings() {
   const { settings: globalSettings, refreshSettings: refreshGlobalSettings } = useSettings();
   const { user: currentUser } = usePermissions();
   const isKiranProcurement = isProcurementTypesEnabled(currentUser);
+  // AI Voice Agent tab only for companies with the "voice_agent" add-on.
+  const hasVoiceAgent = ((currentUser as any)?.tenant?.enabled_features || []).includes("voice_agent");
 
   const { data: estimateForms = [] } = useQuery({
     queryKey: ["estimate-request-forms"],
@@ -1524,7 +1528,7 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                     </AccordionTrigger>
                     <AccordionContent className="pt-1 pb-2 px-2">
                       <div className="flex flex-col gap-1">
-                        {category.items.map((item) => (
+                        {category.items.filter((item) => item.id !== "int-voice-agent" || hasVoiceAgent).map((item) => (
                           <button
                             key={item.id}
                             onClick={() => setActiveTab(item.id)}
@@ -1709,6 +1713,8 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
             )}
 
             {activeTab === "int-claude" && <ClaudeConnectorSettingsTab />}
+
+            {activeTab === "int-voice-agent" && hasVoiceAgent && <VoiceAgentSettingsTab />}
 
             {activeTab === "gen-company" && (
               <Card className="border shadow-sm">

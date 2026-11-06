@@ -64,6 +64,7 @@ const TENANT_FEATURES: { key: string; label: string; hint: string }[] = [
   { key: "face_attendance", label: "HRMS Face Attendance (BOT Lens)", hint: "Face kiosk punch in/out + selfie face check for enrolled staff" },
   { key: "quotation_approval", label: "Quotation approval", hint: "Makers request approval; staff with Quotations > Approve sign off before sending" },
   { key: "purchase_orders", label: "Purchase Orders", hint: "Purchase/Sales POs, price master, margin rules with approver Yes/No, PO PDF on WhatsApp" },
+  { key: "voice_agent", label: "AI Voice Agent", hint: "Appointment booking by voice (Gujarati/Hindi/English); adds Setup > Settings > AI Voice Agent" },
 ];
 
 const STATUS_CONFIG = {
