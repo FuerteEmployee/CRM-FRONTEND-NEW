@@ -8,6 +8,21 @@ import { resolveImageUrl } from "@/lib/resolveImageUrl";
 
 export type PanelBranding = { panelName: string; panelLogo: string; panelFavicon: string };
 
+/**
+ * Whether the Super Admin module and routes are enabled on this instance.
+ * On dedicated company servers (Trinetra, CitySmile, Kiran, Offixnest, etc.) or when
+ * VITE_ENABLE_SUPERADMIN=false, Super Admin routes are disabled and redirect to /admin/login.
+ */
+export const isSuperAdminEnabled = (): boolean => {
+  if (import.meta.env.VITE_ENABLE_SUPERADMIN === "false") return false;
+  if (import.meta.env.VITE_ENABLE_SUPERADMIN === "true") return true;
+
+  const hostname = typeof window !== "undefined" ? window.location.hostname : "";
+  // crm.beontimeofficial.com is the MAIN server (Super Admin lives there), so it is not listed here.
+  const isDedicatedHost = /trinetratechnoworld|erp\.|kiranenginers|citysmile|offixnest/.test(hostname);
+  return !isDedicatedHost;
+};
+
 export const DEFAULT_PANEL_BRANDING: PanelBranding = { panelName: "Fuerte CRM", panelLogo: "", panelFavicon: "" };
 export const PANEL_BRANDING_QUERY_KEY = ["panel-branding"];
 
@@ -18,7 +33,7 @@ export const PANEL_BRANDING_QUERY_KEY = ["panel-branding"];
  */
 export const isPanelBrandedLogin = () => {
   const { pathname, hostname } = window.location;
-  if (pathname.startsWith("/super-admin/login")) return true;
+  if (pathname.startsWith("/super-admin/login") && isSuperAdminEnabled()) return true;
   const isDedicatedHost = /trinetratechnoworld|erp\.|kiranenginers|citysmile/.test(hostname);
   return !isDedicatedHost && /^\/admin\/login\/?$/.test(pathname);
 };

@@ -811,7 +811,7 @@ const Customers = () => {
             >
               {can("Customers", "Create") && (
                 <DialogTrigger asChild>
-                  <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
+                  <Button className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest gradient-primary text-white hover:opacity-95">
                     <Plus className="mr-2 h-4 w-4" />
                     New Customer
                   </Button>
@@ -831,7 +831,7 @@ const Customers = () => {
                     <TabsContent value="details" className="space-y-4 pt-2">
                       <div className="space-y-2">
                         <Label>
-                          Company <span className="text-destructive">*</span>
+                          Company <span className="text-red-500 font-bold ml-0.5">*</span>
                         </Label>
                         <Input
                           placeholder="Company name"
@@ -1248,7 +1248,7 @@ const Customers = () => {
                 />
                 <Button
                   variant="outline"
-                  className="rounded-xl font-black gap-2 shadow-lg px-6 h-11 uppercase text-xs tracking-widest"
+                  className="rounded-xl font-black gap-2 shadow-lg px-6 h-11 uppercase text-xs tracking-widest hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all"
                   disabled={importMutation.isPending}
                   onClick={() => setIsImportOpen(true)}
                 >
@@ -1306,6 +1306,11 @@ const Customers = () => {
                         </p>
                       </div>
 
+                      <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 font-medium">
+                        <span className="text-red-600 font-bold text-sm leading-none">*</span>
+                        <span>Fields marked with <strong className="text-red-600 font-bold">*</strong> (such as <strong>Company Name *</strong>) are strictly required to import customers.</span>
+                      </div>
+
                       <div className="rounded-xl border border-border/50 p-3 space-y-2">
                         <p className="text-xs font-semibold text-foreground">
                           Select columns to include in sample file:
@@ -1322,7 +1327,7 @@ const Customers = () => {
                               />
                               <span className="whitespace-nowrap">
                                 {col.key}
-                                {col.required && <span className="text-destructive"> *</span>}
+                                {col.required && <span className="text-red-600 font-bold ml-0.5">*</span>}
                               </span>
                             </label>
                           ))}
@@ -1383,6 +1388,7 @@ const Customers = () => {
           <Button
             variant="outline"
             onClick={() => setShowFilters(!showFilters)}
+            className="hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all"
           >
             <Filter className="mr-2 h-4 w-4" />
             Filters
@@ -1439,7 +1445,7 @@ const Customers = () => {
                 </Select>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest">
+                    <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all">
                       <Download className="h-3.5 w-3.5" />
                       Export
                       <ChevronDown className="h-3 w-3 opacity-50" />
@@ -1464,7 +1470,7 @@ const Customers = () => {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl font-black uppercase text-[10px] tracking-widest" asChild>
+                <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl font-black uppercase text-[10px] tracking-widest hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all" asChild>
                   <Link to="/admin/contacts">Contacts</Link>
                 </Button>
                 {can("Customers", "Edit") && (
@@ -1501,7 +1507,7 @@ const Customers = () => {
                 }}>
                   {(can("Customers", "Edit") || can("Customers", "Delete")) && (
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700">
+                    <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700 hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all">
                       Bulk Actions
                     </Button>
                   </DialogTrigger>

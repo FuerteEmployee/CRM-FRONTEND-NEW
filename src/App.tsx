@@ -12,10 +12,17 @@ function CssAreaSync() {
   const { pathname } = useLocation();
   useAreaEffect(() => {
     setCssArea(cssAreaForPath(pathname));
-    if (pathname === "/welcome" || pathname === "/" || pathname === "/admin/login") {
+    const isPublic =
+      pathname === "/" ||
+      pathname === "/welcome" ||
+      pathname.includes("/login") ||
+      pathname.includes("/forgot-password") ||
+      pathname.startsWith("/register");
+
+    if (isPublic) {
       const hasSession = localStorage.getItem("crm_user") || localStorage.getItem("crm_client");
       if (!hasSession) {
-        clearThemeFromDom();
+        clearThemeFromDom({ resetToLightMode: true });
       }
     }
   }, [pathname]);
@@ -23,6 +30,7 @@ function CssAreaSync() {
 }
 import { PermissionProvider, usePermissionContext } from "@/context/PermissionContext";
 import { getLandingPath } from "@/lib/landingPath";
+import { isSuperAdminEnabled } from "@/lib/panelBranding";
 import { ModuleGuard } from "@/components/layout/ModuleGuard";
 import { Loader2 } from "lucide-react";
 import { Navigate } from "react-router-dom";
@@ -177,7 +185,7 @@ const AdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (!user) return <Navigate to="/admin/login" replace />;
   // A super admin has no company of their own — the company CRM would only
   // show empty "Fuerte CRM" data. Keep them in the Super Admin panel.
-  if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
+  if (user.is_superadmin && isSuperAdminEnabled()) return <Navigate to="/super-admin/dashboard" replace />;
   if (isStaff) return <Navigate to={switchArea(location, "/staff")} replace />;
   if (!isAdmin) return <Navigate to={getLandingPath(user, permissions, isStaff)} replace />;
   return <ModuleGuard>{children}</ModuleGuard>;
@@ -200,7 +208,7 @@ const AuthProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   if (loading) return <SessionCheck />;
   if (!user) return <Navigate to="/admin/login" replace />;
   // Same as AdminProtectedRoute: company pages (incl. HRMS) aren't for super admins.
-  if (user.is_superadmin) return <Navigate to="/super-admin/dashboard" replace />;
+  if (user.is_superadmin && isSuperAdminEnabled()) return <Navigate to="/super-admin/dashboard" replace />;
   return <ModuleGuard>{children}</ModuleGuard>;
 };
 
@@ -209,6 +217,7 @@ const AuthProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 const SuperAdminProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = usePermissionContext();
   if (loading) return <SessionCheck />;
+  if (!isSuperAdminEnabled()) return <Navigate to="/admin/login" replace />;
   if (!user) return <Navigate to="/super-admin/login" replace />;
   if (!user.is_superadmin) return <Navigate to="/admin/login" replace />;
   return <>{children}</>;
@@ -484,18 +493,27 @@ const MainApp = () => {
           <Route path="/knowledge-base" element={<ClientKnowledgeBase />} />
         </Route>
 
-        {/* Super Admin Routes */}
-        <Route path="/super-admin/login" element={<PublicRoute><Login /></PublicRoute>} />
-        <Route path="/super-admin" element={<SuperAdminProtectedRoute><SuperAdminLayout /></SuperAdminProtectedRoute>}>
-          <Route index element={<Navigate to="dashboard" replace />} />
-          <Route path="dashboard" element={<SuperAdminDashboard />} />
-          <Route path="companies" element={<SuperAdminCompanies />} />
-          <Route path="plans" element={<SuperAdminPlans />} />
-          <Route path="billing" element={<SuperAdminBilling />} />
-          <Route path="alerts" element={<SuperAdminAlerts />} />
-          <Route path="profile" element={<SuperAdminProfile />} />
-          <Route path="settings" element={<SuperAdminSettings />} />
-        </Route>
+        {/* Super Admin Routes — Active only on master SaaS platform. On dedicated company instances, redirect straight to /admin/login */}
+        {isSuperAdminEnabled() ? (
+          <>
+            <Route path="/super-admin/login" element={<PublicRoute><Login /></PublicRoute>} />
+            <Route path="/super-admin" element={<SuperAdminProtectedRoute><SuperAdminLayout /></SuperAdminProtectedRoute>}>
+              <Route index element={<Navigate to="dashboard" replace />} />
+              <Route path="dashboard" element={<SuperAdminDashboard />} />
+              <Route path="companies" element={<SuperAdminCompanies />} />
+              <Route path="plans" element={<SuperAdminPlans />} />
+              <Route path="billing" element={<SuperAdminBilling />} />
+              <Route path="alerts" element={<SuperAdminAlerts />} />
+              <Route path="profile" element={<SuperAdminProfile />} />
+              <Route path="settings" element={<SuperAdminSettings />} />
+            </Route>
+          </>
+        ) : (
+          <>
+            <Route path="/super-admin" element={<Navigate to="/admin/login" replace />} />
+            <Route path="/super-admin/*" element={<Navigate to="/admin/login" replace />} />
+          </>
+        )}
 
         {/* Admin Side Routes */}
         

@@ -16,6 +16,7 @@ import {
     Trash2,
 } from "lucide-react";
 import { format } from "date-fns";
+import { cn } from "@/hrms/lib/utils";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -143,11 +144,11 @@ export default function DeviceApprovalsPage() {
                 />
                 <Button
                     variant="outline"
-                    className="rounded-2xl h-12 px-6 font-semibold gap-2"
+                    className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all flex items-center gap-2"
                     onClick={loadRequests}
                     disabled={isLoading}
                 >
-                    <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+                    <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} />
                     Refresh
                 </Button>
             </div>
@@ -190,14 +191,20 @@ export default function DeviceApprovalsPage() {
                         key={tab}
                         variant={filter === tab ? "default" : "outline"}
                         size="sm"
-                        className={`rounded-xl capitalize ${filter === tab ? "gradient-primary text-white border-0" : ""}`}
+                        className={cn(
+                            "h-8 rounded-lg px-3 text-xs font-semibold capitalize transition-all",
+                            filter === tab
+                                ? "gradient-primary text-white border-0 shadow-sm"
+                                : "bg-white border-slate-200 text-slate-600 hover:bg-primary/5 hover:border-primary/40 hover:text-primary"
+                        )}
                         onClick={() => setFilter(tab)}
                     >
                         {tab === "all" ? "All" : tab.charAt(0).toUpperCase() + tab.slice(1)}
                         {tab !== "all" && (
-                            <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                                filter === tab ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
-                            }`}>
+                            <span className={cn(
+                                "ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full",
+                                filter === tab ? "bg-white/20 text-white" : "bg-slate-100 text-slate-600"
+                            )}>
                                 {counts[tab]}
                             </span>
                         )}
@@ -305,7 +312,7 @@ export default function DeviceApprovalsPage() {
                                             <Button
                                                 size="sm"
                                                 disabled={actionLoading === r._id}
-                                                className="h-8 text-xs bg-emerald-500 hover:bg-emerald-600 text-white gap-1 rounded-lg"
+                                                className="h-8 text-xs font-medium bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 rounded-md shadow-sm transition-all"
                                                 onClick={() => handleApprove(r)}
                                             >
                                                 <CheckCircle2 className="h-3.5 w-3.5" /> Approve
@@ -314,7 +321,7 @@ export default function DeviceApprovalsPage() {
                                                 size="sm"
                                                 variant="outline"
                                                 disabled={actionLoading === r._id}
-                                                className="h-8 text-xs border-red-200 text-red-600 hover:bg-red-50 gap-1 rounded-lg"
+                                                className="h-8 text-xs font-medium border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 gap-1.5 rounded-md transition-all"
                                                 onClick={() => handleReject(r)}
                                             >
                                                 <XCircle className="h-3.5 w-3.5" /> Reject
@@ -328,7 +335,7 @@ export default function DeviceApprovalsPage() {
                                                 size="sm"
                                                 variant="outline"
                                                 disabled={actionLoading === r._id}
-                                                className="h-8 text-xs border-red-200 text-red-600 hover:bg-red-50 gap-1 rounded-lg"
+                                                className="h-8 text-xs font-medium border-slate-200 text-rose-600 hover:bg-rose-50 hover:border-rose-200 gap-1.5 rounded-md transition-all"
                                                 onClick={() => setRevokeTarget(r)}
                                             >
                                                 <Trash2 className="h-3.5 w-3.5" /> Remove

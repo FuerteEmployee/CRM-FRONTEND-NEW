@@ -226,7 +226,7 @@ export default function DesignationPage() {
                     name="name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs font-bold text-foreground/70">Name</FormLabel>
+                        <FormLabel className="text-xs font-bold text-foreground/70">Name <span className="text-red-500 font-bold ml-0.5">*</span></FormLabel>
                         <FormControl>
                           <Input placeholder="e.g. Senior Manager" {...field} className="h-12 rounded-xl" />
                         </FormControl>
@@ -239,7 +239,7 @@ export default function DesignationPage() {
                     name="code"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-xs font-bold text-foreground/70">Short Code</FormLabel>
+                        <FormLabel className="text-xs font-bold text-foreground/70">Short Code <span className="text-red-500 font-bold ml-0.5">*</span></FormLabel>
                         <FormControl>
                           <Input placeholder="e.g. SNR-MGR" {...field} className="h-12 rounded-xl" />
                         </FormControl>

@@ -555,9 +555,17 @@ export default function UsersPage() {
   // The backend reads the HRMS branch under "hrmsBranchId" (not "storeId").
   const handleImport = async () => {
     if (!pendingFile) return;
+    const mapping = Object.fromEntries(Object.entries(fieldMapping).filter(([, col]) => col && col !== "skip"));
+    if (!mapping.name && !mapping.firstName) {
+      toast({
+        title: "Required Field Missing",
+        description: "Please map the mandatory 'Full Name *' or 'First Name *' column before completing import.",
+        variant: "destructive"
+      });
+      return;
+    }
     setIsImporting(true);
     try {
-      const mapping = Object.fromEntries(Object.entries(fieldMapping).filter(([, col]) => col && col !== "skip"));
       const formData = new FormData();
       formData.append("file", pendingFile);
       formData.append("mapping", JSON.stringify(mapping));
@@ -628,7 +636,7 @@ export default function UsersPage() {
           <p className="text-[13px] font-medium text-slate-500">Manage organizational structure and employee records</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={exportToExcel}>
+          <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all flex items-center gap-2" onClick={exportToExcel}>
             <Download className="h-3.5 w-3.5" /> Export
           </Button>
           {hasPermission("edit_staff") && selectedIds.size > 0 && (
@@ -641,10 +649,10 @@ export default function UsersPage() {
           {(hasPermission("create_staff") || hasPermission("manage_users")) && (
             <>
               <input type="file" id="import-excel" className="hidden" accept=".xlsx,.xls,.csv" onChange={(e) => { handleFileSelect(e.target.files?.[0]); e.target.value = ""; }} />
-              <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={() => setIsImportOpen(true)}>
+              <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all flex items-center gap-2" onClick={() => setIsImportOpen(true)}>
                 <Upload className="h-3.5 w-3.5" /> Import
               </Button>
-              <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2" onClick={() => navigate(`${hrmsBasePath}/staff/users/bulk-add`)}>
+              <Button variant="outline" size="sm" className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all flex items-center gap-2" onClick={() => navigate(`${hrmsBasePath}/staff/users/bulk-add`)}>
                 <Plus className="h-3.5 w-3.5" /> Bulk Add
               </Button>
             </>
@@ -678,7 +686,7 @@ export default function UsersPage() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-9 rounded-md border-slate-200 bg-white px-3 font-medium gap-2 shadow-sm text-sm">
+                <Button variant="outline" className="h-9 rounded-md border-slate-200 bg-white px-3 font-medium gap-2 shadow-sm text-sm hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all">
                   <Filter className="h-3.5 w-3.5" /> Filters
                   {(roleFilter !== "all" || branchFilter !== "all" || statusFilter !== "all") && (
                     <Badge className="ml-1 h-4 w-4 p-0 flex items-center justify-center rounded-full bg-primary text-[9px]">
@@ -887,6 +895,11 @@ export default function UsersPage() {
               </p>
             </div>
 
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 font-medium">
+              <span className="text-red-600 font-bold text-sm leading-none">*</span>
+              <span>Fields marked with <strong className="text-red-600 font-bold">*</strong> are strictly required to import staff.</span>
+            </div>
+
             <div className="rounded-xl border border-slate-200 p-3 space-y-2">
               <p className="text-xs font-semibold text-slate-800">Select columns to include in sample file:</p>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2.5">
@@ -897,7 +910,7 @@ export default function UsersPage() {
                       <Checkbox checked={sampleColumns.includes(col)} onCheckedChange={() => toggleSampleColumn(col)} />
                       <span className="whitespace-nowrap">
                         {col}
-                        {REQUIRED_IMPORT_COLUMNS.includes(col) && <span className="text-red-500"> *</span>}
+                        {REQUIRED_IMPORT_COLUMNS.includes(col) && <span className="text-red-600 font-bold ml-0.5">*</span>}
                       </span>
                     </label>
                   ))}
@@ -926,6 +939,10 @@ export default function UsersPage() {
           <DialogHeader><DialogTitle className="text-lg font-semibold">Import Field Mapping</DialogTitle></DialogHeader>
           <div className="p-4 space-y-6">
             <p className="text-sm text-muted-foreground font-medium">Map your Excel columns to the system fields. We've tried to auto-match them for you.</p>
+            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900 font-medium">
+              <span className="text-red-600 font-bold text-sm leading-none">*</span>
+              <span>Fields marked with <strong className="text-red-600 font-bold">*</strong> (such as <strong>Full Name *</strong>) are mandatory for employee registration.</span>
+            </div>
             <label className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 cursor-pointer">
               <Checkbox checked={updateExisting} onCheckedChange={(v) => setUpdateExisting(!!v)} className="mt-0.5" />
               <span className="text-xs text-slate-600">
@@ -935,9 +952,14 @@ export default function UsersPage() {
               </span>
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-2">
-              {SYSTEM_FIELDS.map(field => (
-                <div key={field.key} className="space-y-1">
-                  <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{field.label}</Label>
+              {SYSTEM_FIELDS.map(field => {
+                const isRequired = field.key === "name" || field.key === "firstName" || REQUIRED_IMPORT_COLUMNS.includes(field.default);
+                return (
+                  <div key={field.key} className="space-y-1">
+                    <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center">
+                      <span>{field.label}</span>
+                      {isRequired && <span className="text-red-600 font-bold text-xs ml-1" title="Required Field">*</span>}
+                    </Label>
                   <Select value={fieldMapping[field.key]} onValueChange={(val) => setFieldMapping({ ...fieldMapping, [field.key]: val })}>
                     <SelectTrigger className="h-10 rounded-md bg-slate-50 border-0">
                       <SelectValue placeholder="Skip Field" />
@@ -948,7 +970,8 @@ export default function UsersPage() {
                     </SelectContent>
                   </Select>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {importResult && (

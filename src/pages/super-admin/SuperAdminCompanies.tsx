@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import {
   Building2, Plus, Search, Activity, Ban, PlayCircle,
   Package, CheckCircle2, XCircle, Settings, Clock,
-  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell, Globe, RefreshCw, Phone, Link2, Copy
+  AlertTriangle, X, Mail, Lock, Eye, EyeOff, Edit, Bell, Globe, RefreshCw, Phone, Link2, Copy, Server
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,10 @@ import { useInvalidateSa, useSaPlans, useSaSkeleton, useSaTenantPage } from "@/l
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TablePagination } from "@/components/ui/table";
 import { getDaysLeft, getExpiryDate, isLifetimePlan, planPriceLabel, graceDaysLeft } from "@/lib/tenantExpiry";
 import { clampPhone10, phone10Error } from "@/lib/validation";
+import {
+  SeparateServerPanel, RemoteFields, EMPTY_REMOTE_FORM, warnRemoteSync, serverHost,
+  type RemoteInfo, type RemoteForm,
+} from "./SeparateServerPanel";
 
 interface SaasPlan {
   _id: string;
@@ -51,6 +55,8 @@ interface Tenant {
   enabled_features?: string[];
   // Restricted add-ons this company can't have on this server (backend .env).
   locked_features?: string[];
+  // Set when the company runs on its own CRM server (SeparateServerPanel.tsx).
+  remote?: RemoteInfo | null;
   createdAt: string;
 }
 
@@ -132,6 +138,10 @@ export default function SuperAdminCompanies() {
   const [showPassword, setShowPassword] = useState(false);
   const [createErrors, setCreateErrors] = useState<FieldErrors>({});
   const [manageErrors, setManageErrors] = useState<FieldErrors>({});
+  // Add Customer: "Runs on its own server" + that server's details.
+  const [createSeparate, setCreateSeparate] = useState(false);
+  const [createRemote, setCreateRemote] = useState<RemoteForm>(EMPTY_REMOTE_FORM);
+  const [createBusy, setCreateBusy] = useState(false);
 
   // Debounce the search box the same way Estimates.tsx does (350ms) so we
   // don't fire a request on every keystroke.
@@ -176,8 +186,45 @@ export default function SuperAdminCompanies() {
     if (pageQuery.error) toast.error((pageQuery.error as Error).message || "Failed to load data");
   }, [pageQuery.error]);
 
+  // Company on its own server: check the connection first, so a wrong URL or
+  // secret never leaves a half-made customer; then create it and connect it.
+  // Its plan, status and dates are read from that server (nothing changes there).
+  const handleCreateSeparate = async () => {
+    setCreateBusy(true);
+    try {
+      const check = await api.post("/super-admin/remote/check", createRemote);
+      const found = check.remote || {};
+      const created = await api.post("/super-admin/tenants", {
+        company_name: createForm.company_name.trim() || found.company_name,
+        status: "trial",
+      });
+      try {
+        await api.put(`/super-admin/tenants/${created._id}/remote`, createRemote);
+      } catch (error: any) {
+        toast.error(`Customer added, but not connected: ${error.message}`, { description: "Open Edit → Separate server to connect it.", duration: 12000 });
+        setIsCreateOpen(false);
+        fetchData();
+        return;
+      }
+      toast.success(`Customer added and connected to ${serverHost(createRemote.url)}`, {
+        description: `"${found.company_name}" there · status ${found.status} · plan ${found.plan || "none"}`,
+        duration: 10000,
+      });
+      setIsCreateOpen(false);
+      setCreateForm(DEFAULT_CREATE);
+      setCreateRemote(EMPTY_REMOTE_FORM);
+      setCreateSeparate(false);
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.message || "Could not connect to that server");
+    } finally {
+      setCreateBusy(false);
+    }
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (createSeparate) return handleCreateSeparate();
     const phoneErr = phone10Error(createForm.phonenumber);
     const passwordErr = passwordError(createForm.password, true);
     setCreateErrors({ phone: phoneErr || undefined, password: passwordErr || undefined });
@@ -209,11 +256,13 @@ export default function SuperAdminCompanies() {
     setManageErrors({ phone: phoneErr || undefined, password: passwordErr || undefined });
     if (phoneErr || passwordErr) return;
     try {
-      await api.put(`/super-admin/tenants/${selectedTenant._id}`, {
+      const updated = await api.put(`/super-admin/tenants/${selectedTenant._id}`, {
         ...manageForm,
         custom_domains: parseDomains(manageForm.custom_domains),
       });
-      toast.success("Updated successfully");
+      if (!warnRemoteSync(updated, selectedTenant.company_name)) {
+        toast.success(updated?.remote_sync?.ok ? `Updated here and on ${serverHost(selectedTenant.remote?.url)}` : "Updated successfully");
+      }
       setIsManageOpen(false);
       fetchData();
     } catch (error: any) {
@@ -228,7 +277,10 @@ export default function SuperAdminCompanies() {
     try {
       const updated = await api.put(`/super-admin/tenants/${tenant._id}/renew`);
       const newExpiry = updated?.billing_cycle_end ? format(new Date(updated.billing_cycle_end), "MMM d, yyyy") : "";
-      toast.success(newExpiry ? `Plan renewed. New expiry: ${newExpiry}` : "Plan renewed");
+      if (!warnRemoteSync(updated, tenant.company_name)) {
+        const where = updated?.remote_sync?.ok ? ` (also on ${serverHost(tenant.remote?.url)})` : "";
+        toast.success(newExpiry ? `Plan renewed. New expiry: ${newExpiry}${where}` : `Plan renewed${where}`);
+      }
       fetchData();
     } catch (error: any) {
       toast.error(error.message || "Failed to renew plan");
@@ -244,8 +296,8 @@ export default function SuperAdminCompanies() {
       : `Re-activate "${tenant.company_name}"? Its staff will be able to log in again.`;
     if (!window.confirm(question)) return;
     try {
-      await api.put(`/super-admin/tenants/${tenant._id}`, { status: suspend ? "inactive" : "active" });
-      toast.success(suspend ? "Customer suspended" : "Customer re-activated");
+      const updated = await api.put(`/super-admin/tenants/${tenant._id}`, { status: suspend ? "inactive" : "active" });
+      if (!warnRemoteSync(updated, tenant.company_name)) toast.success(suspend ? "Customer suspended" : "Customer re-activated");
       fetchData();
     } catch (error: any) {
       toast.error(error.message || "Failed to update status");
@@ -268,6 +320,20 @@ export default function SuperAdminCompanies() {
     setManageErrors({});
     setIsManageOpen(true);
   };
+
+  // After Connect / Disconnect / Sync: the record was re-read (connect copies
+  // the server's plan, status and dates), so refresh the dialog too.
+  const onRemoteChanged = (t: Tenant) => {
+    setSelectedTenant(t);
+    setManageForm((f) => ({
+      ...f,
+      plan_id: t.plan_id?._id || "",
+      status: t.status,
+      enabled_features: t.enabled_features || [],
+    }));
+    fetchData();
+  };
+  const isRemote = !!selectedTenant?.remote?.url;
 
   // `tenants` is already the server-paginated, search/status-filtered page
   // of rows, and `counts`/`total` come straight from the backend — no
@@ -296,7 +362,7 @@ export default function SuperAdminCompanies() {
           <h1 className="text-2xl font-bold tracking-tight text-gray-900">Customer</h1>
           <p className="text-gray-500 text-sm mt-1">Manage tenant customers, subscriptions, and account status.</p>
         </div>
-        <Button onClick={() => { setCreateForm(DEFAULT_CREATE); setCreateErrors({}); setIsCreateOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
+        <Button onClick={() => { setCreateForm(DEFAULT_CREATE); setCreateErrors({}); setCreateSeparate(false); setCreateRemote(EMPTY_REMOTE_FORM); setIsCreateOpen(true); }} className="bg-blue-600 hover:bg-blue-700 text-white gap-2">
           <Plus className="h-4 w-4" />
           Add Customer
         </Button>
@@ -384,11 +450,31 @@ export default function SuperAdminCompanies() {
                         <div className="h-9 w-9 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm flex-shrink-0">
                           {(tenant.company_name || "?").charAt(0).toUpperCase()}
                         </div>
-                        {tenant.company_name ? (
-                          <span className="font-semibold text-gray-900 text-sm">{tenant.company_name}</span>
-                        ) : (
-                          <span className="text-sm italic text-red-500" title="This company has no name. Use Edit to set one.">No name — click Edit</span>
-                        )}
+                        <div className="flex flex-col gap-1 min-w-0">
+                          {tenant.company_name ? (
+                            <span className="font-semibold text-gray-900 text-sm">{tenant.company_name}</span>
+                          ) : (
+                            <span className="text-sm italic text-red-500" title="This company has no name. Use Edit to set one.">No name — click Edit</span>
+                          )}
+                          {tenant.remote?.url && (
+                            <span className="flex flex-wrap items-center gap-1">
+                              <span
+                                title={`Runs on its own server: ${tenant.remote.url}`}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap"
+                              >
+                                <Server className="h-3 w-3" /> Own server
+                              </span>
+                              {tenant.remote.last_sync_ok === false && (
+                                <span
+                                  title={`Last change was NOT sent to its server: ${tenant.remote.last_sync_error || ""}. Open Edit → Sync now.`}
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-50 text-red-600 border border-red-200 whitespace-nowrap"
+                                >
+                                  <AlertTriangle className="h-3 w-3" /> Not synced
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </TableCell>
                     {/* Email */}
@@ -397,6 +483,11 @@ export default function SuperAdminCompanies() {
                         <div className="flex items-center gap-2 text-sm text-gray-600">
                           <Mail className="h-3.5 w-3.5 text-gray-300 flex-shrink-0" />
                           {tenant.owner_id.email}
+                        </div>
+                      ) : tenant.remote?.url ? (
+                        <div className="flex items-center gap-2 text-sm text-gray-600" title="Logins are managed on that CRM itself">
+                          <Server className="h-3.5 w-3.5 text-gray-300 flex-shrink-0" />
+                          {serverHost(tenant.remote.url)}
                         </div>
                       ) : (
                         <span className="text-xs text-gray-400 italic">No owner</span>
@@ -603,20 +694,51 @@ export default function SuperAdminCompanies() {
             <form onSubmit={handleCreate} className="p-6 space-y-4 overflow-y-auto overscroll-contain">
               {/* Company Name */}
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Company Name<span className="text-red-500 ml-0.5">*</span></label>
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Company Name{!createSeparate && <span className="text-red-500 ml-0.5">*</span>}</label>
                 <div className="relative">
                   <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 z-10" />
                   <Input
                     type="text"
-                    required
+                    required={!createSeparate}
                     value={createForm.company_name}
                     onChange={(e) => setCreateForm({ ...createForm, company_name: e.target.value })}
                     className="w-full bg-white border border-gray-300 rounded-lg pl-9 pr-3 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 pr-8"
-                    placeholder="e.g. Acme Corp"
+                    placeholder={createSeparate ? "Blank = use the name on that server" : "e.g. Acme Corp"}
                   />
                 </div>
               </div>
 
+              {/* Where this company runs */}
+              <button
+                type="button"
+                role="switch"
+                aria-checked={createSeparate}
+                onClick={() => setCreateSeparate((v) => !v)}
+                className={`w-full flex items-center justify-between gap-3 p-3 rounded-lg border text-left transition-all ${
+                  createSeparate ? "bg-indigo-50 border-indigo-200" : "bg-gray-50 border-gray-200 hover:bg-gray-100"
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className={`flex items-center gap-1.5 text-sm font-medium ${createSeparate ? "text-indigo-800" : "text-gray-700"}`}>
+                    <Server className="h-4 w-4" /> Runs on its own server
+                  </span>
+                  <span className="block text-[11px] text-gray-500">Separate CRM + database (e.g. Rudraverse). Only its plan is managed from here.</span>
+                </span>
+                <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${createSeparate ? "bg-indigo-600" : "bg-gray-300"}`}>
+                  <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${createSeparate ? "left-[18px]" : "left-0.5"}`} />
+                </span>
+              </button>
+
+              {createSeparate && (
+                <>
+                  <RemoteFields value={createRemote} onChange={setCreateRemote} />
+                  <p className="text-[11px] text-amber-700">
+                    The connection is checked first. Its current plan, status and dates are read from that server — nothing is changed there.
+                  </p>
+                </>
+              )}
+
+              {!createSeparate && (<>
               {/* Custom Domain */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Custom Domain (optional)</label>
@@ -721,10 +843,17 @@ export default function SuperAdminCompanies() {
                   </Select>
                 </div>
               </div>
+              </>)}
 
               <div className="pt-3 flex justify-end gap-3 border-t border-gray-100">
                 <Button type="button" onClick={() => setIsCreateOpen(false)} variant="ghost">Cancel</Button>
-                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">Add Customer</Button>
+                <Button
+                  type="submit"
+                  disabled={createBusy || (createSeparate && (!createRemote.url || !createRemote.remote_tenant_id || !createRemote.secret))}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {createBusy ? "Connecting…" : createSeparate ? "Check & Add" : "Add Customer"}
+                </Button>
               </div>
             </form>
           </div>
@@ -769,6 +898,17 @@ export default function SuperAdminCompanies() {
                 </div>
               </div>
 
+              {/* Company on its own CRM server: connect / test / sync */}
+              <SeparateServerPanel
+                tenantId={selectedTenant._id}
+                companyName={selectedTenant.company_name}
+                remote={selectedTenant.remote}
+                hasOwner={!!selectedTenant.owner_id}
+                onChanged={onRemoteChanged}
+              />
+
+              {/* Logins of a company on its own server live on that server. */}
+              {!isRemote && (<>
               {/* Custom Domain */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Custom Domain (optional)</label>
@@ -890,6 +1030,7 @@ export default function SuperAdminCompanies() {
                 </div>
                 {manageErrors.password && <p className="text-[11px] font-medium text-red-600">{manageErrors.password}</p>}
               </div>
+              </>)}
 
               {/* Plan */}
               <div className="space-y-1.5">

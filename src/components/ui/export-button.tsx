@@ -172,7 +172,7 @@ export function ExportButton({ data, filename, columns, pdfTitle }: ExportButton
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="h-9 px-3 sm:h-11 sm:px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest">
+        <Button variant="outline" size="sm" className="h-9 px-3 sm:h-11 sm:px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all">
           <Download className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Export</span>
           <ChevronDown className="hidden sm:inline h-3 w-3 opacity-50" />

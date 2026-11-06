@@ -60,6 +60,10 @@ const LandingPage = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
+    clearThemeFromDom({ resetToLightMode: true });
+  }, []);
+
+  useEffect(() => {
     if (plans.length > 0 && !selectedPlanId) {
       setSelectedPlanId(plans[0]._id);
     }

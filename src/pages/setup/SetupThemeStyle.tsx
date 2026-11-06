@@ -41,6 +41,9 @@ const defaultTheme: ThemeState = {
     sidebarForeground: "#1a1a1a",
     activeItemBackground: "#f3f4f6",
     activeItemForeground: "#2563eb",
+    // Empty = Auto: worked out from the sidebar colours (see applyThemeToDom).
+    sidebarHoverBackground: "",
+    sidebarHoverForeground: "",
     headerBackground: "#ffffff",
     headerLinks: "#1a1a1a",
     mainContentBackground: "#ffffff",
@@ -148,6 +151,8 @@ const SECTIONS: { id: ColorSection; title: string; hint: string; fields: { key: 
       { key: "sidebarForeground", label: "Sidebar links" },
       { key: "activeItemBackground", label: "Sidebar active item background" },
       { key: "activeItemForeground", label: "Sidebar active item text" },
+      { key: "sidebarHoverBackground", label: "Sidebar hover background" },
+      { key: "sidebarHoverForeground", label: "Sidebar hover text" },
       { key: "headerBackground", label: "Top header background" },
       { key: "headerLinks", label: "Top header links" },
       { key: "mainContentBackground", label: "Main content background" },
@@ -295,11 +300,14 @@ const ColorField = ({
   label,
   value,
   defaultValue,
+  autoValue,
   onChange,
 }: {
   label: string;
   value: string;
   defaultValue: string;
+  /** Colour used when the field is left empty ("Auto"). */
+  autoValue?: string;
   onChange: (value: string) => void;
 }) => {
   const changed = !sameColor(value, defaultValue);
@@ -308,7 +316,7 @@ const ColorField = ({
       <div className="relative h-8 w-8 shrink-0 rounded-md border overflow-hidden shadow-sm cursor-pointer" title="Pick a colour">
         <input
           type="color"
-          value={normalizeToHex(value || defaultValue)}
+          value={normalizeToHex(value || defaultValue || autoValue || "")}
           onChange={(e) => onChange(e.target.value)}
           className="absolute -inset-2 h-12 w-12 cursor-pointer bg-transparent"
           aria-label={`${label} colour`}
@@ -322,7 +330,7 @@ const ColorField = ({
         value={value || ""}
         onChange={(e) => onChange(e.target.value)}
         className="w-28 h-8 text-xs font-mono"
-        placeholder={defaultValue}
+        placeholder={defaultValue || "Auto"}
         aria-label={`${label} value`}
       />
       <Button
@@ -330,7 +338,7 @@ const ColorField = ({
         variant="ghost"
         size="icon"
         className={cn("h-8 w-8 shrink-0", !changed && "invisible")}
-        title={`Reset to ${defaultValue}`}
+        title={`Reset to ${defaultValue || "Auto"}`}
         onClick={() => onChange(defaultValue)}
       >
         <RotateCcw className="h-3.5 w-3.5" />
@@ -614,6 +622,7 @@ export default function SetupThemeStyle() {
                             label={f.label}
                             value={localTheme[section.id][f.key]}
                             defaultValue={defaultTheme[section.id][f.key]}
+                            autoValue={section.id === "adminArea" ? autoSidebarColors(localTheme.adminArea)[f.key] : undefined}
                             onChange={(v) => setField(section.id, f.key, v)}
                           />
                         ))}

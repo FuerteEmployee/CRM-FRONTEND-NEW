@@ -143,7 +143,7 @@ export function ImportDialog({
         size="sm"
         disabled={loading}
         onClick={() => setOpen(true)}
-        className="h-9 px-3 sm:h-11 sm:px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest"
+        className="h-9 px-3 sm:h-11 sm:px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all"
       >
         <Upload className="h-3.5 w-3.5" />
         <span className="hidden sm:inline">{loading ? "Importing..." : triggerLabel}</span>
@@ -200,6 +200,11 @@ export function ImportDialog({
               </div>
             )}
 
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 font-medium">
+              <span className="text-red-600 font-bold text-sm leading-none">*</span>
+              <span>Fields marked with <strong className="text-red-600 font-bold">*</strong> are strictly required to import.</span>
+            </div>
+
             <div className="rounded-xl border border-border/50 p-3 space-y-2">
               <p className="text-xs font-semibold text-foreground">
                 Select columns to include in sample file:
@@ -216,7 +221,7 @@ export function ImportDialog({
                     />
                     <span className="whitespace-nowrap">
                       {col.key}
-                      {col.required && <span className="text-destructive"> *</span>}
+                      {col.required && <span className="text-red-600 font-bold ml-0.5">*</span>}
                     </span>
                   </label>
                 ))}

@@ -1,3 +1,4 @@
+import { isSuperAdminEnabled } from "./panelBranding";
 // Resolves where a logged-in user should land right after login (or when
 // bounced back to "their" dashboard by a route guard). A role can carry an
 // ordered priority list of modules via Setup > Roles; we walk it and land on
@@ -33,7 +34,7 @@ function canViewFeature(permissions: PermissionsMap, feature: string, bypass: bo
 }
 
 export function getLandingPath(user: any, permissions: PermissionsMap, isStaff: boolean): string {
-  if (user?.is_superadmin) return "/super-admin/dashboard";
+  if (user?.is_superadmin && isSuperAdminEnabled()) return "/super-admin/dashboard";
 
   const basePath = isStaff ? "/staff" : "/admin";
   const bypass = isAdminOrSuper(user);

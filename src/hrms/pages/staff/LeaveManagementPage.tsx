@@ -269,7 +269,7 @@ const LeaveManagementPage = () => {
         <Button
           variant="outline"
           size="sm"
-          className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-slate-50 flex items-center gap-2"
+          className="rounded-md h-9 px-4 font-medium border-slate-200 bg-white shadow-sm hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all flex items-center gap-2"
           onClick={() => {
             if (!isAdmin && loggedInUserId) setSwapEmp1Id(loggedInUserId);
             setIsSwapLeavesOpen(true);

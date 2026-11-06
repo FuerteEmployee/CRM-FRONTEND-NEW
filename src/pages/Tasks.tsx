@@ -41,7 +41,7 @@ import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import {
   Plus, Search, HelpCircle,
   List, Paperclip,
-  KanbanSquare, Mic, X
+  KanbanSquare, Mic, X, Zap
 } from "lucide-react";
 import { ExportButton } from "@/components/ui/export-button";
 import { ImportButton } from "@/components/ui/import-button";
@@ -285,6 +285,22 @@ const Tasks = () => {
     queryFn: customerService.getAll,
   });
 
+  const { data: projects = [] } = useQuery<any[]>({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      const res: any = await projectService.getAll();
+      return Array.isArray(res) ? res : res?.data || [];
+    },
+  });
+
+  const projectOptions = useMemo(() =>
+    projects.map((p: any) => ({
+      label: p.name || `Project #${p._id}`,
+      value: p._id
+    })),
+    [projects]
+  );
+
   const filteredCustomers = useMemo(() => {
     if (!canUseBranch) return customers;
     if (!formData.branch) return [];
@@ -501,6 +517,7 @@ const Tasks = () => {
           return isTodoId(id) ? utilityService.deleteTodo(id) : taskService.delete(id);
         }));
         toast({ title: "Success", description: `Deleted ${selectedTasks.length} tasks.` });
+      } else {
         const updates: any = {};
         if (bulkState.status) updates.status = parseInt(bulkState.status);
         if (bulkState.priority) updates.priority = parseInt(bulkState.priority);
@@ -627,6 +644,22 @@ const Tasks = () => {
     }
     if (!formData.name?.trim() || !formData.startdate) {
       toast({ title: "Error", description: "Subject and Start Date are required fields", variant: "destructive" });
+      return;
+    }
+    if (formData.hourly_rate && parseFloat(formData.hourly_rate) < 0) {
+      toast({ title: "Error", description: "Hourly rate cannot be negative", variant: "destructive" });
+      return;
+    }
+    if (formData.duedate && formData.startdate && new Date(formData.duedate) < new Date(formData.startdate)) {
+      toast({ title: "Error", description: "Due date cannot be earlier than start date", variant: "destructive" });
+      return;
+    }
+    if (formData.related_to === 'customer' && !formData.rel_id) {
+      toast({ title: "Error", description: "Please select a customer", variant: "destructive" });
+      return;
+    }
+    if (formData.related_to === 'project' && !formData.rel_id) {
+      toast({ title: "Error", description: "Please select a project", variant: "destructive" });
       return;
     }
     if (formData.category === "Inquiry" && formData.status === 5 && !formData.inquiry_outcome) {
@@ -879,17 +912,44 @@ const Tasks = () => {
                         {/* Related To */}
                         <div className="space-y-1">
                           <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Related To</Label>
-                          <Select value={formData.related_to} onValueChange={(v) => handleSelectChange('related_to', v)}>
+                          <Select
+                            value={formData.related_to || "none"}
+                            onValueChange={(v) => {
+                              const val = v === "none" ? "" : v;
+                              handleSelectChange('related_to', val);
+                              handleSelectChange('rel_id', '');
+                            }}
+                          >
                             <SelectTrigger className="h-12 bg-white rounded-xl border-slate-200 font-medium">
                               <SelectValue placeholder="Nothing Selected" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="home">Home</SelectItem>
-                              <SelectItem value="office">Office</SelectItem>
-                              <SelectItem value="field">Field</SelectItem>
+                              <SelectItem value="none">Nothing Selected</SelectItem>
+                              <SelectItem value="project">Project</SelectItem>
+                              <SelectItem value="customer">Customer</SelectItem>
+                              <SelectItem value="invoice">Invoice</SelectItem>
+                              <SelectItem value="lead">Lead</SelectItem>
+                              <SelectItem value="estimate">Estimate</SelectItem>
+                              <SelectItem value="contract">Contract</SelectItem>
+                              <SelectItem value="proposal">Proposal</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
+
+                        {formData.related_to === 'project' && (
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex gap-1">
+                              <span className="text-red-500">*</span> Project
+                            </Label>
+                            <SearchableSelect
+                              options={projectOptions}
+                              value={formData.rel_id}
+                              onValueChange={(v) => handleSelectChange('rel_id', v)}
+                              placeholder="Search project..."
+                              className="h-12 rounded-xl border-slate-200 shadow-none bg-white"
+                            />
+                          </div>
+                        )}
 
                         {formData.related_to === 'customer' && (
                           <div className="space-y-1">
@@ -1160,8 +1220,9 @@ const Tasks = () => {
                   setBulkActionOpen(open);
                 }}>
                   <DialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-11 px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-slate-50 border-slate-200 text-slate-700">
-                      Bulk Actions
+                    <Button variant="outline" size="sm" className="h-9 px-3 sm:h-11 sm:px-6 rounded-xl gap-2 font-black uppercase text-[10px] tracking-widest bg-card border-border/60 hover:bg-primary/5 hover:border-primary/40 hover:text-primary transition-all">
+                      <Zap className="h-3.5 w-3.5 text-primary" />
+                      <span className="hidden sm:inline">Bulk Actions</span>
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="max-w-md">
@@ -1261,17 +1322,34 @@ const Tasks = () => {
                 </Dialog>
               </div>
 
-              <div className="relative w-full sm:w-auto">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Search tasks..."
-                  className="pl-9 h-9 w-full sm:w-[250px] text-sm bg-slate-50 border-slate-200 focus-visible:ring-primary/20"
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setCurrentPage(1);
-                  }}
-                />
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {(search.trim() || activeStatus !== "all" || activeCategory !== "all") && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSearch("");
+                      setActiveStatus("all");
+                      setActiveCategory("all");
+                      setCurrentPage(1);
+                    }}
+                    className="h-9 text-xs text-muted-foreground hover:text-foreground font-semibold"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+                <div className="relative w-full sm:w-auto">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder="Search tasks..."
+                    className="pl-9 h-9 w-full sm:w-[250px] text-sm bg-slate-50 border-slate-200 focus-visible:ring-primary/20"
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
@@ -1296,7 +1374,7 @@ const Tasks = () => {
                     {canUseBranch && <TableHead>Branch</TableHead>}
                     <TableHead>Tags</TableHead>
                     <TableHead>Priority</TableHead>
-                    <TableHead className="text-right">Options</TableHead>
+                    <TableHead className="sticky right-0 bg-muted/90 backdrop-blur-sm z-10 text-right shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] border-l border-border/40">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1433,15 +1511,11 @@ const Tasks = () => {
                               <span className="text-xs text-slate-400">-</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="sticky right-0 bg-card/95 backdrop-blur-sm z-10 text-right shadow-[-6px_0_10px_-4px_rgba(0,0,0,0.06)] border-l border-border/40">
                             <TableActions
                               onView={() => handleView(task)}
-                              onEdit={() => handleEdit(task)}
-                              onDelete={() => {
-                                if (confirm("Are you sure you want to delete this task?")) {
-                                  deleteMutation.mutate({ id: task._id, isTodo: task.isTodo });
-                                }
-                              }}
+                              onEdit={(isAdmin || can("Tasks", "Edit")) ? () => handleEdit(task) : undefined}
+                              onDelete={(isAdmin || can("Tasks", "Delete")) ? () => deleteMutation.mutate({ id: task._id, isTodo: task.isTodo }) : undefined}
                             />
                           </TableCell>
                         </TableRow>

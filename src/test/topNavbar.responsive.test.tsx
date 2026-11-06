@@ -3,12 +3,14 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { TopNavbar } from "../components/layout/TopNavbar";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Mock permission context
 vi.mock("@/context/PermissionContext", () => ({
   usePermissionContext: () => ({
     user: { firstname: "Test", lastname: "User", email: "test@example.com", admin: true },
     canView: vi.fn(() => true),
+    can: vi.fn(() => true),
     isModuleEnabled: vi.fn(() => true),
     logout: vi.fn(),
   }),
@@ -53,17 +55,24 @@ vi.mock("@/hooks/useTheme", () => ({
 }));
 
 describe("TopNavbar Responsive & Mobile Search Verification", () => {
+  let queryClient: QueryClient;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
   });
 
   const renderNavbar = () =>
     render(
-      <SidebarProvider>
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-          <TopNavbar />
-        </BrowserRouter>
-      </SidebarProvider>
+      <QueryClientProvider client={queryClient}>
+        <SidebarProvider>
+          <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <TopNavbar />
+          </BrowserRouter>
+        </SidebarProvider>
+      </QueryClientProvider>
     );
 
   test("Desktop Viewport: Desktop search input is rendered with full placeholder", () => {

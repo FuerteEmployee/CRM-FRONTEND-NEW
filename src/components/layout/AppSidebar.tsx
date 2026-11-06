@@ -370,8 +370,7 @@ export function AppSidebar() {
   const isExpired = !user?.is_superadmin && isPastGrace(user?.tenant as any);
 
   const [menuMode, setMenuMode] = useState<"main" | "setup">(
-    () =>
-      (localStorage.getItem("sidebar:menuMode") as "main" | "setup") || "main",
+    () => (location.pathname.includes("/setup") ? "setup" : "main")
   );
 
   const { data: dbMenuItems = [] as any[], isLoading: menusLoading } = useQuery<any[]>({
@@ -626,24 +625,43 @@ export function AppSidebar() {
 
   const mainSidebarDragCtx = { mutation: reorderMutation, queryKey: ["mainsidebar"] };
   const quotationDragCtx = { mutation: reorderQuotationMutation, queryKey: ["quotation-types"] };
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>(
-    () => {
-      try {
-        return JSON.parse(localStorage.getItem("sidebar:openSections") || "{}");
-      } catch {
-        return {};
-      }
-    },
-  );
 
-  // Persist states to localStorage
+  // CHILD_GROUP_NAV maps child group keys to their real dynamic navigation items.
+  const CHILD_GROUP_NAV: Record<string, any[]> = {
+    HRMS: dynamicNav.hrmsNav,
+    Reports: dynamicNav.reportsNav,
+    Utilities: dynamicNav.utilitiesNav,
+    QuotationMaker: quotationMakerNav,
+  };
+
+  // Derive initial collapsible state cleanly from current URL:
+  // If loading an HRMS URL, HRMS is open. If loading Quotations, Quotation Maker is open.
+  // Unrelated top-level URLs (like /admin/payments or /admin/customers) start with ALL collapsible groups closed
+  // so inactive sections never push the active menu item off the screen.
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname;
+      if (path.includes("/hrms")) {
+        initial["HRMS"] = true;
+      } else if (path.includes("/quotations")) {
+        initial["Quotation Maker"] = true;
+      }
+    }
+    return initial;
+  });
+
+  // Clean up any stale localStorage sidebar:openSections from previous buggy sessions
+  useEffect(() => {
+    try {
+      localStorage.removeItem("sidebar:openSections");
+    } catch {}
+  }, []);
+
+  // Persist menuMode state to localStorage
   useEffect(() => {
     localStorage.setItem("sidebar:menuMode", menuMode);
   }, [menuMode]);
-
-  useEffect(() => {
-    localStorage.setItem("sidebar:openSections", JSON.stringify(openSections));
-  }, [openSections]);
 
   // Open a specific collapsible section when CRM Agent voice command navigates here
   useEffect(() => {
@@ -659,7 +677,10 @@ export function AppSidebar() {
   }, []);
 
   const toggleSection = (title: string) => {
-    setOpenSections((prev) => ({ ...prev, [title]: !prev[title] }));
+    setOpenSections((prev) => {
+      const current = prev[title] !== undefined ? prev[title] : false;
+      return { ...prev, [title]: !current };
+    });
   };
 
   const checkIsActive = (url: string | undefined) => {
@@ -685,6 +706,91 @@ export function AppSidebar() {
         (!urlQuery || queryMatches))
     );
   };
+
+  // Reference to the active menu item element to auto-scroll into view smoothly
+  const activeItemRef = React.useRef<HTMLAnchorElement | null>(null);
+
+  // Auto-scroll active sidebar item into view smoothly whenever the route changes
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (activeItemRef.current) {
+        activeItemRef.current.scrollIntoView({
+          block: "nearest",
+          behavior: "smooth",
+        });
+      }
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [location.pathname, location.search, openSections]);
+
+  // Only sync menuMode when location.pathname actually changes across route transitions:
+  // If navigating into a /setup/* page from outside, switch to setup mode.
+  // If navigating out of a /setup/* page to a main CRM page, return to main mode.
+  // Never override user's manual click of "Setup" or "Back to Main" while on the same page!
+  const prevPathRef = React.useRef(location.pathname);
+  useEffect(() => {
+    const prev = prevPathRef.current;
+    const curr = location.pathname;
+    prevPathRef.current = curr;
+
+    if (curr !== prev) {
+      if (curr.includes("/setup")) {
+        setMenuMode("setup");
+      } else if (prev.includes("/setup") && !curr.includes("/setup")) {
+        setMenuMode("main");
+      }
+    }
+  }, [location.pathname]);
+
+  // Synchronize collapsible sections with the active route:
+  // 1. If the current route belongs to a collapsible section (e.g. HRMS, Quotation Maker, Setup groups),
+  //    automatically expand that section so the user sees the active sub-item.
+  // 2. If navigating to a top-level route (e.g. /admin/payments, /admin/customers),
+  //    collapse inactive collapsible sections so they don't push the active menu item off-screen.
+  useEffect(() => {
+    const nextOpen: Record<string, boolean> = {};
+
+    if (menuMode === "main") {
+      // 1. Check HRMS items
+      if (dynamicNav.hrmsNav.some((i: any) => checkIsActive(i.url))) {
+        nextOpen["HRMS"] = true;
+      }
+      // 2. Check Quotation Maker items
+      if (quotationMakerNav.some((i: any) => checkIsActive(i.url))) {
+        nextOpen["Quotation Maker"] = true;
+      }
+      // 3. Check Sales items
+      if (dynamicNav.salesNav.some((i: any) => checkIsActive(i.url))) {
+        nextOpen["Sales"] = true;
+      }
+      // 4. Check Utilities items
+      if (dynamicNav.utilitiesNav.some((i: any) => checkIsActive(i.url))) {
+        nextOpen["Utilities"] = true;
+      }
+      // 5. Check Reports items
+      if (dynamicNav.reportsNav.some((i: any) => checkIsActive(i.url))) {
+        nextOpen["Reports"] = true;
+      }
+      // 6. Check any inline childGroup items in mainNav (e.g. custom tenant HRMS placement)
+      dynamicNav.mainNav.forEach((item: any) => {
+        if (item.childGroup) {
+          const list = CHILD_GROUP_NAV[item.childGroup] || [];
+          if (list.some((c: any) => checkIsActive(c.url))) {
+            nextOpen[item.title] = true;
+          }
+        }
+      });
+    } else {
+      // Setup mode: check visibleSetupItems sub-items
+      visibleSetupItems.forEach((item: any) => {
+        if (item.subItems?.some((sub: any) => checkIsActive(sub.url))) {
+          nextOpen[item.title] = true;
+        }
+      });
+    }
+
+    setOpenSections(nextOpen);
+  }, [location.pathname, location.search, menuMode]);
 
   const renderItems = (
     items: any[],
@@ -755,7 +861,6 @@ export function AppSidebar() {
               onClick={() => {
                 setMenuMode("setup");
                 setOpenSections({});
-                if (isMobile) setOpenMobile(false);
               }}
               className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative cursor-pointer"
             >
@@ -823,6 +928,7 @@ export function AppSidebar() {
               </a>
             ) : (
               <NavLink
+                ref={isActive ? activeItemRef : undefined}
                 to={getUrl(item.url)}
                 end
                 onClick={handleClick}
@@ -831,7 +937,7 @@ export function AppSidebar() {
                 activeClassName={isActive ? "sidebar-active-item font-semibold" : ""}
               >
                 {isActive && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-sidebar-primary-foreground transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
                 )}
                 <IconComponent
                   className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isActive ? "text-primary" : ""}`}
@@ -891,10 +997,10 @@ export function AppSidebar() {
     if (visibleItems.length === 0) return null;
 
     const Icon = icon;
-    const open = !!openSections[label];
     const isAnyChildActive = visibleItems.some(
       (item) => checkIsActive(item.url),
     );
+    const open = openSections[label] !== undefined ? !!openSections[label] : isAnyChildActive;
     return (
       <Collapsible open={open} onOpenChange={() => toggleSection(label)}>
         <SidebarMenuItem>
@@ -912,7 +1018,7 @@ export function AppSidebar() {
               <CollapsibleTrigger asChild>
                 <SidebarMenuButton className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative">
                   {isAnyChildActive && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-sidebar-primary-foreground transition-all duration-300 animate-in fade-in slide-in-from-left-1" />
                   )}
                   <Icon
                     className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isAnyChildActive ? "text-primary" : ""}`}
@@ -1151,7 +1257,6 @@ export function AppSidebar() {
                           onClick={() => {
                             setMenuMode("setup");
                             setOpenSections({});
-                            if (isMobile) setOpenMobile(false);
                           }}
                           className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative cursor-pointer"
                         >
@@ -1225,10 +1330,10 @@ export function AppSidebar() {
                   {visibleSetupItems.map((item: any) => {
                     const Icon = item.icon;
                     if (item.subItems && item.subItems.length > 0) {
-                      const isOpen = !!openSections[item.title];
                       const isAnyChildActive = item.subItems.some(
                         (sub: any) => checkIsActive(sub.url),
                       );
+                      const isOpen = openSections[item.title] !== undefined ? !!openSections[item.title] : isAnyChildActive;
 
                       return (
                         <Collapsible
@@ -1240,7 +1345,7 @@ export function AppSidebar() {
                             <CollapsibleTrigger asChild>
                               <SidebarMenuButton className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative">
                                 {isAnyChildActive && (
-                                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary transition-all duration-300" />
+                                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-sidebar-primary-foreground transition-all duration-300" />
                                 )}
                                 <Icon
                                   className={cn(
@@ -1272,6 +1377,7 @@ export function AppSidebar() {
                                       <SidebarMenuItem key={sub.title}>
                                         <SidebarMenuButton asChild isActive={isSubActive}>
                                           <NavLink
+                                            ref={isSubActive ? activeItemRef : undefined}
                                             to={getUrl(sub.url)}
                                             end
                                             onClick={() => {
@@ -1283,7 +1389,7 @@ export function AppSidebar() {
                                             activeClassName={isSubActive ? "sidebar-active-item font-semibold" : ""}
                                           >
                                             {isSubActive && (
-                                              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary" />
+                                              <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-sidebar-primary-foreground" />
                                             )}
                                             <span className="text-[12.5px] font-medium pl-1">
                                               {sub.title}
@@ -1326,6 +1432,7 @@ export function AppSidebar() {
                             </a>
                           ) : (
                             <NavLink
+                              ref={isActive ? activeItemRef : undefined}
                               id={item.title === "Settings" ? "tour-settings" : undefined}
                               to={getUrl(item.url)!}
                               end
@@ -1334,7 +1441,7 @@ export function AppSidebar() {
                               activeClassName={isActive ? "sidebar-active-item font-semibold" : ""}
                             >
                               {isActive && (
-                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-primary" />
+                                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-5 rounded-r-full bg-sidebar-primary-foreground" />
                               )}
                               <Icon className="mr-2.5 h-4 w-4 shrink-0" />
                               {!collapsed && (
