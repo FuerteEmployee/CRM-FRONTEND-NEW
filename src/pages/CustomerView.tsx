@@ -34,7 +34,8 @@ import {
   Save,
   Check,
   Archive,
-  FilePlus
+  FilePlus,
+  Loader2
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { customerService } from "@/api/services/customer.service";
