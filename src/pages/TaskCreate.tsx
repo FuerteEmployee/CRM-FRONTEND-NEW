@@ -184,7 +184,8 @@ const TaskCreate = () => {
     mutation.mutate(formData);
   };
 
-  const staffOptions = staff.map((s: any) => ({ value: s._id, label: `${s.firstname} ${s.lastname}` }));
+  // Only active staff can be picked as assignees / followers.
+  const staffOptions = staff.filter((s: any) => s.active !== false).map((s: any) => ({ value: s._id, label: `${s.firstname} ${s.lastname}` }));
 
   return (
     <DashboardLayout>

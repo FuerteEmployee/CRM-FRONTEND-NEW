@@ -11,7 +11,5 @@ export const taskService = {
 
   delete: (id) => apiClient.delete(`/tasks/${id}`),
 
-  updateStatus: (id, status) => apiClient.patch(`/tasks/${id}/status`, { status }),
-
   importTasks: (data) => apiClient.post("/tasks/import", data)
 };

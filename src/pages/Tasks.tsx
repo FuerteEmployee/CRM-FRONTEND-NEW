@@ -326,12 +326,16 @@ const Tasks = () => {
     }))
     , [filteredCustomers]);
 
+  const toStaffOption = (member: any) => ({
+    label: `${member.firstname || ''} ${member.lastname || ''}`.trim() || member.email,
+    value: member._id
+  });
+  // Pickers offer only active staff; the full list (incl. inactive) is kept for
+  // showing names of people already on a task, its comments and checklist.
   const staffOptions = useMemo(() =>
-    staffMembers.map((member: any) => ({
-      label: `${member.firstname || ''} ${member.lastname || ''}`.trim() || member.email,
-      value: member._id
-    }))
+    staffMembers.filter((member: any) => member.active !== false).map(toStaffOption)
     , [staffMembers]);
+  const allStaffOptions = useMemo(() => staffMembers.map(toStaffOption), [staffMembers]);
 
   const isLoading = tasksLoading || todosLoading;
 
@@ -340,7 +344,8 @@ const Tasks = () => {
   // the whole tenant fetch, so a restricted user's page can render fewer
   // than `itemsPerPage` rows (a pre-existing limitation, not a regression).
   const scopedTasksOnPage = useMemo(() => {
-    if (!(isStaff && !isAdmin && user?._id)) return tasksOnPage;
+    // Staff with View(Global) see every task the API returned; only View (Own) is narrowed.
+    if (!(isStaff && !isAdmin && !can("Tasks", "View(Global)") && user?._id)) return tasksOnPage;
     const currentUserId = String(user._id);
     return tasksOnPage.filter((t: any) => {
       const isAssigned = Array.isArray(t.assignees) && t.assignees.some((a: any) =>
@@ -352,7 +357,7 @@ const Tasks = () => {
       const isCreator = String(typeof t.created_by === 'object' ? t.created_by?._id : t.created_by) === currentUserId;
       return isAssigned || isFollower || isCreator;
     });
-  }, [tasksOnPage, isStaff, isAdmin, user?._id]);
+  }, [tasksOnPage, isStaff, isAdmin, can, user?._id]);
 
   const normalizedTasksOnPage = useMemo(
     () =>
@@ -736,6 +741,7 @@ const Tasks = () => {
           onClose={() => setIsViewModalOpen(false)}
           task={(selectedViewTask && paginatedTasks.find((t: any) => t._id === selectedViewTask._id)) || selectedViewTask}
           staffOptions={staffOptions}
+          allStaffOptions={allStaffOptions}
         />
         <InquiryOutcomeDialog
           isOpen={!!outcomeTask}
@@ -773,12 +779,16 @@ const Tasks = () => {
                 <ImportButton onData={processTaskRows} loading={importTasksMutation.isPending} label="Import Tasks" />
               )}
               <Dialog open={isNewTaskModalOpen} onOpenChange={(open) => (open ? setIsNewTaskModalOpen(true) : handleCloseModal())}>
+                {/* Only the "New Task" button needs Create — the dialog itself stays,
+                    because it is also used to edit tasks. */}
+                {(isAdmin || can("Tasks", "Create")) && (
                 <DialogTrigger asChild>
                   <Button onClick={() => setEditingTask(null)} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
                     <Plus className="mr-2 h-4 w-4" />
                     New Task
                   </Button>
                 </DialogTrigger>
+                )}
                 <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden flex flex-col bg-white">
                   <DialogHeader className="p-6 bg-white border-b border-slate-100 flex-shrink-0">
                     <DialogTitle className="text-xl font-bold text-slate-800">

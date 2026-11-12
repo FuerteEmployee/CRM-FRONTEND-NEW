@@ -250,7 +250,7 @@ const Projects = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Projects</h1>
-          {can("projects", "create") && (
+          {can("Projects", "Create") && (
             <Button onClick={() => navigate("/admin/projects/create")} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
               <Plus className="mr-2 h-4 w-4" />
               New Project

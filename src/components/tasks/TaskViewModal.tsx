@@ -55,7 +55,8 @@ interface TaskViewModalProps {
   isOpen: boolean;
   onClose: () => void;
   task: any;
-  staffOptions: any[];
+  staffOptions: any[]; // active staff — offered in pickers
+  allStaffOptions?: any[]; // every staff incl. inactive — used only to show names
   allTasks?: any[]; // for references if needed
 }
 
@@ -74,7 +75,7 @@ const priorityLabels: Record<number, string> = {
   4: "Urgent",
 };
 
-export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewModalProps) => {
+export const TaskViewModal = ({ isOpen, onClose, task, staffOptions, allStaffOptions }: TaskViewModalProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { symbol } = useCurrency();
@@ -320,7 +321,7 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions }: TaskViewM
   };
 
   const getStaffName = (id: string) => {
-    const staff = staffOptions.find(s => s.value === id);
+    const staff = (allStaffOptions || staffOptions).find(s => s.value === id);
     return staff ? staff.label : "Unknown";
   };
 
