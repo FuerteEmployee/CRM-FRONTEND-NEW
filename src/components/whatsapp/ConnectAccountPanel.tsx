@@ -95,6 +95,19 @@ export function ConnectAccountPanel() {
     onError: (err: any) => toast({ title: "Update failed", description: err.message, variant: "destructive" }),
   });
 
+  const recheckMutation = useMutation({
+    mutationFn: (id: string) => whatsappService.recheckWebhook(id),
+    onSuccess: (result: Connection) => {
+      toast(
+        result.webhook_registered
+          ? { title: "Webhook registered", description: "Meta is now connected to this CRM." }
+          : { title: "Webhook registration still failing", description: result.webhook_registration_error, variant: "destructive" }
+      );
+      queryClient.invalidateQueries({ queryKey: ["whatsapp-integrations"] });
+    },
+    onError: (err: any) => toast({ title: "Recheck failed", description: err.message, variant: "destructive" }),
+  });
+
   const liveModeMutation = useMutation({
     mutationFn: ({ id, isLive }: { id: string; isLive: boolean }) => whatsappService.setLiveMode(id, isLive),
     onSuccess: () => {
@@ -233,6 +246,17 @@ export function ConnectAccountPanel() {
                       onCheckedChange={(checked) => liveModeMutation.mutate({ id: c._id, isLive: checked })}
                     />
                   </div>
+                  {c.app_id && !c.webhook_registered && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={recheckMutation.isPending}
+                      onClick={() => recheckMutation.mutate(c._id)}
+                    >
+                      {recheckMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                      Recheck Webhook
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"

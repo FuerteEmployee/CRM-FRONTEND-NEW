@@ -4,6 +4,7 @@ export const whatsappService = {
   getIntegrations: () => apiClient.get('/whatsapp-integration'),
   connect: (data) => apiClient.post('/whatsapp-integration/connect', data),
   updateToken: (id, data) => apiClient.patch(`/whatsapp-integration/${id}/token`, data),
+  recheckWebhook: (id) => apiClient.post(`/whatsapp-integration/${id}/recheck-webhook`),
   setLiveMode: (id, isLive) => apiClient.patch(`/whatsapp-integration/${id}/live-mode`, { is_live: isLive }),
   disconnect: (id) => apiClient.delete(`/whatsapp-integration/${id}`),
 
