@@ -462,6 +462,9 @@ const Chat = () => {
       await chatService.clearChat(selectedContact._id, selectedContact.isGroup);
       setMessages([]);
       setHasMore(false);
+      // The server marked the hidden messages read: take them off the Chat badge too.
+      const wasUnread = contacts.find((c) => c._id === selectedContact._id)?.unreadCount || 0;
+      if (wasUnread > 0) setChatUnreadCount((prev) => Math.max(0, prev - wasUnread));
       setContacts((prev) => prev.map((c) => (c._id === selectedContact._id ? { ...c, unreadCount: 0 } : c)));
       toast({ title: "Chat cleared", description: "Messages are hidden for you. The other person still sees them." });
     } catch (error) {
