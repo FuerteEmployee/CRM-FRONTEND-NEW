@@ -16,6 +16,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -33,13 +34,34 @@ import {
   CheckCheck,
   Plus,
   Users as UsersIcon,
-  UserPlus
+  UserPlus,
+  X,
+  FileText,
+  UserRound,
+  FolderOpen,
+  Eraser,
+  Mail,
+  ShieldCheck,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { ChatAttachments, formatFileSize, type ChatAttachment } from "@/components/chat/ChatAttachments";
+import { SharedFilesDialog } from "@/components/chat/SharedFilesDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { chatService } from "@/api/services/chat.service";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { format } from "date-fns";
-import { io, Socket } from "socket.io-client";
+import type { Socket } from "socket.io-client";
+import { createAppSocket } from "@/lib/appSocket";
 import EmojiPicker from "emoji-picker-react";
 import { useNotificationContext } from "@/context/NotificationContext";
 import { JitsiMeeting } from "@jitsi/react-sdk";
@@ -56,7 +78,24 @@ interface ChatContact {
   isGroup?: boolean;
   groupAdmin?: string;
   participants?: string[];
+  online?: boolean; // live: has the CRM open right now
+  lastSeen?: string | null; // when their last CRM tab closed
 }
+
+type Presence = Record<string, { online: boolean; lastSeen?: string | null }>;
+
+/** "Last seen today at 10:30 AM" / "Last seen 12 Nov at 6:05 PM". */
+const lastSeenText = (lastSeen?: string | null) => {
+  if (!lastSeen) return "Offline";
+  const d = new Date(lastSeen);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const time = format(d, "hh:mm a");
+  if (d.toDateString() === today.toDateString()) return `Last seen today at ${time}`;
+  if (d.toDateString() === yesterday.toDateString()) return `Last seen yesterday at ${time}`;
+  return `Last seen ${format(d, "dd MMM")} at ${time}`;
+};
 
 interface ChatMessage {
   _id: string;
@@ -67,11 +106,24 @@ interface ChatMessage {
   };
   receiver: string;
   message: string;
+  attachments?: ChatAttachment[];
   createdAt: string;
   read?: boolean;
   conversationId?: string;
   isGroup?: boolean;
 }
+
+// How many files can be picked for one message (the server also applies
+// Setup > Settings > Misc limits and the allowed file types).
+const MAX_PENDING_FILES = 10;
+
+/** Contact-list preview for a message that may be only files. */
+const messagePreview = (msg: ChatMessage) => {
+  if (msg.message) return msg.message;
+  const files = msg.attachments || [];
+  if (files.length === 1) return `📎 ${files[0].name}`;
+  return files.length ? `📎 ${files.length} files` : "";
+};
 
 const Chat = () => {
   const { user: currentUser } = usePermissionContext();
@@ -95,10 +147,29 @@ const Chat = () => {
   const [isViewMembersOpen, setIsViewMembersOpen] = useState(false);
   const [activeCall, setActiveCall] = useState(false);
   const [callType, setCallType] = useState<"video" | "audio">("video");
-  
+  // Attachments (📎) and the chat's ⋮ menu
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [sending, setSending] = useState(false);
+  const [chatSearchOpen, setChatSearchOpen] = useState(false);
+  const [chatSearch, setChatSearch] = useState("");
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isSharedFilesOpen, setIsSharedFilesOpen] = useState(false);
+  const [isClearOpen, setIsClearOpen] = useState(false);
+  // Live online status; the contact list (refreshed every 10 s) fills it too.
+  const [presence, setPresence] = useState<Presence>({});
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const selectedContactRef = useRef<ChatContact | null>(null);
+
+  // A new chat starts clean: no files waiting to be sent, no search.
+  useEffect(() => {
+    setPendingFiles([]);
+    setChatSearch("");
+    setChatSearchOpen(false);
+  }, [selectedContact?._id]);
 
   useEffect(() => {
     selectedContactRef.current = selectedContact;
@@ -112,15 +183,29 @@ const Chat = () => {
 
   // Connect to WebSocket on mount
   useEffect(() => {
-    socketRef.current = io(import.meta.env.VITE_SOCKET_URL || (import.meta.env.MODE === "development"
-      ? "http://localhost:5000"
-      : "https://crm-backend.beontimeofficial.com"), {
-      withCredentials: true,
-    });
+    // Logged-in connection; the server puts it in this user's own rooms.
+    socketRef.current = createAppSocket();
 
     if (currentUser?._id) {
-      socketRef.current.emit("join", currentUser._id);
+      socketRef.current.emit("join", currentUser._id); // kept for an older backend
     }
+
+    // Who is online: the full list on connect, then live changes.
+    socketRef.current.on("presence:state", ({ online }: { online: string[] }) => {
+      setPresence((prev) => {
+        const next: Presence = {};
+        // Anyone not in the list is offline now (keep their last-seen time).
+        Object.entries(prev).forEach(([id, p]) => (next[id] = { ...p, online: false }));
+        (online || []).forEach((id) => (next[id] = { ...next[id], online: true }));
+        return next;
+      });
+    });
+    socketRef.current.on("presence:update", ({ userId, online, lastSeen }: { userId: string; online: boolean; lastSeen?: string }) => {
+      setPresence((prev) => ({
+        ...prev,
+        [userId]: { online, lastSeen: online ? prev[userId]?.lastSeen : lastSeen || prev[userId]?.lastSeen },
+      }));
+    });
 
     socketRef.current.on("newMessage", (msg: ChatMessage) => {
       // Update contacts unread count / last message
@@ -130,7 +215,7 @@ const Chat = () => {
           if (isMatch) {
             return {
                 ...c,
-                lastMessage: msg.message,
+                lastMessage: messagePreview(msg),
                 unreadCount:
                   selectedContactRef.current?._id === c._id
                     ? c.unreadCount
@@ -186,6 +271,14 @@ const Chat = () => {
           return true;
         });
         setContacts(unique);
+        // The server's own online list, so the dots stay right even if a live update was missed.
+        setPresence((prev) => {
+          const next = { ...prev };
+          unique.forEach((c: ChatContact) => {
+            if (!c.isGroup && typeof c.online === "boolean") next[c._id] = { online: c.online, lastSeen: c.lastSeen };
+          });
+          return next;
+        });
       } catch (error) {
         console.error("Failed to fetch contacts:", error);
       } finally {
@@ -274,8 +367,59 @@ const Chat = () => {
       c.email.toLowerCase().includes(searchContacts.toLowerCase()),
   );
 
+  const showError = (error: unknown) =>
+    toast({
+      title: "Something went wrong",
+      description: error instanceof Error ? error.message : "Please try again.",
+      variant: "destructive",
+    });
+
+  const addPendingFiles = (list: FileList | null) => {
+    if (!list?.length) return;
+    const picked = Array.from(list);
+    setPendingFiles((prev) => {
+      const next = [...prev, ...picked];
+      if (next.length > MAX_PENDING_FILES) {
+        toast({ title: `You can send up to ${MAX_PENDING_FILES} files at once`, variant: "destructive" });
+      }
+      return next.slice(0, MAX_PENDING_FILES);
+    });
+  };
+
   const handleSend = async () => {
-    if (!message.trim() || !selectedContact) return;
+    if (!selectedContact || sending) return;
+    const text = message.trim();
+    const files = pendingFiles;
+    if (!text && files.length === 0) return;
+
+    if (files.length > 0) {
+      // Files (with the typed text as caption) go in one message.
+      setSending(true);
+      try {
+        const sentMsg = await chatService.sendFiles(selectedContact._id, files, text, selectedContact.isGroup);
+        setPendingFiles([]);
+        setMessage("");
+        setMessages((prev) => [
+          ...prev,
+          {
+            ...sentMsg,
+            sender: {
+              _id: currentUser?._id || "",
+              firstname: currentUser?.firstname || "",
+              lastname: currentUser?.lastname || "",
+            },
+          },
+        ]);
+        setContacts((prev) => prev.map((c) => (c._id === selectedContact._id ? { ...c, lastMessage: messagePreview(sentMsg), lastMessageTime: sentMsg.createdAt } : c)));
+        setTimeout(scrollToBottom, 50);
+      } catch (error) {
+        showError(error); // files stay in the list so the user can retry or remove one
+      } finally {
+        setSending(false);
+      }
+      return;
+    }
+
     const msgToSend = message;
     setMessage(""); // clear optimistic
     try {
@@ -308,6 +452,22 @@ const Chat = () => {
       setMessages((prev) => prev.filter((m) => m._id !== msgId));
     } catch (error) {
       console.error("Failed to delete message:", error);
+    }
+  };
+
+  // ⋮ > Clear chat — hides the messages for me only.
+  const handleClearChat = async () => {
+    if (!selectedContact) return;
+    try {
+      await chatService.clearChat(selectedContact._id, selectedContact.isGroup);
+      setMessages([]);
+      setHasMore(false);
+      setContacts((prev) => prev.map((c) => (c._id === selectedContact._id ? { ...c, unreadCount: 0 } : c)));
+      toast({ title: "Chat cleared", description: "Messages are hidden for you. The other person still sees them." });
+    } catch (error) {
+      showError(error);
+    } finally {
+      setIsClearOpen(false);
     }
   };
 
@@ -357,6 +517,21 @@ const Chat = () => {
 
   const getInitials = (f: string, l: string) =>
     `${f?.[0] || ""}${l?.[0] || ""}`.toUpperCase();
+
+  // ⋮ > Search in chat: filters the loaded messages by text or file name.
+  const searchTerm = chatSearch.trim().toLowerCase();
+  const visibleMessages = searchTerm
+    ? messages.filter(
+        (m) =>
+          (m.message || "").toLowerCase().includes(searchTerm) ||
+          (m.attachments || []).some((a) => a.name.toLowerCase().includes(searchTerm))
+      )
+    : messages;
+  const contactTitle = selectedContact
+    ? selectedContact.isGroup
+      ? selectedContact.firstname
+      : `${selectedContact.firstname} ${selectedContact.lastname}`
+    : "";
 
   return (
     <DashboardLayout>
@@ -409,7 +584,13 @@ const Chat = () => {
                           {contact.isGroup ? <UsersIcon className="h-5 w-5" /> : getInitials(contact.firstname, contact.lastname)}
                         </AvatarFallback>
                       </Avatar>
-                      {!contact.isGroup && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-success border-2 border-card" />}
+                      {!contact.isGroup && (
+                        <span
+                          className={`absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-card ${presence[contact._id]?.online ? "bg-success" : "bg-muted-foreground/40"}`}
+                          title={presence[contact._id]?.online ? "Online" : lastSeenText(presence[contact._id]?.lastSeen)}
+                          aria-label={presence[contact._id]?.online ? "Online" : "Offline"}
+                        />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
@@ -491,7 +672,13 @@ const Chat = () => {
                       <h3 className="text-sm font-semibold">
                         {selectedContact.isGroup ? selectedContact.firstname : `${selectedContact.firstname} ${selectedContact.lastname}`}
                       </h3>
-                      <p className="text-xs text-muted-foreground">{selectedContact.isGroup ? `${selectedContact.participants?.length || 0} members` : "Online"}</p>
+                      <p className={`text-xs ${!selectedContact.isGroup && presence[selectedContact._id]?.online ? "text-success" : "text-muted-foreground"}`}>
+                        {selectedContact.isGroup
+                          ? `${selectedContact.participants?.length || 0} members`
+                          : presence[selectedContact._id]?.online
+                            ? "Online"
+                            : lastSeenText(presence[selectedContact._id]?.lastSeen)}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
@@ -506,35 +693,80 @@ const Chat = () => {
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleStartCall("video")} title="Video Call">
                       <Video className="h-4 w-4" />
                     </Button>
-                    {selectedContact.isGroup ? (
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" title="More options" aria-label="More options">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        {selectedContact.isGroup ? (
                           <DropdownMenuItem onClick={() => setIsViewMembersOpen(true)}>
-                            View Members
+                            <UsersIcon className="h-4 w-4 mr-2" /> View Members
                           </DropdownMenuItem>
-                          {selectedContact.groupAdmin === currentUser?._id ? (
+                        ) : (
+                          <DropdownMenuItem onClick={() => setIsProfileOpen(true)}>
+                            <UserRound className="h-4 w-4 mr-2" /> View Profile
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onClick={() => setChatSearchOpen(true)}>
+                          <Search className="h-4 w-4 mr-2" /> Search in chat
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setIsSharedFilesOpen(true)}>
+                          <FolderOpen className="h-4 w-4 mr-2" /> Shared files
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setIsClearOpen(true)}>
+                          <Eraser className="h-4 w-4 mr-2" /> Clear chat
+                        </DropdownMenuItem>
+                        {selectedContact.isGroup &&
+                          (selectedContact.groupAdmin === currentUser?._id ? (
                             <DropdownMenuItem className="text-destructive" onClick={handleDeleteGroup}>
-                              Delete Group
+                              <Trash2 className="h-4 w-4 mr-2" /> Delete Group
                             </DropdownMenuItem>
                           ) : (
                             <DropdownMenuItem className="text-destructive" onClick={handleExitGroup}>
-                              Exit Group
+                              <X className="h-4 w-4 mr-2" /> Exit Group
                             </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : (
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    )}
+                          ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
+
+                {/* ⋮ > Search in chat */}
+                {chatSearchOpen && (
+                  <div className="flex items-center gap-2 px-3 py-2 border-b bg-card">
+                    <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <Input
+                      autoFocus
+                      value={chatSearch}
+                      onChange={(e) => setChatSearch(e.target.value)}
+                      onKeyDown={(e) => e.key === "Escape" && (setChatSearch(""), setChatSearchOpen(false))}
+                      placeholder="Search messages and file names..."
+                      className="h-8"
+                      aria-label="Search in chat"
+                    />
+                    {searchTerm && (
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        {visibleMessages.length} found
+                      </span>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => {
+                        setChatSearch("");
+                        setChatSearchOpen(false);
+                      }}
+                      title="Close search"
+                      aria-label="Close search"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
 
                 {/* Messages */}
                 <ScrollArea className="flex-1 p-4" viewportRef={scrollRef}>
@@ -570,8 +802,13 @@ const Chat = () => {
                             </Button>
                           </div>
                         )}
-                        {messages.map((msg, idx) => {
-                          const isSequential = idx > 0 && messages[idx - 1].sender._id === msg.sender._id;
+                        {searchTerm && visibleMessages.length === 0 && (
+                          <div className="text-center text-sm text-muted-foreground py-8">
+                            No messages match "{chatSearch.trim()}". Only loaded messages are searched — use "Load previous messages" to search older ones.
+                          </div>
+                        )}
+                        {visibleMessages.map((msg, idx) => {
+                          const isSequential = idx > 0 && visibleMessages[idx - 1].sender._id === msg.sender._id;
                           const isMe = msg.sender._id === currentUser?._id;
                           
                           let roundedClass = "rounded-2xl";
@@ -598,10 +835,13 @@ const Chat = () => {
                             <div
                               className={`max-w-[70%] px-3 py-1.5 ${roundedClass} shadow-sm ${isMe ? "bg-primary text-primary-foreground" : "bg-muted"}`}
                             >
-                              <p className="text-sm break-words whitespace-pre-wrap">
-                                {!isMe && selectedContact.isGroup && <span className="text-[10px] font-bold block text-primary mb-0.5">{msg.sender.firstname}</span>}
-                                {msg.message}
-                              </p>
+                              {!isMe && selectedContact.isGroup && <span className="text-[10px] font-bold block text-primary mb-0.5">{msg.sender.firstname}</span>}
+                              {msg.attachments && msg.attachments.length > 0 && (
+                                <ChatAttachments messageId={msg._id} attachments={msg.attachments} onError={showError} />
+                              )}
+                              {msg.message && (
+                                <p className="text-sm break-words whitespace-pre-wrap">{msg.message}</p>
+                              )}
                               <p
                                 className={`flex items-center justify-end gap-1 text-[10px] mt-0.5 ${isMe ? "text-primary-foreground/80" : "text-muted-foreground"}`}
                               >
@@ -620,16 +860,55 @@ const Chat = () => {
 
                 {/* Message input */}
                 <div className="p-3 border-t">
+                  {/* Files picked with 📎, waiting to be sent */}
+                  {pendingFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {pendingFiles.map((f, i) => (
+                        <div
+                          key={`${f.name}-${f.size}-${i}`}
+                          className="flex items-center gap-1.5 rounded-md border bg-muted/50 pl-2 pr-1 py-1 max-w-[240px]"
+                        >
+                          <FileText className="h-4 w-4 text-primary shrink-0" />
+                          <span className="text-xs truncate" title={f.name}>{f.name}</span>
+                          <span className="text-[10px] text-muted-foreground shrink-0">{formatFileSize(f.size)}</span>
+                          <button
+                            type="button"
+                            onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))}
+                            className="p-0.5 rounded hover:bg-muted shrink-0"
+                            title="Remove"
+                            aria-label={`Remove ${f.name}`}
+                            disabled={sending}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        addPendingFiles(e.target.files);
+                        e.target.value = ""; // allow picking the same file again
+                      }}
+                    />
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-9 w-9 shrink-0"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={sending}
+                      title="Attach files"
+                      aria-label="Attach files"
                     >
                       <Paperclip className="h-4 w-4" />
                     </Button>
                     <Input
-                      placeholder="Type a message..."
+                      placeholder={pendingFiles.length ? "Add a caption (optional)..." : "Type a message..."}
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && handleSend()}
@@ -654,8 +933,11 @@ const Chat = () => {
                       size="icon"
                       className="h-9 w-9 shrink-0"
                       onClick={handleSend}
+                      disabled={sending || (!message.trim() && pendingFiles.length === 0)}
+                      title="Send"
+                      aria-label="Send"
                     >
-                      <Send className="h-4 w-4" />
+                      {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
@@ -668,6 +950,66 @@ const Chat = () => {
           </div>
         </div>
       </div>
+      {/* ⋮ > View Profile (1-to-1 chat) */}
+      <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Profile</DialogTitle>
+          </DialogHeader>
+          {selectedContact && !selectedContact.isGroup && (
+            <div className="flex flex-col items-center gap-3 py-2 text-center">
+              <Avatar className="h-16 w-16">
+                <AvatarFallback className="bg-primary/10 text-primary text-xl">
+                  {getInitials(selectedContact.firstname, selectedContact.lastname)}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <p className="text-lg font-semibold">{contactTitle}</p>
+                <Badge variant="secondary" className="mt-1">
+                  <ShieldCheck className="h-3 w-3 mr-1" />
+                  {selectedContact.admin ? "Administrator" : "Staff"}
+                </Badge>
+              </div>
+              {selectedContact.email && (
+                <a href={`mailto:${selectedContact.email}`} className="flex items-center gap-2 text-sm text-primary hover:underline break-all">
+                  <Mail className="h-4 w-4 shrink-0" /> {selectedContact.email}
+                </a>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ⋮ > Shared files */}
+      {selectedContact && (
+        <SharedFilesDialog
+          open={isSharedFilesOpen}
+          onOpenChange={setIsSharedFilesOpen}
+          contactId={selectedContact._id}
+          isGroup={!!selectedContact.isGroup}
+          title={contactTitle}
+          onError={showError}
+        />
+      )}
+
+      {/* ⋮ > Clear chat */}
+      <AlertDialog open={isClearOpen} onOpenChange={setIsClearOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear this chat?</AlertDialogTitle>
+            <AlertDialogDescription>
+              All messages with {contactTitle} will be hidden for you. {selectedContact?.isGroup ? "Other members" : "They"} will still see them. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClearChat} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Clear chat
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Create Group Modal */}
       <Dialog open={isCreateGroupOpen} onOpenChange={(open) => {
         setIsCreateGroupOpen(open);
