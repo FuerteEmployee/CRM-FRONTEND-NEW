@@ -253,6 +253,20 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         return;
       }
 
+      // Call notes: only a call you missed needs an alert (you saw the others yourself).
+      if (msg.kind === "call") {
+        const status = msg.call?.status;
+        if (status !== "missed" && status !== "cancelled") return;
+        setChatUnreadCount(prev => prev + 1);
+        addNotification(
+          `Missed ${msg.call?.type === "video" ? "video" : "voice"} call`,
+          `${msg.sender.firstname} ${msg.sender.lastname || ""}`.trim() + " tried to call you.",
+          undefined,
+          { chatMessageId: msg._id ? String(msg._id) : undefined }
+        );
+        return;
+      }
+
       setChatUnreadCount(prev => prev + 1);
 
       // A message with only files has no text: name the file instead.

@@ -64,7 +64,7 @@ import type { Socket } from "socket.io-client";
 import { createAppSocket } from "@/lib/appSocket";
 import EmojiPicker from "emoji-picker-react";
 import { useNotificationContext } from "@/context/NotificationContext";
-import { JitsiMeeting } from "@jitsi/react-sdk";
+import { useCall } from "@/context/CallContext";
 
 interface ChatContact {
   _id: string;
@@ -107,6 +107,8 @@ interface ChatMessage {
   receiver: string;
   message: string;
   attachments?: ChatAttachment[];
+  kind?: "text" | "call"; // "call" = note the server writes when a call ends
+  call?: { type: "voice" | "video"; status: string; durationSec?: number };
   createdAt: string;
   read?: boolean;
   conversationId?: string;
@@ -145,8 +147,7 @@ const Chat = () => {
   const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [isViewMembersOpen, setIsViewMembersOpen] = useState(false);
-  const [activeCall, setActiveCall] = useState(false);
-  const [callType, setCallType] = useState<"video" | "audio">("video");
+  const call = useCall();
   // Attachments (📎) and the chat's ⋮ menu
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
@@ -498,19 +499,16 @@ const Chat = () => {
     }
   };
 
-  const handleStartCall = async (type: "video" | "audio") => {
-    setCallType(type);
-    setActiveCall(true);
+  // 📞 / 🎥: our own WebRTC call (context/CallContext.tsx) — rings the other
+  // person on any CRM page; the call window floats over the CRM.
+  const handleStartCall = (type: "video" | "voice") => {
     if (!selectedContact) return;
-    try {
-      await chatService.sendMessage(
-        selectedContact._id,
-        `📞 Started a ${type === "video" ? "Video" : "Voice"} Call. Click the ${type === "video" ? "Video" : "Phone"} icon at the top to join!`,
-        selectedContact.isGroup
-      );
-    } catch (e) {
-      console.error("Failed to send call start message", e);
-    }
+    call.startCall({
+      to: selectedContact._id,
+      isGroup: !!selectedContact.isGroup,
+      type,
+      title: selectedContact.isGroup ? selectedContact.firstname : `${selectedContact.firstname} ${selectedContact.lastname}`,
+    });
   };
 
   const onEmojiClick = (emojiObject: any) => {
@@ -535,6 +533,17 @@ const Chat = () => {
       ? selectedContact.firstname
       : `${selectedContact.firstname} ${selectedContact.lastname}`
     : "";
+
+  // 📞 / 🎥 are off while you are already in a call, or the colleague is offline
+  // (a call can only ring someone who has the CRM open).
+  const callDisabledReason = !selectedContact
+    ? "Select a chat"
+    : call.inCall
+      ? "You are already in a call"
+      : !selectedContact.isGroup && !presence[selectedContact._id]?.online
+        ? `${contactTitle} is offline`
+        : "";
+  const canCall = !callDisabledReason;
 
   return (
     <DashboardLayout>
@@ -626,39 +635,6 @@ const Chat = () => {
           {/* Chat area */}
           <div className="flex-1 flex flex-col bg-background">
             {selectedContact ? (
-              activeCall ? (
-                <div className="flex-1 flex flex-col">
-                  <div className="flex items-center justify-between p-3 border-b bg-card">
-                    <div className="flex items-center gap-3">
-                      <div className="h-3 w-3 rounded-full bg-red-500 animate-pulse" />
-                      <h3 className="font-semibold text-sm">Ongoing Call: {selectedContact.isGroup ? selectedContact.firstname : `${selectedContact.firstname} ${selectedContact.lastname}`}</h3>
-                    </div>
-                    <Button variant="destructive" size="sm" onClick={() => setActiveCall(false)}>
-                      End / Leave Call
-                    </Button>
-                  </div>
-                  <div className="flex-1 bg-black relative">
-                    <JitsiMeeting
-                      roomName={`CRM_Call_${selectedContact._id}`}
-                      configOverwrite={{
-                        startWithAudioMuted: false,
-                        startWithVideoMuted: callType === "audio",
-                      }}
-                      interfaceConfigOverwrite={{
-                        DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
-                      }}
-                      userInfo={{
-                        displayName: `${currentUser?.firstname} ${currentUser?.lastname}`,
-                        email: currentUser?.email || "",
-                      }}
-                      getIFrameRef={(iframeRef) => {
-                        iframeRef.style.height = '100%';
-                        iframeRef.style.width = '100%';
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : (
               <>
                 {/* Chat header */}
                 <div className="flex items-center justify-between p-3 border-b">
@@ -690,10 +666,26 @@ const Chat = () => {
                         <UserPlus className="h-4 w-4" />
                       </Button>
                     )}
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleStartCall("audio")} title="Voice Call">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleStartCall("voice")}
+                      disabled={!canCall}
+                      title={callDisabledReason || "Voice call"}
+                      aria-label="Voice call"
+                    >
                       <Phone className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleStartCall("video")} title="Video Call">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleStartCall("video")}
+                      disabled={!canCall}
+                      title={callDisabledReason || "Video call"}
+                      aria-label="Video call"
+                    >
                       <Video className="h-4 w-4" />
                     </Button>
                     <DropdownMenu>
@@ -813,7 +805,33 @@ const Chat = () => {
                         {visibleMessages.map((msg, idx) => {
                           const isSequential = idx > 0 && visibleMessages[idx - 1].sender._id === msg.sender._id;
                           const isMe = msg.sender._id === currentUser?._id;
-                          
+
+                          // A finished call: a small centred line instead of a bubble.
+                          if (msg.kind === "call" && msg.call) {
+                            const { type, status } = msg.call;
+                            const label = type === "video" ? "video call" : "voice call";
+                            const missedForMe = !isMe && (status === "missed" || status === "cancelled");
+                            const text =
+                              status === "completed"
+                                ? msg.message
+                                : isMe
+                                  ? `${type === "video" ? "🎥" : "📞"} ${status === "rejected" ? "Call declined" : status === "cancelled" ? "Call cancelled" : "No answer"}`
+                                  : status === "rejected"
+                                    ? `${type === "video" ? "🎥" : "📞"} You declined a ${label}`
+                                    : `${type === "video" ? "🎥" : "📞"} Missed ${label}`;
+                            return (
+                              <div key={msg._id} className="flex justify-center mt-4">
+                                <span
+                                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs border ${missedForMe ? "border-destructive/30 bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}
+                                >
+                                  {selectedContact.isGroup && <span className="font-semibold">{msg.sender.firstname}:</span>}
+                                  {text}
+                                  <span className="opacity-70">{format(new Date(msg.createdAt), "hh:mm a")}</span>
+                                </span>
+                              </div>
+                            );
+                          }
+
                           let roundedClass = "rounded-2xl";
                           if (isMe) {
                             roundedClass += isSequential ? " rounded-tr-sm" : " rounded-tl-xl rounded-bl-sm";
@@ -945,7 +963,7 @@ const Chat = () => {
                   </div>
                 </div>
               </>
-            )) : (
+            ) : (
               <div className="flex-1 flex items-center justify-center text-muted-foreground p-8 text-center italic">
                 Select a staff member from the list to start chatting.
               </div>

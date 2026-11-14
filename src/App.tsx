@@ -552,6 +552,7 @@ const MainApp = () => {
 import { ThemeStyleProvider } from "@/context/ThemeContext";
 import { SettingsProvider } from "@/context/SettingsContext";
 import { NotificationProvider } from "@/context/NotificationContext";
+import { CallProvider } from "@/context/CallContext";
 import { CurrencyProvider } from "@/context/CurrencyContext";
 
 const App = () => (
@@ -561,11 +562,14 @@ const App = () => (
         <CurrencyProvider>
           <ThemeStyleProvider>
             <NotificationProvider>
-              <TooltipProvider>
-                <Toaster />
-                <Sonner />
-                <MainApp />
-              </TooltipProvider>
+              {/* Chat voice/video calls: incoming-call popup + call window on every page */}
+              <CallProvider>
+                <TooltipProvider>
+                  <Toaster />
+                  <Sonner />
+                  <MainApp />
+                </TooltipProvider>
+              </CallProvider>
             </NotificationProvider>
           </ThemeStyleProvider>
         </CurrencyProvider>

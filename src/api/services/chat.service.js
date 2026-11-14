@@ -43,6 +43,14 @@ export const chatService = {
 
   clearChat: async (userId, isGroup = false) => apiClient.put(`/chat/clear/${userId}`, { isGroup }),
 
+  /** STUN/TURN servers for a call: { iceServers, ttlSeconds }. */
+  getIceServers: async () => apiClient.get("/chat/ice-servers"),
+
+  getCallHistory: async (userId, isGroup = false) => {
+    const data = await apiClient.get(`/chat/calls/${userId}${isGroup ? "?isGroup=true" : ""}`);
+    return Array.isArray(data) ? data : [];
+  },
+
   getContacts: async () => {
     try {
       const chatContacts = await apiClient.get("/chat/staff");
