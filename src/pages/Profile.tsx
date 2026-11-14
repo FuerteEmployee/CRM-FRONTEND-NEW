@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getFileUrl } from "@/hrms/utils/fileUrl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -141,6 +142,7 @@ const Profile = () => {
             <Card>
               <CardContent className="pt-6 flex flex-col items-center text-center">
                 <Avatar className="h-24 w-24 mb-4 ring-4 ring-primary/10">
+                  {user?.avatar && <AvatarImage src={getFileUrl(user.avatar)} alt={`${user.firstname} ${user.lastname}`} className="object-cover" />}
                   <AvatarFallback className="bg-primary text-primary-foreground text-3xl font-bold">
                     {initials}
                   </AvatarFallback>

@@ -1,5 +1,6 @@
 import { io, Socket } from "socket.io-client";
 import { API_BASE_URL } from "./apiClient";
+import { getAccessToken } from "@/lib/session";
 
 const SOCKET_URL = API_BASE_URL.replace("/api", "");
 
@@ -11,7 +12,10 @@ class RealtimeService {
     if (this.socket) return;
 
     this.socket = io(SOCKET_URL, {
-      auth: { token },
+      // The server only accepts logged-in sockets. Callers often pass an empty
+      // token, so fall back to the CRM login token (read again on each reconnect).
+      auth: (cb) => cb({ token: token || getAccessToken() || "" }),
+      withCredentials: true,
       transports: ["polling"],   // Vercel serverless doesn't support WebSockets
       reconnection: true,
       reconnectionAttempts: 5,

@@ -23,6 +23,7 @@ interface User {
   tenant?: any;
   phonenumber?: string;
   notification_sound?: string;
+  avatar?: string; // profile photo (stored on the linked HRMS profile); "" = none
 }
 
 interface PermissionContextType {

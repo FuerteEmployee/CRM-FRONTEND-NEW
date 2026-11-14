@@ -31,7 +31,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDictation } from "@/lib/dictation";
 import { toast as sonnerToast } from "sonner";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getFileUrl } from "@/hrms/utils/fileUrl";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
   Popover,
@@ -569,6 +570,8 @@ export function TopNavbar() {
         <DropdownMenuTrigger asChild>
           <button type="button" title="Profile menu" aria-label="Profile menu" className="flex min-w-0 shrink-0 items-center gap-2.5 pl-2 border-l border-border ml-1 outline-none group">
             <Avatar className="h-8 w-8 shrink-0 ring-2 ring-transparent group-hover:ring-primary/30 transition-all">
+              {/* Shows the profile photo; falls back to the initials if there is none or it fails to load. */}
+              {user?.avatar && <AvatarImage src={getFileUrl(user.avatar)} alt={fullName} className="object-cover" />}
               <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
                 {initials}
               </AvatarFallback>
@@ -586,6 +589,7 @@ export function TopNavbar() {
           {/* Header */}
           <div className="flex items-center gap-3 p-3 border-b bg-muted/30">
             <Avatar className="h-10 w-10">
+              {user?.avatar && <AvatarImage src={getFileUrl(user.avatar)} alt={fullName} className="object-cover" />}
               <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
                 {initials}
               </AvatarFallback>

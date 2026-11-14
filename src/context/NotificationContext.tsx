@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { usePermissionContext } from './PermissionContext';
 import { playNotificationSound } from '@/lib/soundUtils';
-import { io, Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
+import { createAppSocket } from '@/lib/appSocket';
 import { meetingService } from '@/api/services/meeting.service';
 import { chatService } from '@/api/services/chat.service';
 import { useQuery } from '@tanstack/react-query';
@@ -22,13 +23,16 @@ export interface NotificationItem {
   // navigate to — e.g. a lead reminder deep-links straight to that lead's
   // Reminders tab. Undefined means the notification isn't clickable.
   link?: string;
+  // Set for chat messages, so the notification can be removed when the
+  // sender deletes that message.
+  chatMessageId?: string;
 }
 
 interface NotificationContextType {
   notifications: NotificationItem[];
   unreadCount: number;
   chatUnreadCount: number;
-  addNotification: (title: string, message: string, link?: string) => void;
+  addNotification: (title: string, message: string, link?: string, extra?: { chatMessageId?: string }) => void;
   markAllAsRead: () => void;
   markAsRead: (id: string) => void;
   setChatUnreadCount: React.Dispatch<React.SetStateAction<number>>;
@@ -56,6 +60,11 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   const [socket, setSocket] = useState<Socket | null>(null);
 
   const unreadCount = notifications.filter(n => !n.read).length;
+  // Latest list for socket handlers (they are set up once per login).
+  const notificationsRef = useRef<NotificationItem[]>([]);
+  useEffect(() => {
+    notificationsRef.current = notifications;
+  }, [notifications]);
 
   useEffect(() => {
     if (!user?._id) return;
@@ -122,7 +131,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?._id, poCanApprove]);
 
-  const addNotification = (title: string, message: string, link?: string) => {
+  const addNotification = (title: string, message: string, link?: string, extra?: { chatMessageId?: string }) => {
     const newNotification: NotificationItem = {
       id: Date.now().toString(),
       title,
@@ -130,6 +139,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       time: "Just now",
       read: false,
       link,
+      chatMessageId: extra?.chatMessageId,
     };
 
     setNotifications(prev => [newNotification, ...prev]);
@@ -207,13 +217,12 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!user?._id) return;
 
-    const socket = io(import.meta.env.VITE_SOCKET_URL || (import.meta.env.MODE === "development"
-      ? "http://localhost:5000"
-      : "https://crm-backend.beontimeofficial.com"), {
-      withCredentials: true,
-    });
+    // Logged-in connection: the server puts it in this user's own rooms by itself.
+    const socket = createAppSocket();
 
     const tenantId = (user as any)?.tenant?._id;
+    // Still asked for explicitly, so this works with an older backend too
+    // (the new one accepts only the caller's own rooms).
     const joinRooms = () => {
       socket.emit("join", user._id);
       // A calling-agent update with no single assigned staff member (an
@@ -235,7 +244,8 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       // Don't notify if the message is from the current user
       if (msg.sender._id === user._id) return;
 
-      const isChatPage = window.location.pathname.includes("/admin/chat");
+      // Admin (/admin/chat) and staff (/staff/chat) logins both have the chat page.
+      const isChatPage = /\/(admin|staff)\/chat(\/|$)/.test(window.location.pathname);
       const activeChatId = sessionStorage.getItem("activeChatId");
 
       if (isChatPage && (msg.sender._id === activeChatId || msg.conversationId === activeChatId)) {
@@ -245,10 +255,25 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
 
       setChatUnreadCount(prev => prev + 1);
 
+      // A message with only files has no text: name the file instead.
+      const files: { name?: string }[] = Array.isArray(msg.attachments) ? msg.attachments : [];
+      const text = msg.message || (files.length === 1 ? `📎 ${files[0].name || "File"}` : files.length ? `📎 ${files.length} files` : "");
+
       addNotification(
         `New Message from ${msg.sender.firstname}`,
-        msg.message
+        text,
+        undefined,
+        { chatMessageId: msg._id ? String(msg._id) : undefined }
       );
+    });
+
+    // The sender deleted a message: its text must not stay in the bell list either.
+    socket.on("messageDeleted", (msgId: string) => {
+      const id = String(msgId);
+      if (!notificationsRef.current.some((n) => n.chatMessageId === id)) return;
+      // That message was counted as unread chat when it arrived.
+      setChatUnreadCount((c) => Math.max(0, c - 1));
+      setNotifications((prev) => prev.filter((n) => n.chatMessageId !== id));
     });
 
     // Fired by the backend's reminderDelivery cron (Backend/src/cron/reminderDelivery.js)
