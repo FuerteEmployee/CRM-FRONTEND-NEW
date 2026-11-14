@@ -22,6 +22,8 @@ import { Plus, Search, Calendar, Clock, Users, Trash2, Edit, Video, Copy, Sparkl
 import { useSpeechRecognition } from "react-speech-recognition";
 import { startListening, stopListening } from "@/lib/speechControl";
 import { onDictationBusyChange } from "@/lib/dictation";
+import { isQuestionLike, SCRIBE_LANGUAGES } from "@/lib/meetingScribe";
+import { startMeetingCapture, NoMeetingAudioError, type MeetingCapture } from "@/lib/meetingRecorder";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { meetingService } from "@/api/services/meeting.service";
 import { staffService } from "@/api/services/staff.service";
@@ -51,7 +53,12 @@ export default function Meetings() {
   const navigate = useNavigate();
   const { getSetting } = useSettings();
   const aiAgentName = getSetting("aiAgentName", "CRM Agent");
-  const { user, isModuleEnabled } = usePermissions();
+  const { user, isModuleEnabled, can } = usePermissions();
+  // Setup > Roles > Meetings: View / Create / Edit / Delete (admins: all).
+  // Members of a meeting can still use Join, Scribe, recording and notes.
+  const canCreate = can("Meetings", "Create");
+  const canEdit = can("Meetings", "Edit");
+  const canDelete = can("Meetings", "Delete");
   const isPilot = isTrinetraPilotUser(user?.email);
   const canUseBranch = isPilot && isModuleEnabled("hrms");
   const { data: branchesRaw = [] } = useQuery<any[]>({
@@ -83,10 +90,8 @@ export default function Meetings() {
   const [recordVideo, setRecordVideo] = useState(false); // audio-only by default — much smaller files
   const [isCapturingMedia, setIsCapturingMedia] = useState(false);
   const [isUploadingRecording, setIsUploadingRecording] = useState(false);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
-  const recordingStartRef = useRef(0);
+  // The running recording (tab audio + your mic), see lib/meetingRecorder.ts.
+  const captureRef = useRef<MeetingCapture | null>(null);
   const [recordingUrls, setRecordingUrls] = useState<Record<string, string>>({});
   const [loadingRecordingId, setLoadingRecordingId] = useState<string | null>(null);
   // finalTranscript only — NOT the combined transcript (which also includes
@@ -114,10 +119,6 @@ export default function Meetings() {
     };
   }, []);
 
-  const SCRIBE_LANGUAGES = [
-    { value: "hi-IN", label: "Hindi" },
-    { value: "en-US", label: "English" },
-  ];
 
   // No wake word — CRM Agent decides per RULE 1/4 in the backend prompt whether
   // a transcript chunk is a CRM question worth answering. Client-side we only
@@ -134,14 +135,8 @@ export default function Meetings() {
   // "ek sawaal, ek jawab" is enforced on both sides, not just trusted blindly).
   const scribeAnsweredRef = useRef<Map<string, { reply: string; at: number }>>(new Map());
 
-  const QUESTION_WORDS = ["kya", "kaun", "kab", "kahan", "kaise", "kitna", "kitne", "konsa", "kaunsa", "status", "pending", "bakaya", "hua", "aaya", "bheja", "nahi"];
-  const REPEAT_PHRASES = ["phir se batao", "repeat karo", "kitna bola tha", "फिर से बताओ", "दोबारा बताओ"];
-  const isQuestionLike = (text: string) => {
-    const lower = text.toLowerCase();
-    if (/[?？]/.test(text)) return true;
-    if (REPEAT_PHRASES.some((p) => lower.includes(p))) return true;
-    return QUESTION_WORDS.some((w) => lower.includes(w));
-  };
+  // isQuestionLike (lib/meetingScribe.ts) understands the script Chrome
+  // returns: Devanagari for hi-IN, Gujarati for gu-IN, plus Roman Hindi/English.
 
   const speakScribeReply = (text: string) => {
     if (!text || !("speechSynthesis" in window)) return;
@@ -225,7 +220,7 @@ export default function Meetings() {
     reminder_time: "15",
   });
 
-  const { data: meetings = [], isLoading } = useQuery({
+  const { data: meetings = [], isLoading, isError, error: meetingsError, refetch: refetchMeetings } = useQuery({
     queryKey: ["meetings"],
     queryFn: async () => {
       const res = await meetingService.getMeetings();
@@ -266,8 +261,14 @@ export default function Meetings() {
     );
   }, [meetings, search]);
 
+  // Blocks a second Save before the first request has even started rendering.
+  const savingRef = useRef(false);
+
   const createMutation = useMutation({
     mutationFn: (data: any) => meetingService.createMeeting(data),
+    onSettled: () => {
+      savingRef.current = false;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["meetings"] });
       toast({ title: "Success", description: "Meeting created successfully" });
@@ -280,6 +281,9 @@ export default function Meetings() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: any }) => meetingService.updateMeeting(id, data),
+    onSettled: () => {
+      savingRef.current = false;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["meetings"] });
       toast({ title: "Success", description: "Meeting updated successfully" });
@@ -309,7 +313,7 @@ export default function Meetings() {
       const skipped = data?.skipped ?? 0;
       toast({
         title: count === 0 ? "No Meetings Imported" : "Import Successful",
-        description: count === 0 ? "No rows had the required Topic, Agenda, and Date columns." : `Imported ${count} meeting(s)${skipped ? `, skipped ${skipped} invalid row(s)` : ""}.`,
+        description: count === 0 ? "No rows had the required Topic and Date columns." : `Imported ${count} meeting(s)${skipped ? `, skipped ${skipped} invalid row(s)` : ""}.`,
         variant: count === 0 ? "destructive" : "default",
       });
     },
@@ -389,7 +393,7 @@ export default function Meetings() {
   };
 
   const handleSave = () => {
-    if (!formData.topic || !formData.date) {
+    if (!formData.topic.trim() || !formData.date) {
       toast({ title: "Validation Error", description: "Topic and Date are required", variant: "destructive" });
       return;
     }
@@ -399,8 +403,13 @@ export default function Meetings() {
       return;
     }
 
+    // A fast double-click must not create the meeting twice.
+    if (savingRef.current || createMutation.isPending || updateMutation.isPending) return;
+    savingRef.current = true;
+
     const payload = {
       ...formData,
+      topic: formData.topic.trim(),
       reminder_time: parseInt(formData.reminder_time, 10) || 15,
     };
 
@@ -431,9 +440,13 @@ export default function Meetings() {
     }
   }, [scribeText]);
 
+  // Re-opening shows the saved transcript (what was said), falling back to
+  // the summary for meetings saved before transcripts were stored.
+  const savedNotes = (meeting: any) => meeting.transcript || meeting.summary || "";
+
   const handleStartScribe = (meeting: any) => {
     setScribeMeeting(meeting);
-    setScribeText(meeting.summary || "");
+    setScribeText(savedNotes(meeting));
     setIsScribing(false);
     lastScribeCallRef.current = 0;
     scribeProcessedLenRef.current = 0;
@@ -445,7 +458,7 @@ export default function Meetings() {
   const handleJoinAndScribe = (meeting: any) => {
     openGoogleMeet(meeting.meeting_link || "https://meet.google.com/new");
     setScribeMeeting(meeting);
-    setScribeText(meeting.summary || "");
+    setScribeText(savedNotes(meeting));
     lastScribeCallRef.current = 0;
     scribeProcessedLenRef.current = 0;
     scribeAnsweredRef.current = new Map();
@@ -511,62 +524,50 @@ export default function Meetings() {
     }
 
     try {
-      const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-      mediaStreamRef.current = displayStream;
-      recordedChunksRef.current = [];
-      recordingStartRef.current = Date.now();
-
-      const preferredType = recordVideo ? "video/webm;codecs=vp9,opus" : "audio/webm;codecs=opus";
-      const mimeType = MediaRecorder.isTypeSupported(preferredType) ? preferredType : "video/webm";
-      // Audio-only mode still shares video (browsers require it for tab/screen
-      // share), it's just not included in what MediaRecorder actually encodes.
-      const recordStream = recordVideo ? displayStream : new MediaStream(displayStream.getAudioTracks());
-      const recorder = new MediaRecorder(recordStream, { mimeType });
-
-      recorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) recordedChunksRef.current.push(e.data);
-      };
-      // Flush a chunk every 10s instead of buffering the whole meeting in one
-      // event, so memory stays bounded for long meetings.
-      recorder.start(10000);
-      mediaRecorderRef.current = recorder;
+      // Tab audio (other participants) + your microphone, mixed (lib/meetingRecorder.ts).
+      const capture = await startMeetingCapture(recordVideo);
+      captureRef.current = capture;
       setIsCapturingMedia(true);
 
-      // The browser's own "Stop sharing" control ends the stream directly —
-      // catch that so we still finalize and upload instead of leaving a
-      // recorder stuck in "recording" state with no active tracks.
-      displayStream.getVideoTracks()[0]?.addEventListener("ended", () => {
-        handleStopAndUploadRecording(meeting);
-      });
+      if (capture.warnings.includes("no-tab-audio")) {
+        toast({
+          title: "Only your microphone is being recorded",
+          description: "To include the other participants, stop and share the Google Meet tab (Chrome Tab) with “Share tab audio” ticked.",
+        });
+      } else if (capture.warnings.includes("no-mic")) {
+        toast({ title: "Your own voice is not in the recording", description: "Microphone access was blocked — only the other participants are recorded." });
+      } else {
+        toast({ title: "Recording started", description: `Capturing ${recordVideo ? "audio + video" : "audio"}: the meeting tab and your microphone.` });
+      }
 
-      toast({ title: "Recording started", description: `Capturing ${recordVideo ? "audio + video" : "audio"} from the shared tab.` });
+      // The browser's own "Stop sharing" control ends the share directly —
+      // still finalize and upload instead of leaving a recorder stuck.
+      capture.onShareEnded(() => handleStopAndUploadRecording(meeting));
     } catch (err: any) {
-      toast({ title: "Recording not started", description: err.message || "Screen/tab share permission was not granted.", variant: "destructive" });
+      const noAudio = err instanceof NoMeetingAudioError;
+      toast({
+        title: noAudio ? "No audio to record" : "Recording not started",
+        description: noAudio ? err.message : err.message || "Screen/tab share permission was not granted.",
+        variant: "destructive",
+      });
     }
   };
 
   const handleStopAndUploadRecording = async (meeting: any) => {
-    const recorder = mediaRecorderRef.current;
-    if (!recorder || recorder.state === "inactive") return;
-
-    await new Promise<void>((resolve) => {
-      recorder.addEventListener("stop", () => resolve(), { once: true });
-      recorder.stop();
-    });
-    mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+    const capture = captureRef.current;
+    if (!capture) return;
+    captureRef.current = null;
+    const blob = await capture.stop();
     setIsCapturingMedia(false);
+    if (!blob) return;
 
-    const chunks = recordedChunksRef.current;
-    recordedChunksRef.current = [];
-    if (chunks.length === 0) return;
-
+    const fileName = `meeting-${meeting._id}-${Date.now()}.webm`;
     setIsUploadingRecording(true);
     try {
-      const blob = new Blob(chunks, { type: recorder.mimeType });
-      const durationSeconds = Math.round((Date.now() - recordingStartRef.current) / 1000);
-      const type = recorder.mimeType.startsWith("video") ? "video" : "audio";
+      const durationSeconds = Math.round((Date.now() - capture.startedAt) / 1000);
+      const type = capture.video && capture.mimeType.startsWith("video") ? "video" : "audio";
       const formData = new FormData();
-      formData.append("file", blob, `meeting-${meeting._id}-${Date.now()}.webm`);
+      formData.append("file", blob, fileName);
       formData.append("type", type);
       formData.append("duration_seconds", String(durationSeconds));
 
@@ -575,7 +576,20 @@ export default function Meetings() {
       queryClient.invalidateQueries({ queryKey: ["meetings"] });
       toast({ title: "Recording saved", description: "Uploaded and stored securely — playback link is time-limited." });
     } catch (err: any) {
-      toast({ title: "Recording upload failed", description: err.response?.data?.message || err.message, variant: "destructive" });
+      // Never lose the meeting: save the file to this computer instead.
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      toast({
+        title: "Upload failed — recording downloaded instead",
+        description: `${err.response?.data?.message || err.message}. The file “${fileName}” was saved to your Downloads so the meeting is not lost.`,
+        variant: "destructive",
+      });
     } finally {
       setIsUploadingRecording(false);
     }
@@ -659,14 +673,16 @@ export default function Meetings() {
                 { header: "Summary", key: "summary" }
               ]}
             />
-            <ImportButton onData={handleImportData} loading={importMutation.isPending} />
+            {canCreate && <ImportButton onData={handleImportData} loading={importMutation.isPending} />}
             <Dialog open={isModalOpen} onOpenChange={(open) => (open ? setIsModalOpen(true) : handleCloseModal())}>
-              <DialogTrigger asChild>
-                <Button onClick={() => setEditingMeeting(null)} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Meeting
-                </Button>
-              </DialogTrigger>
+              {canCreate && (
+                <DialogTrigger asChild>
+                  <Button onClick={() => setEditingMeeting(null)} className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest">
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Meeting
+                  </Button>
+                </DialogTrigger>
+              )}
             <DialogContent className="max-w-xl">
               <DialogHeader>
                 <DialogTitle>{editingMeeting ? "Edit Meeting" : "Schedule New Meeting"}</DialogTitle>
@@ -775,7 +791,9 @@ export default function Meetings() {
                 <DialogClose asChild>
                   <Button variant="outline" onClick={handleCloseModal}>Cancel</Button>
                 </DialogClose>
-                <Button onClick={handleSave}>{editingMeeting ? "Update" : "Save"}</Button>
+                <Button onClick={handleSave} disabled={createMutation.isPending || updateMutation.isPending}>
+                  {editingMeeting ? "Update" : "Save"}
+                </Button>
               </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -804,7 +822,7 @@ export default function Meetings() {
                     <TableHead>Members</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Summary</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-right sticky right-0 bg-card z-10">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -814,6 +832,18 @@ export default function Meetings() {
                         <TableCell colSpan={6}><Skeleton className="h-12 w-full" /></TableCell>
                       </TableRow>
                     ))
+                  ) : isError ? (
+                    // A failed load is not "no meetings" — say so, and offer a retry.
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8">
+                        <p className="text-sm text-destructive font-medium">
+                          Could not load meetings{(meetingsError as any)?.message ? `: ${(meetingsError as any).message}` : "."}
+                        </p>
+                        <Button variant="outline" size="sm" className="mt-3" onClick={() => refetchMeetings()}>
+                          Try again
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   ) : filteredMeetings.length === 0 ? (
                     <TableEmpty colSpan={6}>No meetings found.</TableEmpty>
                   ) : (
@@ -858,7 +888,7 @@ export default function Meetings() {
                             {meeting.summary || <span className="text-slate-400">No summary yet</span>}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right sticky right-0 bg-card z-10">
                           <div className="flex items-center justify-end gap-2">
                             <Button variant="outline" size="sm" className="h-8 gap-1.5 text-green-600 border-green-200 hover:bg-green-50" onClick={() => handleJoinAndScribe(meeting)}>
                               <Video className="h-3.5 w-3.5" />
@@ -886,12 +916,16 @@ export default function Meetings() {
                             }} title="Copy Link">
                               <Copy className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-600 hover:bg-slate-100" onClick={() => handleEdit(meeting)} title="Edit">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50" onClick={() => handleDelete(meeting._id)} title="Delete">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {canEdit && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-600 hover:bg-slate-100" onClick={() => handleEdit(meeting)} title="Edit">
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {canDelete && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:bg-red-50" onClick={() => handleDelete(meeting._id)} title="Delete">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1043,16 +1077,18 @@ export default function Meetings() {
                               {loadingRecordingId === rec._id ? "Loading…" : "Play"}
                             </Button>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-red-600 hover:bg-red-50 shrink-0"
-                            onClick={() => handleDeleteRecording(scribeMeeting, rec._id)}
-                            disabled={loadingRecordingId === rec._id}
-                            title="Delete recording"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-red-600 hover:bg-red-50 shrink-0"
+                              onClick={() => handleDeleteRecording(scribeMeeting, rec._id)}
+                              disabled={loadingRecordingId === rec._id}
+                              title="Delete recording"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}

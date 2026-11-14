@@ -14,7 +14,9 @@ import { useDictation } from "@/lib/dictation";
 export default function MeetingRoom() {
   const { roomId } = useParams();
   const navigate = useNavigate();
-  const { user } = usePermissionContext();
+  const { user, isStaff } = usePermissionContext();
+  // Staff log in under /staff, admins under /admin.
+  const meetingsPath = isStaff ? "/staff/meetings" : "/admin/meetings";
   const [meetingLeft, setMeetingLeft] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [summary, setSummary] = useState("");
@@ -27,10 +29,15 @@ export default function MeetingRoom() {
     enabled: !!roomId,
   });
 
+  // apiClient returns the meeting itself (not { data }): load its saved notes,
+  // otherwise "Save" would overwrite them with only the new text.
+  const loadedRef = useRef(false);
   useEffect(() => {
-    if (meeting?.data?.summary) {
-      setSummary(meeting.data.summary);
-      summaryRef.current = meeting.data.summary;
+    const saved = (meeting as any)?.summary;
+    if (!loadedRef.current && typeof saved === "string") {
+      loadedRef.current = true;
+      setSummary(saved);
+      summaryRef.current = saved;
     }
   }, [meeting]);
 
@@ -93,7 +100,7 @@ export default function MeetingRoom() {
           <p className="text-muted-foreground mb-4">Hope it was productive!</p>
           <div className="flex gap-4">
             <Button variant="outline" onClick={() => setMeetingLeft(false)}>Rejoin</Button>
-            <Button onClick={() => navigate("/admin/meetings")}>Return to Meetings</Button>
+            <Button onClick={() => navigate(meetingsPath)}>Return to Meetings</Button>
           </div>
         </div>
       </DashboardLayout>
@@ -106,7 +113,7 @@ export default function MeetingRoom() {
         <div className="flex flex-col flex-1 min-w-0">
           <div className="flex items-center justify-between p-3 border-b bg-card">
             <div className="flex items-center gap-4">
-              <Button variant="ghost" size="icon" onClick={() => navigate("/admin/meetings")}>
+              <Button variant="ghost" size="icon" onClick={() => navigate(meetingsPath)} aria-label="Back to Meetings">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <div>
@@ -141,6 +148,7 @@ export default function MeetingRoom() {
               }}
               userInfo={{
                 displayName: `${user?.firstname} ${user?.lastname}`,
+                email: "", // not sent to the public Jitsi server
               }}
               onApiReady={(externalApi) => {
                 externalApi.addListener('readyToClose', () => {
