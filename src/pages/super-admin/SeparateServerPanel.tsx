@@ -190,8 +190,7 @@ export function SeparateServerPanel({
     });
   };
 
-  // A company with an owner login in THIS database lives here, not on its own server.
-  if (!connected && hasOwner) return null;
+  // Allow connecting any company to a separate server, even if it originally had a local owner.
 
   return (
     <div className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-4 space-y-3">

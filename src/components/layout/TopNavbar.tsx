@@ -25,9 +25,12 @@ import {
   Search,
   ArrowLeft,
   X,
+  Mic,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useDictation } from "@/lib/dictation";
+import { toast as sonnerToast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import {
@@ -54,11 +57,12 @@ import { useSettings } from "@/context/SettingsContext";
 import { useNavigate } from "react-router-dom";
 import { useNotificationContext } from "@/context/NotificationContext";
 import { useToast } from "@/hooks/use-toast";
-import { resolveCommand, applyBasePath } from "@/lib/voiceCommands";
+import { resolveCommand, applyBasePath, suggestCommands } from "@/lib/voiceCommands";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n/config";
 import { APP_LANGUAGES, applyAppLanguage } from "@/lib/appLanguage";
 import { clearThemeFromDom } from "@/lib/themeUtils";
+import { isSuperAdminEnabled } from "@/lib/panelBranding";
 
 
 export function TopNavbar() {
@@ -98,22 +102,90 @@ export function TopNavbar() {
   const { toast } = useToast();
 
   // Resolve the current text to a CRM page and navigate there.
+  const [showSuggest, setShowSuggest] = useState(false);
+  const suggestions = suggestCommands(search);
+
+  const openModule = (m: { route: string; section: string | null }) => {
+    if (m.section) {
+      window.dispatchEvent(
+        new CustomEvent("fuerte:open-section", { detail: { section: m.section } }),
+      );
+    }
+    navigate(applyBasePath(m.route, isStaff));
+    setSearch("");
+    setShowSuggest(false);
+    setIsMobileSearchOpen(false);
+  };
+
+  // Open the best match for the current text (Enter).
   const runSearch = (raw: string) => {
     const text = raw.trim();
     if (!text) return;
-    const match = resolveCommand(text);
-    if (match) {
-      if (match.section) {
-        window.dispatchEvent(
-          new CustomEvent("fuerte:open-section", { detail: { section: match.section } }),
-        );
-      }
-      navigate(applyBasePath(match.route, isStaff));
-      setSearch("");
-    } else {
-      toast({ title: "Search", description: `No matching page for "${text}".` });
-    }
+    const match = resolveCommand(text) || suggestCommands(text, 1)[0];
+    if (match) openModule(match);
+    else sonnerToast.error(`No matching page for "${text}".`);
   };
+
+  // Header mic: one tap to listen (red, pulsing, like WhatsApp). The spoken
+  // words are written into the box and matching modules are listed; press
+  // Enter (or tap a module) to open it. Tap the mic again to cancel.
+  const voice = useDictation(
+    (text) => {
+      setSearch(text.replace(/[.,!?]+$/, ""));
+      setShowSuggest(true);
+    },
+    {
+      continuous: false,
+      keepAlive: false,
+      onInterim: (text) => {
+        setSearch(text); // show what is being heard, live
+        setShowSuggest(true);
+      },
+      onFinish: (heard) => {
+        if (!heard) sonnerToast.message("Didn't catch that — tap the mic and try again.");
+      },
+    },
+  );
+  const searchPlaceholder = voice.isRecording
+    ? "Listening… speak now"
+    : "Search or say a module… (press Enter)";
+  const suggestionList =
+    showSuggest && search.trim() && suggestions.length > 0 ? (
+      <ul className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-xl border bg-popover py-1 shadow-lg">
+        {suggestions.map((s, i) => (
+          <li key={s.route}>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => openModule(s)}
+              className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-muted ${i === 0 ? "bg-muted/60" : ""}`}
+            >
+              <span className="font-medium">{s.label}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    ) : null;
+  const micButton = (
+    <button
+      type="button"
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={voice.toggle}
+      title={voice.isRecording ? "Listening… tap to stop" : "Tap to speak"}
+      aria-label={voice.isRecording ? "Stop voice search" : "Start voice search"}
+      aria-pressed={voice.isRecording}
+      className={`absolute right-1 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full transition-colors ${
+        voice.isRecording
+          ? "bg-red-500 text-white"
+          : "text-muted-foreground hover:bg-muted hover:text-primary"
+      }`}
+    >
+      {voice.isRecording && (
+        <span className="absolute inset-0 rounded-full bg-red-500/60 animate-ping" />
+      )}
+      <Mic className="relative h-3.5 w-3.5" />
+    </button>
+  );
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -122,6 +194,7 @@ export function TopNavbar() {
     } else if (e.key === "Escape") {
       e.preventDefault();
       setSearch("");
+      setShowSuggest(false);
     }
   };
 
@@ -169,19 +242,25 @@ export function TopNavbar() {
           <div className="flex-1 relative">
             <Input
               autoFocus
-              placeholder="Search or say a page… (press Enter)"
+              disableVoice
+              placeholder={searchPlaceholder}
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setShowSuggest(true);
+              }}
+              onFocus={() => setShowSuggest(true)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   handleSearchKeyDown(e);
-                  setIsMobileSearchOpen(false);
                 } else if (e.key === "Escape") {
                   setIsMobileSearchOpen(false);
                 }
               }}
-              className="pl-3 pr-3 h-9 bg-muted/60 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl w-full"
+              className="pl-3 pr-10 h-9 bg-muted/60 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl w-full"
             />
+            {micButton}
+            {suggestionList}
           </div>
 
           {search ? (
@@ -204,12 +283,20 @@ export function TopNavbar() {
           <div className="hidden md:flex flex-1 max-w-sm lg:max-w-md items-center gap-2">
             <div className="relative animate-fade-in group flex-1">
               <Input
-                placeholder="Search or say a page… (press Enter)"
+                disableVoice
+                placeholder={searchPlaceholder}
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setShowSuggest(true);
+                }}
+                onFocus={() => setShowSuggest(true)}
+                onBlur={() => setShowSuggest(false)}
                 onKeyDown={handleSearchKeyDown}
-                className="pl-4 pr-4 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl transition-all w-full"
+                className="pl-4 pr-10 h-9 bg-muted/50 border-0 focus-visible:bg-background focus-visible:ring-1 text-sm rounded-xl transition-all w-full"
               />
+              {micButton}
+              {suggestionList}
             </div>
           </div>
 
@@ -227,7 +314,7 @@ export function TopNavbar() {
           {/* Quick Create Dropdown */}
           <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="icon" className="h-9 w-9 shrink-0 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
+            <Button size="icon" title="Quick Create" aria-label="Quick Create" className="h-9 w-9 shrink-0 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm">
               <Plus className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -324,6 +411,8 @@ export function TopNavbar() {
                     variant="ghost"
                     size="icon"
                     className="h-9 w-9 text-foreground"
+                    title="More actions"
+                    aria-label="More actions"
                   >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
@@ -373,6 +462,8 @@ export function TopNavbar() {
               variant="ghost"
               size="icon"
               className="relative h-9 w-9 text-foreground"
+              title="Notifications"
+              aria-label="Notifications"
             >
               <Bell className="h-4 w-4" />
               {unreadCount > 0 && (
@@ -476,7 +567,7 @@ export function TopNavbar() {
       {/* Profile Dropdown — always last */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex min-w-0 shrink-0 items-center gap-2.5 pl-2 border-l border-border ml-1 outline-none group">
+          <button type="button" title="Profile menu" aria-label="Profile menu" className="flex min-w-0 shrink-0 items-center gap-2.5 pl-2 border-l border-border ml-1 outline-none group">
             <Avatar className="h-8 w-8 shrink-0 ring-2 ring-transparent group-hover:ring-primary/30 transition-all">
               <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
                 {initials}

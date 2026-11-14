@@ -448,8 +448,8 @@ Cancel = keep their current end dates; only new companies and renewals get the n
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-semibold text-gray-600">Trial Days</label>
                       <input
-                        type="number" min="0" value={formData.trial_days}
-                        onChange={(e) => setFormData({ ...formData, trial_days: parseInt(e.target.value) })}
+                        type="number" min="0" value={Number.isNaN(formData.trial_days) ? "" : formData.trial_days}
+                        onChange={(e) => setFormData({ ...formData, trial_days: e.target.value === "" ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0) })}
                         className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                       />
                       <p className="text-[11px] text-gray-400">Free days before payment, for website sign-ups and "Trial" companies (0 = 7-day default on sign-up).</p>

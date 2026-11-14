@@ -120,6 +120,34 @@ export const resolveCommand = (cmd: string): CommandMatch | null => {
   return matchIn(cmd, COMMAND_MAP);
 };
 
+// ─── Suggestions for the header search box ───────────────────────────────────
+// Modules whose name, keyword or sidebar group matches what was typed/said,
+// best match first. e.g. "sales" -> Leads, Estimates, Proposals, ...
+export const suggestCommands = (query: string, limit = 6): CommandEntry[] => {
+  const t = (query || "")
+    .toLowerCase()
+    .replace(/[.,!?]/g, "")
+    .replace(/^(open up|open|go to|navigate to|take me to|show me|show|visit|launch|load|search|find)\s+/i, "")
+    .trim();
+  if (!t) return [];
+  const scored: { e: CommandEntry; s: number }[] = [];
+  for (const e of COMMAND_MAP) {
+    const label = e.label.toLowerCase();
+    let s = -1;
+    if (label === t || e.keywords.includes(t)) s = 0;
+    else if (label.startsWith(t) || e.keywords.some((k) => k.startsWith(t))) s = 1;
+    else if (label.includes(t) || e.keywords.some((k) => k.includes(t) || t.includes(k))) s = 2;
+    else if (e.section && e.section.toLowerCase().includes(t)) s = 3;
+    if (s >= 0) scored.push({ e, s });
+  }
+  const seen = new Set<string>();
+  return scored
+    .sort((a, b) => a.s - b.s)
+    .map((x) => x.e)
+    .filter((e) => (seen.has(e.route) ? false : (seen.add(e.route), true)))
+    .slice(0, limit);
+};
+
 // Rewrite the "/admin" prefix to the active base path (admin vs staff).
 export const applyBasePath = (route: string, isStaff: boolean): string =>
   route.replace("/admin", isStaff ? "/staff" : "/admin");

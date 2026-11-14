@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
+import { TourContinuation } from "@/components/shared/PageTourButton";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect as useAreaEffect } from "react";
 import { setCssArea, cssAreaForPath, clearThemeFromDom } from "@/lib/themeUtils";
@@ -469,6 +470,7 @@ const MainApp = () => {
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <CssAreaSync />
+      <TourContinuation />
       <Routes>
         {/* Root → smart redirect based on who is logged in */}
         <Route path="/" element={<SmartRoot />} />

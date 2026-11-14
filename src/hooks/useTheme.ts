@@ -19,7 +19,8 @@ export function useTheme() {
     }
     
     if (theme === "light" || theme === "dark") {
-      clearThemeFromDom();
+      // Keep the dark/color class just added; only drop the company colour overrides.
+      clearThemeFromDom({ resetToLightMode: false });
     } else if (theme === "color") {
       const cached = localStorage.getItem(themeCacheKey());
       if (cached) {

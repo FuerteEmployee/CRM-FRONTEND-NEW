@@ -330,7 +330,7 @@ const Contacts = () => {
         `${contact.firstname || ""} ${contact.lastname || ""}`.trim(),
         contact.userid?.company || "-",
         contact.email || "",
-        contact.title || "developer",
+        contact.title || "—",
         contact.phonenumber || "-",
         contact.active ? "Yes" : "No",
         contact.last_login ? formatDate(contact.last_login) : "Never"
@@ -500,7 +500,7 @@ const Contacts = () => {
                           {contact.email}
                         </TableCell>
                         <TableCell className="text-[#64748b]">
-                          {contact.title || "developer"}
+                          {contact.title || "—"}
                         </TableCell>
                         <TableCell className="text-[#64748b]">
                           {contact.phonenumber ? (

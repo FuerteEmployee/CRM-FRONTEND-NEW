@@ -58,6 +58,10 @@ type DictationOptions = {
    * clicks it off, the field unmounts, or another field's mic takes over.
    */
   keepAlive?: boolean;
+  /** Live partial transcript while the user is still speaking. */
+  onInterim?: (text: string) => void;
+  /** Called once when listening ends; `heard` is false if nothing was recognised. */
+  onFinish?: (heard: boolean) => void;
 };
 
 // If the browser keeps ending the session right after it starts, something
@@ -66,13 +70,21 @@ const QUICK_END_MS = 1000;
 const MAX_QUICK_RESTARTS = 5;
 
 /** Voice dictation for one field. `onText` receives each finished phrase. */
-export function useDictation(onText: (text: string) => void, { continuous = true, keepAlive = true }: DictationOptions = {}) {
+export function useDictation(
+  onText: (text: string) => void,
+  { continuous = true, keepAlive = true, onInterim, onFinish }: DictationOptions = {},
+) {
   const [isRecording, setIsRecording] = useState(false);
   const [owner] = useState(() => ({}));
   const recognitionRef = useRef<any>(null);
   const wantedRef = useRef(false);
+  const heardRef = useRef(false);
   const onTextRef = useRef(onText);
   onTextRef.current = onText;
+  const onInterimRef = useRef(onInterim);
+  onInterimRef.current = onInterim;
+  const onFinishRef = useRef(onFinish);
+  onFinishRef.current = onFinish;
 
   const release = useCallback(() => {
     setIsRecording(false);
@@ -105,16 +117,28 @@ export function useDictation(onText: (text: string) => void, { continuous = true
 
     const recognition = new Recognition();
     recognition.continuous = continuous;
-    recognition.interimResults = false;
+    recognition.interimResults = !!onInterimRef.current;
     recognition.lang = "en-US";
+    heardRef.current = false;
+    for (const ev of ["start", "audiostart", "soundstart", "speechstart", "speechend", "soundend", "audioend", "nomatch"]) {
+      recognition.addEventListener(ev, () => console.log(`[dictation] ${ev}`));
+    }
     recognition.onresult = (event: any) => {
+      console.log("[dictation] result", Array.from(event.results).map((r: any) => `${r[0].transcript}${r.isFinal ? " (final)" : ""}`));
       let text = "";
+      let interim = "";
       for (let i = event.resultIndex; i < event.results.length; i++) {
         if (event.results[i].isFinal) text += event.results[i][0].transcript;
+        else interim += event.results[i][0].transcript;
       }
-      if (text.trim()) onTextRef.current(text.trim());
+      if (interim.trim()) onInterimRef.current?.(interim.trim());
+      if (text.trim()) {
+        heardRef.current = true;
+        onTextRef.current(text.trim());
+      }
     };
     recognition.onerror = (event: any) => {
+      console.log("[dictation] error", event.error);
       if (event.error === "no-speech" || event.error === "aborted") return;
       wantedRef.current = false;
       toast.error(ERROR_MESSAGES[event.error] || `Voice typing failed (${event.error}).`);
@@ -139,6 +163,7 @@ export function useDictation(onText: (text: string) => void, { continuous = true
       recognitionRef.current = null;
       wantedRef.current = false;
       release();
+      onFinishRef.current?.(heardRef.current);
     };
 
     try {

@@ -5,6 +5,11 @@ import { queryClient as globalQueryClient } from '@/lib/queryClient';
 import { applyThemeToDom, themeCacheKey, clearThemeFromDom } from '@/lib/themeUtils';
 
 
+const isPlainMode = () => {
+  const pref = localStorage.getItem('crm_theme_preference');
+  return pref === 'light' || pref === 'dark';
+};
+
 const ThemeStyleContext = createContext({
   themeSettings: null,
   updateTheme: async (settings: any) => {},
@@ -43,7 +48,7 @@ export const ThemeStyleProvider = ({ children }: { children: React.ReactNode }) 
       return;
     }
     const cached = localStorage.getItem(themeCacheKey());
-    if (cached && !hasAppliedInitial) {
+    if (cached && !hasAppliedInitial && !isPlainMode()) {
       try {
         const parsed = JSON.parse(cached);
         applyThemeToDom(parsed);
@@ -57,8 +62,9 @@ export const ThemeStyleProvider = ({ children }: { children: React.ReactNode }) 
   // Apply theme when fetched from API — always apply if data exists
   useEffect(() => {
     if (themeSettings) {
-      applyThemeToDom(themeSettings);
       localStorage.setItem(themeCacheKey(), JSON.stringify(themeSettings));
+      // Light / Dark use the stock palettes; company colours apply only in Color mode.
+      if (!isPlainMode()) applyThemeToDom(themeSettings);
     }
   }, [themeSettings]);
 

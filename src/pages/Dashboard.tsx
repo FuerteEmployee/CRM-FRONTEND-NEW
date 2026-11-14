@@ -45,7 +45,8 @@ import {
   Legend,
 } from "recharts";
 
-import { driver } from "driver.js";
+import { driver, type Driver } from "driver.js";
+import { useAutoTour, beginFullTour, chainDriver } from "@/components/shared/PageTourButton";
 import "driver.js/dist/driver.css";
 import { usePermissionContext } from "@/context/PermissionContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -202,10 +203,10 @@ const Dashboard = () => {
     if (isStaff && !isAdmin && user?._id) {
       const currentUserId = String(user._id);
       return rawTasksList.filter((t: any) => {
-        const isAssigned = Array.isArray(t.assignees) && t.assignees.some((a: any) => 
+        const isAssigned = Array.isArray(t.assignees) && t.assignees.some((a: any) =>
           String(typeof a === 'object' ? a?._id || a?.value : a) === currentUserId
         );
-        const isFollower = Array.isArray(t.followers) && t.followers.some((f: any) => 
+        const isFollower = Array.isArray(t.followers) && t.followers.some((f: any) =>
           String(typeof f === 'object' ? f?._id || f?.value : f) === currentUserId
         );
         const isCreator = String(typeof t.created_by === 'object' ? t.created_by?._id : t.created_by) === currentUserId;
@@ -239,7 +240,7 @@ const Dashboard = () => {
       const res = await utilityService.getAnnouncements();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && isModuleEnabled("announcements")
+    enabled: !isExpired && isModuleEnabled("announcements") && canView("Announcements")
   });
 
   const { data: leadsList = [] } = useQuery({
@@ -275,7 +276,7 @@ const Dashboard = () => {
       const res = await utilityService.getActivityLogs();
       return Array.isArray(res) ? res : res?.data || [];
     },
-    enabled: !isExpired && canView("Activity Log")
+    enabled: !isExpired && isModuleEnabled("utility") && canView("Activity Log")
   });
 
   // Fetch pending reminders across tenant
@@ -290,8 +291,9 @@ const Dashboard = () => {
 
   // mutations for Todo
   const toggleTodoMutation = useMutation({
-    mutationFn: async ({ id, completed }: { id: string; completed: boolean }) => {
-      return utilityService.updateTodo(id, { completed });
+    mutationFn: async ({ id, completed, finished }: { id: string; completed?: boolean; finished?: boolean }) => {
+      const isDone = finished !== undefined ? finished : !!completed;
+      return utilityService.updateTodo(id, { finished: isDone, completed: isDone });
     },
     onSuccess: () => {
       refetchTodos();
@@ -300,7 +302,8 @@ const Dashboard = () => {
 
   const createTodoMutation = useMutation({
     mutationFn: async (title: string) => {
-      return utilityService.createTodo({ title, completed: false, priority: "Medium" });
+      const text = String(title || "").trim();
+      return utilityService.createTodo({ description: text, title: text, finished: false, completed: false, priority: "Medium" });
     },
     onSuccess: () => {
       refetchTodos();
@@ -310,7 +313,8 @@ const Dashboard = () => {
   const toggleTodo = (id: string) => {
     const todo = todosList.find((t: any) => t._id === id || t.id === id);
     if (todo) {
-      toggleTodoMutation.mutate({ id: todo._id || todo.id, completed: !todo.completed });
+      const currentDone = todo.finished !== undefined ? !!todo.finished : !!todo.completed;
+      toggleTodoMutation.mutate({ id: todo._id || todo.id, finished: !currentDone, completed: !currentDone });
     }
   };
 
@@ -333,12 +337,12 @@ const Dashboard = () => {
 
   const getTaskStatusLabel = (status: any) => {
     const s = Number(status);
-    if (s === 1) return "To Do";
-    if (s === 2) return "Awaiting Feedback";
+    if (s === 1) return "Not Started";
+    if (s === 2) return "In Progress";
     if (s === 3) return "Testing";
-    if (s === 4) return "In Progress";
+    if (s === 4) return "Awaiting Feedback";
     if (s === 5) return "Done";
-    return String(status || "To Do");
+    return String(status || "Not Started");
   };
 
   const getProjectStatusLabel = (status: any) => {
@@ -351,16 +355,23 @@ const Dashboard = () => {
     return String(status || "Active");
   };
 
-  const activeTodos = todosList.filter((t: any) => !t.completed);
+  const activeTodos = todosList.filter((t: any) => !(t.finished !== undefined ? t.finished : t.completed));
 
-  const completedTodos = todosList.filter((t: any) => t.completed);
+  const completedTodos = todosList.filter((t: any) => !!(t.finished !== undefined ? t.finished : t.completed));
+
+  // Helper for invoice awaiting payment & paid checks
+  const isAwaitingPayment = (status: any) => {
+    const s = String(status || "").toLowerCase().replace("_", " ");
+    return s === "unpaid" || s === "pending" || s === "1" || s === "overdue" || s === "4" || s === "partially paid" || s === "3" || s === "sent" || s === "sent later";
+  };
+  const isPaidInvoice = (status: any) => {
+    const s = String(status || "").toLowerCase();
+    return s === "paid" || s === "2" || s === "recorded";
+  };
 
   // 1. Outstanding / Overdue / Paid Invoices total calculations
   const outstandingInvoicesTotal = invoicesList
-    .filter((inv: any) => {
-      const status = String(inv.status || "").toLowerCase();
-      return status === "unpaid" || status === "pending" || status === "1" || status === "partially_paid" || status === "3";
-    })
+    .filter((inv: any) => isAwaitingPayment(inv.status))
     .reduce((sum: number, inv: any) => sum + (inv.total || 0), 0);
 
   const overdueInvoicesTotal = invoicesList
@@ -371,25 +382,19 @@ const Dashboard = () => {
     .reduce((sum: number, inv: any) => sum + (inv.total || 0), 0);
 
   const paidInvoicesTotal = invoicesList
-    .filter((inv: any) => {
-      const status = String(inv.status || "").toLowerCase();
-      return status === "paid" || status === "2";
-    })
+    .filter((inv: any) => isPaidInvoice(inv.status))
     .reduce((sum: number, inv: any) => sum + (inv.total || 0), 0);
 
   // 2. Stat cards
   // - Invoices Awaiting Payment
-  const unpaidInvoicesCount = invoicesList.filter((inv: any) => {
-    const status = String(inv.status || "").toLowerCase();
-    return status === "unpaid" || status === "pending" || status === "1" || status === "overdue" || status === "4" || status === "partially_paid" || status === "3";
-  }).length;
+  const unpaidInvoicesCount = invoicesList.filter((inv: any) => isAwaitingPayment(inv.status)).length;
   const totalInvoicesCount = invoicesList.length;
   const invoicesProgress = totalInvoicesCount > 0 ? (unpaidInvoicesCount / totalInvoicesCount) * 100 : 0;
 
   // - Converted Leads
   const convertedLeadsCount = leadsList.filter((l: any) => {
     const statusName = (typeof l.status === "object" && l.status?.name) || String(l.status || "");
-    return statusName.toLowerCase().includes("customer") || l.isConverted === true;
+    return l.converted === true || l.isConverted === true || statusName.toLowerCase().includes("customer");
   }).length;
   const totalLeadsCount = leadsList.length;
   const leadsProgress = totalLeadsCount > 0 ? (convertedLeadsCount / totalLeadsCount) * 100 : 0;
@@ -425,14 +430,14 @@ const Dashboard = () => {
       progress: leadsProgress,
       link: `${basePath}/leads`,
     },
-    isModuleEnabled("projects") && {
+    isModuleEnabled("projects") && canView("Projects") && {
       label: "Projects In Progress",
       value: `${activeProjectsCount} / ${totalProjectsCount}`,
       icon: FolderKanban,
       progress: projectsProgress,
       link: `${basePath}/projects`,
     },
-    isModuleEnabled("tasks") && {
+    isModuleEnabled("tasks") && canView("Tasks") && {
       label: "Tasks Not Finished",
       value: `${unfinishedTasksCount} / ${totalTasksCount}`,
       icon: CheckSquare,
@@ -445,15 +450,15 @@ const Dashboard = () => {
   const invoiceOverviewDraft = invoicesList.filter((i: any) => String(i.status || "").toLowerCase() === "draft").length;
   const invoiceOverviewNotSent = invoicesList.filter((i: any) => String(i.status || "").toLowerCase().replace("_", " ") === "not sent").length;
   const invoiceOverviewUnpaid = invoicesList.filter((i: any) => {
-    const status = String(i.status || "").toLowerCase();
-    return status === "unpaid" || status === "pending" || status === "1";
+    const s = String(i.status || "").toLowerCase().replace("_", " ");
+    return s === "unpaid" || s === "pending" || s === "1" || s === "sent" || s === "sent later";
   }).length;
   const invoiceOverviewPartiallyPaid = invoicesList.filter((i: any) => {
     const status = String(i.status || "").toLowerCase().replace("_", " ");
     return status === "partially paid" || status === "3";
   }).length;
   const invoiceOverviewOverdue = invoicesList.filter((i: any) => String(i.status || "").toLowerCase() === "overdue" || String(i.status) === "4").length;
-  const invoiceOverviewPaid = invoicesList.filter((i: any) => String(i.status || "").toLowerCase() === "paid" || String(i.status) === "2").length;
+  const invoiceOverviewPaid = invoicesList.filter((i: any) => isPaidInvoice(i.status)).length;
   const invoiceOverviewTotal = invoicesList.length || 1;
 
   const invoiceItems = [
@@ -638,9 +643,9 @@ const Dashboard = () => {
 
   // Recent activity logs
   const dynamicRecentActivities = React.useMemo(() => {
-
     return activityLogsList.slice(0, 10).map((log: any, idx: number) => {
-      const userFull = log.staff?.firstname ? `${log.staff.firstname} ${log.staff.lastname || ""}` : (log.created_by?.firstname ? `${log.created_by.firstname}` : "User");
+      const staffObj = log.staffid || log.staff || log.created_by;
+      const userFull = staffObj?.full_name || (staffObj?.firstname ? `${staffObj.firstname} ${staffObj.lastname || ""}`.trim() : (typeof staffObj === "string" ? staffObj : "User"));
       const initials = userFull.split(" ").map((n: string) => n[0]).join("").substring(0, 2).toUpperCase() || "US";
 
       const logDate = new Date(log.createdAt || log.date);
@@ -675,7 +680,6 @@ const Dashboard = () => {
 
   // Announcements list
   const dynamicAnnouncements = React.useMemo(() => {
-
     // Announcements are saved with `name` (subject) and an HTML `message`; admins
     // also receive client-only ones, which don't belong on the staff dashboard.
     return announcementsList.filter((a: any) => a.showtostaff !== false).slice(0, 5).map((a: any) => ({
@@ -691,20 +695,21 @@ const Dashboard = () => {
 
   // Tickets list
   const dynamicTickets = React.useMemo(() => {
-
-    return ticketsList.slice(0, 5).map((tk: any) => ({
-      id: tk._id || tk.id,
-      subject: tk.subject,
-      status: tk.status || "Open",
-      priority: tk.priority?.name || tk.priority || "Medium",
-      customer: tk.client?.company || tk.client?.name || "Acme Corp",
-      createdAt: formatDate(tk.createdAt || tk.date),
-    }));
+    return [...ticketsList]
+      .sort((a: any, b: any) => new Date(b.createdAt || b.date || 0).getTime() - new Date(a.createdAt || a.date || 0).getTime())
+      .slice(0, 5)
+      .map((tk: any) => ({
+        id: tk._id || tk.id,
+        subject: tk.subject,
+        status: tk.status || "Open",
+        priority: tk.priority?.name || tk.priority || "Medium",
+        customer: tk.client?.company || tk.client?.name || "—",
+        createdAt: formatDate(tk.createdAt || tk.date),
+      }));
   }, [ticketsList]);
 
   // Reminders list
   const dynamicReminders = React.useMemo(() => {
-
     return remindersRes.map((r: any) => ({
       id: r._id || r.id,
       title: r.description || r.title,
@@ -728,12 +733,13 @@ const Dashboard = () => {
   }, [quotationsList, formatAmount]);
 
   const dynamicTasksToShow = React.useMemo(() => {
-    return tasksList
+    return [...tasksList]
       .filter((t: any) => {
         const s = getTaskStatusLabel(t.status);
-        return s !== "Done" && s !== "Complete";
+        return s !== "Done" && s !== "Complete" && Number(t.status) !== 5;
       })
-      .slice(0, 5)
+      .sort((a: any, b: any) => new Date(b.createdAt || b.startdate || b.startDate || 0).getTime() - new Date(a.createdAt || a.startdate || a.startDate || 0).getTime())
+      .slice(0, 6)
       .map((t: any) => ({
         id: t._id || t.id,
         title: t.name || t.title,
@@ -755,10 +761,14 @@ const Dashboard = () => {
   }, [projectsList]);
 
   const startTour = () => {
-    const driverObj = driver({
-      showProgress: true,
-      animate: true,
-      steps: [
+    const isVisible = (sel: string) => {
+      const el = document.querySelector(sel) as HTMLElement | null;
+      return !!el && el.getClientRects().length > 0;
+    };
+    // Steps whose target isn't on screen (hidden by role/module permissions,
+    // collapsed mobile sidebar, etc.) are dropped instead of floating mid-page.
+    // #tour-settings only exists after the Setup flip, so it's gated on #tour-setup.
+    const allSteps: any[] = [
         {
           element: '#tour-header',
           popover: {
@@ -826,31 +836,28 @@ const Dashboard = () => {
           element: '#tour-setup',
           popover: {
             title: 'Setup Configuration',
-            description: 'This is the Setup menu. Clicking this will flip the sidebar to reveal administrative tools for configuring your CRM.',
-            side: "right",
-            align: 'start',
-            onNextClick: () => {
-              const setupBtn = document.getElementById('tour-setup');
-              if (setupBtn) setupBtn.click();
-              setTimeout(() => {
-                driverObj.moveNext();
-              }, 200);
-            }
-          }
-        },
-        {
-          element: '#tour-settings',
-          popover: {
-            title: 'System Settings',
-            description: 'Once inside Setup, you can access global Settings to manage company details, localizations, and integrations!',
+            description: 'This is the Setup menu. Open it to find Settings and the other administrative tools for configuring your CRM.',
             side: "right",
             align: 'start'
           }
         }
-      ]
+    ];
+    const steps = allSteps.filter((s) => isVisible(s.element));
+    if (steps.length === 0) return;
+    // Dashboard steps first, then the tour continues module by module
+    // (see TourContinuation / tourSequence).
+    beginFullTour();
+    const driverObj: Driver = driver({
+      showProgress: true,
+      animate: true,
+      doneBtnText: 'Next module →',
+      steps,
+      onDestroyStarted: () => chainDriver(driverObj, navigate)(),
     });
     driverObj.drive();
   };
+
+  useAutoTour("/admin/dashboard", startTour);
 
   const showSkeleton = useMinimumLoading(isLoading);
 
@@ -944,20 +951,20 @@ const Dashboard = () => {
                     ].filter(Boolean).length >= 4
                       ? "md:grid-cols-4"
                       : [
-                          isModuleEnabled("finance") && canView("Invoices"),
-                          isModuleEnabled("estimates") && canView("Estimates"),
-                          isModuleEnabled("proposals") && canView("Proposals"),
-                          isModuleEnabled("sales") && canView("Quotations")
-                        ].filter(Boolean).length === 3
-                      ? "md:grid-cols-3"
-                      : [
+                        isModuleEnabled("finance") && canView("Invoices"),
+                        isModuleEnabled("estimates") && canView("Estimates"),
+                        isModuleEnabled("proposals") && canView("Proposals"),
+                        isModuleEnabled("sales") && canView("Quotations")
+                      ].filter(Boolean).length === 3
+                        ? "md:grid-cols-3"
+                        : [
                           isModuleEnabled("finance") && canView("Invoices"),
                           isModuleEnabled("estimates") && canView("Estimates"),
                           isModuleEnabled("proposals") && canView("Proposals"),
                           isModuleEnabled("sales") && canView("Quotations")
                         ].filter(Boolean).length === 2
-                      ? "md:grid-cols-2"
-                      : ""
+                          ? "md:grid-cols-2"
+                          : ""
                   )}>
                     {isModuleEnabled("finance") && canView("Invoices") && (
                       <OverviewSection
@@ -1018,9 +1025,9 @@ const Dashboard = () => {
                   <p className="text-xs text-muted-foreground">No todos found</p>
                 ) : (
                   activeTodos.map((t: any) => (
-                    <div key={t.id} className="flex items-center gap-2 py-1">
-                      <Checkbox checked={t.completed} onCheckedChange={() => toggleTodo(t.id)} className="h-3.5 w-3.5" />
-                      <span className="text-xs truncate">{t.title}</span>
+                    <div key={t._id || t.id} className="flex items-center gap-2 py-1">
+                      <Checkbox checked={t.finished !== undefined ? t.finished : t.completed} onCheckedChange={() => toggleTodo(t._id || t.id)} className="h-3.5 w-3.5" />
+                      <span className="text-xs truncate">{t.description || t.title}</span>
                     </div>
                   ))
                 )}
@@ -1033,9 +1040,9 @@ const Dashboard = () => {
                   <p className="text-xs text-muted-foreground">No finished todos found</p>
                 ) : (
                   completedTodos.map((t: any) => (
-                    <div key={t.id} className="flex items-center gap-2 py-1">
-                      <Checkbox checked={t.completed} onCheckedChange={() => toggleTodo(t.id)} className="h-3.5 w-3.5" />
-                      <span className="text-xs text-muted-foreground line-through truncate">{t.title}</span>
+                    <div key={t._id || t.id} className="flex items-center gap-2 py-1">
+                      <Checkbox checked={t.finished !== undefined ? t.finished : t.completed} onCheckedChange={() => toggleTodo(t._id || t.id)} className="h-3.5 w-3.5" />
+                      <span className="text-xs text-muted-foreground line-through truncate">{t.description || t.title}</span>
                     </div>
                   ))
                 )}
@@ -1398,23 +1405,23 @@ const Dashboard = () => {
               <CardContent>
                 <div className="h-72">
                   {dynamicRevenueData.some((d: any) => d.revenue > 0 || d.expenses > 0) ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={dynamicRevenueData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="month" className="text-xs" tick={{ fill: "hsl(215, 16%, 47%)" }} />
-                      <YAxis className="text-xs" tick={{ fill: "hsl(215, 16%, 47%)" }} tickFormatter={(v) => `${symbol}${v / 1000}k`} />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "hsl(var(--card))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "8px",
-                        }}
-                        formatter={(value: number) => [formatAmount(value, 0), undefined]}
-                      />
-                      <Area type="monotone" dataKey="revenue" stroke="hsl(213, 44%, 25%)" fill="hsl(213, 44%, 25%)" fillOpacity={0.15} strokeWidth={2} />
-                      <Area type="monotone" dataKey="expenses" stroke="hsl(215, 16%, 47%)" fill="hsl(215, 16%, 47%)" fillOpacity={0.08} strokeWidth={2} />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={dynamicRevenueData}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                        <XAxis dataKey="month" className="text-xs" tick={{ fill: "hsl(215, 16%, 47%)" }} />
+                        <YAxis className="text-xs" tick={{ fill: "hsl(215, 16%, 47%)" }} tickFormatter={(v) => `${symbol}${v / 1000}k`} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "hsl(var(--card))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "8px",
+                          }}
+                          formatter={(value: number) => [formatAmount(value, 0), undefined]}
+                        />
+                        <Area type="monotone" dataKey="revenue" stroke="hsl(213, 44%, 25%)" fill="hsl(213, 44%, 25%)" fillOpacity={0.15} strokeWidth={2} />
+                        <Area type="monotone" dataKey="expenses" stroke="hsl(215, 16%, 47%)" fill="hsl(215, 16%, 47%)" fillOpacity={0.08} strokeWidth={2} />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   ) : (
                     <div className="h-full flex flex-col items-center justify-center text-center p-4">
                       <FileBarChart className="h-10 w-10 text-muted-foreground/40 mb-2" />
@@ -1452,7 +1459,7 @@ const Dashboard = () => {
         </div>
 
         {/* Recent Activities */}
-        {canView("Activity Log") && (
+        {isModuleEnabled("utility") && canView("Activity Log") && (
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Recent Activity</CardTitle>

@@ -21,6 +21,7 @@ import {
   DialogTitle,
   DialogTrigger,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -149,6 +150,9 @@ const Customers = () => {
   const [sampleColumns, setSampleColumns] = useState<string[]>(DEFAULT_IMPORT_SAMPLE_COLUMNS);
   const [showMoreColumns, setShowMoreColumns] = useState(false);
   const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false);
+  const [isNewGroupModalOpen, setIsNewGroupModalOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const { getSetting } = useSettings();
   useOpenCreateModal(() => setIsNewCustomerOpen(true));
 
@@ -299,8 +303,13 @@ const Customers = () => {
 
     try {
       if (bulkState.massDelete) {
-        await customerService.bulkDelete(selectedCustomers);
-        toast({ title: "Success", description: `Deleted ${selectedCustomers.length} customers.` });
+        const res: any = await customerService.bulkDelete(selectedCustomers);
+        const deletedCount = res?.deletedCount ?? res?.count ?? selectedCustomers.length;
+        const skippedCount = res?.skipped?.length || 0;
+        toast({
+          title: "Success",
+          description: `Deleted ${deletedCount} customer(s).${skippedCount > 0 ? ` (${skippedCount} skipped due to linked records)` : ""}`
+        });
       } else {
         if (bulkState.groups) {
           // Adds the group and keeps each customer's other groups.
@@ -316,6 +325,25 @@ const Customers = () => {
       toast({ title: "Error", description: apiError(err, "Failed to perform bulk action."), variant: "destructive" });
     } finally {
       setIsBulkLoading(false);
+    }
+  };
+
+  const handleCreateQuickGroup = async () => {
+    if (!newGroupName.trim()) return;
+    setIsCreatingGroup(true);
+    try {
+      const created: any = await customerService.createGroup({ name: newGroupName.trim() });
+      queryClient.invalidateQueries({ queryKey: ["customerGroups"] });
+      if (created?._id) {
+        setNewCustomer((prev: any) => ({ ...prev, groups: [...(prev.groups || []), created._id] }));
+      }
+      toast({ title: "Success", description: `Group "${newGroupName.trim()}" created successfully.` });
+      setNewGroupName("");
+      setIsNewGroupModalOpen(false);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.response?.data?.message || err.message, variant: "destructive" });
+    } finally {
+      setIsCreatingGroup(false);
     }
   };
 
@@ -985,9 +1013,12 @@ const Customers = () => {
                               </SelectContent>
                             </Select>
                             <Button
+                              type="button"
                               variant="outline"
                               size="icon"
                               className="shrink-0"
+                              onClick={() => setIsNewGroupModalOpen(true)}
+                              title="Create new group"
                             >
                               <Plus className="h-4 w-4" />
                             </Button>
@@ -1702,6 +1733,32 @@ const Customers = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={isNewGroupModalOpen} onOpenChange={setIsNewGroupModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Customer Group</DialogTitle>
+            <DialogDescription>Create a new group to categorize customers.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Group Name <span className="text-destructive">*</span></Label>
+              <Input
+                placeholder="e.g. VIP, Wholesale, Retail"
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleCreateQuickGroup(); } }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsNewGroupModalOpen(false)}>Cancel</Button>
+            <Button type="button" onClick={handleCreateQuickGroup} disabled={isCreatingGroup || !newGroupName.trim()}>
+              {isCreatingGroup ? "Creating..." : "Create Group"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

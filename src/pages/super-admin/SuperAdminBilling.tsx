@@ -90,14 +90,16 @@ export default function SuperAdminBilling() {
     if (price === 0) return { label: "Free", cls: "bg-gray-50 text-gray-600 border-gray-200" };
     return { label: "Active", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" };
   };
-  const trialTenants = tenants.filter((t) => t.status === "trial");
+  const trialCount = dash?.trial_customers !== undefined
+    ? Number(dash.trial_customers)
+    : tenants.filter((t) => ((t as any).effective_status || t.status) === "trial").length;
   const formatINR = (n: number) =>
     `₹${(Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const stats = [
     { label: "Est. Monthly Revenue", value: formatINR(revenue.monthly), icon: IndianRupee, color: "bg-blue-50 text-blue-600", sub: "Yearly ÷ 12 · lifetime and ended plans not counted" },
     { label: "Paying Subscriptions", value: revenue.paying.toString(), icon: CreditCard, color: "bg-emerald-50 text-emerald-600", sub: `${runningCount} active by date · free plans not counted` },
-    { label: "Trial Customers", value: trialTenants.length.toString(), icon: TrendingUp, color: "bg-indigo-50 text-indigo-600", sub: "Pending conversion" },
+    { label: "Trial Customers", value: trialCount.toString(), icon: TrendingUp, color: "bg-indigo-50 text-indigo-600", sub: "Pending conversion" },
   ];
 
   return (

@@ -994,7 +994,7 @@ export default function SuperAdminCompanies() {
                   <input
                     type="tel"
                     inputMode="numeric"
-                    required
+                    required={!!(selectedTenant?.owner_id || manageForm.password || manageForm.email)}
                     maxLength={10}
                     value={manageForm.phonenumber}
                     onChange={(e) => setManageForm({ ...manageForm, phonenumber: clampPhone10(e.target.value) })}

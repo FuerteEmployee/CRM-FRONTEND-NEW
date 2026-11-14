@@ -1450,7 +1450,11 @@ export default function CustomerView() {
 
   const { data: subscriptions = [], isLoading: isLoadingSubscriptions } = useQuery({
     queryKey: ["subscriptions", id],
-    queryFn: () => salesService.getSubscriptions(),
+    queryFn: async () => {
+      const res: any = await salesService.getSubscriptions({ client: id });
+      const list = Array.isArray(res) ? res : res?.data || [];
+      return list.filter((s: any) => String(s.client?._id || s.client || "") === String(id));
+    },
     enabled: activeTab === "subscriptions",
   });
 
@@ -4856,34 +4860,6 @@ export default function CustomerView() {
                       <CommandInput placeholder="Search contacts..." className="h-9" />
                       <CommandEmpty>No contact found.</CommandEmpty>
                       <CommandGroup className="max-h-[300px] overflow-y-auto p-1">
-                        {/* Static Options from user request */}
-                        {["admin@gmail.com", "admin1@gmail.com", "tirth@gmail.com"].map((email) => {
-                          const emails = mailForm.email ? mailForm.email.split(',').map(e => e.trim()) : [];
-                          const isSelected = emails.includes(email);
-
-                          return (
-                            <CommandItem
-                              key={email}
-                              onSelect={() => {
-                                let newEmails;
-                                if (isSelected) {
-                                  newEmails = emails.filter(e => e !== email);
-                                } else {
-                                  newEmails = [...emails, email];
-                                }
-                                setMailForm(p => ({ ...p, email: newEmails.join(', ') }));
-                              }}
-                              className="flex items-center justify-between py-2 px-3 cursor-pointer rounded-lg hover:bg-primary/5 transition-colors group"
-                            >
-                              <div className="flex flex-col">
-                                <span className="text-xs font-bold">{email}</span>
-                                <span className="text-[10px] text-muted-foreground">Default Admin</span>
-                              </div>
-                              {isSelected && <Check className="h-4 w-4 text-primary" />}
-                            </CommandItem>
-                          );
-                        })}
-
                         {/* Dynamic Contacts */}
                         {contacts.map((contact: any) => {
                           const emails = mailForm.email ? mailForm.email.split(',').map(e => e.trim()) : [];

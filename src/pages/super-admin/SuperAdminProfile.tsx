@@ -158,6 +158,7 @@ export default function SuperAdminProfile() {
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
               <input
                 type="tel"
+                required
                 value={phonenumber}
                 onChange={(e) => setPhonenumber(e.target.value.replace(/\D/g, "").slice(0, 10))}
                 maxLength={10}
