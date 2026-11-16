@@ -74,6 +74,7 @@ interface Role {
 
 const FEATURES_CONFIG = [
   { name: "Bulk PDF Export", caps: ["View(Global)"] },
+  { name: "Dashboard Notifications", caps: ["View(Global)"] },
   { name: "Chat", caps: ["View(Global)"] },
   { name: "Meetings", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "Bookmarks", caps: ["View(Global)"] },

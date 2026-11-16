@@ -39,7 +39,8 @@ const h = vi.hoisted(() => {
     deleteGroup: vi.fn(),
   };
   const setChatUnreadCount = vi.fn();
-  return { sockets, state, makeSocket, chatService, setChatUnreadCount };
+  const startCall = vi.fn();
+  return { sockets, state, makeSocket, chatService, setChatUnreadCount, startCall };
 });
 
 vi.mock("socket.io-client", () => ({ io: () => h.makeSocket(), default: () => h.makeSocket() }));
@@ -56,6 +57,9 @@ vi.mock("emoji-picker-react", () => ({
   default: ({ onEmojiClick }: any) => <button data-testid="emoji-😀" onClick={() => onEmojiClick({ emoji: "😀" })}>😀</button>,
 }));
 vi.mock("@jitsi/react-sdk", () => ({ JitsiMeeting: ({ roomName }: any) => <div data-testid="jitsi">{roomName}</div> }));
+vi.mock("@/context/CallContext", () => ({
+  useCall: () => ({ inCall: false, startCall: h.startCall, state: { phase: "idle" } }),
+}));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { info: vi.fn(), error: vi.fn(), success: vi.fn() }) }));
 vi.mock("@/lib/soundUtils", () => ({ playNotificationSound: vi.fn() }));
 vi.mock("@/api/services/meeting.service", () => ({ meetingService: { getMeetings: vi.fn(async () => []) } }));
@@ -97,6 +101,7 @@ beforeEach(() => {
   h.state.user = { _id: "me", firstname: "Mona", lastname: "Admin", email: "mona@a.test" };
   Object.values(h.chatService).forEach((f) => f.mockReset());
   h.setChatUnreadCount.mockReset();
+  h.startCall.mockReset();
   h.chatService.getContacts.mockResolvedValue(contacts());
   h.chatService.getHistory.mockResolvedValue(history());
   h.chatService.sendMessage.mockImplementation(async (_to: string, message: string) => ({ _id: `new-${message}`, message, createdAt: T2, read: false }));
@@ -415,33 +420,28 @@ describe("Real-time (socket) behaviour", () => {
   });
 });
 
+// Calls run on our own WebRTC (context/CallContext.tsx) since 2026-11-14 —
+// Jitsi and the "Started a call" chat message are gone. Chat only starts the call.
 describe("Calls", () => {
-  it("1:1 call: caller and callee land in the SAME Jitsi room", async () => {
-    // Mona (me) calls Ravi (u1)
+  it("an online colleague: Video call starts our own call with them (no Jitsi, no chat message)", async () => {
+    h.chatService.getContacts.mockResolvedValue(contacts().map((c) => (c._id === "u1" ? { ...c, online: true } : c)));
     await renderChat();
     await openContact("Ravi Shah");
-    fireEvent.click(screen.getByTitle("Video Call"));
-    const roomFromMona = (await screen.findByTestId("jitsi")).textContent;
-    cleanup();
-    // Ravi (u1) joins from his side by opening Mona and clicking Video
-    h.state.user = { _id: "u1", firstname: "Ravi", lastname: "Shah", email: "ravi@a.test" };
-    h.chatService.getContacts.mockResolvedValue([{ _id: "me", firstname: "Mona", lastname: "Admin", email: "mona@a.test", admin: true, unreadCount: 0 }]);
-    render(<Chat />);
-    fireEvent.click(await screen.findByText("Mona Admin"));
-    await screen.findByPlaceholderText("Type a message...");
-    fireEvent.click(screen.getByTitle("Video Call"));
-    const roomFromRavi = (await screen.findByTestId("jitsi")).textContent;
-    expect(roomFromRavi).toBe(roomFromMona);
+    const video = screen.getByRole("button", { name: "Video call" });
+    expect(video).not.toBeDisabled();
+    fireEvent.click(video);
+    expect(h.startCall).toHaveBeenCalledWith({ to: "u1", isGroup: false, type: "video", title: "Ravi Shah" });
+    expect(h.chatService.sendMessage).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("jitsi")).toBeNull();
   });
 
-  it("call invitation is posted to the thread once and End Call closes the call view", async () => {
+  it("an offline colleague: call buttons are off and say why", async () => {
     await renderChat();
     await openContact("Ravi Shah");
-    fireEvent.click(screen.getByTitle("Voice Call"));
-    await waitFor(() => expect(h.chatService.sendMessage).toHaveBeenCalledTimes(1));
-    expect(h.chatService.sendMessage.mock.calls[0][1]).toMatch(/Voice Call/);
-    fireEvent.click(screen.getByRole("button", { name: /End \/ Leave Call/ }));
-    expect(screen.queryByTestId("jitsi")).toBeNull();
+    const voice = screen.getByRole("button", { name: "Voice call" });
+    expect(voice).toBeDisabled();
+    expect(voice.getAttribute("title")).toMatch(/offline/i);
+    expect(h.startCall).not.toHaveBeenCalled();
   });
 });
 

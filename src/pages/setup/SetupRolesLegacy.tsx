@@ -33,8 +33,13 @@ interface Role {
   default_modules?: { module: string; permission?: string }[];
 }
 
+// A new role starts with the switches that are ON by default.
+// "Dashboard Notifications": the notifications card on the Dashboard.
+const newRolePermissions = (): Record<string, string[]> => ({ "Dashboard Notifications": ["View(Global)"] });
+
 const FEATURES_CONFIG = [
   { name: "Bulk PDF Export", caps: ["View(Global)"] },
+  { name: "Dashboard Notifications", caps: ["View(Global)"] },
   { name: "Chat", caps: ["View(Global)"] },
   { name: "Meetings", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "Bookmarks", caps: ["View(Global)"] },
@@ -200,7 +205,7 @@ export default function SetupRolesLegacy() {
     default_modules: { module: string; permission: string }[];
   }>({
     name: "",
-    permissions: {},
+    permissions: newRolePermissions(),
     default_modules: [{ module: "dashboard", permission: "" }],
   });
 
@@ -312,7 +317,7 @@ export default function SetupRolesLegacy() {
 
   const handleAdd = () => {
     setCurrentRole(null);
-    setFormData({ name: "", permissions: {}, default_modules: [{ module: "dashboard", permission: "" }] });
+    setFormData({ name: "", permissions: newRolePermissions(), default_modules: [{ module: "dashboard", permission: "" }] });
     setView("form");
   };
 

@@ -584,8 +584,20 @@ export const CallProvider = ({ children }: { children: React.ReactNode }) => {
   );
 };
 
-export const useCall = () => {
-  const ctx = useContext(CallContext);
-  if (!ctx) throw new Error("useCall must be used inside <CallProvider>");
-  return ctx;
+// Used when a page is rendered without <CallProvider> (tests, isolated
+// previews): calling is simply unavailable instead of the page crashing.
+const NO_CALLS: CallContextValue = {
+  state: IDLE,
+  inCall: false,
+  startCall: async () => {
+    toast.error("Calling is not available here. Please refresh the page.");
+  },
+  accept: async () => {},
+  reject: () => {},
+  hangUp: () => {},
+  toggleMute: () => {},
+  toggleCamera: async () => {},
+  setMinimized: () => {},
 };
+
+export const useCall = () => useContext(CallContext) || NO_CALLS;

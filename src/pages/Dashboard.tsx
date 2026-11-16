@@ -3,6 +3,7 @@ import { AdminDashboardSkeleton } from "@/components/ui/page-skeleton";
 import { useMinimumLoading } from "@/hooks/useMinimumLoading";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { NotificationsPopup } from "@/components/dashboard/NotificationsPopup";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -882,10 +883,14 @@ const Dashboard = () => {
             <h1 className="text-2xl font-bold">Dashboard</h1>
             <p className="text-muted-foreground">Welcome back, {user?.firstname || "User"}. Here's what's happening.</p>
           </div>
-          <Button onClick={startTour} className="gap-2 rounded-xl shadow-lg shadow-primary/20 bg-primary font-bold uppercase tracking-widest text-[10px]">
-            <Megaphone className="h-4 w-4" />
-            Start Demo Tour
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {/* Notifications popup (Setup > Roles > "Dashboard Notifications", on by default) */}
+            {canView("Dashboard Notifications") && <NotificationsPopup />}
+            <Button onClick={startTour} className="gap-2 rounded-xl shadow-lg shadow-primary/20 bg-primary font-bold uppercase tracking-widest text-[10px]">
+              <Megaphone className="h-4 w-4" />
+              Start Demo Tour
+            </Button>
+          </div>
         </div>
 
         {/* Stat Cards */}

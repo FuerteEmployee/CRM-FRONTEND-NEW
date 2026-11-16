@@ -1,38 +1,51 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
 import { usePermissionContext } from './PermissionContext';
 import { playNotificationSound } from '@/lib/soundUtils';
 import type { Socket } from 'socket.io-client';
 import { createAppSocket } from '@/lib/appSocket';
 import { meetingService } from '@/api/services/meeting.service';
 import { chatService } from '@/api/services/chat.service';
+import { notificationService } from '@/api/services/notification.service';
 import { useQuery } from '@tanstack/react-query';
-import { useRef } from 'react';
 import { quotationService } from '@/api/services/quotation.service';
 import { hasQuotationApproval } from '@/lib/quotationApproval';
 import { hasPurchaseOrders } from '@/lib/purchaseOrders';
 import { purchaseOrderService } from '@/api/services/purchaseOrder.service';
 
+// The bell (TopNavbar) and the Dashboard "Notifications" card.
+//
+// Notifications are SAVED on the server (Backend services/notificationService.js):
+// chat messages, missed calls, reminders, task deadlines, quotation / PO
+// approvals and goals are created there and pushed live as "notification:new".
+// So they survive a page refresh, show on every device, and are still there
+// for someone who was offline. The two kinds only the browser knows about —
+// meeting reminders and the login "waiting for your approval" summary — are
+// sent to the server to be saved (once, even with several tabs open).
+
 export interface NotificationItem {
   id: string;
   title: string;
   message: string;
-  time: string;
+  time: string; // "5 minutes ago"
   read: boolean;
-  // Where clicking this notification (toast or bell-dropdown row) should
-  // navigate to — e.g. a lead reminder deep-links straight to that lead's
-  // Reminders tab. Undefined means the notification isn't clickable.
+  // Where clicking it goes (with the /admin or /staff prefix). Undefined = not clickable.
   link?: string;
-  // Set for chat messages, so the notification can be removed when the
-  // sender deletes that message.
+  // Set for chat messages / calls, so it can be dropped when the message is deleted.
   chatMessageId?: string;
+  createdAt?: string;
+  type?: string;
 }
 
 interface NotificationContextType {
   notifications: NotificationItem[];
   unreadCount: number;
+  /** True once the saved list has been loaded after login. */
+  loaded: boolean;
   chatUnreadCount: number;
-  addNotification: (title: string, message: string, link?: string, extra?: { chatMessageId?: string }) => void;
+  /** Browser-created notification (meeting reminder / approval summary); saved on the server. */
+  addNotification: (title: string, message: string, link?: string, extra?: { type?: 'meeting' | 'approval_summary'; key?: string }) => void;
   markAllAsRead: () => void;
   markAsRead: (id: string) => void;
   setChatUnreadCount: React.Dispatch<React.SetStateAction<number>>;
@@ -45,6 +58,7 @@ interface NotificationContextType {
 const NotificationContext = createContext<NotificationContextType>({
   notifications: [],
   unreadCount: 0,
+  loaded: false,
   chatUnreadCount: 0,
   addNotification: () => {},
   markAllAsRead: () => {},
@@ -53,18 +67,61 @@ const NotificationContext = createContext<NotificationContextType>({
   socket: null,
 });
 
+const LIST_SIZE = 30;
+const today = () => new Date().toISOString().slice(0, 10);
+
 export const NotificationProvider = ({ children }: { children: React.ReactNode }) => {
   const { user, isStaff, can } = usePermissionContext();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loaded, setLoaded] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [socket, setSocket] = useState<Socket | null>(null);
 
-  const unreadCount = notifications.filter(n => !n.read).length;
-  // Latest list for socket handlers (they are set up once per login).
-  const notificationsRef = useRef<NotificationItem[]>([]);
+  const base = isStaff ? '/staff' : '/admin';
+  const baseRef = useRef(base);
+  baseRef.current = base;
+  // Chat messages that arrived while that exact chat was open: no toast for them.
+  const quietMessageIds = useRef(new Set<string>());
+
+  /** Server notification -> what the bell / Dashboard show. */
+  const toItem = useCallback(
+    (n: any): NotificationItem => ({
+      id: String(n._id),
+      title: n.title,
+      message: n.message || '',
+      time: n.createdAt ? formatDistanceToNow(new Date(n.createdAt), { addSuffix: true }) : 'Just now',
+      read: !!n.read,
+      link: n.link ? `${baseRef.current}${n.link}` : undefined,
+      chatMessageId: n.ref?.messageId ? String(n.ref.messageId) : undefined,
+      createdAt: n.createdAt,
+      type: n.type,
+    }),
+    []
+  );
+
+  const load = useCallback(async () => {
+    try {
+      const { items, unread } = await notificationService.list(LIST_SIZE);
+      setNotifications(items.map(toItem));
+      setUnreadCount(unread);
+    } catch {
+      /* keep what is shown; the next change event or reload tries again */
+    } finally {
+      setLoaded(true);
+    }
+  }, [toItem]);
+
+  // Saved notifications on login; nothing after logout.
   useEffect(() => {
-    notificationsRef.current = notifications;
-  }, [notifications]);
+    if (!user?._id) {
+      setNotifications([]);
+      setUnreadCount(0);
+      setLoaded(false);
+      return;
+    }
+    load();
+  }, [user?._id, load]);
 
   useEffect(() => {
     if (!user?._id) return;
@@ -82,91 +139,85 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     fetchChatCount();
   }, [user?._id]);
 
+  const showToast = (title: string, message: string, link?: string) => {
+    // `window.location.href` (not useNavigate) because this context sits
+    // outside <BrowserRouter> in App.tsx.
+    toast.info(title, {
+      description: message,
+      ...(link ? { action: { label: 'View', onClick: () => { window.location.href = link; } } } : {}),
+    });
+    playNotificationSound(user?.notification_sound || 'default');
+  };
+
+  /** Browser-created notifications are saved on the server, which pushes them back to every open tab. */
+  const addNotification: NotificationContextType['addNotification'] = (title, message, link, extra) => {
+    const path = link && link.startsWith(baseRef.current) ? link.slice(baseRef.current.length) || '/' : link;
+    notificationService
+      .create({ type: extra?.type || 'meeting', title, message, link: path || '', key: extra?.key })
+      .catch(() => {
+        // Server unreachable: still tell the user now (not saved).
+        setNotifications((prev) => [{ id: `local-${Date.now()}`, title, message, time: 'Just now', read: false, link }, ...prev]);
+        setUnreadCount((c) => c + 1);
+        showToast(title, message, link);
+      });
+  };
+
+  const markAsRead = (id: string) => {
+    const wasUnread = notifications.some((n) => n.id === id && !n.read);
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    if (wasUnread) setUnreadCount((c) => Math.max(0, c - 1));
+    if (!id.startsWith('local-')) notificationService.markRead(id).catch(() => {});
+  };
+
+  const markAllAsRead = () => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+    notificationService.markAllRead().catch(() => {});
+  };
+
   // Live alerts only reach people who are online, so on login remind an
-  // approver of anything already waiting for them (once per session).
-  const approvalCanApprove = hasQuotationApproval(user) && can("Quotations", "Approve");
+  // approver of anything already waiting for them (once a day).
+  const approvalCanApprove = hasQuotationApproval(user) && can('Quotations', 'Approve');
   useEffect(() => {
     if (!user?._id || !approvalCanApprove) return;
-    const key = `quotationApprovalReminded:${user._id}`;
-    try {
-      if (sessionStorage.getItem(key)) return;
-    } catch { /* storage unavailable — just remind */ }
     quotationService.getPendingApprovals()
       .then((list: any) => {
         const count = Array.isArray(list) ? list.length : 0;
         if (count > 0) {
           addNotification(
-            "Quotations awaiting approval",
-            `${count} quotation${count === 1 ? " is" : "s are"} waiting for your approval.`,
-            `${isStaff ? "/staff" : "/admin"}/quotations?tab=approvals`,
+            'Quotations awaiting approval',
+            `${count} quotation${count === 1 ? ' is' : 's are'} waiting for your approval.`,
+            `${base}/quotations?tab=approvals`,
+            { type: 'approval_summary', key: `quotation-pending:${today()}` },
           );
         }
-        try { sessionStorage.setItem(key, "1"); } catch { /* ignore */ }
       })
       .catch(() => { /* not critical */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?._id, approvalCanApprove]);
 
   // Same reminder for purchase orders waiting on a PO approver.
-  const poCanApprove = hasPurchaseOrders(user) && can("Purchase Orders", "Approve");
+  const poCanApprove = hasPurchaseOrders(user) && can('Purchase Orders', 'Approve');
   useEffect(() => {
     if (!user?._id || !poCanApprove) return;
-    const key = `poApprovalReminded:${user._id}`;
-    try {
-      if (sessionStorage.getItem(key)) return;
-    } catch { /* storage unavailable — just remind */ }
     purchaseOrderService.pendingApprovals()
       .then((list: any) => {
         const count = Array.isArray(list) ? list.length : 0;
         if (count > 0) {
           addNotification(
-            "Purchase orders awaiting approval",
-            `${count} PO${count === 1 ? " is" : "s are"} waiting for your Yes/No.`,
-            `${isStaff ? "/staff" : "/admin"}/purchase-orders?tab=approvals`,
+            'Purchase orders awaiting approval',
+            `${count} PO${count === 1 ? ' is' : 's are'} waiting for your Yes/No.`,
+            `${base}/purchase-orders?tab=approvals`,
+            { type: 'approval_summary', key: `po-pending:${today()}` },
           );
         }
-        try { sessionStorage.setItem(key, "1"); } catch { /* ignore */ }
       })
       .catch(() => { /* not critical */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?._id, poCanApprove]);
 
-  const addNotification = (title: string, message: string, link?: string, extra?: { chatMessageId?: string }) => {
-    const newNotification: NotificationItem = {
-      id: Date.now().toString(),
-      title,
-      message,
-      time: "Just now",
-      read: false,
-      link,
-      chatMessageId: extra?.chatMessageId,
-    };
-
-    setNotifications(prev => [newNotification, ...prev]);
-
-    // Show toast. `window.location.href` (not useNavigate) because this
-    // context sits outside <BrowserRouter> in App.tsx — a plain navigation
-    // is the only option that works from here.
-    toast.info(title, {
-      description: message,
-      ...(link ? { action: { label: "View", onClick: () => { window.location.href = link; } } } : {}),
-    });
-    
-    // Play sound based on user preference
-    const soundPref = user?.notification_sound || "default";
-    playNotificationSound(soundPref);
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  };
-
-  const markAsRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
-
+  // Meeting reminders: timed in the user's own time zone, so worked out here.
   const notifiedMeetings = useRef<Set<string>>(new Set());
-
   const { data: meetings = [] } = useQuery({
     queryKey: ['meetings-notifications'],
     queryFn: async () => {
@@ -186,184 +237,110 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
 
     const timer = setInterval(() => {
       const now = new Date();
-      
+
       meetings.forEach((meeting: any) => {
-        if (!meeting.date || !meeting.time || notifiedMeetings.current.has(meeting._id) || meeting.status === "Cancelled" || meeting.status === "Completed") return;
-        
+        if (!meeting.date || !meeting.time || notifiedMeetings.current.has(meeting._id) || meeting.status === 'Cancelled' || meeting.status === 'Completed') return;
+
         const meetingDate = new Date(meeting.date);
         if (isNaN(meetingDate.getTime())) return;
-        
+
         const [hours, minutes] = meeting.time.split(':').map(Number);
         meetingDate.setHours(hours, minutes, 0, 0);
-        
+
         const reminderMinutes = meeting.reminder_time !== undefined ? Number(meeting.reminder_time) : 15;
-        const timeDiffMs = meetingDate.getTime() - now.getTime();
-        const timeDiffMinutes = timeDiffMs / (1000 * 60);
+        const timeDiffMinutes = (meetingDate.getTime() - now.getTime()) / (1000 * 60);
 
         if (timeDiffMinutes <= reminderMinutes && timeDiffMinutes > -5) {
           addNotification(
-            "Upcoming Meeting Reminder",
-            `${meeting.topic} starts in ${Math.round(Math.max(0, timeDiffMinutes))} minutes.`
+            'Upcoming Meeting Reminder',
+            `${meeting.topic} starts in ${Math.round(Math.max(0, timeDiffMinutes))} minutes.`,
+            `${base}/meetings`,
+            // One reminder per meeting time, however many tabs are open.
+            { type: 'meeting', key: `meeting:${meeting._id}:${meetingDate.toISOString()}` },
           );
           notifiedMeetings.current.add(meeting._id);
         }
       });
     }, 15000);
-    
+
     return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [meetings, user]);
 
-  // Global socket listener for chat notifications
+  // The app-wide live connection.
   useEffect(() => {
     if (!user?._id) return;
 
     // Logged-in connection: the server puts it in this user's own rooms by itself.
-    const socket = createAppSocket();
+    const sock = createAppSocket();
 
     const tenantId = (user as any)?.tenant?._id;
     // Still asked for explicitly, so this works with an older backend too
     // (the new one accepts only the caller's own rooms).
     const joinRooms = () => {
-      socket.emit("join", user._id);
-      // A calling-agent update with no single assigned staff member (an
-      // unrecognized-caller or ambiguous-match row) is broadcast to this
-      // room instead — see Backend's src/utils/callingAgentSocket.js. Same
-      // generic "join" mechanism, just a different room name.
-      if (tenantId) socket.emit("join", `tenant-${tenantId}`);
+      sock.emit('join', user._id);
+      if (tenantId) sock.emit('join', `tenant-${tenantId}`);
     };
-    // Re-join on every connect, not just the first one — socket.io
-    // reconnects silently after a network blip, sleep/wake, or backend
-    // restart, and the server has no memory of which room a new connection
-    // belongs to until it's told again. Without this, a reconnect leaves
-    // the socket "live" but deaf to anything room-targeted (e.g. reminderDue).
-    socket.on("connect", joinRooms);
+    sock.on('connect', joinRooms);
+    // Re-sync after a reconnect: notifications may have arrived while offline.
+    sock.on('connect', () => load());
 
-    setSocket(socket);
+    setSocket(sock);
 
-    socket.on("newMessage", (msg: any) => {
-      // Don't notify if the message is from the current user
+    // A saved notification arrived (chat, missed call, reminder, approval, goal, meeting…).
+    sock.on('notification:new', (n: any) => {
+      const item = toItem(n);
+      const quiet = item.chatMessageId && quietMessageIds.current.has(item.chatMessageId);
+      if (quiet) {
+        // The person is looking at that chat right now: keep it, already read.
+        notificationService.markRead(item.id).catch(() => {});
+        item.read = true;
+      }
+      setNotifications((prev) => (prev.some((x) => x.id === item.id) ? prev : [item, ...prev].slice(0, LIST_SIZE)));
+      if (!item.read) setUnreadCount((c) => c + 1);
+      if (!quiet) showToast(item.title, item.message, item.link);
+    });
+
+    // Read / removed elsewhere (another tab, opening the chat, a deleted message).
+    sock.on('notifications:changed', () => load());
+
+    // Chat badge (the bell itself is fed by notification:new).
+    sock.on('newMessage', (msg: any) => {
       if (msg.sender._id === user._id) return;
-
       // Admin (/admin/chat) and staff (/staff/chat) logins both have the chat page.
       const isChatPage = /\/(admin|staff)\/chat(\/|$)/.test(window.location.pathname);
-      const activeChatId = sessionStorage.getItem("activeChatId");
-
+      const activeChatId = sessionStorage.getItem('activeChatId');
       if (isChatPage && (msg.sender._id === activeChatId || msg.conversationId === activeChatId)) {
-        // User is currently looking at this exact chat thread, no need for a global toast
+        if (msg._id) quietMessageIds.current.add(String(msg._id));
         return;
       }
-
-      // Call notes: only a call you missed needs an alert (you saw the others yourself).
-      if (msg.kind === "call") {
-        const status = msg.call?.status;
-        if (status !== "missed" && status !== "cancelled") return;
-        setChatUnreadCount(prev => prev + 1);
-        addNotification(
-          `Missed ${msg.call?.type === "video" ? "video" : "voice"} call`,
-          `${msg.sender.firstname} ${msg.sender.lastname || ""}`.trim() + " tried to call you.",
-          undefined,
-          { chatMessageId: msg._id ? String(msg._id) : undefined }
-        );
-        return;
-      }
-
-      setChatUnreadCount(prev => prev + 1);
-
-      // A message with only files has no text: name the file instead.
-      const files: { name?: string }[] = Array.isArray(msg.attachments) ? msg.attachments : [];
-      const text = msg.message || (files.length === 1 ? `📎 ${files[0].name || "File"}` : files.length ? `📎 ${files.length} files` : "");
-
-      addNotification(
-        `New Message from ${msg.sender.firstname}`,
-        text,
-        undefined,
-        { chatMessageId: msg._id ? String(msg._id) : undefined }
-      );
+      // Answered / declined calls need no attention; only a missed one counts.
+      if (msg.kind === 'call' && msg.call?.status !== 'missed' && msg.call?.status !== 'cancelled') return;
+      setChatUnreadCount((prev) => prev + 1);
     });
 
-    // The sender deleted a message: its text must not stay in the bell list either.
-    socket.on("messageDeleted", (msgId: string) => {
+    // The sender deleted a message: drop it from the bell right away
+    // (the server also removes the saved notification).
+    sock.on('messageDeleted', (msgId: string) => {
       const id = String(msgId);
-      if (!notificationsRef.current.some((n) => n.chatMessageId === id)) return;
-      // That message was counted as unread chat when it arrived.
-      setChatUnreadCount((c) => Math.max(0, c - 1));
-      setNotifications((prev) => prev.filter((n) => n.chatMessageId !== id));
-    });
-
-    // Fired by the backend's reminderDelivery cron (Backend/src/cron/reminderDelivery.js)
-    // the moment a Lead or Customer reminder's scheduled time arrives.
-    socket.on("reminderDue", (payload: any) => {
-      // Task deadline reminders come from the Cron Job settings (taskTicketAutomation.js).
-      if (payload?.relType === "task") {
-        addNotification("Task Deadline", payload?.description || "A task is due soon.", `${isStaff ? "/staff" : "/admin"}/tasks`);
-        return;
-      }
-      const title = payload?.relType === "customer" ? "Customer Reminder" : "Lead Reminder";
-      // Only leads have a deep-link target today (Leads.tsx's ?leadView=
-      // param opens that lead straight on its Reminders tab) — customer
-      // reminders still notify, just without a click-through until Customers
-      // gets the same deep-link support.
-      const link = payload?.relType === "lead" && payload?.relId
-        ? `${isStaff ? "/staff" : "/admin"}/leads?leadView=${payload.relId}&tab=reminders`
-        : undefined;
-      addNotification(title, payload?.description || "A reminder is due.", link);
-    });
-
-    // Quotation approval add-on (Backend quotation_controller.js): approvers
-    // hear about new requests, makers hear the decision.
-    socket.on("quotationApproval", (payload: any) => {
-      const base = isStaff ? "/staff" : "/admin";
-      const number = payload?.number || "A quotation";
-      if (payload?.event === "requested") {
-        addNotification("Quotation approval requested", `${payload?.by || "A staff member"} asked you to approve ${number}.`, `${base}/quotations?tab=approvals`);
-      } else if (payload?.event === "approved") {
-        addNotification("Quotation approved", `${number} was approved by ${payload?.by || "an approver"}. You can now send it.`, `${base}/quotations?tab=list`);
-      } else if (payload?.event === "rejected") {
-        const reason = payload?.comment ? ` Reason: ${payload.comment}` : "";
-        addNotification("Quotation rejected", `${number} was rejected by ${payload?.by || "an approver"}.${reason}`, `${base}/quotations?tab=list`);
-      }
-    });
-
-    // Purchase Orders add-on (Backend purchase_order_controller.js): same
-    // pattern — approvers hear about every PO sent for approval (with the
-    // points to check, if any), makers hear Yes/No.
-    socket.on("purchaseOrderApproval", (payload: any) => {
-      const base = isStaff ? "/staff" : "/admin";
-      const number = payload?.number || "A purchase order";
-      const link = payload?.poId ? `${base}/purchase-orders?po=${payload.poId}` : `${base}/purchase-orders`;
-      if (payload?.event === "requested") {
-        // Round 29 (S5): every PO goes for approval — the old text said it broke the pricing rules.
-        const reasons: string[] = Array.isArray(payload?.reasons) ? payload.reasons : [];
-        const points = reasons.length ? ` To check: ${reasons.slice(0, 3).join("; ")}${reasons.length > 3 ? ` (+${reasons.length - 3} more)` : ""}.` : "";
-        addNotification("PO needs your approval", `${number} from ${payload?.by || "a staff member"} is waiting for your approval.${points}`, link);
-      } else if (payload?.event === "approved") {
-        addNotification("PO approved", `${number} was approved by ${payload?.by || "an approver"}.`, link);
-      } else if (payload?.event === "rejected") {
-        const reason = payload?.reason ? ` Reason: ${payload.reason}` : "";
-        addNotification("PO sent back", `${payload?.by || "An approver"} said No to ${number}.${reason}`, link);
-      }
-    });
-
-    // Goals (Backend services/goalProgressService.js): sent once when a goal is
-    // achieved, or once when its end date passes without reaching the target.
-    socket.on("goalUpdate", (payload: any) => {
-      const subject = payload?.subject || "A goal";
-      const link = `${isStaff ? "/staff" : "/admin"}/goals`;
-      if (payload?.event === "achieved") {
-        addNotification("Goal achieved", `${subject} reached its target.`, link);
-      } else if (payload?.event === "failed") {
-        addNotification("Goal not achieved", `${subject} ended without reaching its target.`, link);
-      }
+      setNotifications((prev) => {
+        const gone = prev.find((n) => n.chatMessageId === id);
+        if (!gone) return prev;
+        setChatUnreadCount((c) => Math.max(0, c - 1));
+        if (!gone.read) setUnreadCount((c) => Math.max(0, c - 1));
+        return prev.filter((n) => n.chatMessageId !== id);
+      });
     });
 
     return () => {
-      socket.disconnect();
+      sock.disconnect();
       setSocket(null);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, chatUnreadCount, addNotification, markAllAsRead, markAsRead, setChatUnreadCount, socket }}>
+    <NotificationContext.Provider value={{ notifications, unreadCount, loaded, chatUnreadCount, addNotification, markAllAsRead, markAsRead, setChatUnreadCount, socket }}>
       {children}
     </NotificationContext.Provider>
   );

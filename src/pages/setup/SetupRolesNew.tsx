@@ -52,8 +52,13 @@ interface Role {
   default_modules?: { module: string; permission?: string }[];
 }
 
+// A new role starts with the switches that are ON by default.
+// "Dashboard Notifications": the notifications card on the Dashboard.
+const newRolePermissions = (): Record<string, string[]> => ({ "Dashboard Notifications": ["View(Global)"] });
+
 const FEATURES_CONFIG = [
   { name: "Bulk PDF Export", caps: ["View(Global)"] },
+  { name: "Dashboard Notifications", caps: ["View(Global)"] },
   { name: "Chat", caps: ["View(Global)"] },
   { name: "Meetings", caps: ["View(Global)", "Create", "Edit", "Delete"] },
   { name: "Bookmarks", caps: ["View(Global)"] },
@@ -186,6 +191,7 @@ const FEATURES_CONFIG = [
 // feature added to FEATURES_CONFIG later without an entry here still shows
 // up, just under the "Other" catch-all group instead of disappearing.
 const FEATURE_GROUP_META: Record<string, { group: string; emoji: string }> = {
+  "Dashboard Notifications": { group: "Workspace", emoji: "🔔" },
   "Chat": { group: "Workspace", emoji: "🏠" },
   "Meetings": { group: "Workspace", emoji: "🏠" },
   "Bookmarks": { group: "Workspace", emoji: "🏠" },
@@ -449,7 +455,7 @@ export default function SetupRolesNew() {
     default_modules: { module: string; permission: string }[];
   }>({
     name: "",
-    permissions: {},
+    permissions: newRolePermissions(),
     default_modules: [{ module: "dashboard", permission: "" }],
   });
 
@@ -547,7 +553,7 @@ export default function SetupRolesNew() {
 
   const openCreateDialog = () => {
     setCurrentRole(null);
-    setFormData({ name: "", permissions: {}, default_modules: [{ module: "dashboard", permission: "" }] });
+    setFormData({ name: "", permissions: newRolePermissions(), default_modules: [{ module: "dashboard", permission: "" }] });
     setIsDialogOpen(true);
   };
 
