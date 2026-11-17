@@ -76,6 +76,7 @@ import Support from "./pages/Support";
 import EstimateRequest from "./pages/EstimateRequest";
 import KnowledgeBase from "./pages/KnowledgeBase";
 import Chat from "./pages/Chat";
+import NotificationsPage from "./pages/Notifications";
 import TimeTracking from "./pages/TimeTracking";
 import Utilities from "./pages/Utilities";
 import Reports from "./pages/Reports";
@@ -319,6 +320,8 @@ const renderCommonRoutes = (Wrapper: React.FC<{ children: React.ReactNode }>) =>
     <Route path="estimate-request" element={<Wrapper><EstimateRequest /></Wrapper>} />
     <Route path="knowledge-base" element={<Wrapper><KnowledgeBase /></Wrapper>} />
     <Route path="chat" element={<Wrapper><Chat /></Wrapper>} />
+    {/* Bell > "View All Notifications": every saved notification (1 year), Load more */}
+    <Route path="notifications" element={<Wrapper><NotificationsPage /></Wrapper>} />
     <Route path="time-tracking" element={<Wrapper><TimeTracking /></Wrapper>} />
     <Route path="utilities" element={<Wrapper><Utilities /></Wrapper>} />
     <Route path="reports" element={<Wrapper><Reports /></Wrapper>} />

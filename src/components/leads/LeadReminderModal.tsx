@@ -5,7 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Bell } from "lucide-react";
+import { AlertTriangle, Bell } from "lucide-react";
+import { ReminderQuickTimes, ReminderReadyText } from "@/components/reminders/ReminderQuickFill";
+import { useReminderSettings, type ReminderRelType } from "@/lib/reminderSettings";
 
 export interface LeadReminderFormData {
   date: string;
@@ -23,11 +25,18 @@ interface LeadReminderModalProps {
   onSave: () => void;
   isPending: boolean;
   isEdit?: boolean;
+  /** Which module this reminder belongs to (Settings can turn its notifications off). */
+  relType?: ReminderRelType;
+  /** Heading for a new reminder, e.g. "Set Customer Reminder". */
+  title?: string;
 }
 
+// Shared "Set Reminder" form (Leads, Customers, Credit Notes). Quick time
+// buttons and ready texts come from Setup > Settings > Reminders.
 export function LeadReminderModal({
-  open, onOpenChange, formData, setFormData, staffOptions, onSave, isPending, isEdit,
+  open, onOpenChange, formData, setFormData, staffOptions, onSave, isPending, isEdit, relType = "lead", title,
 }: LeadReminderModalProps) {
+  const { moduleOn } = useReminderSettings();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Header and footer are pinned (shrink-0); only the middle field
@@ -42,16 +51,23 @@ export function LeadReminderModal({
                 <div className="p-2 bg-primary/10 rounded-xl">
                   <Bell className="h-4 w-4 text-primary" />
                 </div>
-                {isEdit ? "Edit Reminder" : "Set Lead Reminder"}
+                {isEdit ? "Edit Reminder" : title || "Set Lead Reminder"}
               </DialogTitle>
             </DialogHeader>
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto p-8 space-y-5">
+            {!moduleOn(relType) && (
+              <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                Notifications for these reminders are turned off in Setup &gt; Settings &gt; Reminders. It will be saved, but nobody will be notified.
+              </div>
+            )}
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">
                 Date to be notified *
               </Label>
+              <ReminderQuickTimes onPick={(v) => setFormData((p) => ({ ...p, date: v }))} />
               <Input
                 type="datetime-local"
                 value={formData.date}
@@ -75,9 +91,12 @@ export function LeadReminderModal({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                Description *
-              </Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                  Description *
+                </Label>
+                <ReminderReadyText onPick={(t) => setFormData((p) => ({ ...p, description: t }))} />
+              </div>
               <Textarea
                 value={formData.description}
                 onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}

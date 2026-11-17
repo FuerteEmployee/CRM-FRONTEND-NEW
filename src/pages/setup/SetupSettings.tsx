@@ -21,6 +21,7 @@ import { WhatsappQuickChatSettingsTab } from "./WhatsappQuickChatSettingsTab";
 import { ClaudeConnectorSettingsTab } from "./ClaudeConnectorSettingsTab";
 import { VoiceAgentSettingsTab } from "./VoiceAgentSettingsTab";
 import { PurchaseSettingsTab } from "./PurchaseSettingsTab";
+import { ReminderSettingsTab } from "./ReminderSettingsTab";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isProcurementTypesEnabled } from "@/lib/procurement";
 import { getAvailableInvoicePdfFormats, DEFAULT_INVOICE_PDF_FORMAT } from "@/lib/invoicePdfFormats";
@@ -99,7 +100,8 @@ import {
   Trash2,
   Loader2,
   Bot,
-  Sparkles
+  Sparkles,
+  Bell
 } from "lucide-react";
 import { useSettings } from "@/context/SettingsContext";
 import { resolveImageUrl } from "@/lib/resolveImageUrl";
@@ -188,6 +190,7 @@ const settingsNavigation: SettingCategory[] = [
     icon: MoreHorizontal,
     items: [
       { id: "oth-calendar", label: "Calendar", icon: Calendar },
+      { id: "oth-reminders", label: "Reminders", icon: Bell },
       { id: "oth-pdf", label: "PDF", icon: FileText },
       { id: "oth-esign", label: "E-Sign", icon: PenLine },
       { id: "oth-tags", label: "Tags", icon: Tag },
@@ -1504,13 +1507,16 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
               Manage your CRM configuration across all modules.
             </p>
           </div>
-          <Button
-            className="shadow-md"
-            onClick={handleSave}
-            disabled={isSaving}
-          >
-            {isSaving ? "Saving..." : "Save Changes"}
-          </Button>
+          {/* Reminders has its own "Save reminder settings" button. */}
+          {activeTab !== "oth-reminders" && (
+            <Button
+              className="shadow-md"
+              onClick={handleSave}
+              disabled={isSaving}
+            >
+              {isSaving ? "Saving..." : "Save Changes"}
+            </Button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-[280px_minmax(0,1fr)] gap-8 items-start min-w-0">
@@ -5271,6 +5277,9 @@ body { background-color: #f6f6f6; font-family: sans-serif; font-size: 14px; line
                 </Dialog>
               </>
             )}
+
+            {/* Other > Reminders: own Save button (saves only the reminder settings). */}
+            {activeTab === "oth-reminders" && <ReminderSettingsTab />}
 
             {activeTab === "oth-calendar" && (
               <Card className="border shadow-sm">

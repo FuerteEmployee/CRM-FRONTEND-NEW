@@ -1,5 +1,4 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { usePermissionContext } from './PermissionContext';
 import { playNotificationSound } from '@/lib/soundUtils';
@@ -14,7 +13,9 @@ import { hasQuotationApproval } from '@/lib/quotationApproval';
 import { hasPurchaseOrders } from '@/lib/purchaseOrders';
 import { purchaseOrderService } from '@/api/services/purchaseOrder.service';
 
-// The bell (TopNavbar) and the Dashboard "Notifications" card.
+// The bell (TopNavbar: every saved notification, old and new, with "Load older")
+// and the live popups (components/layout/LiveNotifications: each NEW one pops
+// up on its own at the side for a few seconds).
 //
 // Notifications are SAVED on the server (Backend services/notificationService.js):
 // chat messages, missed calls, reminders, task deadlines, quotation / PO
@@ -43,6 +44,18 @@ interface NotificationContextType {
   unreadCount: number;
   /** True once the saved list has been loaded after login. */
   loaded: boolean;
+  /** More (older) saved notifications exist than are in `notifications`. */
+  hasMore: boolean;
+  loadingMore: boolean;
+  /** Appends the next page of older saved notifications to the bell list. */
+  loadMore: () => void;
+  /** New notifications that just arrived: shown one by one as side popups. */
+  live: NotificationItem[];
+  dismissLive: (id: string) => void;
+  /** Server notification -> NotificationItem (link gets the /admin or /staff prefix). */
+  toItem: (n: any) => NotificationItem;
+  /** "/admin/notifications" or "/staff/notifications" — the View All page. */
+  notificationsPath: string;
   chatUnreadCount: number;
   /** Browser-created notification (meeting reminder / approval summary); saved on the server. */
   addNotification: (title: string, message: string, link?: string, extra?: { type?: 'meeting' | 'approval_summary'; key?: string }) => void;
@@ -59,6 +72,13 @@ const NotificationContext = createContext<NotificationContextType>({
   notifications: [],
   unreadCount: 0,
   loaded: false,
+  hasMore: false,
+  loadingMore: false,
+  loadMore: () => {},
+  live: [],
+  dismissLive: () => {},
+  toItem: (n: any) => ({ id: String(n?._id || ''), title: n?.title || '', message: n?.message || '', time: '', read: !!n?.read }),
+  notificationsPath: '/admin/notifications',
   chatUnreadCount: 0,
   addNotification: () => {},
   markAllAsRead: () => {},
@@ -67,7 +87,13 @@ const NotificationContext = createContext<NotificationContextType>({
   socket: null,
 });
 
-const LIST_SIZE = 30;
+// The bell shows the latest 10; "View All Notifications" opens the full page.
+const LIST_SIZE = 10;
+// Side popups waiting their turn (3 are on screen at once); the rest are in the bell / page.
+const LIVE_MAX = 12;
+// On login / opening the CRM, the unread ones pop up one by one (newest first).
+const LOGIN_POPUPS = 10;
+const LOGIN_POPUPS_KEY = 'notifications:loginPopupsShownFor';
 const today = () => new Date().toISOString().slice(0, 10);
 
 export const NotificationProvider = ({ children }: { children: React.ReactNode }) => {
@@ -75,6 +101,9 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loaded, setLoaded] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [live, setLive] = useState<NotificationItem[]>([]);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [socket, setSocket] = useState<Socket | null>(null);
 
@@ -102,11 +131,15 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
 
   const load = useCallback(async () => {
     try {
-      const { items, unread } = await notificationService.list(LIST_SIZE);
-      setNotifications(items.map(toItem));
+      const { items, unread, hasMore: more } = await notificationService.list(LIST_SIZE);
+      const list = items.map(toItem);
+      setNotifications(list);
       setUnreadCount(unread);
+      setHasMore(!!more);
+      return { list, unread };
     } catch {
       /* keep what is shown; the next change event or reload tries again */
+      return null;
     } finally {
       setLoaded(true);
     }
@@ -118,10 +151,68 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       setNotifications([]);
       setUnreadCount(0);
       setLoaded(false);
+      setHasMore(false);
+      setLive([]);
+      try { sessionStorage.removeItem(LOGIN_POPUPS_KEY); } catch { /* storage blocked */ }
       return;
     }
-    load();
+    let cancelled = false;
+    load().then(async (res) => {
+      if (cancelled || !res || res.unread === 0) return;
+      // Once per login / opened tab: the unread ones pop up one by one.
+      try {
+        if (sessionStorage.getItem(LOGIN_POPUPS_KEY) === String(user._id)) return;
+        sessionStorage.setItem(LOGIN_POPUPS_KEY, String(user._id));
+      } catch { /* storage blocked: still show them once now */ }
+      let unreadItems = res.list.filter((n) => !n.read);
+      // More unread than the bell's 10? fetch the newest unread ones directly.
+      if (unreadItems.length < Math.min(res.unread, LOGIN_POPUPS)) {
+        try {
+          const more = await notificationService.list(LOGIN_POPUPS, undefined, { unread: true });
+          unreadItems = more.items.map(toItem);
+        } catch { /* show what we have */ }
+      }
+      if (cancelled) return;
+      const popups = unreadItems.slice(0, LOGIN_POPUPS);
+      const rest = res.unread - popups.length;
+      if (rest > 0) {
+        // Last card: how many more are waiting, opens the full list.
+        popups.push({
+          id: `summary-${Date.now()}`,
+          title: `${rest} more unread notification${rest === 1 ? '' : 's'}`,
+          message: 'Open "View All Notifications" to see them all.',
+          time: 'Just now',
+          read: false,
+          link: `${baseRef.current}/notifications`,
+          type: 'summary',
+        });
+      }
+      if (popups.length === 0) return;
+      setLive(popups);
+      playNotificationSound(user?.notification_sound || 'default');
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?._id, load]);
+
+  // Bell "Load older": the next page before the oldest one shown.
+  const loadMore = async () => {
+    const oldest = [...notifications].reverse().find((x) => x.createdAt)?.createdAt;
+    if (!oldest || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { items } = await notificationService.list(LIST_SIZE, oldest);
+      setNotifications((prev) => {
+        const seen = new Set(prev.map((x) => x.id));
+        return [...prev, ...items.map(toItem).filter((x: NotificationItem) => !seen.has(x.id))];
+      });
+      setHasMore(items.length >= LIST_SIZE);
+    } catch {
+      /* the button stays; try again */
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   useEffect(() => {
     if (!user?._id) return;
@@ -139,15 +230,15 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     fetchChatCount();
   }, [user?._id]);
 
-  const showToast = (title: string, message: string, link?: string) => {
-    // `window.location.href` (not useNavigate) because this context sits
-    // outside <BrowserRouter> in App.tsx.
-    toast.info(title, {
-      description: message,
-      ...(link ? { action: { label: 'View', onClick: () => { window.location.href = link; } } } : {}),
-    });
+  /** A new notification: its own side popup (LiveNotifications) + the sound. */
+  const showLive = (item: NotificationItem) => {
+    setLive((prev) => [item, ...prev.filter((x) => x.id !== item.id)].slice(0, LIVE_MAX));
     playNotificationSound(user?.notification_sound || 'default');
   };
+
+  const dismissLive = useCallback((id: string) => {
+    setLive((prev) => prev.filter((x) => x.id !== id));
+  }, []);
 
   /** Browser-created notifications are saved on the server, which pushes them back to every open tab. */
   const addNotification: NotificationContextType['addNotification'] = (title, message, link, extra) => {
@@ -156,9 +247,10 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       .create({ type: extra?.type || 'meeting', title, message, link: path || '', key: extra?.key })
       .catch(() => {
         // Server unreachable: still tell the user now (not saved).
-        setNotifications((prev) => [{ id: `local-${Date.now()}`, title, message, time: 'Just now', read: false, link }, ...prev]);
+        const item: NotificationItem = { id: `local-${Date.now()}`, title, message, time: 'Just now', read: false, link, type: extra?.type || 'meeting' };
+        setNotifications((prev) => [item, ...prev]);
         setUnreadCount((c) => c + 1);
-        showToast(title, message, link);
+        showLive(item);
       });
   };
 
@@ -166,12 +258,15 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     const wasUnread = notifications.some((n) => n.id === id && !n.read);
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     if (wasUnread) setUnreadCount((c) => Math.max(0, c - 1));
-    if (!id.startsWith('local-')) notificationService.markRead(id).catch(() => {});
+    dismissLive(id);
+    // local- = not saved (server was down); summary- = the "N more unread" login card.
+    if (!id.startsWith('local-') && !id.startsWith('summary-')) notificationService.markRead(id).catch(() => {});
   };
 
   const markAllAsRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
+    setLive([]);
     notificationService.markAllRead().catch(() => {});
   };
 
@@ -296,9 +391,10 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         notificationService.markRead(item.id).catch(() => {});
         item.read = true;
       }
-      setNotifications((prev) => (prev.some((x) => x.id === item.id) ? prev : [item, ...prev].slice(0, LIST_SIZE)));
+      // Into the bell (kept with any older pages already loaded there).
+      setNotifications((prev) => (prev.some((x) => x.id === item.id) ? prev : [item, ...prev]));
       if (!item.read) setUnreadCount((c) => c + 1);
-      if (!quiet) showToast(item.title, item.message, item.link);
+      if (!quiet) showLive(item);
     });
 
     // Read / removed elsewhere (another tab, opening the chat, a deleted message).
@@ -323,6 +419,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     // (the server also removes the saved notification).
     sock.on('messageDeleted', (msgId: string) => {
       const id = String(msgId);
+      setLive((prev) => prev.filter((n) => n.chatMessageId !== id));
       setNotifications((prev) => {
         const gone = prev.find((n) => n.chatMessageId === id);
         if (!gone) return prev;
@@ -340,7 +437,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
   }, [user]);
 
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, loaded, chatUnreadCount, addNotification, markAllAsRead, markAsRead, setChatUnreadCount, socket }}>
+    <NotificationContext.Provider value={{ notifications, unreadCount, loaded, hasMore, loadingMore, loadMore, live, dismissLive, toItem, notificationsPath: `${base}/notifications`, chatUnreadCount, addNotification, markAllAsRead, markAsRead, setChatUnreadCount, socket }}>
       {children}
     </NotificationContext.Provider>
   );

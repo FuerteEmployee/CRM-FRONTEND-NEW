@@ -367,7 +367,7 @@ describe("13-TIER EXHAUSTIVE DEEP AUDIT: Dashboard & TopNavbar (Multi-Tenant Sco
     expect(mobileSearchBtn.className).toContain("md:hidden");
 
     fireEvent.click(mobileSearchBtn);
-    expect(screen.getByPlaceholderText("Search or say a page… (press Enter)")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search or say a module… (press Enter)")).toBeInTheDocument();
   });
 
   // =========================================================================

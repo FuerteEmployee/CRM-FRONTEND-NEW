@@ -144,20 +144,19 @@ export const PermissionProvider: React.FC<{ children: ReactNode }> = ({
     (user?.admin === true || user?.admin === 1 || user?.admin === "1" || user?.admin === "true");
   const isStaff = user !== null && !isAdmin && !user?.is_superadmin;
 
-  const can = (feature: string, capability: string): boolean => {
-    const roleName = typeof user?.role === "object" ? (user.role?.role || user.role?.name || "") : String(user?.role || "");
-    const rk = roleName.toLowerCase();
-    const isUserAdminOrSuper = user?.is_superadmin || user?.admin === true || user?.admin === 1 || user?.admin === "1" || user?.admin === "true" || rk.includes("admin") || rk.includes("owner") || rk.includes("super") || isAdmin;
+  // Full access comes from the account's admin / superadmin flag only — the same
+  // rule as the backend (middleware/auth.js checkPermission / hasCapability).
+  // A role's NAME never grants anything: a staff role called "Admin Assistant"
+  // or "Owner's PA" gets exactly the boxes ticked for it in Setup > Roles.
+  const isUserAdminOrSuper =
+    !!user?.is_superadmin || user?.admin === true || user?.admin === 1 || user?.admin === "1" || user?.admin === "true" || isAdmin;
 
+  const can = (feature: string, capability: string): boolean => {
     if (isUserAdminOrSuper) return true;
     return permissions[feature]?.[capability] === true;
   };
 
   const canView = (feature: string): boolean => {
-    const roleName = typeof user?.role === "object" ? (user.role?.role || user.role?.name || "") : String(user?.role || "");
-    const rk = roleName.toLowerCase();
-    const isUserAdminOrSuper = user?.is_superadmin || user?.admin === true || user?.admin === 1 || user?.admin === "1" || user?.admin === "true" || rk.includes("admin") || rk.includes("owner") || rk.includes("super") || isAdmin;
-
     if (isUserAdminOrSuper) return true;
     if (!feature) return true; // Items with no permission key are visible
 

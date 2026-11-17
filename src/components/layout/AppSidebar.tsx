@@ -471,9 +471,8 @@ export function AppSidebar() {
     const rawItems = dbMenuItems.length > 0 ? dbMenuItems : fallbackNav;
     const items = rawItems.filter((i: any) => i.active !== false);
 
-    const roleName = typeof user?.role === "object" ? (user.role?.role || user.role?.name || "") : String(user?.role || "");
-    const rk = roleName.toLowerCase();
-    const isUserAdminOrSuper = !!(user?.is_superadmin || user?.admin === true || user?.admin === 1 || user?.admin === "1" || user?.admin === "true" || rk.includes("admin") || rk.includes("owner") || rk.includes("super") || isAdmin);
+    // Admin flag only — a role NAME containing "admin"/"owner" grants nothing (same as the backend).
+    const isUserAdminOrSuper = !!(user?.is_superadmin || user?.admin === true || user?.admin === 1 || user?.admin === "1" || user?.admin === "true" || isAdmin);
 
     let filteredHrms = items.filter((i: any) => i.group === "HRMS");
     if (isUserAdminOrSuper) {
@@ -902,6 +901,17 @@ export function AppSidebar() {
         // (rendered before the DB-backed items have loaded) has none, and
         // dnd-kit's sortable identity can't be undefined.
         const showHandle = !!dragCtx && canReorderSidebar && !collapsed && !!item._id && !item.locked;
+        // Unread chat badge follows the Chat PAGE, so it stays when a company renames the item ("Team Chat").
+        const chatUnread = /\/chat\/?$/.test(item.url || "") && chatUnreadCount > 0 ? chatUnreadCount : 0;
+        // Icon-only sidebar: a small count on the icon instead of the text badge.
+        const collapsedChatBadge = collapsed && chatUnread > 0 && (
+          <span
+            className="absolute -top-1 right-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold text-destructive-foreground"
+            aria-label={`${chatUnread} unread`}
+          >
+            {chatUnread > 99 ? "99+" : chatUnread}
+          </span>
+        );
 
         const button = (
           <SidebarMenuButton asChild isActive={!isExternal && isActive}>
@@ -915,12 +925,13 @@ export function AppSidebar() {
                 className="hover:bg-sidebar-accent transition-all duration-200 rounded-md group relative"
               >
                 <IconComponent className="mr-2.5 h-4 w-4 shrink-0 transition-colors" />
+                {collapsedChatBadge}
                 {!collapsed && (
                   <span className="text-[13px] font-medium flex-1 min-w-0 text-left flex items-center justify-between gap-1">
                     <span className="truncate">{item.title}</span>
-                    {item.title === "Chat" && chatUnreadCount > 0 && (
+                    {chatUnread > 0 && (
                       <Badge variant="destructive" className="ml-auto h-5 px-1.5 flex items-center justify-center text-[10px] min-w-[20px] shrink-0">
-                        {chatUnreadCount}
+                        {chatUnread}
                       </Badge>
                     )}
                   </span>
@@ -942,12 +953,13 @@ export function AppSidebar() {
                 <IconComponent
                   className={`mr-2.5 h-4 w-4 shrink-0 transition-colors ${isActive ? "text-primary" : ""}`}
                 />
+                {collapsedChatBadge}
                 {!collapsed && (
                   <span className="text-[13px] font-medium flex-1 min-w-0 text-left flex items-center justify-between gap-1">
                     <span className="truncate">{item.title}</span>
-                    {item.title === "Chat" && chatUnreadCount > 0 && (
+                    {chatUnread > 0 && (
                       <Badge variant="destructive" className="ml-auto h-5 px-1.5 flex items-center justify-center text-[10px] min-w-[20px] shrink-0">
-                        {chatUnreadCount}
+                        {chatUnread}
                       </Badge>
                     )}
                   </span>
@@ -1213,7 +1225,8 @@ export function AppSidebar() {
               ))}
             </div>
           </SidebarGroup>
-        ) : menuMode === "main" ? (
+        ) : menuMode === "main" || !hasSetupAccess ? (
+          /* No Settings permission: always the main menu, even on a typed-in /setup URL. */
           <SidebarGroup className="py-2">
             <SidebarGroupContent>
               <DndContext

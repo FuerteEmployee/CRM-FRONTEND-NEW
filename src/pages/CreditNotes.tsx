@@ -8,7 +8,6 @@ import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -58,7 +57,11 @@ import {
 import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { creditNoteService } from "@/api/services/credit_note.service";
-import { formatDate } from "@/lib/dateFormat";
+import { reminderService } from "@/api/services/reminder.service";
+import { staffService } from "@/api/services/staff.service";
+import { LeadReminderModal, type LeadReminderFormData } from "@/components/leads/LeadReminderModal";
+import { useReminderSettings } from "@/lib/reminderSettings";
+import { formatDate, formatDateTime } from "@/lib/dateFormat";
 import { TableActions } from "@/components/TableActions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -409,7 +412,9 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
   const [isApplyInvoiceModalOpen, setIsApplyInvoiceModalOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailForm, setEmailForm] = useState({ to: "", cc: "", subject: "", body: "", attachPdf: true });
-  const [reminderForm, setReminderForm] = useState({ date: "", staff: "", description: "", send_email: false });
+  const emptyReminderForm: LeadReminderFormData = { date: "", staff: "", description: "", notify_by_email: false };
+  const [reminderForm, setReminderForm] = useState<LeadReminderFormData>(emptyReminderForm);
+  const { defaultStaff } = useReminderSettings();
   const [reminderSearch, setReminderSearch] = useState("");
   const [reminderItemsPerPage, setReminderItemsPerPage] = useState("10");
   const { toast } = useToast();
@@ -486,6 +491,49 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
     staleTime: 5 * 60 * 1000,
   });
 
+  // Reminders tab: real reminders (rel_type "credit_note"), delivered by the
+  // server like Lead / Customer ones (Setup > Settings > Reminders).
+  const { data: creditNoteReminders = [] } = useQuery<any[]>({
+    queryKey: ["credit-note-reminders", viewItem?._id],
+    queryFn: () => reminderService.getReminders(viewItem?._id, "credit_note"),
+    enabled: !!viewItem?._id && activeTab === "Reminders",
+  });
+  const { data: assignableStaff = [] } = useQuery<any[]>({
+    queryKey: ["staff", "assignable"],
+    queryFn: staffService.getAssignable,
+    enabled: isReminderModalOpen,
+  });
+  const reminderStaffOptions = assignableStaff.map((s: any) => ({
+    label: `${s.firstname || ""} ${s.lastname || ""}`.trim() || s.email,
+    value: s._id,
+  }));
+  const createCnReminder = useMutation({
+    mutationFn: () =>
+      reminderService.createReminder({
+        rel_id: viewItem?._id,
+        rel_type: "credit_note",
+        date: new Date(reminderForm.date).toISOString(),
+        staff: reminderForm.staff,
+        description: reminderForm.description,
+        notify_by_email: reminderForm.notify_by_email,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["credit-note-reminders", viewItem?._id] });
+      toast({ title: "Reminder Set", description: "Your reminder has been saved successfully.", className: "bg-emerald-600 text-white border-none" });
+      setIsReminderModalOpen(false);
+      setReminderForm(emptyReminderForm);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err?.message || "Failed to set reminder", variant: "destructive" }),
+  });
+  const shownReminders = (() => {
+    const q = reminderSearch.trim().toLowerCase();
+    const list = q
+      ? creditNoteReminders.filter((r: any) =>
+          `${r.description || ""} ${r.staff?.firstname || ""} ${r.staff?.lastname || ""}`.toLowerCase().includes(q))
+      : creditNoteReminders;
+    return reminderItemsPerPage === "All" ? list : list.slice(0, Number(reminderItemsPerPage) || 10);
+  })();
+
   const item = fullData || viewItem;
 
   if (!item) return null;
@@ -507,12 +555,6 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
     const formatted = parts.join(decimalSeparator);
     const signed = (value || 0) < 0 ? `-${formatted}` : formatted;
     return placement === "before" ? `${activeSymbol}${signed}` : `${signed}${activeSymbol}`;
-  };
-
-  const handleSaveReminder = () => {
-    toast({ title: "Reminder Set", description: "Your reminder has been saved successfully.", className: "bg-emerald-600 text-white border-none" });
-    setIsReminderModalOpen(false);
-    setReminderForm({ date: "", staff: "", description: "", send_email: false });
   };
 
   const generatePdfHtml = () => {
@@ -896,7 +938,10 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                 <div className="flex justify-end">
                   <Button 
                     className="rounded-xl font-bold shadow-lg shadow-primary/20 bg-slate-800 hover:bg-slate-900 text-white gap-2 h-10 px-6 uppercase text-[10px] tracking-widest"
-                    onClick={() => setIsReminderModalOpen(true)}
+                    onClick={() => {
+                      setReminderForm({ ...emptyReminderForm, staff: defaultStaff() });
+                      setIsReminderModalOpen(true);
+                    }}
                   >
                     <Plus className="h-3.5 w-3.5" />
                     Set Credit Note Reminder
@@ -942,15 +987,15 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {item.reminders && item.reminders.length > 0 ? (
-                        item.reminders.map((rem: any, idx: number) => (
-                          <TableRow key={idx}>
+                      {shownReminders.length > 0 ? (
+                        shownReminders.map((rem: any) => (
+                          <TableRow key={rem._id}>
                             <TableCell className="text-slate-700 font-medium">{rem.description}</TableCell>
-                            <TableCell className="text-slate-500">{formatDate(rem.date)}</TableCell>
-                            <TableCell className="text-slate-700">{rem.staff}</TableCell>
+                            <TableCell className="text-slate-500">{formatDateTime(rem.date)}</TableCell>
+                            <TableCell className="text-slate-700">{rem.staff ? `${rem.staff.firstname || ""} ${rem.staff.lastname || ""}`.trim() : "—"}</TableCell>
                             <TableCell className="text-slate-700">
-                              <Badge variant="outline" className={cn("text-[10px] uppercase tracking-widest", rem.is_notified ? "border-emerald-200 text-emerald-600 bg-emerald-50" : "border-slate-200 text-slate-500 bg-slate-50")}>
-                                {rem.is_notified ? "Yes" : "No"}
+                              <Badge variant="outline" className={cn("text-[10px] uppercase tracking-widest", rem.isnotified ? "border-emerald-200 text-emerald-600 bg-emerald-50" : "border-slate-200 text-slate-500 bg-slate-50")}>
+                                {rem.isnotified ? "Yes" : "No"}
                               </Badge>
                             </TableCell>
                           </TableRow>
@@ -968,77 +1013,21 @@ const CreditNoteViewContent = ({ viewItem, onClose }: { viewItem: any, onClose: 
         )}
       </div>
 
-      {/* Reminder Modal */}
-      <Dialog open={isReminderModalOpen} onOpenChange={(open) => { setIsReminderModalOpen(open); if (!open) setReminderForm({ date: "", staff: "", description: "", send_email: false }); }}>
-        <DialogContent className="max-w-md rounded-2xl p-6 border-none shadow-2xl bg-white">
-          <DialogHeader className="mb-4">
-            <DialogTitle className="text-xl font-black text-slate-900 tracking-tight">Set Credit Note Reminder</DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-[13px] font-bold text-slate-700 flex items-center gap-1">
-                <span className="text-destructive">*</span> Date to be notified
-              </label>
-              <Input 
-                type="date" 
-                value={reminderForm.date}
-                onChange={(e) => setReminderForm({ ...reminderForm, date: e.target.value })}
-                className="h-11 rounded-xl border-slate-200 shadow-sm"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-[13px] font-bold text-slate-700 flex items-center gap-1">
-                <span className="text-destructive">*</span> Set reminder to
-              </label>
-              <Select value={reminderForm.staff} onValueChange={(v) => setReminderForm({ ...reminderForm, staff: v })}>
-                <SelectTrigger className="h-11 rounded-xl border-slate-200 shadow-sm">
-                  <SelectValue placeholder="Select Staff" />
-                </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  <SelectItem value="me">Myself</SelectItem>
-                  <SelectItem value="admin">Administrator</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[13px] font-bold text-slate-700 flex items-center gap-1">
-                <span className="text-destructive">*</span> Description
-              </label>
-              <Textarea
-                value={reminderForm.description}
-                onChange={(e) => setReminderForm({ ...reminderForm, description: e.target.value })}
-                className="w-full min-h-[100px] rounded-xl border-slate-200 shadow-sm border p-3 text-sm focus:outline-none focus:ring-1 focus:ring-slate-400 pb-12"
-                placeholder="Reminder details..."
-              />
-            </div>
-
-            <div className="flex items-center gap-2 pt-2">
-              <input 
-                type="checkbox" 
-                id="send_email" 
-                checked={reminderForm.send_email}
-                onChange={(e) => setReminderForm({ ...reminderForm, send_email: e.target.checked })}
-                className="rounded text-primary focus:ring-primary/20 w-4 h-4 cursor-pointer"
-              />
-              <label htmlFor="send_email" className="text-sm font-medium text-slate-700 cursor-pointer">
-                Send also an email for this reminder
-              </label>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-100">
-            <Button variant="outline" className="rounded-xl font-bold px-6 h-10 text-slate-500" onClick={() => { setIsReminderModalOpen(false); setReminderForm({ date: "", staff: "", description: "", send_email: false }); }}>
-              Close
-            </Button>
-            <Button className="rounded-xl font-bold shadow-lg shadow-primary/20 px-8 h-10 bg-slate-900 hover:bg-slate-800 text-white" onClick={handleSaveReminder}>
-              Save
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Reminder Modal — the shared reminder form, saved for real (rel_type "credit_note") */}
+      <LeadReminderModal
+        open={isReminderModalOpen}
+        onOpenChange={(open) => {
+          setIsReminderModalOpen(open);
+          if (!open) setReminderForm(emptyReminderForm);
+        }}
+        formData={reminderForm}
+        setFormData={setReminderForm}
+        staffOptions={reminderStaffOptions}
+        onSave={() => createCnReminder.mutate()}
+        isPending={createCnReminder.isPending}
+        relType="credit_note"
+        title="Set Credit Note Reminder"
+      />
 
       {/* Apply to Invoice Modal */}
       <Dialog open={isApplyInvoiceModalOpen} onOpenChange={(open) => { setIsApplyInvoiceModalOpen(open); if (!open) setApplyAmounts({}); }}>

@@ -9,6 +9,7 @@ import { reminderService } from "@/api/services/reminder.service";
 import { staffService } from "@/api/services/staff.service";
 import { LeadReminderModal, type LeadReminderFormData } from "@/components/leads/LeadReminderModal";
 import { useNotificationContext } from "@/context/NotificationContext";
+import { useReminderSettings } from "@/lib/reminderSettings";
 import { toast } from "sonner";
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
@@ -26,6 +27,7 @@ export function LeadRemindersTab({ lead }: { lead: any }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<LeadReminderFormData>(emptyForm);
+  const { defaultStaff } = useReminderSettings();
 
   const { data: reminders = [], isLoading } = useQuery<any[]>({
     queryKey: ["lead-reminders", lead._id],
@@ -132,7 +134,8 @@ export function LeadRemindersTab({ lead }: { lead: any }) {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm(emptyForm);
+    // "Set reminder to": me, or the lead's assigned staff (Setup > Settings > Reminders).
+    setForm({ ...emptyForm, staff: defaultStaff(lead.assigned?._id || lead.assigned) });
     setModalOpen(true);
   };
 

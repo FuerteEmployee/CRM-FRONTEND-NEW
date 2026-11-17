@@ -50,6 +50,8 @@ import { isTrinetraPilotUser } from "@/lib/trinetraPilot";
 import { InquiryOutcomeDialog } from "@/components/tasks/InquiryOutcomeDialog";
 import { TaskVoiceNotes, isAudioFile } from "@/components/tasks/TaskVoiceNotes";
 import { Mic } from "lucide-react";
+import { useReminderSettings } from "@/lib/reminderSettings";
+import { ReminderQuickTimes, ReminderReadyText } from "@/components/reminders/ReminderQuickFill";
 
 interface TaskViewModalProps {
   isOpen: boolean;
@@ -100,6 +102,8 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions, allStaffOpt
   const [reminderStaffId, setReminderStaffId] = useState("");
   const [reminderDescription, setReminderDescription] = useState("");
   const [reminderNotifyEmail, setReminderNotifyEmail] = useState(false);
+  // Setup > Settings > Reminders: quick times, ready texts, default staff.
+  const reminderDefaults = useReminderSettings();
 
   const [isOutcomeOpen, setIsOutcomeOpen] = useState(false);
   const [isAddChecklistOpen, setIsAddChecklistOpen] = useState(false);
@@ -406,7 +410,9 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions, allStaffOpt
     setReminderDate("");
     setReminderDescription("");
     setReminderNotifyEmail(false);
-    setReminderStaffId(user?._id || "");
+    // Me, or the task's first assignee (Setup > Settings > Reminders).
+    const firstAssignee = task?.assignees?.[0];
+    setReminderStaffId(reminderDefaults.defaultStaff(firstAssignee?._id || firstAssignee) || user?._id || "");
     setIsAddReminderOpen(true);
   };
 
@@ -429,7 +435,8 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions, allStaffOpt
       rel_type: "task",
       staff: isAdmin ? reminderStaffId : user?._id,
       description: reminderDescription.trim(),
-      date: reminderDate,
+      // The browser's local time as a real moment (the server may run in another time zone).
+      date: new Date(reminderDate).toISOString(),
       notify_by_email: reminderNotifyEmail,
     };
     if (editingReminderId) {
@@ -980,8 +987,14 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions, allStaffOpt
               <DialogTitle>{editingReminderId ? "Edit Reminder" : "Create Reminder"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
+              {!reminderDefaults.moduleOn("task") && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  Task reminder notifications are turned off in Setup &gt; Settings &gt; Reminders. It will be saved, but nobody will be notified.
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Date to be notified</label>
+                <ReminderQuickTimes onPick={setReminderDate} />
                 <Input
                   type="datetime-local"
                   value={reminderDate}
@@ -1004,7 +1017,10 @@ export const TaskViewModal = ({ isOpen, onClose, task, staffOptions, allStaffOpt
               )}
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Description</label>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Description</label>
+                  <ReminderReadyText onPick={setReminderDescription} />
+                </div>
                 <Textarea
                   value={reminderDescription}
                   onChange={(e) => setReminderDescription(e.target.value)}

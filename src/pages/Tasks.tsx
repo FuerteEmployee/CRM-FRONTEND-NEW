@@ -158,6 +158,35 @@ const Tasks = () => {
   const [isBulkLoading, setIsBulkLoading] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // A notification link (/tasks?taskId=…, "New task assigned" / "Task status
+  // changed") opens that task straight away; the param is then dropped so
+  // closing the task does not reopen it.
+  const linkedTaskId = searchParams.get("taskId");
+  useEffect(() => {
+    if (!linkedTaskId) return;
+    let cancelled = false;
+    taskService
+      .getById(linkedTaskId)
+      .then((t: any) => {
+        if (cancelled || !t?._id) return;
+        setSelectedViewTask(t);
+        setIsViewModalOpen(true);
+      })
+      .catch((err: any) => {
+        if (!cancelled) toast({ title: "Task not available", description: err?.message || "It may have been deleted or you no longer have access.", variant: "destructive" });
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("taskId");
+          return next;
+        }, { replace: true });
+      });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkedTaskId]);
   const { can, user, isStaff, isAdmin, isModuleEnabled } = usePermissions();
   const isPilot = isTrinetraPilotUser(user?.email);
   // Branch is sourced from the HRMS module — only show/fetch it when the

@@ -84,7 +84,7 @@ describe("TopNavbar Responsive & Mobile Search Verification", () => {
 
     const input = desktopSearch?.querySelector("input");
     expect(input).toBeTruthy();
-    expect(input?.getAttribute("placeholder")).toContain("Search or say a page…");
+    expect(input?.getAttribute("placeholder")).toContain("Search or say a module…");
   });
 
   test("Mobile Viewport: Mobile search button is rendered and header icons are uncluttered", () => {
@@ -110,7 +110,7 @@ describe("TopNavbar Responsive & Mobile Search Verification", () => {
     const backBtn = screen.getByRole("button", { name: /Close search/i });
     expect(backBtn).toBeInTheDocument();
 
-    const mobileInput = screen.getByPlaceholderText(/Search or say a page…/i) as HTMLInputElement;
+    const mobileInput = screen.getByPlaceholderText(/Search or say a module…/i) as HTMLInputElement;
     expect(mobileInput).toBeInTheDocument();
 
     // Type query in mobile search

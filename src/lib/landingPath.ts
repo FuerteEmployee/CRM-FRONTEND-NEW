@@ -9,19 +9,14 @@ import { isSuperAdminEnabled } from "./panelBranding";
 type PermissionsMap = Record<string, Record<string, boolean>>;
 type DefaultModuleEntry = { module: string; permission?: string };
 
+// Admin flag only — a role NAME containing "admin"/"owner" grants nothing (same as the backend).
 function isAdminOrSuper(user: any): boolean {
-  const roleName =
-    typeof user?.role === "object" ? (user.role?.role || user.role?.name || "") : String(user?.role || "");
-  const rk = roleName.toLowerCase();
   return !!(
     user?.is_superadmin ||
     user?.admin === true ||
     user?.admin === 1 ||
     user?.admin === "1" ||
-    user?.admin === "true" ||
-    rk.includes("admin") ||
-    rk.includes("owner") ||
-    rk.includes("super")
+    user?.admin === "true"
   );
 }
 

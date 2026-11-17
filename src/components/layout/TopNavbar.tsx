@@ -99,7 +99,8 @@ export function TopNavbar() {
     { label: "Ticket", icon: Headphones, path: `${base}/support/create`, color: "text-pink-500 bg-pink-50 dark:bg-pink-500/10", permission: "Support", moduleKey: "support" },
     { label: "Event", icon: CalendarPlus, path: `${base}/calendar`, color: "text-teal-500 bg-teal-50 dark:bg-teal-500/10", permission: "Calendar", moduleKey: "calendar" },
   ].filter((item) => ((typeof can === "function" ? can(item.permission, "Create") : true) || canView(item.permission)) && (!item.moduleKey || isModuleEnabled(item.moduleKey)));
-  const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotificationContext();
+  const { notifications, unreadCount, markAllAsRead, markAsRead, notificationsPath = "/admin/notifications" } = useNotificationContext();
+  const [bellOpen, setBellOpen] = useState(false);
   const { toast } = useToast();
 
   // Resolve the current text to a CRM page and navigate there.
@@ -456,8 +457,8 @@ export function TopNavbar() {
           <ShareMenuContent open={mobileShareOpen} />
         </Popover>
 
-        {/* Notifications */}
-        <Popover>
+        {/* Notifications: latest 10 here; "View All Notifications" opens the full page */}
+        <Popover open={bellOpen} onOpenChange={setBellOpen}>
           <PopoverTrigger asChild>
             <Button
               variant="ghost"
@@ -468,8 +469,8 @@ export function TopNavbar() {
             >
               <Bell className="h-4 w-4" />
               {unreadCount > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground font-medium animate-scale-in">
-                  {unreadCount}
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 px-0.5 items-center justify-center rounded-full bg-destructive text-[10px] text-destructive-foreground font-medium animate-scale-in">
+                  {unreadCount > 99 ? "99+" : unreadCount}
                 </span>
               )}
             </Button>
@@ -492,11 +493,12 @@ export function TopNavbar() {
                   No notifications yet.
                 </div>
               ) : (
-                notifications.map((n) => (
+                notifications.slice(0, 10).map((n) => (
                   <div
                     key={n.id}
                     onClick={() => {
                       markAsRead(n.id);
+                      setBellOpen(false);
                       if (n.link) {
                         let targetLink = n.link;
                         if (isStaff && targetLink.startsWith("/admin")) {
@@ -524,6 +526,17 @@ export function TopNavbar() {
                   </div>
                 ))
               )}
+              {/* At the bottom of the list: the full history page (1 year, Load more). */}
+              <button
+                type="button"
+                onClick={() => {
+                  setBellOpen(false);
+                  navigate(notificationsPath);
+                }}
+                className="w-full border-t p-2.5 text-xs font-semibold text-primary hover:bg-muted/50"
+              >
+                View All Notifications
+              </button>
             </div>
           </PopoverContent>
         </Popover>

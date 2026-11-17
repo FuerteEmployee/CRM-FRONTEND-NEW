@@ -42,6 +42,9 @@ import {
   Eraser,
   Mail,
   ShieldCheck,
+  ArrowLeft,
+  AlertCircle,
+  RotateCw,
 } from "lucide-react";
 import {
   AlertDialog,
@@ -156,6 +159,12 @@ const Chat = () => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isSharedFilesOpen, setIsSharedFilesOpen] = useState(false);
   const [isClearOpen, setIsClearOpen] = useState(false);
+  // Asked before anything is deleted / left for good.
+  const [deleteMsgId, setDeleteMsgId] = useState<string | null>(null);
+  const [groupAction, setGroupAction] = useState<"delete" | "exit" | null>(null);
+  // Last send failed: the text stays in the box and a "Failed — Retry" line shows.
+  const [sendFailed, setSendFailed] = useState(false);
+  const messageBoxRef = useRef<HTMLTextAreaElement>(null);
   // Live online status; the contact list (refreshed every 10 s) fills it too.
   const [presence, setPresence] = useState<Presence>({});
   const { toast } = useToast();
@@ -164,13 +173,24 @@ const Chat = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const socketRef = useRef<Socket | null>(null);
   const selectedContactRef = useRef<ChatContact | null>(null);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  messagesRef.current = messages;
 
   // A new chat starts clean: no files waiting to be sent, no search.
   useEffect(() => {
     setPendingFiles([]);
     setChatSearch("");
     setChatSearchOpen(false);
+    setSendFailed(false);
   }, [selectedContact?._id]);
+
+  // The message box grows with the text (Shift+Enter = new line), up to ~5 lines.
+  useEffect(() => {
+    const box = messageBoxRef.current;
+    if (!box) return;
+    box.style.height = "auto";
+    box.style.height = `${Math.min(box.scrollHeight, 128)}px`;
+  }, [message]);
 
   useEffect(() => {
     selectedContactRef.current = selectedContact;
@@ -252,6 +272,32 @@ const Chat = () => {
 
     socketRef.current.on("messageDeleted", (msgId: string) => {
       setMessages((prev) => prev.filter((m) => m._id !== msgId));
+    });
+
+    // Back online after the connection dropped (Wi-Fi change, laptop sleep):
+    // re-join and fetch whatever arrived in the open chat while offline.
+    // (On the very first connect no chat is open yet, so only the join happens.)
+    socketRef.current.on("connect", () => {
+      if (currentUser?._id) socketRef.current?.emit("join", currentUser._id); // kept for an older backend
+      const open = selectedContactRef.current;
+      const last = messagesRef.current[messagesRef.current.length - 1]?.createdAt;
+      if (!open || !last) return;
+      chatService
+        .getHistory(open._id, undefined, last, open.isGroup)
+        .then((missed: ChatMessage[]) => {
+          if (!Array.isArray(missed) || missed.length === 0 || selectedContactRef.current?._id !== open._id) return;
+          setMessages((prev) => {
+            const seen = new Set(prev.map((m) => m._id));
+            return [...prev, ...missed.filter((m) => !seen.has(m._id))];
+          });
+          if (missed.some((m) => m.sender?._id !== currentUser?._id)) {
+            chatService.markAsRead(open._id, open.isGroup).catch(() => {});
+          }
+          setTimeout(() => {
+            if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+          }, 50);
+        })
+        .catch(() => { /* the next reconnect or reopening the chat tries again */ });
     });
 
     return () => {
@@ -393,6 +439,7 @@ const Chat = () => {
     const files = pendingFiles;
     if (!text && files.length === 0) return;
 
+    setSendFailed(false);
     if (files.length > 0) {
       // Files (with the typed text as caption) go in one message.
       setSending(true);
@@ -415,6 +462,7 @@ const Chat = () => {
         setTimeout(scrollToBottom, 50);
       } catch (error) {
         showError(error); // files stay in the list so the user can retry or remove one
+        setSendFailed(true);
       } finally {
         setSending(false);
       }
@@ -443,16 +491,20 @@ const Chat = () => {
       setTimeout(scrollToBottom, 50); // User sent message, scroll all the way down
     } catch (error) {
       console.error("Failed to send message:", error);
-      setMessage(msgToSend); // revert on failure
+      setMessage(msgToSend); // the text comes back so nothing is lost
+      setSendFailed(true);
     }
   };
 
+  // Runs only after "Delete this message?" is confirmed.
   const handleDeleteMessage = async (msgId: string) => {
     try {
       await chatService.deleteMessage(msgId);
       setMessages((prev) => prev.filter((m) => m._id !== msgId));
     } catch (error) {
-      console.error("Failed to delete message:", error);
+      showError(error);
+    } finally {
+      setDeleteMsgId(null);
     }
   };
 
@@ -475,6 +527,7 @@ const Chat = () => {
     }
   };
 
+  // Both run only after the "Delete group?" / "Exit group?" question is confirmed.
   const handleExitGroup = async () => {
     if (!selectedContact) return;
     try {
@@ -483,7 +536,9 @@ const Chat = () => {
       const data = await chatService.getContacts();
       setContacts(data || []);
     } catch (error) {
-      console.error("Failed to exit group:", error);
+      showError(error);
+    } finally {
+      setGroupAction(null);
     }
   };
 
@@ -495,7 +550,9 @@ const Chat = () => {
       const data = await chatService.getContacts();
       setContacts(data || []);
     } catch (error) {
-      console.error("Failed to delete group:", error);
+      showError(error);
+    } finally {
+      setGroupAction(null);
     }
   };
 
@@ -549,8 +606,8 @@ const Chat = () => {
     <DashboardLayout>
       <div className="h-[calc(100vh-8rem)]">
         <div className="flex h-full gap-0 border rounded-lg overflow-hidden">
-          {/* Contacts sidebar */}
-          <div className="w-80 border-r flex flex-col bg-card">
+          {/* Contacts sidebar — on a phone it is the whole screen until a chat is opened */}
+          <div className={`w-full md:w-80 border-r flex-col bg-card ${selectedContact ? "hidden md:flex" : "flex"}`}>
             <div className="p-3 border-b">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="font-semibold">
@@ -582,6 +639,13 @@ const Chat = () => {
                       </div>
                     </div>
                   ))}
+                </div>
+              ) : filteredContacts.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 p-8 text-center text-sm text-muted-foreground">
+                  <UsersIcon className="h-8 w-8 opacity-40" />
+                  {contacts.length === 0
+                    ? "No contacts yet. Staff of your company will appear here."
+                    : `No contacts match "${searchContacts.trim()}".`}
                 </div>
               ) : (
                 filteredContacts.map((contact) => (
@@ -632,13 +696,24 @@ const Chat = () => {
             </ScrollArea>
           </div>
 
-          {/* Chat area */}
-          <div className="flex-1 flex flex-col bg-background">
+          {/* Chat area — on a phone it shows only once a chat is opened */}
+          <div className={`flex-1 flex-col bg-background min-w-0 ${selectedContact ? "flex" : "hidden md:flex"}`}>
             {selectedContact ? (
               <>
                 {/* Chat header */}
                 <div className="flex items-center justify-between p-3 border-b">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Phone: back to the contacts list */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 md:hidden"
+                      onClick={() => setSelectedContact(null)}
+                      title="Back to contacts"
+                      aria-label="Back to contacts"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </Button>
                     <Avatar className="h-9 w-9">
                       <AvatarFallback className="bg-primary/10 text-primary text-sm">
                         {selectedContact.isGroup ? <UsersIcon className="h-5 w-5" /> : getInitials(
@@ -716,11 +791,11 @@ const Chat = () => {
                         </DropdownMenuItem>
                         {selectedContact.isGroup &&
                           (selectedContact.groupAdmin === currentUser?._id ? (
-                            <DropdownMenuItem className="text-destructive" onClick={handleDeleteGroup}>
+                            <DropdownMenuItem className="text-destructive" onClick={() => setGroupAction("delete")}>
                               <Trash2 className="h-4 w-4 mr-2" /> Delete Group
                             </DropdownMenuItem>
                           ) : (
-                            <DropdownMenuItem className="text-destructive" onClick={handleExitGroup}>
+                            <DropdownMenuItem className="text-destructive" onClick={() => setGroupAction("exit")}>
                               <X className="h-4 w-4 mr-2" /> Exit Group
                             </DropdownMenuItem>
                           ))}
@@ -846,7 +921,7 @@ const Chat = () => {
                           >
                             {isMe && (
                               <button
-                                onClick={() => handleDeleteMessage(msg._id)}
+                                onClick={() => setDeleteMsgId(msg._id)}
                                 className="mr-2 opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-2 rounded-full hover:bg-destructive/10 shrink-0"
                                 title="Delete Message"
                               >
@@ -906,7 +981,16 @@ const Chat = () => {
                       ))}
                     </div>
                   )}
-                  <div className="flex items-center gap-2">
+                  {sendFailed && (
+                    <div className="flex items-center gap-2 mb-2 text-xs text-destructive" role="alert">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                      <span className="flex-1">Message not sent. Check your connection — your text is kept.</span>
+                      <Button variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1 text-destructive" onClick={handleSend} disabled={sending}>
+                        <RotateCw className="h-3 w-3" /> Retry
+                      </Button>
+                    </div>
+                  )}
+                  <div className="flex items-end gap-2">
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -928,12 +1012,21 @@ const Chat = () => {
                     >
                       <Paperclip className="h-4 w-4" />
                     </Button>
-                    <Input
+                    {/* Enter sends; Shift+Enter starts a new line. */}
+                    <textarea
+                      ref={messageBoxRef}
+                      rows={1}
                       placeholder={pendingFiles.length ? "Add a caption (optional)..." : "Type a message..."}
                       value={message}
                       onChange={(e) => setMessage(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleSend()}
-                      className="h-9"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                      aria-label="Message"
+                      className="flex-1 min-h-9 max-h-32 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm leading-5 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                     />
                     <div className="relative">
                       <Button
@@ -1031,6 +1124,50 @@ const Chat = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Delete one of my messages — asked first */}
+      <AlertDialog open={!!deleteMsgId} onOpenChange={(open) => !open && setDeleteMsgId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this message?</AlertDialogTitle>
+            <AlertDialogDescription>
+              It will be removed for everyone in this chat. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteMsgId && handleDeleteMessage(deleteMsgId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ⋮ > Delete Group / Exit Group — asked first */}
+      <AlertDialog open={!!groupAction} onOpenChange={(open) => !open && setGroupAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{groupAction === "delete" ? `Delete the group "${contactTitle}"?` : `Exit the group "${contactTitle}"?`}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {groupAction === "delete"
+                ? "The group and its messages will be deleted for all members. This cannot be undone."
+                : "You will stop getting its messages. A group admin has to add you again to come back."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={groupAction === "delete" ? handleDeleteGroup : handleExitGroup}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {groupAction === "delete" ? "Delete Group" : "Exit Group"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Create Group Modal */}
       <Dialog open={isCreateGroupOpen} onOpenChange={(open) => {
         setIsCreateGroupOpen(open);
@@ -1071,9 +1208,9 @@ const Chat = () => {
             <Button
               className="w-full"
               onClick={async () => {
-                if (!groupName || selectedParticipants.length === 0) return;
+                if (!groupName.trim() || selectedParticipants.length === 0) return;
                 try {
-                  await chatService.createGroup(groupName, selectedParticipants);
+                  await chatService.createGroup(groupName.trim(), selectedParticipants);
                   setIsCreateGroupOpen(false);
                   setGroupName("");
                   setSelectedParticipants([]);
@@ -1083,7 +1220,7 @@ const Chat = () => {
                   console.error(e);
                 }
               }}
-              disabled={!groupName || selectedParticipants.length === 0}
+              disabled={!groupName.trim() || selectedParticipants.length === 0}
             >
               Create Group
             </Button>

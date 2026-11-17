@@ -212,6 +212,8 @@ import {
 import { TableContainer, Table, TableHeader, TableBody, TableRow, TableHead, TableCell, TableEmpty, TablePagination } from "@/components/ui/table";
 import { RichTextEditor } from "@/components/shared/RichTextEditor";
 import { defaultPageSize } from "@/lib/tablePageSize";
+import { useReminderSettings } from "@/lib/reminderSettings";
+import { ReminderQuickTimes, ReminderReadyText } from "@/components/reminders/ReminderQuickFill";
 
 export default function CustomerView() {
   const { getSetting } = useSettings();
@@ -308,6 +310,8 @@ export default function CustomerView() {
   const [reminderSearch, setReminderSearch] = useState("");
   const [reminderItemsPerPage, setReminderItemsPerPage] = useState("10");
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false);
+  // Setup > Settings > Reminders: who a new reminder goes to by default.
+  const reminderDefaults = useReminderSettings();
   const [reminderFormData, setReminderFormData] = useState<any>({
     date: "",
     staff: "",
@@ -4637,7 +4641,12 @@ export default function CustomerView() {
                           </div>
                         </div>
                         <Button
-                          onClick={() => setIsReminderModalOpen(true)}
+                          onClick={() => {
+                            // Default "Set reminder to": me, or the customer's first Customer Admin (Settings).
+                            const admin = (customer as any)?.admins?.[0]?.staff;
+                            setReminderFormData((p: any) => ({ ...p, staff: p.staff || reminderDefaults.defaultStaff(admin?._id || admin) }));
+                            setIsReminderModalOpen(true);
+                          }}
                           className="rounded-xl font-black gap-2 shadow-lg shadow-primary/20 px-6 h-11 uppercase text-xs tracking-widest"
                         >
                           <Plus className="h-4 w-4" />
@@ -5345,6 +5354,7 @@ function ZipPaymentsModal({ open, onOpenChange, formData, setFormData, payments 
 }
 
 function ReminderModal({ open, onOpenChange, formData, setFormData, staff, onSave, isPending }: any) {
+  const { moduleOn } = useReminderSettings();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl p-0 overflow-hidden rounded-3xl border-none shadow-2xl bg-white">
@@ -5359,11 +5369,17 @@ function ReminderModal({ open, onOpenChange, formData, setFormData, staff, onSav
           </DialogHeader>
         </div>
 
-        <div className="p-8 space-y-6">
+        <div className="p-8 space-y-6 max-h-[calc(100vh-14rem)] overflow-y-auto">
+          {!moduleOn("customer") && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              Customer reminder notifications are turned off in Setup &gt; Settings &gt; Reminders. It will be saved, but nobody will be notified.
+            </div>
+          )}
           <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
               Date to be notified <span className="text-rose-500">*</span>
             </Label>
+            <ReminderQuickTimes onPick={(v) => setFormData((p: any) => ({ ...p, date: v }))} />
             <Input
               type="datetime-local"
               value={formData.date}
@@ -5394,9 +5410,12 @@ function ReminderModal({ open, onOpenChange, formData, setFormData, staff, onSav
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
-              Description <span className="text-rose-500">*</span>
-            </Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-[10px] font-black uppercase text-slate-500 tracking-widest ml-1">
+                Description <span className="text-rose-500">*</span>
+              </Label>
+              <ReminderReadyText onPick={(t) => setFormData((p: any) => ({ ...p, description: t }))} />
+            </div>
             <Textarea
               placeholder="Enter reminder details..."
               value={formData.description}
