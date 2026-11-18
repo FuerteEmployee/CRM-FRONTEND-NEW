@@ -207,6 +207,12 @@ export function LetterheadInvoiceLayout({ data, title, company, bankDetail }: { 
   const totalValue: CSSProperties = { border: "1px solid #000", padding: "4px 8px", fontFamily: serif, fontSize: "12.5px", textAlign: "right" };
   const bankLine: CSSProperties = { fontFamily: sans, fontSize: "13px", color: "#333", fontWeight: 500, lineHeight: "26px", letterSpacing: "0.2px" };
   const blankRows = Math.max(0, 8 - items.length);
+  // The logo sits at the top-left (absolute). A long title ("PROFORMA INVOICE")
+  // centred over the full width ran under it and lost its first letter, so the
+  // title is centred in the space to the RIGHT of the logo, one line, and a
+  // little smaller when it is long. "INVOICE" keeps its size.
+  const logoSpace = company.logoUrl ? Math.max(0, (company.logoWidth || 200) - 30) + 12 : 0;
+  const titleSize = title.length > 10 ? "34px" : "40px";
 
   return (
     <div style={{ border: "2px solid #000", padding: "16px 40px 40px", background: "#fff", color: "#111", fontFamily: serif, position: "relative" }}>
@@ -217,7 +223,7 @@ export function LetterheadInvoiceLayout({ data, title, company, bankDetail }: { 
         {company.logoUrl && (
           <img src={company.logoUrl} alt={company.name} style={{ position: "absolute", left: "-30px", top: "4px", width: `${company.logoWidth || 200}px`, height: "auto" }} />
         )}
-        <div style={{ textAlign: "center", fontFamily: sans, fontWeight: 800, fontSize: "40px", lineHeight: 1.1, letterSpacing: "1px", color: "#000" }}>{title}</div>
+        <div style={{ position: "relative", zIndex: 1, marginLeft: `${logoSpace}px`, textAlign: "center", whiteSpace: "nowrap", fontFamily: sans, fontWeight: 800, fontSize: titleSize, lineHeight: 1.1, letterSpacing: "1px", color: "#000" }}>{title}</div>
       </div>
 
       {/* Company + Bill-to */}
