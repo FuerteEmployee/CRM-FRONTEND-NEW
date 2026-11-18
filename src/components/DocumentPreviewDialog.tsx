@@ -274,7 +274,21 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
     </head><body>${el.innerHTML}</body></html>`);
     doc.close();
     Array.from(document.head.querySelectorAll("style,link[rel='stylesheet']")).forEach(s => doc.head.appendChild(s.cloneNode(true)));
-    const trigger = () => { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); setTimeout(() => document.body.removeChild(iframe), 1200); };
+    // Print exactly ONCE: either when every stylesheet has loaded, or after the
+    // 1.5 s fallback if one never reports back — never both (that opened the
+    // print dialog a second time right after Cancel).
+    let printed = false;
+    const cleanup = () => { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); };
+    const trigger = () => {
+      if (printed) return;
+      printed = true;
+      const win = iframe.contentWindow;
+      if (!win) return cleanup();
+      win.addEventListener("afterprint", () => setTimeout(cleanup, 100));
+      win.focus();
+      win.print();
+      setTimeout(cleanup, 60000); // in case "afterprint" never fires
+    };
     const links = Array.from(doc.head.querySelectorAll("link[rel='stylesheet']"));
     if (!links.length) { setTimeout(trigger, 300); } else { let n = 0; links.forEach((l: any) => { l.onload = l.onerror = () => { if (++n === links.length) setTimeout(trigger, 300); }; }); setTimeout(trigger, 1500); }
   };
