@@ -25,5 +25,8 @@ export function buildPrintBody(root: HTMLElement, repeatHeader: boolean): string
   const header = clone.querySelector<HTMLElement>("[data-print-header]");
   if (!header) return root.innerHTML;
   header.remove();
-  return `<table class="print-wrap"><thead><tr><td>${header.outerHTML}</td></tr></thead><tbody><tr><td>${clone.innerHTML}</td></tr></tbody></table>`;
+  // "printable-table": the app's own @media print rules (index.css) hide the
+  // first + last column of every other table (list checkboxes / actions) —
+  // on this one-column wrapper that hid the WHOLE document.
+  return `<table class="print-wrap printable-table"><thead><tr><td>${header.outerHTML}</td></tr></thead><tbody><tr><td>${clone.innerHTML}</td></tr></tbody></table>`;
 }

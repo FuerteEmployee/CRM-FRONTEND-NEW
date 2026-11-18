@@ -467,7 +467,8 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
 
               {/* ── Items Table ── */}
               <div style={{ padding: "0 32px 0" }}>
-                <table data-print-items="" style={{ width: "100%", borderCollapse: "collapse", marginTop: "16px" }}>
+                {/* printable-table: keeps the app's list-table print rules (hide first/last column) off the document */}
+                <table data-print-items="" className="printable-table" style={{ width: "100%", borderCollapse: "collapse", marginTop: "16px" }}>
                   <thead>
                     <tr style={{ background: headBg, color: headText }}>
                       {itemColumns.map((h, i) => (
@@ -588,7 +589,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                   <div style={{ fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.8px", color: "#64748b", marginBottom: "6px" }}>
                     Transactions
                   </div>
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
+                  <table className="printable-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
                     <thead>
                       <tr style={{ background: "#f1f5f9", color: "#334155" }}>
                         {["Payment #", "Mode", "Date", "Amount"].map((h, i) => (

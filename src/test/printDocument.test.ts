@@ -19,6 +19,8 @@ describe("printDocument", () => {
     const host = document.createElement("div");
     host.innerHTML = buildPrintBody(doc(), true);
     const wrap = host.querySelector("table.print-wrap")!;
+    // Must carry printable-table, or index.css @media print hides its only column (= the whole document).
+    expect(wrap.classList.contains("printable-table")).toBe(true);
     expect(wrap.querySelector(":scope > thead [data-print-header]")?.textContent).toContain("ESTIMATE");
     expect(host.querySelectorAll("[data-print-header]")).toHaveLength(1);
     const body = wrap.querySelector(":scope > tbody")!;
