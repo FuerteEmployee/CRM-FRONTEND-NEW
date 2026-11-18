@@ -23,6 +23,8 @@ describe("printDocument", () => {
     expect(wrap.classList.contains("printable-table")).toBe(true);
     expect(wrap.querySelector(":scope > thead [data-print-header]")?.textContent).toContain("ESTIMATE");
     expect(host.querySelectorAll("[data-print-header]")).toHaveLength(1);
+    // A blank row under the header = space before the column names on page 2+.
+    expect(wrap.querySelector(":scope > thead > tr.print-gap")).not.toBeNull();
     const body = wrap.querySelector(":scope > tbody")!;
     expect(body.querySelector("[data-print-items]")).not.toBeNull();
     expect(body.querySelector("[data-print-keep]")?.textContent).toContain("GRAND TOTAL");
@@ -47,5 +49,8 @@ describe("printDocument", () => {
     expect(css).toContain("[data-print-keep]{break-inside:avoid;page-break-inside:avoid}");
     expect(css).toContain("[data-print-items]tr{break-inside:avoid;page-break-inside:avoid}");
     expect(css).toContain(".print-wrap>tbody>tr{break-inside:auto;page-break-inside:auto}");
+    // Gap on page 2+, and page 1 pulled back up by the same amount (unchanged look).
+    expect(css).toContain(".print-wrap>thead>tr.print-gap>td{height:18px;padding:0}");
+    expect(css).toContain(".print-wrap>tbody>tr>td>:first-child{margin-top:-18px}");
   });
 });
