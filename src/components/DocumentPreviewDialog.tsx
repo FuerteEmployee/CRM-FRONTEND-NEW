@@ -21,6 +21,7 @@ import { settingsService } from "@/api/services/settings.service";
 import { customerBillingParts } from "@/lib/customerAutofill";
 import { getCompanyInfo, companyInfoLines } from "@/lib/companyInfo";
 import { getDocDisplayOptions, trimZeroDecimals, stripCurrencySymbol, itemTaxLabel, amountInWords, saleAgentName, projectName, settingOn } from "@/lib/invoiceDisplay";
+import { buildPrintBody, PRINT_LAYOUT_CSS } from "@/lib/printDocument";
 
 interface DocumentPreviewDialogProps {
   open: boolean;
@@ -255,6 +256,9 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
   );
 
   // ─── Print handler ───────────────────────────────────────────────────────
+  // Estimates: the top header (company, ESTIMATE, number) is printed again on
+  // every page of a long estimate (lib/printDocument.ts).
+  const repeatHeaderOnPages = isEstimate && !showLetterhead && !showEkagraTaxInvoice && !showClassicInvoice;
   const handlePrint = () => {
     const el = document.getElementById("official-invoice-printable");
     if (!el) return;
@@ -270,8 +274,9 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
       body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#111;background:#fff}
       @page{size:${pdfPageSize};margin:12mm 14mm${pdfShowPageNumber ? ";@bottom-right{content:\"Page \" counter(page) \" of \" counter(pages);font-size:9px;color:#64748b}" : ""}}
       .no-print{display:none!important}
+      ${PRINT_LAYOUT_CSS}
     </style>
-    </head><body>${el.innerHTML}</body></html>`);
+    </head><body>${buildPrintBody(el, repeatHeaderOnPages)}</body></html>`);
     doc.close();
     Array.from(document.head.querySelectorAll("style,link[rel='stylesheet']")).forEach(s => doc.head.appendChild(s.cloneNode(true)));
     // Print exactly ONCE: either when every stylesheet has loaded, or after the
@@ -376,8 +381,8 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                 <ClassicInvoiceLayout data={data} date={date} companyName={companyName} compPhone={compPhone} />
               ) : (
               <>
-              {/* ── Invoice Header ── */}
-              <div style={{ background: "linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%)", padding: "28px 32px 20px", color: "#fff" }}>
+              {/* ── Invoice Header ── (data-print-header: repeated on every printed page of an estimate) */}
+              <div data-print-header="" style={{ background: "linear-gradient(135deg,#1e3a5f 0%,#2563eb 100%)", padding: "28px 32px 20px", color: "#fff" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   {/* Company */}
                   <div>
@@ -462,7 +467,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
 
               {/* ── Items Table ── */}
               <div style={{ padding: "0 32px 0" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "16px" }}>
+                <table data-print-items="" style={{ width: "100%", borderCollapse: "collapse", marginTop: "16px" }}>
                   <thead>
                     <tr style={{ background: headBg, color: headText }}>
                       {itemColumns.map((h, i) => (
@@ -504,8 +509,8 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
                 </table>
               </div>
 
-              {/* ── Totals ── */}
-              <div style={{ display: "flex", justifyContent: "flex-end", padding: "16px 32px 8px" }}>
+              {/* ── Totals ── (data-print-keep: Sub Total … GRAND TOTAL always print together on one page) */}
+              <div data-print-keep="" style={{ display: "flex", justifyContent: "flex-end", padding: "16px 32px 8px" }}>
                 <div style={{ width: "280px" }}>
                   {/* Standard totals */}
                   {isRudraverse && (data.tax_type || data.total_cgst || data.total_sgst || data.total_igst) ? (
@@ -554,14 +559,14 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
 
               {/* ── Amount in words (Setup > Settings > Finance > Amount to words) ── */}
               {D.amountToWords && (
-                <div style={{ padding: "0 32px 12px", fontSize: "11px", color: "#475569" }}>
+                <div data-print-keep="" style={{ padding: "0 32px 12px", fontSize: "11px", color: "#475569" }}>
                   <b>Amount in words:</b> {amountInWords(isRudraverse && (data.tax_type || data.total_cgst || data.total_sgst || data.total_igst) ? roundedTotal : total, D)}
                 </div>
               )}
 
               {/* ── Notes / Terms ── (invoices keep the client note in `notes`) */}
               {(data.clientnote || data.notes || data.terms) && (
-                <div style={{ padding: "0 32px 20px", display: "flex", gap: "20px" }}>
+                <div data-print-keep="" style={{ padding: "0 32px 20px", display: "flex", gap: "20px" }}>
                   {(data.clientnote || data.notes) && (
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.8px", color: "#64748b", marginBottom: "4px" }}>Notes</div>
@@ -607,7 +612,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
 
               {/* ── Bank Details ── */}
               {bankDetail && (
-                <div style={{ padding: "0 32px 20px" }}>
+                <div data-print-keep="" style={{ padding: "0 32px 20px" }}>
                   <div style={{ fontSize: "9px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.8px", color: "#64748b", marginBottom: "6px" }}>
                     Payment / Bank Details
                   </div>
@@ -622,7 +627,7 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
 
               {/* ── Signature (Setup > Settings > PDF > "Show PDF Signature on …") ── */}
               {showSignature && (
-                <div style={{ padding: "0 32px 20px", display: "flex", justifyContent: "flex-end" }}>
+                <div data-print-keep="" style={{ padding: "0 32px 20px", display: "flex", justifyContent: "flex-end" }}>
                   <div style={{ textAlign: "center", minWidth: "180px" }}>
                     <img src={resolveImageUrl(pdfSignature)} alt="Signature" style={{ maxHeight: "70px", maxWidth: "200px", objectFit: "contain", display: "block", margin: "0 auto 4px" }} />
                     <div style={{ borderTop: "1px solid #94a3b8", paddingTop: "4px", fontSize: "10px", color: "#475569" }}>Authorised Signatory{S.companyName ? ` — ${S.companyName}` : ""}</div>
