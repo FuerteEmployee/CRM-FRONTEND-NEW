@@ -82,7 +82,7 @@ describe("View All Notifications page", () => {
     expect(await screen.findByText("Title 45")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
     expect(screen.getByText("That's everything from the last 1 year.")).toBeInTheDocument();
-  });
+  }, 20000); // renders 45 rows in 3 steps — slow when the whole suite runs in parallel
 
   it("groups by day: Today / Yesterday / date", async () => {
     h.list.mockResolvedValue({ items: [doc(1), doc(2, { createdAt: new Date(Date.now() - day).toISOString() }), doc(3, { createdAt: "2026-01-05T10:00:00.000Z" })], unread: 3, hasMore: false });

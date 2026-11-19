@@ -68,6 +68,7 @@ import { useSettings } from "@/context/SettingsContext";
 import { getCompanyInfo, companyInfoHtml } from "@/lib/companyInfo";
 import { getDocDisplayOptions, trimZeroDecimals, stripCurrencySymbol, itemTaxLabel, amountInWords, saleAgentName, projectName } from "@/lib/invoiceDisplay";
 import { htmlToPdf, htmlToPdfBase64 } from "@/lib/htmlToPdf";
+import { wrapPrintHtml, PRINT_LAYOUT_CSS } from "@/lib/printDocument";
 import { escapeHtml } from "@/lib/richText";
 import { canAccessBankDetails } from "@/lib/bankDetailsAccess";
 import { isEkagraUser } from "@/lib/ekagraTenant";
@@ -131,7 +132,7 @@ const getStatus = (statusId: any) => {
 
 const DETAIL_TABS = ["Invoice", "Comments", "Reminders", "Tasks", "Notes", "Templates"];
 
-const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, setIsFullscreen, autoOpenEmail = false, emailOnly = false }: {
+export const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, setIsFullscreen, autoOpenEmail = false, emailOnly = false }: {
   invoice: any;
   onClose: () => void;
   onEdit: () => void;
@@ -423,7 +424,7 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
     const bd = d.bank_detail;
     const bankDetailsHtml = (canUseBankDetails && bd)
       ? `
-          <div class="bank-details">
+          <div class="bank-details" data-print-keep>
             <div class="bank-details-title">Payment / Bank Details</div>
             <div class="bank-details-row">
               <b>${esc(bd.accountHolderName || "—")}</b><br/>
@@ -458,10 +459,12 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
               body { padding: 0; }
               @page { margin: 2cm; }
             }
+            ${PRINT_LAYOUT_CSS}
           </style>
         </head>
         <body>
-          <div class="header">
+          ${wrapPrintHtml(`
+          <div class="header" data-print-header>
             <div>
               <div class="title">${esc(invoiceNumber)}</div>
               <div class="company">${esc(companyName)}</div>${companyInfoBlock}
@@ -476,11 +479,11 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
                 <b>Status:</b> ${status.label}
               </div>
             </div>
-          </div>
+          </div>`, `
 
           ${pdfMetaHtml}
 
-          <table>
+          <table class="printable-table" data-print-items>
             <thead>
               <tr>
                 <th>Item</th>
@@ -503,7 +506,7 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
             </tbody>
           </table>
 
-          <div class="totals">
+          <div class="totals" data-print-keep>
             ${d.subtotal !== undefined ? `
               <div class="totals-row">
                 <span>Subtotal</span>
@@ -522,11 +525,12 @@ const InvoiceDetailPanel = ({ invoice, onClose, onEdit, onView, isFullscreen, se
             ${D.showAmountDue ? `<div class="totals-row grand"><span>Amount Due</span><span>${money(Math.max(Number(d.total || 0) - pdfPaid - pdfCredits, 0))}</span></div>` : ""}
           </div>
 
-          ${D.amountToWords ? `<div style="clear: both; padding-top: 16px; font-size: 13px; color: #334155;"><b>Amount in words:</b> ${esc(amountInWords(Number(d.total || 0), D))}</div>` : ""}
-          ${d.notes ? `<div style="clear: both; margin-top: 24px; font-size: 13px;"><div class="bank-details-title">Notes</div><div style="white-space: pre-wrap; color: #334155;">${esc(d.notes)}</div></div>` : ""}
-          ${d.terms ? `<div style="clear: both; margin-top: 16px; font-size: 13px;"><div class="bank-details-title">Terms &amp; Conditions</div><div style="white-space: pre-wrap; color: #334155;">${esc(d.terms)}</div></div>` : ""}
+          ${D.amountToWords ? `<div data-print-keep style="clear: both; padding-top: 16px; font-size: 13px; color: #334155;"><b>Amount in words:</b> ${esc(amountInWords(Number(d.total || 0), D))}</div>` : ""}
+          ${d.notes ? `<div data-print-keep style="clear: both; margin-top: 24px; font-size: 13px;"><div class="bank-details-title">Notes</div><div style="white-space: pre-wrap; color: #334155;">${esc(d.notes)}</div></div>` : ""}
+          ${d.terms ? `<div data-print-keep style="clear: both; margin-top: 16px; font-size: 13px;"><div class="bank-details-title">Terms &amp; Conditions</div><div style="white-space: pre-wrap; color: #334155;">${esc(d.terms)}</div></div>` : ""}
 
           ${bankDetailsHtml}
+          <div style="clear: both;"></div>`, 0)}
         </body>
       </html>
     `;

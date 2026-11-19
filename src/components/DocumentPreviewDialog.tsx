@@ -256,9 +256,10 @@ export function DocumentPreviewDialog({ open, onOpenChange, type, data }: Docume
   );
 
   // ─── Print handler ───────────────────────────────────────────────────────
-  // Estimates: the top header (company, ESTIMATE, number) is printed again on
-  // every page of a long estimate (lib/printDocument.ts).
-  const repeatHeaderOnPages = isEstimate && !showLetterhead && !showEkagraTaxInvoice && !showClassicInvoice;
+  // Invoice / Estimate / Proposal: the top header (company, title, number) is
+  // printed again on every page of a long document (lib/printDocument.ts). The
+  // special invoice formats (Letterhead, Ekagra, Classic) keep their own design.
+  const repeatHeaderOnPages = !showLetterhead && !showEkagraTaxInvoice && !showClassicInvoice;
   const handlePrint = () => {
     const el = document.getElementById("official-invoice-printable");
     if (!el) return;

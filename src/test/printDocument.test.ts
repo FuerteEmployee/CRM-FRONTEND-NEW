@@ -1,8 +1,8 @@
-// Estimate Print / PDF: the header is repeated on every page and the totals /
-// item rows are never split across pages (lib/printDocument.ts). Checked in
-// Chrome on real A4 PDFs during development; here the HTML/CSS contract.
+// Multi-page Print / PDF of invoices, estimates and proposals (lib/printDocument.ts).
+// The real page layout was checked in Chrome on A4 PDFs during development; these
+// tests pin the HTML/CSS contract.
 import { describe, it, expect } from "vitest";
-import { buildPrintBody, PRINT_LAYOUT_CSS } from "@/lib/printDocument";
+import { buildPrintBody, wrapPrintHtml, PRINT_LAYOUT_CSS, PRINT_HEADER_GAP_PX } from "@/lib/printDocument";
 
 const doc = () => {
   const root = document.createElement("div");
@@ -25,7 +25,7 @@ describe("printDocument", () => {
     expect(host.querySelectorAll("[data-print-header]")).toHaveLength(1);
     // A blank row under the header = space before the column names on page 2+.
     expect(wrap.querySelector(":scope > thead > tr.print-gap")).not.toBeNull();
-    const body = wrap.querySelector(":scope > tbody")!;
+    const body = wrap.querySelector(":scope > tbody .print-body")!;
     expect(body.querySelector("[data-print-items]")).not.toBeNull();
     expect(body.querySelector("[data-print-keep]")?.textContent).toContain("GRAND TOTAL");
   });
@@ -43,14 +43,19 @@ describe("printDocument", () => {
     expect(buildPrintBody(root, true)).toBe(root.innerHTML);
   });
 
-  it("CSS: header group repeats, totals / item rows never split, the big wrapper row may split", () => {
+  it("wrapPrintHtml takes the gap size (0 for a header that has its own bottom margin)", () => {
+    expect(wrapPrintHtml("<h1>H</h1>", "<p>B</p>", 0)).toContain('style="--print-gap:0px"');
+    expect(wrapPrintHtml("<h1>H</h1>", "<p>B</p>")).toContain(`--print-gap:${PRINT_HEADER_GAP_PX}px`);
+  });
+
+  it("CSS: header group repeats, totals / item rows never split, the big wrapper row may split, page 1 unchanged", () => {
     const css = PRINT_LAYOUT_CSS.replace(/\s+/g, "");
     expect(css).toContain(".print-wrap>thead{display:table-header-group}");
     expect(css).toContain("[data-print-keep]{break-inside:avoid;page-break-inside:avoid}");
     expect(css).toContain("[data-print-items]tr{break-inside:avoid;page-break-inside:avoid}");
     expect(css).toContain(".print-wrap>tbody>tr{break-inside:auto;page-break-inside:auto}");
-    // Gap on page 2+, and page 1 pulled back up by the same amount (unchanged look).
-    expect(css).toContain(".print-wrap>thead>tr.print-gap>td{height:18px;padding:0}");
-    expect(css).toContain(".print-wrap>tbody>tr>td>:first-child{margin-top:-18px}");
+    expect(css).toContain(".print-wrap>thead>tr.print-gap>td{height:var(--print-gap,18px)}");
+    // the body moves up by exactly the gap on page 1
+    expect(css).toContain(".print-body{margin-top:calc(-1*var(--print-gap,18px));padding-top:.1px}");
   });
 });
